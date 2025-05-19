@@ -95,7 +95,7 @@ export default function ConversationDetailPage({ params }: { params: { id: strin
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {conceptsInConversation.map(
-            (concept) => concept && <ConceptCard key={concept.id} concept={concept} showDescription={true} />,
+            (concept) => concept && <ConceptCard key={concept.id} concept={concept} showDescription={true} showRelatedConcepts={true} />,
           )}
         </div>
       </div>

@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CategoryHierarchy")
+  concepts  Concept[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Concept {
+  id              String        @id @default(uuid())
+  title           String
+  category        String
+  summary         String
+  details         String // Store as JSON string
+  keyPoints       String // Store as JSON string
+  examples        String // Store as JSON string
+  codeSnippets    CodeSnippet[]
+  relatedConcepts String // Store as JSON string
+  relationships   String // Store as JSON string
+  confidenceScore Float
+  lastUpdated     DateTime
+  conversation    Conversation  @relation(fields: [conversationId], references: [id])
+  conversationId  String
+  categories      Category[]
+  occurrences     Occurrence[]
+}
+
+model Conversation {
+  id          String       @id @default(uuid())
+  text        String
+  summary     String
+  createdAt   DateTime     @default(now())
+  concepts    Concept[]
+  occurrences Occurrence[]
+}
+
+model Occurrence {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conceptId      String
+  concept        Concept      @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model CodeSnippet {
+  id          String  @id @default(uuid())
+  language    String
+  description String
+  code        String
+  concept     Concept @relation(fields: [conceptId], references: [id])
+  conceptId   String
+}

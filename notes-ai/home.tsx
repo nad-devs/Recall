@@ -567,13 +567,7 @@ function QuizSummary({ remembered, review, onRestart }: QuizSummaryProps) {
               ? "Great job! You've remembered all topics."
               : "Keep practicing the topics marked for review."}
           </p>
-          <div className="flex justify-center gap-4">
-            <Button variant="outline" asChild>
-              <Link href="/concepts">
-                <BookOpen className="mr-2 h-4 w-4" />
-                Browse All Concepts
-              </Link>
-            </Button>
+          <div className="flex justify-center">
             <Button>Save Results</Button>
           </div>
         </div>

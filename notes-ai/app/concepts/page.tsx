@@ -5,18 +5,38 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConceptCard } from "@/components/concept-card"
 import { BookOpen, Search, ArrowLeft, Tag } from "lucide-react"
-import { dummyConcepts } from "@/lib/dummy-data"
+import { prisma } from "@/lib/prisma"
 
 export const metadata: Metadata = {
   title: "All Concepts | ChatMapper",
   description: "Browse all your learning concepts",
 }
 
-export default function ConceptsPage() {
-  // Group concepts by category
-  const conceptsByCategory: Record<string, typeof dummyConcepts> = {}
+export default async function ConceptsPage() {
+  // Fetch concepts from the database
+  const concepts = await prisma.concept.findMany({
+    include: {
+      occurrences: true,
+    },
+    orderBy: {
+      title: 'asc',
+    },
+  });
 
-  dummyConcepts.forEach((concept) => {
+  // Format concepts for the UI
+  const formattedConcepts = concepts.map(concept => ({
+    id: concept.id,
+    title: concept.title,
+    category: concept.category,
+    notes: concept.summary,
+    discussedInConversations: concept.occurrences.map(o => o.conversationId),
+    needsReview: concept.confidenceScore < 0.7
+  }));
+
+  // Group concepts by category
+  const conceptsByCategory: Record<string, any[]> = {}
+
+  formattedConcepts.forEach((concept) => {
     if (!conceptsByCategory[concept.category]) {
       conceptsByCategory[concept.category] = []
     }
@@ -65,29 +85,51 @@ export default function ConceptsPage() {
         </TabsList>
 
         <TabsContent value="byCategory" className="space-y-6 mt-6">
-          {sortedCategories.map((category) => (
-            <div key={category} className="space-y-4">
-              <h2 className="text-xl font-semibold flex items-center">
-                <Tag className="mr-2 h-5 w-5 text-primary" />
-                {category}
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {conceptsByCategory[category].map((concept) => (
-                  <ConceptCard key={concept.id} concept={concept} />
-                ))}
+          {sortedCategories.length > 0 ? (
+            sortedCategories.map((category) => (
+              <div key={category} className="space-y-4">
+                <h2 className="text-xl font-semibold flex items-center">
+                  <Tag className="mr-2 h-5 w-5 text-primary" />
+                  {category}
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {conceptsByCategory[category].map((concept) => (
+                    <ConceptCard 
+                      key={concept.id} 
+                      concept={concept} 
+                      showDescription={true}
+                      showRelatedConcepts={true}
+                    />
+                  ))}
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No concepts found. Analyze some conversations to get started!
             </div>
-          ))}
+          )}
         </TabsContent>
 
         <TabsContent value="alphabetical" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...dummyConcepts]
-              .sort((a, b) => a.title.localeCompare(b.title))
-              .map((concept) => (
-                <ConceptCard key={concept.id} concept={concept} />
-              ))}
-          </div>
+          {formattedConcepts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {formattedConcepts
+                .sort((a, b) => a.title.localeCompare(b.title))
+                .map((concept) => (
+                  <ConceptCard 
+                    key={concept.id} 
+                    concept={concept} 
+                    showDescription={true}
+                    showRelatedConcepts={false}
+                  />
+                ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No concepts found. Analyze some conversations to get started!
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

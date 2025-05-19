@@ -4,15 +4,16 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, ArrowRight, BookOpen } from "lucide-react"
+import { MessageSquare, ArrowRight, BookOpen, ExternalLink } from "lucide-react"
 
 interface ConceptCardProps {
   concept: any
   showDescription?: boolean
+  showRelatedConcepts?: boolean
 }
 
-export function ConceptCard({ concept, showDescription = false }: ConceptCardProps) {
-  const { id, title, category, notes, discussedInConversations, needsReview } = concept
+export function ConceptCard({ concept, showDescription = false, showRelatedConcepts = false }: ConceptCardProps) {
+  const { id, title, category, notes, discussedInConversations, needsReview, relatedConcepts } = concept
 
   return (
     <Card
@@ -37,11 +38,29 @@ export function ConceptCard({ concept, showDescription = false }: ConceptCardPro
           <CardDescription className="line-clamp-2">{notes.substring(0, 120)}...</CardDescription>
         )}
       </CardHeader>
-      <CardContent className="pb-2">
+      <CardContent className="pb-2 space-y-2">
         <div className="flex items-center text-sm text-muted-foreground">
           <MessageSquare className="mr-1 h-3 w-3" />
-          Discussed in {discussedInConversations.length} conversation{discussedInConversations.length !== 1 ? "s" : ""}
+          Discussed in {discussedInConversations?.length || 0} conversation{discussedInConversations?.length !== 1 ? "s" : ""}
         </div>
+        
+        {showRelatedConcepts && relatedConcepts && relatedConcepts.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center text-sm font-medium">
+              <ExternalLink className="mr-1 h-3 w-3 text-primary" />
+              Related Concepts
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {relatedConcepts.map((related: any, i: number) => (
+                <Badge key={i} variant="outline" className="text-xs">
+                  <Link href={`/concepts/${typeof related === 'string' ? related : related.id}`}>
+                    {typeof related === 'string' ? related : related.title}
+                  </Link>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="pt-2 flex justify-between">
         <Button variant="outline" size="sm" asChild>

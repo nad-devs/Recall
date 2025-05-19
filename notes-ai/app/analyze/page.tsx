@@ -304,6 +304,50 @@ export default function AnalyzePage() {
   // Add state for tab selection
   const [selectedTab, setSelectedTab] = useState("summary")
 
+  // Add state for save functionality
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Add save handler
+  const handleSaveConversation = async () => {
+    if (!analysisResult) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const response = await fetch('/api/saveConversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation_text: conversationText,
+          analysis: analysisResult,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save conversation');
+      }
+
+      const data = await response.json();
+      
+      // Use the redirect URL from the API response
+      if (data.redirectTo) {
+        window.location.href = data.redirectTo;
+      } else {
+        // Fallback to concepts page
+        window.location.href = '/concepts';
+      }
+    } catch (error) {
+      setSaveError('Failed to save conversation. Please try again.');
+      console.error('Error saving conversation:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Handler for analyze button click
   const handleAnalyze = async () => {
     if (!conversationText.trim()) return;
@@ -1004,6 +1048,72 @@ export default function AnalyzePage() {
               animate={{ x: 0, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
+              {/* Add save button at the top of the results view */}
+              {analysisResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-end mb-4"
+                >
+                  <button
+                    onClick={handleSaveConversation}
+                    disabled={isSaving}
+                    className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mr-2 h-4 w-4 animate-spin"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mr-2 h-4 w-4"
+                        >
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                          <polyline points="17 21 17 13 7 13 7 21" />
+                          <polyline points="7 3 7 8 15 8" />
+                        </svg>
+                        Save Conversation
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              )}
+
+              {saveError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-destructive/15 text-destructive px-4 py-2 rounded-md text-sm mb-4"
+                >
+                  {saveError}
+                </motion.div>
+              )}
+
               {selectedConcept ? (
                 <>
                   {/* Selected concept details */}

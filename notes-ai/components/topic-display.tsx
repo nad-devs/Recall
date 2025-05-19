@@ -2,10 +2,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Code, Map, Tag, Save } from "lucide-react"
+import { BookOpen, Code, Map, Tag, Save, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
+import { useState } from "react"
 
 interface TopicDisplayProps {
   results: any
@@ -14,14 +15,64 @@ interface TopicDisplayProps {
 export function TopicDisplay({ results }: TopicDisplayProps) {
   const { learningSummary, keyTopics, category, conceptsMap, codeAnalysis, studyNotes } = results
   const { toast } = useToast()
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = () => {
-    // In a real app, this would save to a database
-    toast({
-      title: "Analysis Saved",
-      description: "Your learning has been saved to your dashboard.",
-      duration: 3000,
-    })
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      console.log("Saving analysis with data:", results)
+      console.log("Payload:", JSON.stringify({
+        conversation_text: results.originalConversationText,
+        analysis: results,
+      }, null, 2))
+      const response = await fetch('/api/saveConversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation_text: results.originalConversationText,
+          analysis: results,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save analysis')
+      }
+      
+      const data = await response.json();
+      
+      if (data.alreadyExists) {
+        toast({
+          title: "Already Saved",
+          description: "This analysis was already saved. View it in your dashboard.",
+          duration: 3000,
+        })
+      } else {
+        toast({
+          title: "Analysis Saved",
+          description: "Your learning has been saved to your dashboard.",
+          duration: 3000,
+        })
+        
+        // Redirect to the concepts page
+        if (data.redirectTo) {
+          window.location.href = data.redirectTo;
+        } else {
+          window.location.href = '/concepts';
+        }
+      }
+    } catch (error) {
+      console.error('Error saving analysis:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save analysis. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -71,7 +122,7 @@ export function TopicDisplay({ results }: TopicDisplayProps) {
                   <Tag className="mr-2 h-4 w-4" /> Key Topics
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {keyTopics.map((topic, index) => (
+                  {keyTopics.map((topic: string, index: number) => (
                     <Badge key={index} variant="secondary" className="text-sm py-1">
                       {topic}
                     </Badge>
@@ -119,12 +170,19 @@ export function TopicDisplay({ results }: TopicDisplayProps) {
         </Tabs>
       </CardContent>
       <CardFooter className="flex justify-end border-t pt-4">
-        <Link href="/">
-          <Button onClick={handleSave} className="flex items-center">
-            <Save className="mr-2 h-4 w-4" />
-            Save to Dashboard
-          </Button>
-        </Link>
+        <Button onClick={handleSave} disabled={isSaving} className="flex items-center">
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Save to Dashboard
+            </>
+          )}
+        </Button>
       </CardFooter>
     </Card>
   )
