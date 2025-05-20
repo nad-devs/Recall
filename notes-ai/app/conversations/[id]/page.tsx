@@ -8,6 +8,7 @@ import { ConceptCard } from "@/components/concept-card"
 import { ArrowLeft, Calendar, MessageSquare, Code, BookOpen } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import { dummyConversations, dummyConcepts } from "@/lib/dummy-data"
+import { formatRelatedConcept } from "@/lib/utils"
 
 export const metadata: Metadata = {
   title: "Conversation Details | ChatMapper",
@@ -74,7 +75,7 @@ export default function ConversationDetailPage({ params }: { params: { id: strin
                   <Badge variant="outline">{snippet.language}</Badge>
                   {snippet.conceptId && (
                     <Badge variant="secondary">
-                      Related to: {dummyConcepts.find((c) => c.id === snippet.conceptId)?.title || "Unknown concept"}
+                      Related to: {formatRelatedConcept(dummyConcepts.find((c) => c.id === snippet.conceptId) || "Unknown concept")}
                     </Badge>
                   )}
                 </div>

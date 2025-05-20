@@ -75,9 +75,18 @@ export async function GET(
         parsedRelatedConcepts.forEach(item => {
           if (typeof item === 'string') {
             tempArr.push({ title: item });
-          } else if (typeof item === 'object') {
-            if (typeof item.id === 'string') tempArr.push({ id: item.id });
-            else if (typeof item.title === 'string') tempArr.push({ title: item.title });
+          } else if (typeof item === 'object' && item !== null) {
+            // Ensure we have either an ID or title
+            if (item.id && typeof item.id === 'string') {
+              // Include the title if we have it
+              if (item.title && typeof item.title === 'string') {
+                tempArr.push({ id: item.id, title: item.title });
+              } else {
+                tempArr.push({ id: item.id });
+              }
+            } else if (item.title && typeof item.title === 'string') {
+              tempArr.push({ title: item.title });
+            }
           }
         });
         relatedConceptData = tempArr;
@@ -92,6 +101,12 @@ export async function GET(
           .filter(item => item.title.length > 0);
       }
     }
+
+    // Filter out any invalid entries
+    relatedConceptData = relatedConceptData.filter(item => 
+      (item.id && typeof item.id === 'string') || 
+      (item.title && typeof item.title === 'string')
+    );
 
     const codeSnippets = (concept.codeSnippets || []).filter(
       (s) => s.code && s.code.trim().length > 0
@@ -209,6 +224,372 @@ export async function GET(
     console.error('Error fetching concept:', error);
     return NextResponse.json(
       { error: 'Failed to fetch concept' },
+      { status: 500 }
+    );
+  }
+}
+
+// Add PUT method to update concept properties
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Resolve params
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
+    // Get the request body
+    const data = await request.json();
+    
+    // Check if the concept exists
+    const existingConcept = await prisma.concept.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        relatedConcepts: true
+      }
+    });
+
+    if (!existingConcept) {
+      return NextResponse.json(
+        { error: 'Concept not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Handle related concepts bidirectional relationships
+    if (data.relatedConcepts) {
+      let newRelatedConcepts;
+      
+      // Parse the new related concepts
+      try {
+        if (typeof data.relatedConcepts === 'string') {
+          newRelatedConcepts = JSON.parse(data.relatedConcepts);
+        } else {
+          newRelatedConcepts = data.relatedConcepts;
+        }
+        
+        // Ensure it's an array
+        if (!Array.isArray(newRelatedConcepts)) {
+          if (typeof newRelatedConcepts === 'string') {
+            newRelatedConcepts = [newRelatedConcepts];
+          } else if (typeof newRelatedConcepts === 'object') {
+            newRelatedConcepts = [newRelatedConcepts];
+          } else {
+            newRelatedConcepts = [];
+          }
+        }
+        
+        // Get the existing related concepts
+        let existingRelatedConcepts = [];
+        try {
+          existingRelatedConcepts = JSON.parse(existingConcept.relatedConcepts || '[]');
+          if (!Array.isArray(existingRelatedConcepts)) {
+            existingRelatedConcepts = [];
+          }
+        } catch {
+          existingRelatedConcepts = [];
+        }
+        
+        // Find concepts that are being removed
+        const removedRelatedConcepts = existingRelatedConcepts.filter(existing => {
+          // Check if the existing concept is not in the new list
+          return !newRelatedConcepts.some(newItem => {
+            if (typeof existing === 'string' && typeof newItem === 'string') {
+              return existing === newItem;
+            } else if (typeof existing === 'object' && typeof newItem === 'object') {
+              return existing.id === newItem.id;
+            } else if (typeof existing === 'string' && typeof newItem === 'object') {
+              return existing === newItem.title;
+            } else if (typeof existing === 'object' && typeof newItem === 'string') {
+              return existing.title === newItem;
+            }
+            return false;
+          });
+        });
+        
+        // Find concepts that are being added
+        const addedRelatedConcepts = newRelatedConcepts.filter(newItem => {
+          // Check if the new concept is not in the existing list
+          return !existingRelatedConcepts.some(existing => {
+            if (typeof existing === 'string' && typeof newItem === 'string') {
+              return existing === newItem;
+            } else if (typeof existing === 'object' && typeof newItem === 'object') {
+              return existing.id === newItem.id;
+            } else if (typeof existing === 'string' && typeof newItem === 'object') {
+              return existing === newItem.title;
+            } else if (typeof existing === 'object' && typeof newItem === 'string') {
+              return existing.title === newItem;
+            }
+            return false;
+          });
+        });
+        
+        // Process removals - remove reverse relationships
+        for (const removed of removedRelatedConcepts) {
+          let removedId;
+          let removedTitle;
+          
+          if (typeof removed === 'string') {
+            removedTitle = removed;
+            // Find the concept by title
+            const relatedConcept = await prisma.concept.findFirst({
+              where: { title: removed },
+              select: { id: true, relatedConcepts: true }
+            });
+            if (relatedConcept) {
+              removedId = relatedConcept.id;
+              
+              // Remove the reverse relationship
+              try {
+                let reverseRelated = JSON.parse(relatedConcept.relatedConcepts || '[]');
+                if (!Array.isArray(reverseRelated)) {
+                  reverseRelated = [];
+                }
+                
+                // Filter out the relationship
+                reverseRelated = reverseRelated.filter(rel => {
+                  if (typeof rel === 'string') {
+                    return rel !== existingConcept.title;
+                  } else if (typeof rel === 'object') {
+                    return rel.id !== existingConcept.id;
+                  }
+                  return true;
+                });
+                
+                // Update the related concept
+                await prisma.concept.update({
+                  where: { id: removedId },
+                  data: { relatedConcepts: JSON.stringify(reverseRelated) }
+                });
+              } catch (error) {
+                console.error("Error updating reverse relationship:", error);
+              }
+            }
+          } else if (typeof removed === 'object' && removed.id) {
+            removedId = removed.id;
+            
+            // Get the related concept
+            const relatedConcept = await prisma.concept.findUnique({
+              where: { id: removedId },
+              select: { relatedConcepts: true }
+            });
+            
+            if (relatedConcept) {
+              // Remove the reverse relationship
+              try {
+                let reverseRelated = JSON.parse(relatedConcept.relatedConcepts || '[]');
+                if (!Array.isArray(reverseRelated)) {
+                  reverseRelated = [];
+                }
+                
+                // Filter out the relationship
+                reverseRelated = reverseRelated.filter(rel => {
+                  if (typeof rel === 'string') {
+                    return rel !== existingConcept.title;
+                  } else if (typeof rel === 'object') {
+                    return rel.id !== existingConcept.id;
+                  }
+                  return true;
+                });
+                
+                // Update the related concept
+                await prisma.concept.update({
+                  where: { id: removedId },
+                  data: { relatedConcepts: JSON.stringify(reverseRelated) }
+                });
+              } catch (error) {
+                console.error("Error updating reverse relationship:", error);
+              }
+            }
+          }
+        }
+        
+        // Process additions - create reverse relationships
+        for (const added of addedRelatedConcepts) {
+          let addedId;
+          let addedTitle;
+          
+          if (typeof added === 'string') {
+            addedTitle = added;
+            // Find the concept by title
+            const relatedConcept = await prisma.concept.findFirst({
+              where: { title: added },
+              select: { id: true, title: true, relatedConcepts: true }
+            });
+            
+            if (relatedConcept) {
+              addedId = relatedConcept.id;
+              
+              // Add the reverse relationship
+              try {
+                let reverseRelated = [];
+                try {
+                  reverseRelated = JSON.parse(relatedConcept.relatedConcepts || '[]');
+                  if (!Array.isArray(reverseRelated)) {
+                    reverseRelated = [];
+                  }
+                } catch {
+                  reverseRelated = [];
+                }
+                
+                // Check if reverse relationship already exists
+                const reverseExists = reverseRelated.some(rel => {
+                  if (typeof rel === 'string') {
+                    return rel === existingConcept.title;
+                  } else if (typeof rel === 'object') {
+                    return rel.id === existingConcept.id;
+                  }
+                  return false;
+                });
+                
+                if (!reverseExists) {
+                  // Add current concept to related concept's relationships
+                  reverseRelated.push({ id: existingConcept.id, title: existingConcept.title });
+                  
+                  // Update the related concept
+                  await prisma.concept.update({
+                    where: { id: addedId },
+                    data: { relatedConcepts: JSON.stringify(reverseRelated) }
+                  });
+                }
+              } catch (error) {
+                console.error("Error updating reverse relationship:", error);
+              }
+            }
+          } else if (typeof added === 'object' && added.id) {
+            addedId = added.id;
+            
+            // Get the related concept
+            const relatedConcept = await prisma.concept.findUnique({
+              where: { id: addedId },
+              select: { id: true, title: true, relatedConcepts: true }
+            });
+            
+            if (relatedConcept) {
+              // Add the reverse relationship
+              try {
+                let reverseRelated = [];
+                try {
+                  reverseRelated = JSON.parse(relatedConcept.relatedConcepts || '[]');
+                  if (!Array.isArray(reverseRelated)) {
+                    reverseRelated = [];
+                  }
+                } catch {
+                  reverseRelated = [];
+                }
+                
+                // Check if reverse relationship already exists
+                const reverseExists = reverseRelated.some(rel => {
+                  if (typeof rel === 'string') {
+                    return rel === existingConcept.title;
+                  } else if (typeof rel === 'object') {
+                    return rel.id === existingConcept.id;
+                  }
+                  return false;
+                });
+                
+                if (!reverseExists) {
+                  // Add current concept to related concept's relationships
+                  reverseRelated.push({ id: existingConcept.id, title: existingConcept.title });
+                  
+                  // Update the related concept
+                  await prisma.concept.update({
+                    where: { id: addedId },
+                    data: { relatedConcepts: JSON.stringify(reverseRelated) }
+                  });
+                }
+              } catch (error) {
+                console.error("Error updating reverse relationship:", error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error processing related concepts:", error);
+      }
+    }
+
+    // Update the concept
+    const updatedConcept = await prisma.concept.update({
+      where: { id },
+      data: {
+        // Only allow specific fields to be updated
+        ...(data.category && { category: data.category }),
+        ...(data.title && { title: data.title }),
+        ...(data.summary && { summary: data.summary }),
+        // Only update other fields if they are provided in the correct format
+        ...(data.keyPoints && { keyPoints: typeof data.keyPoints === 'string' 
+          ? data.keyPoints 
+          : JSON.stringify(data.keyPoints) }),
+        ...(data.relatedConcepts && { relatedConcepts: typeof data.relatedConcepts === 'string'
+          ? data.relatedConcepts
+          : JSON.stringify(data.relatedConcepts) }),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      concept: {
+        id: updatedConcept.id,
+        title: updatedConcept.title,
+        category: updatedConcept.category,
+        summary: updatedConcept.summary,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating concept:', error);
+    return NextResponse.json(
+      { error: 'Failed to update concept' },
+      { status: 500 }
+    );
+  }
+}
+
+// Add DELETE method to remove a concept
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // Resolve params
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
+    
+    // Check if the concept exists
+    const existingConcept = await prisma.concept.findUnique({
+      where: { id },
+    });
+
+    if (!existingConcept) {
+      return NextResponse.json(
+        { error: 'Concept not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete related occurrences first to avoid foreign key constraints
+    await prisma.occurrence.deleteMany({
+      where: { conceptId: id },
+    });
+    
+    // Delete code snippets
+    await prisma.codeSnippet.deleteMany({
+      where: { conceptId: id },
+    });
+
+    // Delete the concept
+    await prisma.concept.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting concept:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete concept' },
       { status: 500 }
     );
   }

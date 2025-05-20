@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
   ArrowLeft, 
@@ -14,7 +14,8 @@ import {
   Calendar,
   Tag,
   Pencil,
-  ExternalLink
+  ExternalLink,
+  ArrowRight
 } from "lucide-react"
 import { format } from "date-fns"
 import { ConceptCard } from "@/components/concept-card"
@@ -104,7 +105,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
           {error || 'Concept not found'}
         </div>
         <Button variant="ghost" asChild className="mt-4">
-          <Link href="/dashboard">Return to Dashboard</Link>
+          <Link href="/">Return to Dashboard</Link>
         </Button>
       </div>
     )
@@ -124,7 +125,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <Button variant="ghost" size="icon" asChild className="mr-2">
-            <Link href="/dashboard">
+            <Link href="/">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -145,160 +146,176 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
         </Button>
       </div>
 
-      <div className="flex gap-4 border-b pb-2">
-        <Button 
-          variant={activeTab === 'notes' ? 'default' : 'ghost'} 
-          onClick={() => setActiveTab('notes')}
-          className="gap-2"
-        >
-          <BookOpen className="h-4 w-4" />
-          Concept Notes
-        </Button>
-        {codeSnippets.length > 0 && (
-          <Button 
-            variant={activeTab === 'code' ? 'default' : 'ghost'} 
-            onClick={() => setActiveTab('code')}
-            className="gap-2"
-          >
-            <Code className="h-4 w-4" />
-            Code Examples
-          </Button>
-        )}
-        {hasRelatedConcepts && (
-          <Button 
-            variant={activeTab === 'related' ? 'default' : 'ghost'} 
-            onClick={() => setActiveTab('related')}
-            className="gap-2"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Related Concepts
-          </Button>
-        )}
-      </div>
-
-      {activeTab === 'notes' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Concept Notes</CardTitle>
-            <CardDescription>Your consolidated understanding of this concept</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {concept.summary && (
-              <div className="text-base">{concept.summary}</div>
-            )}
-            {keyPoints.length > 0 && (
-              <div>
-                <h3 className="text-md font-semibold mb-2">Key Points:</h3>
-                <ul className="space-y-1 list-disc pl-5">
-                  {keyPoints.map((point, index) => (
-                    <li key={index} className="text-sm">
-                      {typeof point === 'string' ? point : JSON.stringify(point)}
-                    </li>
-                  ))}
-                </ul>
+      {/* Concept Notes Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center">
+            <BookOpen className="mr-2 h-5 w-5" />
+            <CardTitle>Concept Notes</CardTitle>
+          </div>
+          <CardDescription>Your consolidated understanding of this concept</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {concept.summary && (
+            <div className="text-base">{concept.summary}</div>
+          )}
+          {keyPoints.length > 0 && (
+            <div>
+              <h3 className="text-md font-semibold mb-2">Key Points:</h3>
+              <ul className="space-y-1 list-disc pl-5">
+                {keyPoints.map((point, index) => (
+                  <li key={index}>
+                    {typeof point === 'string' ? point : JSON.stringify(point)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {details && (
+            <div>
+              <h3 className="text-md font-semibold mb-2">Details:</h3>
+              <div className="space-y-2">
+                <p>{details}</p>
               </div>
-            )}
-            {details && (
-              <div>
-                <h3 className="text-md font-semibold mb-2">Details:</h3>
-                <div className="space-y-2 text-sm">
-                  <p>{details}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {activeTab === 'code' && codeSnippets.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Code Examples</CardTitle>
-            <CardDescription>Code snippets related to this concept</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Code Examples Section */}
+      {codeSnippets.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center mb-4">
+            <Code className="mr-2 h-5 w-5" />
+            <h2 className="text-xl font-semibold">Code Examples</h2>
+          </div>
+          
+          <div className="space-y-6">
             {codeSnippets.map((snippet, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline">{snippet.language}</Badge>
-                  {snippet.description && (
-                    <span className="text-sm text-muted-foreground">{snippet.description}</span>
-                  )}
-                </div>
-                <pre className="bg-muted p-4 rounded-md overflow-x-auto">
-                  <code>{snippet.code}</code>
-                </pre>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === 'related' && hasRelatedConcepts && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Related Concepts</CardTitle>
-              <CardDescription>Other concepts that relate to {concept.title}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {relatedConcepts.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {relatedConcepts.map((relatedConcept, idx) => (
-                    <ConceptCard 
-                      key={idx} 
-                      concept={relatedConcept} 
-                      showDescription={true}
-                    />
-                  ))}
-                </div>
-              ) : conceptRelatedConcepts.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground mb-2">These concepts are related but haven't been fully loaded:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {conceptRelatedConcepts.map((related, idx) => (
-                      <Badge key={idx} className="text-sm">
-                        <Link href={`/concept/${typeof related === 'string' ? 
-                          encodeURIComponent(related) : related.id}`}>
-                          {typeof related === 'string' ? related : related.title}
-                        </Link>
-                      </Badge>
-                    ))}
+              <Card key={index} className="overflow-hidden">
+                <CardHeader className="pb-2 bg-muted/50">
+                  <div className="flex justify-between items-center">
+                    <Badge variant="outline">{snippet.language}</Badge>
+                    {snippet.description && (
+                      <span className="text-sm text-muted-foreground">{snippet.description}</span>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No related concepts found.</p>
-              )}
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <pre className="p-4 overflow-x-auto">
+                    <code>{snippet.code}</code>
+                  </pre>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
-      {relatedConversations.length > 0 && (
-        <div className="space-y-4 mt-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            Conversations where this concept was discussed
-          </h2>
+      {/* Related Concepts Section */}
+      {hasRelatedConcepts && (
+        <div className="space-y-4">
+          <div className="flex items-center mb-4">
+            <ExternalLink className="mr-2 h-5 w-5" />
+            <h2 className="text-xl font-semibold">Related Concepts</h2>
+          </div>
+          
+          {relatedConcepts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {relatedConcepts.map((relatedConcept, idx) => (
+                <Card key={idx} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{relatedConcept.title}</CardTitle>
+                      {relatedConcept.category && <Badge>{relatedConcept.category}</Badge>}
+                    </div>
+                    {relatedConcept.summary && (
+                      <CardDescription className="line-clamp-2">{relatedConcept.summary}</CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardFooter className="pt-2">
+                    <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                      <Link href={`/concept/${relatedConcept.id}`}>
+                        View concept
+                        <ArrowRight className="ml-1 h-3 w-3" />
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : conceptRelatedConcepts.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground mb-2">These concepts are related:</p>
+              <div className="flex flex-wrap gap-2">
+                {conceptRelatedConcepts.map((related, idx) => {
+                  let displayTitle: string;
+                  let conceptId: string | undefined;
+                  
+                  // Handle different formats of related concepts
+                  if (typeof related === 'string') {
+                    displayTitle = related;
+                    conceptId = encodeURIComponent(related);
+                  } else if (typeof related === 'object' && related !== null) {
+                    displayTitle = related.title || (related.id ? 'Related concept' : 'Unknown');
+                    conceptId = related.id || (related.title ? encodeURIComponent(related.title) : undefined);
+                  } else {
+                    displayTitle = 'Unknown concept';
+                    conceptId = undefined;
+                  }
+                  
+                  return (
+                    <Badge key={idx} className="text-sm">
+                      {conceptId ? (
+                        <Link href={`/concept/${conceptId}`}>
+                          {displayTitle}
+                        </Link>
+                      ) : (
+                        <span>{displayTitle}</span>
+                      )}
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No related concepts found.</p>
+          )}
+        </div>
+      )}
 
-          {relatedConversations.map((conv) => (
-            <Link href={`/conversation/${conv.id}`} key={conv.id}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardHeader>
+      {/* Related Conversations Section */}
+      {relatedConversations.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center mb-4">
+            <MessageSquare className="mr-2 h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold">Conversations where this concept was discussed</h2>
+          </div>
+
+          <div className="grid gap-4">
+            {relatedConversations.map((conv) => (
+              <Card key={conv.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-lg">{conv.title}</CardTitle>
-                    <div className="text-sm text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
+                    <Badge variant="outline" className="flex items-center">
+                      <Calendar className="mr-1 h-3 w-3" />
                       {format(new Date(conv.date), "MM/dd/yyyy")}
-                    </div>
+                    </Badge>
                   </div>
+                  <CardDescription className="line-clamp-2 mt-1">{conv.summary}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground line-clamp-2">{conv.summary}</div>
-                </CardContent>
+                <CardFooter className="pt-2">
+                  <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                    <Link href={`/conversation/${conv.id}`}>
+                      View conversation
+                      <ArrowRight className="ml-1 h-3 w-3" />
+                    </Link>
+                  </Button>
+                </CardFooter>
               </Card>
-            </Link>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>

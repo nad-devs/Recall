@@ -4,6 +4,11 @@ import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { cn } from "@/lib/utils" // Utility for conditionally joining class names
+import { AddConceptCard } from "@/components/add-concept-card"
+import { useRouter } from "next/navigation"
+import { PlusCircle } from "lucide-react"
+import { formatRelatedConcepts } from "@/lib/utils"
+import { useToast } from "@/components/ui/use-toast"
 
 // =============================================
 // TYPES
@@ -20,7 +25,8 @@ interface CodeSnippet {
 interface Concept {
   id: string
   title: string
-  category: string
+  category: string  // Keep for backward compatibility
+  categoryPath?: string[]  // New: Array path for hierarchical categories (e.g. ["Cloud", "Google Cloud"])
   summary: string
   details: {
     implementation: string
@@ -56,8 +62,10 @@ interface ConversationAnalysis {
 
 // Add this mapping function at the top, after the ConversationAnalysis type
 type BackendConcept = {
+  id?: string;
   title: string;
-  category: string;
+  category: string;  // Keep for backward compatibility
+  categoryPath?: string[];  // New: Array path for hierarchical categories
   subcategories?: string[];
   summary?: string;
   details?: {
@@ -96,6 +104,7 @@ type BackendCodeSnippet = {
 type BackendResponse = {
   concepts: BackendConcept[];
   summary: string;
+  conversation_summary?: string; // New field from the LLM
   metadata: {
     extraction_time: string;
     model_used: string;
@@ -106,9 +115,12 @@ type BackendResponse = {
 function mapBackendResponseToAnalysis(data: BackendResponse): ConversationAnalysis {
   // Map backend concepts to frontend Concept type
   const concepts: Concept[] = data.concepts.map((concept, idx) => ({
-    id: `concept-${idx + 1}`,
+    // Only use the ID if it's a real database ID (not a temporary one)
+    id: concept.id && !concept.id.startsWith('concept-') ? concept.id : `temp-${Date.now()}-${idx}`,
     title: concept.title,
     category: concept.category,
+    // If categoryPath exists, use it, otherwise create a single-element path from category
+    categoryPath: concept.categoryPath || [concept.category],
     summary: concept.summary ?? '',
     details: concept.details ?? {
       implementation: '',
@@ -141,10 +153,52 @@ function mapBackendResponseToAnalysis(data: BackendResponse): ConversationAnalys
   });
 
   return {
-    overallSummary: data.summary,
+    // Use conversation_summary if available, otherwise fall back to summary
+    overallSummary: data.conversation_summary || data.summary,
     conceptMap,
     concepts,
   };
+}
+
+// Add this type and helper function near the top, after your other types
+
+// Define a type for tree nodes
+interface CategoryNode {
+  name: string;
+  children: Record<string, CategoryNode>;
+  concepts: Concept[];
+}
+
+// Helper to build a category tree from concepts
+function buildCategoryTree(concepts: Concept[]): CategoryNode {
+  const root: CategoryNode = { name: 'root', children: {}, concepts: [] };
+  
+  concepts.forEach(concept => {
+    // Use categoryPath if available, otherwise use category as a single-element path
+    const path = concept.categoryPath || [concept.category];
+    
+    let currentNode = root;
+    
+    // Build the path in the tree
+    path.forEach((category, index) => {
+      if (!currentNode.children[category]) {
+        currentNode.children[category] = { 
+          name: category, 
+          children: {}, 
+          concepts: [] 
+        };
+      }
+      
+      currentNode = currentNode.children[category];
+      
+      // If we're at the leaf category, add the concept
+      if (index === path.length - 1) {
+        currentNode.concepts.push(concept);
+      }
+    });
+  });
+  
+  return root;
 }
 
 // =============================================
@@ -285,18 +339,18 @@ const mockLargeConversationAnalysis: ConversationAnalysis = {
 // =============================================
 
 export default function AnalyzePage() {
-  // State for conversation text input
+  const router = useRouter()
   const [conversationText, setConversationText] = useState("")
-
-  // State for analysis process
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<ConversationAnalysis | null>(null)
-
-  // State for selected concept in results view
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
-
-  // State for search functionality
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isEditingCategory, setIsEditingCategory] = useState(false)
+  const [editCategoryValue, setEditCategoryValue] = useState("")
+  
+  // Add state for adding concepts
+  const [isAddingConcept, setIsAddingConcept] = useState(false)
+  const [showAddConceptCard, setShowAddConceptCard] = useState(false)
 
   // State for animation control
   const [showAnimation, setShowAnimation] = useState(false)
@@ -307,6 +361,54 @@ export default function AnalyzePage() {
   // Add state for save functionality
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Add state for delete operation
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const { toast } = useToast()
+
+  function normalizeCategory(input: string) {
+    // Capitalize each word, trim spaces
+    return input
+      .toLowerCase()
+      .split(' ')
+      .filter(Boolean)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  // Update to handle category paths
+  function handleCategoryUpdate(rawValue: string) {
+    const newCategory = normalizeCategory(rawValue);
+    
+    if (!selectedConcept) return;
+    
+    // Extract potential path components from the input (split by '>' or '/')
+    const pathComponents = newCategory.split(/[>\/]/).map(c => c.trim()).filter(Boolean);
+    
+    const updatedConcept = {
+      ...selectedConcept,
+      category: pathComponents.length > 0 ? pathComponents[pathComponents.length - 1] : newCategory,
+      categoryPath: pathComponents.length > 0 ? pathComponents : [newCategory]
+    };
+    
+    setSelectedConcept(updatedConcept);
+    
+    if (analysisResult) {
+      const updatedConcepts = analysisResult.concepts.map(concept =>
+        concept.id === selectedConcept.id
+          ? updatedConcept
+          : concept
+      );
+      
+      setAnalysisResult({
+        ...analysisResult,
+        concepts: updatedConcepts
+      });
+    }
+    
+    setIsEditingCategory(false);
+  }
 
   // Add save handler
   const handleSaveConversation = async () => {
@@ -323,7 +425,7 @@ export default function AnalyzePage() {
         },
         body: JSON.stringify({
           conversation_text: conversationText,
-          analysis: analysisResult,
+          analysis: analysisResult, // This will include any category updates made by the user
         }),
       });
 
@@ -333,12 +435,25 @@ export default function AnalyzePage() {
 
       const data = await response.json();
       
-      // Use the redirect URL from the API response
-      if (data.redirectTo) {
-        window.location.href = data.redirectTo;
+      if (data.success) {
+        // Show a success toast
+        toast({
+          title: "Success",
+          description: data.message || "Conversation saved successfully",
+          duration: 3000,
+        });
+        
+        // Use the redirect URL from the API response
+        if (data.redirectTo) {
+          window.location.href = data.redirectTo;
+        } else {
+          // Fallback to concepts page
+          window.location.href = '/concepts';
+        }
       } else {
-        // Fallback to concepts page
-        window.location.href = '/concepts';
+        // Handle partial success or failure
+        setSaveError(data.error || 'Failed to save conversation properly.');
+        console.error('Save response indicates failure:', data);
       }
     } catch (error) {
       setSaveError('Failed to save conversation. Please try again.');
@@ -356,12 +471,16 @@ export default function AnalyzePage() {
     setShowAnimation(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/extract-concepts', {
+      // Use our internal API endpoint which handles categories and proxies to the extraction service
+      const response = await fetch('/api/extract-concepts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ conversation_text: conversationText }),
+        body: JSON.stringify({ 
+          conversation_text: conversationText 
+          // The backend will handle fetching categories and sending the proper guidance
+        }),
       });
 
       if (!response.ok) {
@@ -383,6 +502,133 @@ export default function AnalyzePage() {
       setShowAnimation(false);
     }
   };
+  
+  // Add handler for adding a new concept
+  const handleAddConcept = async (title: string) => {
+    try {
+      setIsAddingConcept(true)
+      
+      // Create a conversation first if we don't have one yet
+      let conversationId = null;
+      
+      if (analysisResult) {
+        // Try to save the conversation first to get an ID
+        const saveResponse = await fetch('/api/saveConversation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conversation_text: conversationText,
+            analysis: {
+              ...analysisResult,
+              learningSummary: analysisResult.overallSummary,
+              // Pass the concise summary for display on cards
+              conversation_summary: analysisResult.overallSummary 
+                ? analysisResult.overallSummary.split('. ').slice(0, 2).join('. ') 
+                : undefined
+            }
+          }),
+        });
+        
+        if (saveResponse.ok) {
+          const saveData = await saveResponse.json();
+          if (saveData.success && saveData.conversationId) {
+            conversationId = saveData.conversationId;
+            console.log("Created/retrieved conversation ID:", conversationId);
+          }
+        }
+      }
+      
+      // Now create the concept with the conversation ID
+      const response = await fetch('/api/concepts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          title,
+          // Pass the conversation text for context to improve AI generation
+          context: conversationText,
+          // Pass the conversation ID if we have one
+          conversationId: conversationId
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create concept')
+      }
+
+      const data = await response.json()
+      
+      // Create a concept object from the response to add to our UI
+      const newConcept: Concept = {
+        id: data.concept.id,
+        title: data.concept.title,
+        category: data.concept.category || "Uncategorized",
+        summary: data.concept.summary || "",
+        details: data.concept.details ? 
+          (typeof data.concept.details === 'string' ? 
+            JSON.parse(data.concept.details) : 
+            data.concept.details) : 
+          {
+            implementation: "",
+            complexity: {},
+            useCases: [],
+            edgeCases: [],
+            performance: "",
+            interviewQuestions: [],
+            practiceProblems: [],
+            furtherReading: []
+          },
+        keyPoints: data.concept.keyPoints ? 
+          (typeof data.concept.keyPoints === 'string' ? 
+            JSON.parse(data.concept.keyPoints) : 
+            data.concept.keyPoints) : 
+          [],
+        examples: data.concept.examples ? 
+          (typeof data.concept.examples === 'string' ? 
+            JSON.parse(data.concept.examples) : 
+            data.concept.examples) : 
+          [],
+        codeSnippets: data.concept.codeSnippets || [],
+        relatedConcepts: data.concept.relatedConcepts ? 
+          (typeof data.concept.relatedConcepts === 'string' ? 
+            JSON.parse(data.concept.relatedConcepts) : 
+            data.concept.relatedConcepts) : 
+          []
+      }
+      
+      // Add the new concept to our analysis result
+      if (analysisResult) {
+        setAnalysisResult({
+          ...analysisResult,
+          concepts: [...analysisResult.concepts, newConcept]
+        })
+      }
+      
+      // Select the new concept to display it
+      setSelectedConcept(newConcept)
+      
+      // Hide the add concept card
+      setShowAddConceptCard(false)
+      
+      // Show success toast
+      toast({
+        title: "Concept created",
+        description: `Successfully created and linked "${title}" to the current conversation`,
+      })
+    } catch (error) {
+      console.error('Error adding concept:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create concept. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAddingConcept(false)
+    }
+  }
 
   // Filter concepts based on search query
   const filteredConcepts =
@@ -393,6 +639,73 @@ export default function AnalyzePage() {
         concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
         concept.summary.toLowerCase().includes(searchQuery.toLowerCase()),
     ) || []
+
+  // Update the handleDeleteConcept function
+  const handleDeleteConcept = async (conceptId: string) => {
+    if (!conceptId) return;
+
+    // If this is a temporary ID (not a real database ID), just remove from UI state
+    if (conceptId.startsWith('temp-') || conceptId.startsWith('concept-')) {
+      if (analysisResult) {
+        const updatedConcepts = analysisResult.concepts.filter(c => c.id !== conceptId);
+        setAnalysisResult({
+          ...analysisResult,
+          concepts: updatedConcepts
+        });
+        if (selectedConcept && selectedConcept.id === conceptId) {
+          if (updatedConcepts.length > 0) {
+            setSelectedConcept(updatedConcepts[0]);
+          } else {
+            setSelectedConcept(null);
+          }
+        }
+      }
+      return;
+    }
+
+    // Confirm deletion for saved concepts
+    if (!window.confirm('Are you sure you want to delete this concept? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      setIsDeleting(true);
+      
+      const response = await fetch(`/api/concepts/${conceptId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Concept not found in database');
+        }
+        throw new Error('Failed to delete concept');
+      }
+
+      // Remove the concept from our analysis result
+      if (analysisResult) {
+        const updatedConcepts = analysisResult.concepts.filter(c => c.id !== conceptId);
+        setAnalysisResult({
+          ...analysisResult,
+          concepts: updatedConcepts
+        });
+        
+        // If the deleted concept was selected, select another or set to null
+        if (selectedConcept && selectedConcept.id === conceptId) {
+          if (updatedConcepts.length > 0) {
+            setSelectedConcept(updatedConcepts[0]);
+          } else {
+            setSelectedConcept(null);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting concept:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete concept');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 min-h-screen flex flex-col">
@@ -971,6 +1284,25 @@ export default function AnalyzePage() {
                       {filteredConcepts.length === 0 && (
                         <div className="px-3 py-6 text-center text-muted-foreground">No concepts match your search</div>
                       )}
+
+                      {/* Add this button at the end of the concept list */}
+                      <div className="border-t mt-2 pt-2">
+                        <button
+                          onClick={() => {
+                            setShowAddConceptCard(true);
+                            // If there's a selected concept, keep it displayed but note we're adding a new one
+                            if (!selectedConcept && analysisResult && analysisResult.concepts.length > 0) {
+                              setSelectedConcept(analysisResult.concepts[0]);
+                            }
+                          }}
+                          className="w-full justify-start text-left font-normal py-2 px-3 rounded-md hover:bg-muted text-primary"
+                        >
+                          <div className="flex items-center">
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            <span>Add Missing Concept</span>
+                          </div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1114,7 +1446,72 @@ export default function AnalyzePage() {
                 </motion.div>
               )}
 
-              {selectedConcept ? (
+              {showAddConceptCard ? (
+                // Add Concept Card in the main content area
+                <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+                  <div className="p-6">
+                    <p className="text-muted-foreground mb-4">
+                      Add a concept that wasn't identified in the conversation.
+                    </p>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const inputEl = e.currentTarget.querySelector('input') as HTMLInputElement;
+                      if (inputEl.value.trim()) {
+                        handleAddConcept(inputEl.value.trim());
+                      }
+                    }} className="space-y-6">
+                      <div>
+                        <input 
+                          type="text"
+                          placeholder="Enter concept title..."
+                          className="w-full p-3 text-xl font-semibold border-0 border-b bg-background focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
+                          autoFocus
+                          disabled={isAddingConcept}
+                        />
+                        <div className="text-center text-muted-foreground mt-6">
+                          AI will generate content automatically.
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          type="button"
+                          onClick={() => setShowAddConceptCard(false)}
+                          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                          disabled={isAddingConcept}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium shadow-sm hover:bg-primary/90"
+                          disabled={isAddingConcept}
+                        >
+                          {isAddingConcept ? (
+                            <>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="mr-2 h-4 w-4 animate-spin"
+                              >
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                              Creating...
+                            </>
+                          ) : "Create Concept"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              ) : selectedConcept ? (
+                // Original selected concept details
                 <>
                   {/* Selected concept details */}
                   <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
@@ -1139,15 +1536,112 @@ export default function AnalyzePage() {
                               <path d="M7 7h.01" />
                             </svg>
                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
-                              {selectedConcept.category}
+                              {selectedConcept.categoryPath ? (
+                                <span>
+                                  {selectedConcept.categoryPath.join(' > ')}
+                                </span>
+                              ) : (
+                                selectedConcept.category
+                              )}
+                              <button 
+                                className="ml-1 text-muted-foreground" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Pre-fill with the current category path if it exists
+                                  setEditCategoryValue(selectedConcept.categoryPath ? 
+                                    selectedConcept.categoryPath.join(' > ') : 
+                                    selectedConcept.category);
+                                  setIsEditingCategory(true);
+                                }}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M12 20h9"/>
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                                </svg>
+                              </button>
                             </div>
+                            {isEditingCategory && (
+                              <div className="relative ml-2">
+                                <input
+                                  type="text"
+                                  value={editCategoryValue}
+                                  onChange={e => setEditCategoryValue(e.target.value)}
+                                  onBlur={() => {
+                                    handleCategoryUpdate(editCategoryValue);
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      handleCategoryUpdate(editCategoryValue);
+                                    }
+                                  }}
+                                  className="block w-80 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                                  placeholder="Enter category or path (e.g. Cloud > Google Cloud)"
+                                  autoFocus
+                                />
+                              </div>
+                            )}
                             {selectedConcept.relatedConcepts.length > 0 && (
                               <span className="ml-2 text-xs text-muted-foreground">
-                                Related to: {selectedConcept.relatedConcepts.join(", ")}
+                                Related to: {formatRelatedConcepts(selectedConcept.relatedConcepts)}
                               </span>
                             )}
                           </div>
                         </div>
+                        
+                        {/* Add Delete button */}
+                        <button
+                          onClick={() => handleDeleteConcept(selectedConcept.id)}
+                          disabled={isDeleting}
+                          className="inline-flex items-center justify-center text-destructive rounded-md hover:bg-destructive/10 px-2 py-1 text-sm"
+                          aria-label="Delete concept"
+                          title="Delete concept"
+                        >
+                          {isDeleting ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4 animate-spin"
+                            >
+                              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                            </svg>
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="24"
+                              height="24"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4"
+                            >
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                              <line x1="10" x2="10" y1="11" y2="17" />
+                              <line x1="14" x2="14" y1="11" y2="17" />
+                            </svg>
+                          )}
+                        </button>
                       </div>
                     </div>
                     <div className="p-6">

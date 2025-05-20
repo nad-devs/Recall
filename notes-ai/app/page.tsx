@@ -1,5 +1,3 @@
-"use client"
-
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -126,11 +124,20 @@ export default async function Dashboard() {
 
           <div className="space-y-4">
             {recentConversations.map((conversation) => {
+              // Parse the summary to get a concise title and description
+              const summary = conversation.summary || '';
+              
+              // For title: Use first sentence/phrase if it's not too long
+              const firstSentence = summary.split(/[.!?]/).filter(s => s.trim().length > 0)[0] || '';
+              const title = firstSentence && firstSentence.length < 60 
+                ? firstSentence 
+                : conversation.summary.split('\n')[0] || 'Untitled Conversation';
+              
               // Format conversation data for ConversationCard
               const conversationData = {
                 id: conversation.id,
-                title: conversation.summary.split('\n')[0] || 'Untitled Conversation',
-                summary: conversation.summary,
+                title: title,
+                summary: summary,
                 date: conversation.createdAt.toISOString(),
                 concepts: conversation.concepts.map(concept => ({
                   id: concept.id,

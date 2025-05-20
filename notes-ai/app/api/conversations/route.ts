@@ -48,6 +48,11 @@ export async function GET() {
         ? conversation.summary
         : extractFocusedSummary(conversation.text);
 
+      // For display on cards, limit the summary length but keep it readable
+      const displaySummary = summary.length > 200
+        ? summary.substring(0, 197) + '...'
+        : summary;
+
       // Count code snippets across all concepts
       const codeSnippetCount = conversation.concepts.reduce(
         (count: number, concept: any) => count + (concept.codeSnippets?.length || 0), 
@@ -57,7 +62,7 @@ export async function GET() {
       return {
         id: conversation.id,
         title: title,
-        summary: summary.substring(0, 200) + (summary.length > 200 ? '...' : ''),
+        summary: displaySummary,
         conceptMap: conceptMap,
         keyPoints: allKeyPoints.slice(0, 5), // Limit to 5 key points for display
         metadata: {

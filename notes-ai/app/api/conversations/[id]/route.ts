@@ -37,8 +37,19 @@ export async function GET(
     // Get the first concept as the main concept if available
     const mainConcept = conversation.concepts.length > 0 ? conversation.concepts[0] : null;
     
-    // Use the first concept title as the conversation title if available
-    const title = mainConcept?.title || `Conversation ${conversation.id.substring(0, 8)}`;
+    // Create title from the summary if available: Use first sentence or phrase
+    let title = '';
+    if (conversation.summary) {
+      const firstSentence = conversation.summary.split(/[.!?]/).filter(s => s.trim().length > 0)[0];
+      if (firstSentence && firstSentence.length < 80) {
+        title = firstSentence;
+      }
+    }
+    
+    // Fallback to concept title if no good summary-based title
+    if (!title) {
+      title = mainConcept?.title || `Conversation ${conversation.id.substring(0, 8)}`;
+    }
     
     // Use the existing summary or create a fallback
     const summary = conversation.summary || 

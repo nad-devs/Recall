@@ -35,7 +35,12 @@ export async function POST(request: Request) {
         }
       },
       include: {
-        concepts: true
+        concepts: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
       }
     });
     
@@ -54,7 +59,8 @@ export async function POST(request: Request) {
     const conversation = await prisma.conversation.create({
       data: {
         text: conversation_text,
-        summary: analysis.learningSummary || '',
+        summary: analysis.conversation_summary || analysis.learningSummary || analysis.summary || '',
+        createdAt: new Date(),
       },
     });
 
@@ -82,11 +88,11 @@ export async function POST(request: Request) {
       }));
     }
 
-    // No concepts found to process
+    // No concepts found to process - continue with saving conversation instead of returning error
     if (conceptsToProcess.length === 0) {
       return NextResponse.json({ 
-        success: false, 
-        error: "No concepts were extracted from the conversation",
+        success: true, 
+        message: "Conversation saved without concepts",
         conversationId: conversation.id
       });
     }
@@ -119,12 +125,27 @@ export async function POST(request: Request) {
       // Ensure category is set - try to derive from title if not provided
       const category = concept.category || guessCategoryFromTitle(concept.title);
 
-      // Check if this concept already exists
+      // Check if this concept already exists (improved matching)
+      // Convert the title to lowercase and normalize it for comparison
+      const normalizedTitle = concept.title.toLowerCase().trim().replace(/\s+/g, ' ');
+      
+      // Look for both exact matches and similar concepts
       const existingConcept = await prisma.concept.findFirst({
         where: {
-          title: {
-            equals: concept.title.toLowerCase()
-          }
+          OR: [
+            // Exact title match
+            {
+              title: {
+                equals: concept.title.toLowerCase()
+              }
+            },
+            // Similar title match (e.g., "Frequency Counting Method" vs "Frequency Count Method")
+            {
+              title: {
+                contains: normalizedTitle.replace(/\s?(method|algorithm|technique)\s?/gi, '')
+              }
+            }
+          ]
         }
       });
 
@@ -155,6 +176,8 @@ export async function POST(request: Request) {
                 code: snippet.code || '',
               })),
             },
+            // If no conversationId is set, link it to the current conversation
+            conversationId: existingConcept.conversationId || conversation.id
           },
         });
         
@@ -173,7 +196,7 @@ export async function POST(request: Request) {
             relationships: relationships,
             confidenceScore: concept.confidenceScore || 0.8,
             lastUpdated: new Date(),
-            conversationId: conversation.id,
+            conversationId: conversation.id, // Always link to the current conversation
             // Create code snippets if they exist
             codeSnippets: {
               create: (concept.codeSnippets || []).map((snippet: CodeSnippet) => ({
@@ -239,7 +262,9 @@ export async function POST(request: Request) {
               ...relatedConcepts
                 .filter((title: string) => !createdConceptIds.has(title.toLowerCase()))
                 .map((title: string) => ({ title }))
-            ])
+            ]),
+            // Ensure the concept is properly linked to the conversation
+            conversationId: conversation.id
           }
         });
       }
@@ -248,10 +273,11 @@ export async function POST(request: Request) {
     // Return a success response with redirect to the concepts page
     return NextResponse.json({ 
       success: true, 
-      message: "Analysis saved successfully",
+      message: "Conversation saved successfully",
       conversationId: conversation.id,
-      // Redirect to concepts rather than conversation
-      redirectTo: `/concepts`
+      conceptIds: Array.from(createdConceptIds.values()),
+      // Add redirect information to direct users to the concepts page
+      redirectTo: '/concepts'
     });
   } catch (error) {
     console.error('Error saving conversation:', error);

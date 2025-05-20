@@ -98,7 +98,7 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
           {error || 'Conversation not found'}
         </div>
         <Button variant="ghost" asChild className="mt-4">
-          <Link href="/dashboard">Return to Dashboard</Link>
+          <Link href="/">Return to Dashboard</Link>
         </Button>
       </div>
     )
@@ -115,11 +115,14 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
     <div className="container mx-auto py-6 space-y-6 max-w-4xl">
       <div className="flex items-center gap-2 mb-2">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard">
+          <Link href="/">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">{conversation.title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{
+          // Generate a more meaningful title from the first sentence of the summary
+          conversation.summary?.split(/[.!?]/).filter(s => s.trim().length > 0)[0] || conversation.title
+        }</h1>
       </div>
       
       <div className="flex items-center text-muted-foreground mb-6">
@@ -132,179 +135,114 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
         </span>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="concepts" className="space-y-6">
-        <TabsList>
-          {/* Hidden summary tab */}
-          {/* <TabsTrigger value="summary">Summary</TabsTrigger> */}
-          <TabsTrigger value="concepts">Concepts</TabsTrigger>
-          {conversation.codeSnippets && conversation.codeSnippets.length > 0 && (
-            <TabsTrigger value="code">Code Examples</TabsTrigger>
-          )}
-        </TabsList>
+      {/* Conversation Summary Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center">
+            <MessageSquare className="mr-2 h-5 w-5" />
+            <CardTitle>Conversation Summary</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="whitespace-pre-line">
+            {/* Format the summary for better readability */}
+            {conversation.summary?.split(/\n+/).map((paragraph, idx) => (
+              <p key={idx} className={idx > 0 ? "mt-4" : ""}>
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Conversation Summary Tab - Hidden but keeping content for reference */}
-        {/* <TabsContent value="summary">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center">
-                <MessageSquare className="mr-2 h-5 w-5" />
-                <CardTitle>Conversation Summary</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-line">{conversation.summary}</div>
-            </CardContent>
-          </Card>
-        </TabsContent> */}
-
-        {/* Concepts Tab */}
-        <TabsContent value="concepts">
+      {/* Code Snippets Section */}
+      {conversation.codeSnippets && conversation.codeSnippets.length > 0 && (
+        <div className="space-y-4">
           <div className="flex items-center mb-4">
-            <BookOpen className="mr-2 h-5 w-5" />
-            <h2 className="text-2xl font-semibold">Concepts Covered</h2>
+            <Code className="mr-2 h-5 w-5" />
+            <h2 className="text-xl font-semibold">Code Snippets</h2>
           </div>
           
-          {/* Main concept */}
-          {mainConcept && (
-            <Card className="mb-6">
+          <div className="space-y-6">
+            {conversation.codeSnippets.map((snippet, idx) => (
+              <Card key={idx} className="overflow-hidden">
+                <CardHeader className="pb-2 bg-muted/50">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Badge>{snippet.language}</Badge>
+                      {snippet.conceptId && concepts.find(c => c.id === snippet.conceptId) && (
+                        <Badge variant="outline">
+                          <Link href={`/concept/${snippet.conceptId}`}>
+                            {concepts.find(c => c.id === snippet.conceptId)?.title}
+                          </Link>
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {snippet.description && (
+                    <CardDescription className="mt-1">{snippet.description}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="p-0">
+                  <pre className="p-4 overflow-x-auto">
+                    <code>{snippet.code}</code>
+                  </pre>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Concepts Covered Section */}
+      <div className="space-y-4">
+        <div className="flex items-center mb-4">
+          <BookOpen className="mr-2 h-5 w-5" />
+          <h2 className="text-xl font-semibold">Concepts Covered ({concepts.length})</h2>
+        </div>
+        
+        <div className="grid gap-4">
+          {concepts.map((concept, idx) => (
+            <Card key={idx} className="border-l-4" style={{ borderLeftColor: concept === mainConcept ? 'var(--primary)' : 'transparent' }}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col">
-                    <CardTitle className="text-xl">{mainConcept.title}</CardTitle>
-                    <div className="flex items-center mt-1">
-                      <Link href={`/concepts/${mainConcept.id}`} className="text-sm text-primary flex items-center">
-                        View concept page <ChevronRight className="h-3 w-3 ml-1" />
-                      </Link>
-                    </div>
-                  </div>
-                  {mainConcept.category && (
-                    <Badge>{mainConcept.category}</Badge>
-                  )}
-                </div>
-                <CardDescription className="text-base mt-2">{mainConcept.summary}</CardDescription>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Key Points */}
-                {Array.isArray(mainConcept.keyPoints) && mainConcept.keyPoints.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Key Points:</h3>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {mainConcept.keyPoints.map((point, idx) => (
-                        <li key={idx}>{point}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {/* Details Section */}
-                {mainConcept.details && (
-                  <div>
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => toggleDetails(mainConcept.id)}
-                      className="flex items-center px-0 text-lg font-medium"
-                    >
-                      Details 
-                      {expandedDetails[mainConcept.id] ? (
-                        <ChevronUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      )}
-                    </Button>
-                    
-                    {expandedDetails[mainConcept.id] && (
-                      <div className="text-muted-foreground whitespace-pre-line mt-2">
-                        {(() => {
-                          try {
-                            const parsed = JSON.parse(mainConcept.details);
-                            // If it's an object, stringify it with indentation
-                            if (parsed && typeof parsed === 'object') {
-                              return Object.entries(parsed).map(([key, value]) => (
-                                <div key={key} className="mb-2">
-                                  <strong className="font-medium">{key}:</strong>{' '}
-                                  {typeof value === 'string' 
-                                    ? value 
-                                    : JSON.stringify(value, null, 2)}
-                                </div>
-                              ));
-                            }
-                            // If it's a string, return it directly
-                            return parsed;
-                          } catch {
-                            return mainConcept.details;
-                          }
-                        })()}
+                    <CardTitle className="text-lg">{concept.title}</CardTitle>
+                    {concept.category && (
+                      <div className="mt-1">
+                        <Badge>{concept.category}</Badge>
                       </div>
                     )}
+                  </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/concept/${concept.id}`} className="flex items-center text-sm text-primary">
+                      View concept
+                      <ChevronRight className="ml-1 h-3 w-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm">{concept.summary}</div>
+                
+                {Array.isArray(concept.keyPoints) && concept.keyPoints.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium mt-2 mb-1">Key Points:</h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {concept.keyPoints.slice(0, 3).map((point, idx) => (
+                        <li key={idx} className="text-sm">{point}</li>
+                      ))}
+                      {concept.keyPoints.length > 3 && (
+                        <li className="text-sm text-muted-foreground italic">+ {concept.keyPoints.length - 3} more points</li>
+                      )}
+                    </ul>
                   </div>
                 )}
               </CardContent>
             </Card>
-          )}
-          
-          {/* Related Concepts Section */}
-          {relatedConcepts.length > 0 && (
-            <div>
-              <h3 className="flex items-center text-lg font-medium mb-4">
-                <ExternalLink className="mr-2 h-4 w-4 text-primary" />
-                Related Concepts
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {relatedConcepts.map((concept, idx) => (
-                  <ConceptCard 
-                    key={idx} 
-                    concept={concept} 
-                    showDescription={true}
-                    showRelatedConcepts={false}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-        
-        {/* Code Examples Tab */}
-        {conversation.codeSnippets && conversation.codeSnippets.length > 0 && (
-          <TabsContent value="code">
-            <div className="flex items-center mb-4">
-              <Code className="mr-2 h-5 w-5" />
-              <h2 className="text-2xl font-semibold">Code Examples</h2>
-            </div>
-            
-            <div className="space-y-6">
-              {conversation.codeSnippets.map((snippet, idx) => (
-                <Card key={idx}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <Badge>{snippet.language}</Badge>
-                        {snippet.conceptId && concepts.find(c => c.id === snippet.conceptId) && (
-                          <Badge variant="outline">
-                            <Link href={`/concepts/${snippet.conceptId}`}>
-                              {concepts.find(c => c.id === snippet.conceptId)?.title}
-                            </Link>
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    {snippet.description && (
-                      <CardDescription>{snippet.description}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <pre className="bg-muted p-4 rounded-md overflow-x-auto">
-                      <code>{snippet.code}</code>
-                    </pre>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        )}
-      </Tabs>
+          ))}
+        </div>
+      </div>
     </div>
   )
 } 
