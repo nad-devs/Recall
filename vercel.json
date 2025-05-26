@@ -16,8 +16,5 @@
       "src": "/api/v1/health",
       "dest": "/pyservice/api/health.py"
     }
-  ],
-  "env": {
-    "OPENAI_API_KEY": "@openai_api_key"
-  }
+  ]
 } 
