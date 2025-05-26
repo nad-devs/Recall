@@ -44,10 +44,15 @@ export default function LandingPage() {
       console.log('Analytics tracking failed (non-critical):', error)
     }
 
-    // Simulate a brief transition then redirect to dashboard
+    // Simulate a brief transition then redirect to auth
     setTimeout(() => {
-      router.push('/dashboard')
+      router.push('/auth/signin')
     }, 1500)
+  }
+
+  const isValidName = (name: string) => {
+    const trimmedName = name.trim()
+    return trimmedName.length >= 2 && trimmedName.includes(' ')
   }
 
   if (isStarting) {
@@ -148,26 +153,30 @@ export default function LandingPage() {
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to organize your knowledge?</h3>
-                    <p className="text-gray-600 text-sm">Start extracting concepts from your learning materials</p>
+                    <p className="text-gray-600 text-sm">Enter your full name to get started</p>
                   </div>
 
                   <div className="space-y-3">
-                    <Input
-                      placeholder="Enter your full name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
-                      onKeyPress={(e) => e.key === "Enter" && handleStart()}
-                    />
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Enter your full name (e.g., John Smith)"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
+                        onKeyPress={(e) => e.key === "Enter" && isValidName(name) && handleStart()}
+                      />
+                      {name.trim() && !isValidName(name) && (
+                        <p className="text-sm text-red-600">Please enter your full name (first and last name)</p>
+                      )}
+                    </div>
 
                     <Button
-                      asChild
-                      className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                      onClick={handleStart}
+                      disabled={!isValidName(name)}
+                      className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Link href="/auth/signin">
-                        Start Building Your Knowledge Base
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </Link>
+                      Start Building Your Knowledge Base
+                      <ArrowRight className="w-5 h-5 ml-2" />
                     </Button>
                     
                     <div className="text-center">
