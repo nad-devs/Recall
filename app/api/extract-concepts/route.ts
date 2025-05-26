@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import OpenAI from 'openai';
 
 // Add this function to ensure consistent categorization of concepts before displaying them
 // function ensureConsistentCategories(responseData: any) {
@@ -29,6 +30,96 @@ import { prisma } from '@/lib/prisma';
 //   }
 //   return responseData;
 // }
+
+async function extractConceptsWithOpenAI(conversation_text: string, customApiKey?: string, existingCategories: string[][] = []) {
+  const openai = new OpenAI({
+    apiKey: customApiKey || process.env.OPENAI_API_KEY,
+  });
+
+  if (!customApiKey && !process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const prompt = `
+Analyze this technical conversation and extract key programming concepts, algorithms, or topics discussed.
+
+Conversation:
+${conversation_text}
+
+For each concept found, provide a detailed JSON object with this structure:
+{
+  "title": "Clear, specific concept name",
+  "category": "Most appropriate category (e.g., Algorithm, Data Structure, Programming Language, etc.)",
+  "summary": "2-3 sentence summary of the concept",
+  "keyPoints": ["Key point 1", "Key point 2", "Key point 3"],
+  "details": {
+    "implementation": "How this concept is implemented or used",
+    "complexity": {
+      "time": "Time complexity (if applicable)",
+      "space": "Space complexity (if applicable)"
+    },
+    "useCases": ["Use case 1", "Use case 2"],
+    "edgeCases": ["Edge case 1", "Edge case 2"],
+    "performance": "Performance considerations",
+    "interviewQuestions": ["Common interview question 1", "Common interview question 2"],
+    "practiceProblems": ["Practice problem 1", "Practice problem 2"],
+    "furtherReading": ["Resource 1", "Resource 2"]
+  },
+  "codeSnippets": [
+    {
+      "language": "javascript",
+      "code": "// Example code",
+      "explanation": "What this code demonstrates"
+    }
+  ],
+  "relatedConcepts": ["Related concept 1", "Related concept 2"]
+}
+
+Also provide a conversation summary.
+
+Respond with this JSON format:
+{
+  "concepts": [array of concept objects],
+  "conversation_summary": "Brief summary of the conversation"
+}
+
+Extract 1-5 concepts maximum. Focus on substantial, learnable concepts rather than minor details.
+`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert technical concept extractor. Always respond with valid JSON only."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 4000,
+      temperature: 0.3,
+    });
+
+    const content = response.choices[0].message.content?.trim();
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+
+    // Parse the JSON response
+    const result = JSON.parse(content);
+    
+    return {
+      concepts: result.concepts || [],
+      conversation_summary: result.conversation_summary || "Discussion about programming concepts"
+    };
+  } catch (error) {
+    console.error('Error with OpenAI extraction:', error);
+    throw error;
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -71,62 +162,14 @@ export async function POST(request: Request) {
       // Continue without categories if fetch fails
     }
 
-    // Call the Python extraction service (deployed as Vercel function)
-    const extractionServiceUrl = process.env.EXTRACTION_SERVICE_URL || '/api/v1/extract-concepts';
-    console.log("Connecting to extraction service at:", extractionServiceUrl);
+    // Use OpenAI directly since Python microservice isn't working
+    console.log("Using direct OpenAI integration for concept extraction");
 
     try {
       // Log the request to help with debugging
-      console.log(`Sending request to extraction service with ${conversation_text.length} characters of text`);
+      console.log(`Analyzing conversation with ${conversation_text.length} characters of text`);
       
-      // Build full URL for the request
-      const baseUrl = process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : (process.env.NODE_ENV === 'production' ? 'https://recall-henna.vercel.app' : 'http://localhost:3000');
-      
-      const fullUrl = extractionServiceUrl.startsWith('http') 
-        ? extractionServiceUrl 
-        : `${baseUrl}${extractionServiceUrl}`;
-      
-      console.log("Full extraction service URL:", fullUrl);
-      
-      const extractionResponse = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversation_text,
-          custom_api_key: customApiKey, // Pass custom API key to Python service
-          category_guidance: {
-            use_hierarchical_categories: true,
-            existing_categories: existingCategories || [],
-            category_keywords: categoryKeywords,
-            instructions: `
-SMART CATEGORIZATION RULES:
-1. PREFER SPECIFIC SUBCATEGORIES: If content matches keywords for a specific subcategory, use that instead of the parent category
-2. USE EXISTING HIERARCHY: Only use categories that already exist in the system - don't create new ones
-3. MATCH BY CONTENT: Look for technical terms, service names, and concepts that match existing category patterns
-4. FALLBACK TO PARENT: If no specific subcategory matches, use the most appropriate parent category
-
-Examples of good categorization:
-- "AWS Lambda functions" → ["Cloud Computing", "AWS"] (if AWS subcategory exists)
-- "React hooks discussion" → ["Frontend Engineering", "React"] (if React subcategory exists)  
-- "Database indexing" → ["Backend Engineering", "Databases"] (if Databases subcategory exists)
-- "General programming" → ["Programming"] (fallback to parent if no specific match)
-
-CRITICAL: Only use categories that exist in the existing_categories list provided.`
-          }
-        }),
-      });
-
-      if (!extractionResponse.ok) {
-        const errorText = await extractionResponse.text();
-        console.error(`Extraction service error (${extractionResponse.status}):`, errorText);
-        throw new Error(`Extraction service returned ${extractionResponse.status}: ${errorText}`);
-      }
-
-      const extractionData = await extractionResponse.json();
+      const extractionData = await extractConceptsWithOpenAI(conversation_text, customApiKey, existingCategories);
 
       console.log("Received response from concept extractor");
       
