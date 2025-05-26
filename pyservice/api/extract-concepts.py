@@ -30,6 +30,31 @@ class ConceptExtractor:
     def _get_cached_response(self, cache_key: str) -> Optional[Dict]:
         """Get cached response if available."""
         return self.cache.get(cache_key)
+    
+    def _extract_json_from_response(self, content: str) -> str:
+        """Extract JSON from OpenAI response that might be wrapped in markdown."""
+        # Remove markdown code blocks
+        content = re.sub(r'```json\s*', '', content)
+        content = re.sub(r'```\s*$', '', content)
+        content = re.sub(r'^```\s*', '', content)
+        
+        # Remove any leading/trailing text that's not JSON
+        content = content.strip()
+        
+        # Find the first [ or { and last ] or }
+        start_idx = -1
+        end_idx = -1
+        
+        for i, char in enumerate(content):
+            if char in '[{' and start_idx == -1:
+                start_idx = i
+            if char in ']}':
+                end_idx = i
+        
+        if start_idx != -1 and end_idx != -1:
+            return content[start_idx:end_idx + 1]
+        
+        return content
 
     async def _fetch_categories(self) -> List[str]:
         """Fetch the list of categories from the Next.js API endpoint. Fallback to default if fails."""
@@ -181,8 +206,10 @@ Focus on technical concepts, programming topics, algorithms, tools, or methodolo
             content = response.choices[0].message.content
             if not content:
                 raise Exception("No response content")
-                
-            segments = json.loads(content)
+            
+            # Clean the content to extract JSON from markdown formatting
+            cleaned_content = self._extract_json_from_response(content)
+            segments = json.loads(cleaned_content)
             return segments if isinstance(segments, list) else [{"topic": "General Discussion", "content": conversation_text}]
             
         except Exception as error:
@@ -244,8 +271,10 @@ Focus on substantial, learnable concepts rather than minor details.
             content = response.choices[0].message.content
             if not content:
                 return []
-                
-            concepts = json.loads(content)
+            
+            # Clean the content to extract JSON from markdown formatting
+            cleaned_content = self._extract_json_from_response(content)
+            concepts = json.loads(cleaned_content)
             return concepts if isinstance(concepts, list) else []
             
         except Exception as error:
