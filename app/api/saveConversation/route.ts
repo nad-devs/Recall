@@ -241,6 +241,16 @@ export async function POST(request: Request) {
       // Skip empty concepts
       if (!concept.title) continue;
       
+      // Log the concept structure for debugging
+      console.log(`\n=== PROCESSING CONCEPT: ${concept.title} ===`);
+      console.log('Raw concept structure:', {
+        title: concept.title,
+        summary: concept.summary ? `${concept.summary.substring(0, 100)}...` : 'NONE',
+        details: concept.details ? (typeof concept.details === 'object' ? 'OBJECT' : `STRING: ${concept.details.substring(0, 100)}...`) : 'NONE',
+        detailsType: typeof concept.details,
+        detailsKeys: typeof concept.details === 'object' ? Object.keys(concept.details) : 'N/A'
+      });
+      
       // Normalize the concept data
       const keyPoints = Array.isArray(concept.keyPoints)
         ? concept.keyPoints
@@ -250,11 +260,46 @@ export async function POST(request: Request) {
         ? JSON.stringify(concept.examples) 
         : concept.examples || '[]';
         
-      const details = typeof concept.details === 'object' 
-        ? JSON.stringify(concept.details) 
-        : concept.details || '';
+      // Extract rich details from the Python service's object format
+      let details = '';
+      if (typeof concept.details === 'object' && concept.details !== null) {
+        // Python service sends details as an object with implementation, complexity, etc.
+        const detailsObj = concept.details;
         
-      const relationships = typeof concept.relationships === 'object' 
+        // Extract the main implementation text
+        if (detailsObj.implementation) {
+          details = detailsObj.implementation;
+        } else if (detailsObj.details) {
+          details = detailsObj.details;
+        } else {
+          // Fallback: convert the whole object to a readable format
+          details = Object.entries(detailsObj)
+            .map(([key, value]) => {
+              if (key === 'complexity' && typeof value === 'object') {
+                const complexity = value as any;
+                return `Complexity:\n- Time: ${complexity.time || 'N/A'}\n- Space: ${complexity.space || 'N/A'}`;
+              } else if (Array.isArray(value)) {
+                return `${key.charAt(0).toUpperCase() + key.slice(1)}:\n${value.map(item => `- ${item}`).join('\n')}`;
+              } else if (typeof value === 'string') {
+                return `${key.charAt(0).toUpperCase() + key.slice(1)}:\n${value}`;
+              }
+              return '';
+            })
+            .filter(Boolean)
+            .join('\n\n');
+        }
+             } else {
+         details = concept.details || '';
+       }
+       
+       // Log the processed details for debugging
+       console.log('Processed details:', {
+         originalType: typeof concept.details,
+         processedLength: details.length,
+         processedPreview: details.substring(0, 200) + (details.length > 200 ? '...' : '')
+       });
+          
+        const relationships = typeof concept.relationships === 'object' 
         ? JSON.stringify(concept.relationships) 
         : concept.relationships || '{}';
 
