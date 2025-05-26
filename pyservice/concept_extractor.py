@@ -11,6 +11,19 @@ import hashlib
 from functools import lru_cache
 import asyncio
 import httpx
+import logging
+import traceback
+
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('concept_extraction.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Technical Concept Extractor API")
 
@@ -60,23 +73,33 @@ class ConceptExtractor:
         self.max_retries = 3
         self.retry_delay = 1
         self.cache = {}
+        logger.info(f"ConceptExtractor initialized with model: {self.model}")
 
     def _generate_cache_key(self, text: str) -> str:
         """Generate a cache key for the conversation text."""
-        return hashlib.md5(text.encode()).hexdigest()
+        cache_key = hashlib.md5(text.encode()).hexdigest()
+        logger.debug(f"Generated cache key: {cache_key[:8]}... for text length: {len(text)}")
+        return cache_key
 
     def _get_cached_response(self, cache_key: str) -> Optional[Dict]:
         """Get cached response if available."""
-        return self.cache.get(cache_key)
+        cached = self.cache.get(cache_key)
+        if cached:
+            logger.info(f"Cache HIT for key: {cache_key[:8]}...")
+        else:
+            logger.info(f"Cache MISS for key: {cache_key[:8]}...")
+        return cached
 
     async def _fetch_categories(self) -> List[str]:
         """Fetch the list of categories from the Next.js API endpoint. Fallback to default if fails."""
+        logger.info("Fetching categories from API...")
         default_categories = [
             # Core Computer Science
             "Data Structures and Algorithms",
             "Data Structures",
             "Algorithms",
             "Algorithm Technique",
+            "LeetCode Problems",
             
             # Backend Development
             "Backend Engineering",
@@ -114,13 +137,21 @@ class ConceptExtractor:
                     data = resp.json()
                     categories = data.get("categories", [])
                     if categories:
+                        logger.info(f"Successfully fetched {len(categories)} categories from API")
                         return categories
+                    else:
+                        logger.warning("API returned empty categories list")
+                else:
+                    logger.warning(f"API returned status code: {resp.status_code}")
         except Exception as e:
-            print(f"Failed to fetch categories from API: {e}")
+            logger.error(f"Failed to fetch categories from API: {e}")
+        
+        logger.info(f"Using default categories ({len(default_categories)} categories)")
         return default_categories
 
     async def _suggest_category_llm(self, title: str, summary: str) -> Optional[str]:
         """Ask the LLM to suggest the best category for a concept."""
+        logger.debug(f"Requesting LLM category suggestion for: {title}")
         categories = await self._fetch_categories()
         prompt = (
             f"Given the following concept title and summary, suggest the most appropriate category from this list: {categories}.\n"
@@ -138,9 +169,10 @@ class ConceptExtractor:
             category = response.choices[0].message.content.strip()
             # Normalize and check if it's a valid category
             normalized_category = self._normalize_category(category, categories)
+            logger.debug(f"LLM suggested category: {category} -> normalized: {normalized_category}")
             return normalized_category
         except Exception as e:
-            print(f"LLM category suggestion failed: {str(e)}")
+            logger.error(f"LLM category suggestion failed: {str(e)}")
             return None
 
     def _normalize_category(self, suggested_category: str, valid_categories: List[str]) -> Optional[str]:
@@ -165,6 +197,9 @@ class ConceptExtractor:
             "data structure": "Data Structures", 
             "algorithm": "Algorithms",
             "technique": "Algorithm Technique",
+            "leetcode": "LeetCode Problems",
+            "coding challenge": "LeetCode Problems",
+            "problem solving": "LeetCode Problems",
             
             # Backend Development
             "backend": "Backend Engineering",
@@ -201,27 +236,33 @@ class ConceptExtractor:
         }
         
         for key, value in category_mapping.items():
-            if key in suggested_lower:
+            if key in suggested_lower and value in valid_categories:
                 return value
                 
-        return None
+        return "General"
 
     def _parse_structured_response(self, response_text: str) -> Dict:
-        """Parse the structured response from the model with improved error handling."""
+        """Parse the structured response from the LLM with comprehensive error handling and logging."""
+        logger.info("=== PARSING LLM RESPONSE ===")
+        logger.info(f"Response length: {len(response_text)} characters")
+        logger.debug(f"Raw response preview: {response_text[:500]}...")
+        
         try:
-            response_data = json.loads(response_text)
+            # Clean the response text
+            cleaned_text = response_text.strip()
             
-            # Add consistency checks and fixes
-            if "conversation_summary" not in response_data and "summary" in response_data:
-                # Ensure conversation_summary is always present
-                response_data["conversation_summary"] = response_data["summary"]
-            elif "summary" not in response_data and "conversation_summary" in response_data:
-                # Ensure summary is always present
-                response_data["summary"] = response_data["conversation_summary"]
-            elif "conversation_summary" not in response_data and "summary" not in response_data:
-                # Create a default if neither is present
-                response_data["conversation_summary"] = "Discussion about programming concepts"
-                response_data["summary"] = "Discussion about programming concepts"
+            # Remove markdown code blocks if present
+            if cleaned_text.startswith("```json"):
+                cleaned_text = cleaned_text[7:]
+            if cleaned_text.endswith("```"):
+                cleaned_text = cleaned_text[:-3]
+            
+            # Parse JSON
+            response_data = json.loads(cleaned_text)
+            logger.info("✅ Successfully parsed JSON response")
+            
+            # Log the structure
+            logger.info(f"Response contains: {list(response_data.keys())}")
             
             # Clean up the conversation summary if it has formatting tags
             if response_data.get("conversation_summary"):
@@ -232,21 +273,26 @@ class ConceptExtractor:
                 summary = re.sub(r'\s+:', ':', summary)      # Fix spacing before colons
                 response_data["conversation_summary"] = summary.strip()
                 response_data["summary"] = summary.strip()
+                logger.debug(f"Cleaned summary: {summary}")
             
             # Validate and process concepts
             processed_concepts = []
             
             # Log the raw concepts structure
-            print("=== RAW CONCEPTS STRUCTURE ===")
+            logger.info("=== PROCESSING CONCEPTS ===")
             if "concepts" in response_data:
-                print(f"Number of raw concepts: {len(response_data['concepts'])}")
+                logger.info(f"Number of raw concepts: {len(response_data['concepts'])}")
+                for i, concept in enumerate(response_data['concepts']):
+                    logger.debug(f"Concept {i+1} raw fields: {list(concept.keys())}")
             else:
-                print("WARNING: No 'concepts' field in LLM response!")
+                logger.warning("⚠️  No 'concepts' field in LLM response!")
                 # Create an empty concepts array to prevent errors
                 response_data["concepts"] = []
             
-            for concept in response_data.get("concepts", []):
+            for i, concept in enumerate(response_data.get("concepts", [])):
                 try:
+                    logger.debug(f"Processing concept {i+1}: {concept.get('title', 'UNTITLED')}")
+                    
                     # --- Ensure categoryPath exists ---
                     if "categoryPath" not in concept:
                         # If not provided, create it from the category
@@ -259,86 +305,38 @@ class ConceptExtractor:
                             else:
                                 # Use category as a single-element path
                                 concept["categoryPath"] = [category]
-                
+                    
                     # Ensure key fields are present and valid
                     if "title" not in concept:
                         concept["title"] = "Untitled Concept"
-                
+                        logger.warning(f"Concept {i+1} missing title, using default")
+                    
                     if "summary" not in concept:
                         concept["summary"] = response_data.get("conversation_summary", "")[:150]
-                
+                        logger.warning(f"Concept {i+1} missing summary, using truncated conversation summary")
+                    
                     # Properly format details from implementation if available
                     if "implementation" in concept and "details" not in concept:
                         concept["details"] = concept["implementation"]
                     elif "details" not in concept:
                         concept["details"] = concept.get("summary", "")
+                        logger.warning(f"Concept {i+1} missing details, using summary")
                     
-                    # CRITICAL: Ensure details is properly structured as expected by frontend
-                    # If details is a string, convert it to the expected object structure
-                    if isinstance(concept["details"], str):
-                        concept["details"] = {
-                            "implementation": concept["details"],
-                            "complexity": {
-                                "time": concept.get("complexity", {}).get("time", "O(n)"),
-                                "space": concept.get("complexity", {}).get("space", "O(n)")
-                            },
-                            "useCases": concept.get("useCases", []),
-                            "edgeCases": concept.get("edgeCases", []),
-                            "performance": concept.get("performance", ""),
-                            "interviewQuestions": [],
-                            "practiceProblems": [],
-                            "furtherReading": []
-                        }
-                    
-                    # Create a concept notes dictionary if it doesn't exist
-                    concept_notes = {}
-                    
-                    if "keyPoints" in concept:
-                        concept_notes["principles"] = concept["keyPoints"]
-                        
-                    if "details" in concept or "implementation" in concept:
-                        if isinstance(concept.get("details"), dict):
-                            concept_notes["implementation"] = concept["details"].get("implementation", "")
-                        else:
-                            concept_notes["implementation"] = concept.get("details", concept.get("implementation", ""))
-                    
-                    # Assign the concept_notes to concept["notes"]
-                    concept["notes"] = concept_notes
-                    
-                    # Handle relatedConcepts
-                    if "relatedConcepts" not in concept:
-                        concept["relatedConcepts"] = []
-                    
-                    # --- Transform to flat structure for frontend ---
+                    # Process the concept into the expected format
                     processed_concept = {
-                        "title": concept["title"],
+                        "title": concept.get("title", "Untitled Concept"),
                         "category": concept.get("category", "General"),
+                        "categoryPath": concept.get("categoryPath", [concept.get("category", "General")]),
                         "subcategories": concept.get("subcategories", []),
-                        # Keep summary concise for Summary tab view
-                        "summary": concept.get("summary", concept_notes.get("implementation", "")[:150]),
-                        # Keep keyPoints for Key Points section
-                        "keyPoints": concept.get("keyPoints", concept_notes.get("principles", [])),
-                        # Ensure details field is properly formatted as object
-                        "details": concept["details"] if isinstance(concept["details"], dict) else {
-                            "implementation": concept["details"],
-                            "complexity": {"time": "O(n)", "space": "O(n)"},
-                            "useCases": [],
-                            "edgeCases": [],
-                            "performance": ""
-                        },
-                        "examples": concept.get("examples", []),
-                        "codeSnippets": [
-                            {
-                                "language": ex["language"],
-                                "description": ex.get("description", ex.get("explanation", "")),
-                                "code": ex["code"]
-                            }
-                            for ex in self._process_code_examples(
-                                concept.get("codeExamples", []) + 
-                                concept.get("code_examples", []) + 
-                                concept.get("codeSnippets", [])
-                            )
-                        ],
+                        "summary": concept.get("summary", ""),
+                        "keyPoints": concept.get("keyPoints", []),
+                        "details": self._process_details(concept.get("details", concept.get("implementation", ""))),
+                        "codeSnippets": self._process_code_examples(concept.get("codeSnippets", concept.get("code_examples", []))),
+                        "notes": self._process_notes(concept.get("notes", {})),
+                        "code_examples": self._process_code_examples(concept.get("codeSnippets", concept.get("code_examples", []))),
+                        "learning_resources": self._process_learning_resources(
+                            concept.get("learning_resources", concept.get("learningResources", {}))
+                        ),
                         "relationships": self._process_relationships(
                             concept.get("relationships", concept.get("related_concepts", {}))
                         ),
@@ -347,9 +345,11 @@ class ConceptExtractor:
                         "last_updated": datetime.now().isoformat()
                     }
                     processed_concepts.append(processed_concept)
+                    logger.debug(f"✅ Successfully processed concept: {processed_concept['title']}")
                     
                 except Exception as e:
-                    print(f"Error processing concept: {e}")
+                    logger.error(f"❌ Error processing concept {i+1}: {e}")
+                    logger.error(f"Concept data: {concept}")
                     # Basic recovery - add the raw concept with minimal processing
                     try:
                         if "title" in concept:
@@ -366,77 +366,114 @@ class ConceptExtractor:
                                     "performance": ""
                                 },
                                 "relatedConcepts": concept.get("relatedConcepts", []),
-                                "confidence_score": concept.get("confidence_score", 0.5)
+                                "confidence_score": concept.get("confidence_score", 0.5),
+                                "last_updated": datetime.now().isoformat()
                             }
                             processed_concepts.append(minimal_concept)
-                            print(f"Recovered concept with minimal processing: {minimal_concept['title']}")
+                            logger.info(f"🔧 Recovered concept with minimal processing: {minimal_concept['title']}")
                     except Exception as e2:
-                        print(f"Failed to recover concept with minimal processing: {e2}")
+                        logger.error(f"❌ Failed to recover concept with minimal processing: {e2}")
 
+            logger.info(f"✅ Successfully processed {len(processed_concepts)} concepts")
+            
             # Use the processed concepts list    
-            return {
+            result = {
                 "concepts": processed_concepts,
                 "summary": response_data.get("conversation_summary", response_data.get("summary", "")),
                 "conversation_summary": response_data.get("conversation_summary", response_data.get("summary", "")),
                 "metadata": {
                     "extraction_time": datetime.now().isoformat(),
                     "model_used": self.model,
-                    "concept_count": len(processed_concepts)
+                    "concept_count": len(processed_concepts),
+                    "raw_concept_count": len(response_data.get("concepts", [])),
+                    "processing_success_rate": len(processed_concepts) / max(len(response_data.get("concepts", [])), 1)
                 }
             }
             
+            logger.info("=== PARSING COMPLETED SUCCESSFULLY ===")
+            return result
+            
         except json.JSONDecodeError as e:
-            print(f"JSON parsing error: {str(e)}")
+            logger.error(f"❌ JSON parsing error: {str(e)}")
+            logger.error(f"Problematic text: {response_text[:1000]}...")
             return self._fallback_extraction(response_text)
         except Exception as e:
-            print(f"Unexpected error in parsing: {str(e)}")
+            logger.error(f"❌ Unexpected error in parsing: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=500, detail=f"Error parsing response: {str(e)}"
             )
 
+    def _process_details(self, details) -> str:
+        """Process and format the details field."""
+        if isinstance(details, dict):
+            # If details is a dict, extract the implementation or convert to string
+            if "implementation" in details:
+                return details["implementation"]
+            else:
+                # Convert dict to a readable string
+                return json.dumps(details, indent=2)
+        elif isinstance(details, str):
+            return details
+        else:
+            return str(details)
+
     def _process_notes(self, notes: Dict) -> Dict:
         """Process and validate concept notes."""
-        return {
+        processed_notes = {
             "principles": notes.get("principles", []),
             "implementation": notes.get("implementation", ""),
             "complexity": notes.get("complexity", {}),
-            "use_cases": notes.get("useCases", []),
-            "edge_cases": notes.get("edgeCases", []),
+            "use_cases": notes.get("useCases", notes.get("use_cases", [])),
+            "edge_cases": notes.get("edgeCases", notes.get("edge_cases", [])),
             "performance": notes.get("performance", "")
         }
+        logger.debug(f"Processed notes with {len(processed_notes)} fields")
+        return processed_notes
 
     def _process_code_examples(self, examples: List[Dict]) -> List[Dict]:
-        """Process and validate code examples from both codeExamples and code_examples."""
+        """Process and validate code examples."""
         processed_examples = []
-        for example in examples:
-            if all(k in example for k in ["language", "code"]):
-                processed_examples.append({
-                    "language": example["language"],
-                    "code": example["code"],
-                    "explanation": example.get("explanation", "")
-                })
+        for i, example in enumerate(examples):
+            try:
+                processed_example = {
+                    "language": example.get("language", "text"),
+                    "code": example.get("code", ""),
+                    "explanation": example.get("explanation", example.get("description", "")),
+                    "description": example.get("description", example.get("explanation", ""))
+                }
+                processed_examples.append(processed_example)
+                logger.debug(f"Processed code example {i+1}: {processed_example['language']}")
+            except Exception as e:
+                logger.warning(f"Failed to process code example {i+1}: {e}")
         return processed_examples
 
     def _process_relationships(self, relationships: Dict) -> Dict:
         """Process and validate concept relationships."""
-        return {
-            "data_structures": relationships.get("dataStructures", []),
-            "algorithms": relationships.get("algorithms", []),
-            "patterns": relationships.get("patterns", []),
-            "applications": relationships.get("applications", [])
+        processed_relationships = {
+            "prerequisites": relationships.get("prerequisites", []),
+            "related_concepts": relationships.get("related_concepts", relationships.get("relatedConcepts", [])),
+            "applications": relationships.get("applications", []),
+            "dataStructures": relationships.get("dataStructures", relationships.get("data_structures", [])),
+            "algorithms": relationships.get("algorithms", [])
         }
+        logger.debug(f"Processed relationships with {sum(len(v) if isinstance(v, list) else 0 for v in processed_relationships.values())} total items")
+        return processed_relationships
 
     def _process_learning_resources(self, resources: Dict) -> Dict:
         """Process and validate learning resources."""
-        return {
-            "key_points": resources.get("keyPoints", []),
-            "interview_questions": resources.get("interviewQuestions", []),
-            "practice_problems": resources.get("practiceProblems", []),
-            "further_reading": resources.get("furtherReading", [])
+        processed_resources = {
+            "documentation": resources.get("documentation", []),
+            "tutorials": resources.get("tutorials", []),
+            "practice_problems": resources.get("practice_problems", resources.get("practiceProblems", [])),
+            "further_reading": resources.get("further_reading", resources.get("furtherReading", []))
         }
+        logger.debug(f"Processed learning resources with {sum(len(v) if isinstance(v, list) else 0 for v in processed_resources.values())} total items")
+        return processed_resources
 
     def _fallback_extraction(self, text: str) -> Dict:
         """Fallback extraction method using regex patterns."""
+        logger.warning("🔧 Using fallback extraction method")
         concepts = []
         concept_pattern = r"Title:\s*(.*?)(?=Title:|$)"
         matches = re.finditer(concept_pattern, text, re.DOTALL)
@@ -449,14 +486,19 @@ class ConceptExtractor:
                     concepts.append({
                         "title": title_match.group(1).strip(),
                         "category": "Uncategorized",
-                        "notes": {"principles": [], "implementation": concept_text},
+                        "summary": concept_text[:200] + "..." if len(concept_text) > 200 else concept_text,
+                        "details": concept_text,
+                        "keyPoints": [],
+                        "relatedConcepts": [],
                         "confidence_score": 0.5,
                         "last_updated": datetime.now().isoformat()
                     })
         
+        logger.info(f"Fallback extraction found {len(concepts)} concepts")
         return {
             "concepts": concepts,
             "summary": "Extracted from unstructured response",
+            "conversation_summary": "Discussion about programming concepts",
             "metadata": {
                 "extraction_time": datetime.now().isoformat(),
                 "model_used": self.model,
@@ -467,12 +509,14 @@ class ConceptExtractor:
 
     async def _segment_conversation(self, conversation_text: str) -> List[Tuple[str, str]]:
         """
-        Segment the conversation into topical sections.
+        Segment the conversation into topical sections with comprehensive logging.
         Returns a list of (topic, segment_text) tuples.
         """
+        logger.info("=== STARTING CONVERSATION SEGMENTATION ===")
+        logger.info(f"Input text length: {len(conversation_text)} characters")
+        logger.debug(f"Input preview: {conversation_text[:300]}...")
+        
         try:
-            print("Segmenting conversation...")
-            
             # Build segmentation prompt in readable sections
             task_description = (
                 "Your task is to analyze the following conversation and identify ONLY MAJOR topic changes:\n"
@@ -530,6 +574,9 @@ class ConceptExtractor:
                 conversation_text_section
             )
 
+            logger.debug(f"Segmentation prompt length: {len(segmentation_prompt)} characters")
+            logger.debug("Sending segmentation request to LLM...")
+
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": segmentation_prompt}],
@@ -539,16 +586,27 @@ class ConceptExtractor:
             )
             
             response_text = response.choices[0].message.content
+            logger.debug(f"Segmentation response length: {len(response_text)} characters")
+            logger.debug(f"Raw segmentation response: {response_text}")
+            
             segmentation_data = json.loads(response_text)
+            logger.info("✅ Successfully parsed segmentation response")
             
             segments = []
             conversation_type = segmentation_data.get("conversation_type", "UNKNOWN")
-            print(f"Detected conversation type: {conversation_type}")
+            logger.info(f"🔍 Detected conversation type: {conversation_type}")
             
-            for segment in segmentation_data.get("segments", []):
+            raw_segments = segmentation_data.get("segments", [])
+            logger.info(f"📊 Found {len(raw_segments)} raw segments")
+            
+            for i, segment in enumerate(raw_segments):
                 topic = segment.get("topic", "Uncategorized")
                 content = segment.get("content", "")
                 main_technique = segment.get("main_technique", "")
+                
+                logger.debug(f"Processing segment {i+1}: '{topic}' (length: {len(content)} chars)")
+                if main_technique:
+                    logger.debug(f"  Main technique: {main_technique}")
                 
                 if content:
                     # Add conversation type and technique to topic for better context in the analysis stage
@@ -557,30 +615,58 @@ class ConceptExtractor:
                     else:
                         tagged_topic = f"[{conversation_type}] {topic}"
                     segments.append((tagged_topic, content))
+                    logger.debug(f"  ✅ Added segment: {tagged_topic}")
+                else:
+                    logger.warning(f"  ⚠️  Skipping segment {i+1} - no content")
             
             # If no segments or too many segments, just use the whole conversation
-            if not segments or len(segments) > 5:
+            if not segments:
+                logger.warning("⚠️  No valid segments found, using full conversation")
+                segments = [(f"[UNKNOWN] Full Conversation", conversation_text)]
+            elif len(segments) > 5:
+                logger.warning(f"⚠️  Too many segments ({len(segments)}), using full conversation")
                 segments = [(f"[UNKNOWN] Full Conversation", conversation_text)]
                 
-            print(f"Conversation segmented into {len(segments)} topics")
+            logger.info(f"✅ Conversation segmented into {len(segments)} final segments")
+            for i, (topic, content) in enumerate(segments):
+                logger.debug(f"  Segment {i+1}: {topic} ({len(content)} chars)")
+            
+            logger.info("=== SEGMENTATION COMPLETED ===")
             return segments
             
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parsing error in segmentation: {str(e)}")
+            logger.error(f"Problematic response: {response_text[:500]}...")
+            logger.warning("🔧 Falling back to full conversation")
+            return [("Full Conversation", conversation_text)]
         except Exception as e:
-            print(f"Error segmenting conversation: {str(e)}")
+            logger.error(f"❌ Error segmenting conversation: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.warning("🔧 Falling back to full conversation")
             return [("Full Conversation", conversation_text)]
 
     async def _analyze_segment(
         self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None
     ) -> Dict:
         """
-        Analyze a single conversation segment.
+        Analyze a single conversation segment with comprehensive logging and analysis.
         """
-        print(f"Analyzing segment: {topic[:50]}...")
+        logger.info("=== STARTING SEGMENT ANALYSIS ===")
+        logger.info(f"📝 Topic: {topic}")
+        logger.info(f"📊 Segment length: {len(segment_text)} characters")
+        logger.debug(f"Segment preview: {segment_text[:200]}...")
+        
+        if context:
+            logger.debug(f"Context provided: {list(context.keys())}")
+        if category_guidance:
+            logger.debug(f"Category guidance provided: {list(category_guidance.keys())}")
 
         # Determine segment type from topic tag
         segment_type = "EXPLORATORY_LEARNING"
         if topic.strip().upper().startswith("[PROBLEM_SOLVING]"):
             segment_type = "PROBLEM_SOLVING"
+        
+        logger.info(f"🔍 Detected segment type: {segment_type}")
             
         # Handle the hierarchical categories if provided
         category_instructions = ""
@@ -914,12 +1000,18 @@ trading some space efficiency for significant time optimization.",
                 json_format
             )
 
-        # DEBUG LOGGING
-        print("=== LLM PROMPT ===")
-        print(structured_prompt)
-        print("=== SEGMENT CONTENT ===")
-        print(segment_text)
+        # COMPREHENSIVE LOGGING
+        logger.info("=== PREPARING LLM REQUEST ===")
+        logger.info(f"🔧 Prompt length: {len(structured_prompt)} characters")
+        logger.info(f"🎯 Temperature: 0.3, Max tokens: 4000")
+        logger.debug("=== FULL LLM PROMPT ===")
+        logger.debug(structured_prompt)
+        logger.debug("=== SEGMENT CONTENT FOR ANALYSIS ===")
+        logger.debug(segment_text)
 
+        logger.info("📤 Sending request to LLM...")
+        start_time = datetime.now()
+        
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": structured_prompt}],
@@ -928,22 +1020,52 @@ trading some space efficiency for significant time optimization.",
             response_format={"type": "json_object"}
         )
         
+        end_time = datetime.now()
+        response_time = (end_time - start_time).total_seconds()
+        
         response_text = response.choices[0].message.content
-        # DEBUG LOGGING
-        print("=== RAW LLM RESPONSE ===")
-        print(response_text)
-        return self._parse_structured_response(response_text)
+        
+        # COMPREHENSIVE RESPONSE LOGGING
+        logger.info("📥 Received LLM response")
+        logger.info(f"⏱️  Response time: {response_time:.2f} seconds")
+        logger.info(f"📊 Response length: {len(response_text)} characters")
+        logger.debug("=== RAW LLM RESPONSE ===")
+        logger.debug(response_text)
+        
+        logger.info("🔄 Parsing LLM response...")
+        parsed_result = self._parse_structured_response(response_text)
+        
+        # Log parsing results
+        if parsed_result.get("concepts"):
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} concepts")
+            for i, concept in enumerate(parsed_result["concepts"]):
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')} (category: {concept.get('category', 'UNKNOWN')})")
+        else:
+            logger.warning("⚠️  No concepts extracted from segment")
+        
+        if parsed_result.get("conversation_summary"):
+            logger.debug(f"Summary: {parsed_result['conversation_summary']}")
+        
+        logger.info("=== SEGMENT ANALYSIS COMPLETED ===")
+        return parsed_result
 
     async def analyze_conversation(self, req: ConversationRequest) -> Dict:
-        """Analyze a conversation using a single-pass approach by default for speed. Use multi-pass only as fallback."""
+        """Analyze a conversation using comprehensive analysis with detailed logging and fallback strategies."""
+        logger.info("🚀 === STARTING CONVERSATION ANALYSIS ===")
+        logger.info(f"📝 Input length: {len(req.conversation_text)} characters")
+        logger.info(f"📋 Context provided: {bool(req.context)}")
+        logger.info(f"🏷️  Category guidance provided: {bool(req.category_guidance)}")
+        logger.debug(f"Input preview: {req.conversation_text[:200]}...")
+        
         try:
             # Check cache first
             cache_key = self._generate_cache_key(req.conversation_text)
             cached_response = self._get_cached_response(cache_key)
             if cached_response:
+                logger.info("✅ Returning cached response")
                 return cached_response
 
-            print(f"Analyzing conversation (single-pass): {req.conversation_text[:100]}...")
+            logger.info("🔍 Starting single-pass analysis...")
 
             # Single-pass: analyze the whole conversation with the improved prompt
             single_pass_result = await self._analyze_segment(
@@ -1419,32 +1541,81 @@ concept_extractor = ConceptExtractor()
 
 @app.post("/api/v1/extract-concepts")
 async def extract_concepts(req: ConversationRequest):
-    """Extract technical concepts from a conversation."""
+    """Extract technical concepts from a conversation with comprehensive analysis and logging."""
+    request_start_time = datetime.now()
+    logger.info("🌟 === NEW EXTRACTION REQUEST ===")
+    logger.info(f"📊 Request size: {len(req.conversation_text)} characters")
+    
     try:
         # Pass along any category_guidance to the analyzer
+        logger.info("🔄 Starting concept extraction analysis...")
         result = await concept_extractor.analyze_conversation(req)
         
         # Standardize the response format to ensure consistency
+        logger.info("🔧 Standardizing response format...")
         standardized_result = standardize_response_format(result)
         
-        # Add detailed logging of the response structure
-        print("=== RESPONSE TO FRONTEND ===")
-        print(f"Summary: {standardized_result.get('summary', 'NONE')}")
-        print(f"Conversation Summary: {standardized_result.get('conversation_summary', 'NONE')}")
-        print(f"Number of concepts: {len(standardized_result.get('concepts', []))}")
+        # COMPREHENSIVE RESPONSE LOGGING
+        logger.info("=== 📋 FINAL RESPONSE ANALYSIS ===")
+        logger.info(f"✅ Summary: {standardized_result.get('summary', 'NONE')}")
+        logger.info(f"✅ Conversation Summary: {standardized_result.get('conversation_summary', 'NONE')}")
+        logger.info(f"✅ Number of concepts: {len(standardized_result.get('concepts', []))}")
         
-        # Log the structure of each concept
+        # Log detailed concept analysis
         if standardized_result.get('concepts'):
+            logger.info("📚 EXTRACTED CONCEPTS BREAKDOWN:")
             for i, concept in enumerate(standardized_result.get('concepts')):
-                print(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')}")
-                print(f"    Fields: {', '.join(concept.keys())}")
+                title = concept.get('title', 'UNTITLED')
+                category = concept.get('category', 'UNKNOWN')
+                summary_length = len(concept.get('summary', ''))
+                details_length = len(str(concept.get('details', '')))
+                code_snippets = len(concept.get('codeSnippets', []))
+                key_points = len(concept.get('keyPoints', []))
+                related_concepts = len(concept.get('relatedConcepts', []))
+                confidence = concept.get('confidence_score', 0)
+                
+                logger.info(f"  📖 Concept {i+1}: '{title}'")
+                logger.info(f"    🏷️  Category: {category}")
+                logger.info(f"    📝 Summary: {summary_length} chars")
+                logger.info(f"    📋 Details: {details_length} chars")
+                logger.info(f"    💻 Code snippets: {code_snippets}")
+                logger.info(f"    🔑 Key points: {key_points}")
+                logger.info(f"    🔗 Related concepts: {related_concepts}")
+                logger.info(f"    🎯 Confidence: {confidence:.2f}")
+                logger.debug(f"    📄 All fields: {', '.join(concept.keys())}")
+                
+                # Log code snippets details
+                if concept.get('codeSnippets'):
+                    for j, snippet in enumerate(concept['codeSnippets']):
+                        lang = snippet.get('language', 'unknown')
+                        code_length = len(snippet.get('code', ''))
+                        logger.debug(f"      💻 Code {j+1}: {lang} ({code_length} chars)")
         else:
-            print("  WARNING: No concepts in response!")
-            
+            logger.warning("⚠️  WARNING: No concepts in final response!")
+        
+        # Log metadata
+        metadata = standardized_result.get('metadata', {})
+        logger.info("📊 METADATA:")
+        logger.info(f"  ⏱️  Extraction time: {metadata.get('extraction_time', 'UNKNOWN')}")
+        logger.info(f"  🤖 Model used: {metadata.get('model_used', 'UNKNOWN')}")
+        logger.info(f"  📈 Concept count: {metadata.get('concept_count', 0)}")
+        logger.info(f"  🔧 Processing success rate: {metadata.get('processing_success_rate', 'N/A')}")
+        
+        # Calculate total request time
+        request_end_time = datetime.now()
+        total_time = (request_end_time - request_start_time).total_seconds()
+        logger.info(f"⏱️  TOTAL REQUEST TIME: {total_time:.2f} seconds")
+        
+        logger.info("🎉 === EXTRACTION COMPLETED SUCCESSFULLY ===")
         return standardized_result
+        
     except Exception as e:
-        print(f"ERROR in extract_concepts: {str(e)}")
+        logger.error(f"❌ CRITICAL ERROR in extract_concepts: {str(e)}")
+        logger.error(f"🔍 Error type: {type(e).__name__}")
+        logger.error(f"📍 Traceback: {traceback.format_exc()}")
+        
         # Create emergency fallback response in case of critical error
+        logger.warning("🚨 Creating emergency fallback response...")
         emergency_fallback = {
             "concepts": [
                 {
@@ -1458,16 +1629,19 @@ async def extract_concepts(req: ConversationRequest):
                     "last_updated": datetime.now().isoformat()
                 }
             ],
-            "conversation_title": "Programming Discussion",  # Add title for emergency fallback
+            "conversation_title": "Programming Discussion",
             "conversation_summary": "Discussion about programming topics",
             "summary": "Discussion about programming topics",
             "metadata": {
                 "extraction_time": datetime.now().isoformat(),
                 "model_used": "emergency_fallback",
-                "extraction_method": "fallback"
+                "extraction_method": "fallback",
+                "error": str(e),
+                "error_type": type(e).__name__
             }
         }
-        print("Returning emergency fallback response")
+        
+        logger.info("🔧 Returning emergency fallback response")
         return emergency_fallback
 
 def standardize_response_format(result: Dict) -> Dict:
