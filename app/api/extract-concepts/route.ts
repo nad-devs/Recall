@@ -41,54 +41,86 @@ async function extractConceptsWithOpenAI(conversation_text: string, customApiKey
   }
 
   const prompt = `
-Analyze this technical conversation and extract key programming concepts, algorithms, or topics discussed.
+You are an ELITE technical knowledge extraction system. Your job is to analyze programming conversations and extract SPECIFIC, VALUABLE concepts:
+
+🎯 CONCEPT IDENTIFICATION RULES:
+1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum')
+2. ALGORITHMIC TECHNIQUES: Extract the specific approach used (e.g., 'Hash Table for Duplicate Detection', 'Two Pointer Technique')
+3. DATA STRUCTURES: Only extract if they're the main focus, not just mentioned in passing
+4. DESIGN PATTERNS: Extract architectural or coding patterns being discussed
+5. OPTIMIZATION STRATEGIES: Extract performance improvement techniques
+
+🚫 AVOID THESE GENERIC CONCEPTS:
+- 'Iteration', 'Loop', 'Variables', 'Programming', 'Coding'
+- 'Hash Table', 'Dictionary', 'Array', 'String' (unless they're the main focus with specific techniques)
+- 'Function', 'Method' (unless discussing specific patterns)
+- 'Looping and Iteration', 'Hash Table (Dictionary)'
+
+✅ QUALITY STANDARDS:
+- Each concept must be IMMEDIATELY USEFUL for future reference
+- Focus on concepts someone would want to review before an interview
+- Include the WHY behind each technique, not just the HOW
+- Limit to 1-3 HIGH-VALUE concepts maximum
+- NO overlapping or duplicate concepts
+
+IMPORTANT - LEETCODE PROBLEM DETECTION:
+When detecting LeetCode-style algorithm problems:
+
+1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
+   - ALWAYS use "Contains Duplicate" as the primary concept title, 
+     NOT "Hash Table for Duplicate Detection"
+   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
+   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
+
+2. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
+   - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
+     "LeetCode Problems"
+   - Common indicators: array manipulation problems, string problems with specific constraints, 
+     graph traversals, etc.
+   - If you recognize the problem as a standard algorithm challenge, ALWAYS categorize it as 
+     "LeetCode Problems"
 
 Conversation:
 ${conversation_text}
 
 For each concept found, provide a detailed JSON object with this structure:
 {
-  "title": "Clear, specific concept name",
-  "category": "Most appropriate category (e.g., Algorithm, Data Structure, Programming Language, etc.)",
-  "summary": "2-3 sentence summary of the concept",
-  "keyPoints": ["Key point 1", "Key point 2", "Key point 3"],
+  "title": "Specific problem name or technique (e.g., 'Contains Duplicate', NOT 'Hash Table')",
+  "category": "LeetCode Problems (for coding problems) or appropriate category",
+  "summary": "2-3 sentence summary explaining what this concept is and why it's important",
+  "keyPoints": ["Specific, actionable key points about this concept"],
   "details": {
-    "implementation": "How this concept is implemented or used",
+    "implementation": "Comprehensive 3-6 paragraph technical deep-dive explaining how this works, why it's effective, implementation details, and real-world applications",
     "complexity": {
-      "time": "Time complexity (if applicable)",
-      "space": "Space complexity (if applicable)"
+      "time": "Time complexity with explanation",
+      "space": "Space complexity with explanation"
     },
-    "useCases": ["Use case 1", "Use case 2"],
-    "edgeCases": ["Edge case 1", "Edge case 2"],
-    "performance": "Performance considerations",
-    "interviewQuestions": ["Common interview question 1", "Common interview question 2"],
-    "practiceProblems": ["Practice problem 1", "Practice problem 2"],
-    "furtherReading": ["Resource 1", "Resource 2"]
+    "useCases": ["Specific use cases where this concept applies"],
+    "edgeCases": ["Important edge cases to consider"],
+    "performance": "Performance considerations and optimizations"
   },
   "codeSnippets": [
     {
-      "language": "javascript",
-      "code": "// Example code",
-      "explanation": "What this code demonstrates"
+      "language": "python",
+      "code": "# Complete, executable code example with comments",
+      "explanation": "What this code demonstrates and why it works"
     }
   ],
-  "relatedConcepts": ["Related concept 1", "Related concept 2"]
+  "relatedConcepts": ["Related concepts that build on or connect to this one"]
 }
-
-Also provide a conversation summary.
 
 Respond with this JSON format:
 {
   "concepts": [array of concept objects],
-  "conversation_summary": "Brief summary of the conversation"
+  "conversation_summary": "Brief summary of the main topics and insights from this conversation"
 }
 
-Extract 1-5 concepts maximum. Focus on substantial, learnable concepts rather than minor details.
+CRITICAL: Extract 1-3 HIGH-VALUE concepts maximum. Focus on specific problems, techniques, or insights that would be valuable for interview preparation or future reference.
 `;
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
