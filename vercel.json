@@ -7,6 +7,10 @@
     {
       "src": "/api/v1/health",
       "dest": "/pyservice/api/health.py"
+    },
+    {
+      "src": "/api/v1/generate-quiz",
+      "dest": "/pyservice/api/generate-quiz.py"
     }
   ]
 } 
