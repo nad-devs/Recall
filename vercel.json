@@ -1,10 +1,10 @@
 {
   "functions": {
     "pyservice/api/extract-concepts.py": {
-      "runtime": "python3.9"
+      "runtime": "@vercel/python"
     },
     "pyservice/api/health.py": {
-      "runtime": "python3.9"
+      "runtime": "@vercel/python"
     }
   },
   "routes": [
