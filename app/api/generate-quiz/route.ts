@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateQuizQuestions } from '@/lib/openai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,9 +12,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate quiz questions using the server-side OpenAI function
-    const result = await generateQuizQuestions(concept);
+    // Call the Python microservice to generate quiz questions
+    const pythonServiceUrl = process.env.NODE_ENV === 'production' 
+      ? `${process.env.VERCEL_URL}/api/v1/generate-quiz`
+      : 'http://localhost:8000/generate-quiz';
 
+    const response = await fetch(pythonServiceUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ concept }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Python service responded with status: ${response.status}`);
+    }
+
+    const result = await response.json();
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error generating quiz questions:', error);
