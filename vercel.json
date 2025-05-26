@@ -1,16 +1,1 @@
-{
-  "routes": [
-    {
-      "src": "/api/v1/extract-concepts",
-      "dest": "/pyservice/api/extract-concepts.py"
-    },
-    {
-      "src": "/api/v1/health",
-      "dest": "/pyservice/api/health.py"
-    },
-    {
-      "src": "/api/v1/generate-quiz",
-      "dest": "/pyservice/api/generate-quiz.py"
-    }
-  ]
-} 
+{} 
