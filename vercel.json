@@ -1,0 +1,23 @@
+{
+  "functions": {
+    "pyservice/api/extract-concepts.py": {
+      "runtime": "python3.9"
+    },
+    "pyservice/api/health.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/v1/extract-concepts",
+      "dest": "/pyservice/api/extract-concepts.py"
+    },
+    {
+      "src": "/api/v1/health",
+      "dest": "/pyservice/api/health.py"
+    }
+  ],
+  "env": {
+    "OPENAI_API_KEY": "@openai_api_key"
+  }
+} 

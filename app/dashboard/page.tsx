@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { BookOpen, ArrowRight, Brain, Edit2, Check, X } from "lucide-react"
+import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut } from "lucide-react"
 import { ConversationCard } from "@/components/conversation-card"
 import { DashboardConceptCard } from "@/components/dashboard-concept-card"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
@@ -12,8 +12,12 @@ import { PageTransition } from "@/components/page-transition"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { DashboardLoading } from "@/components/dashboard-loading"
 import { useState, useEffect } from "react"
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export default function Dashboard() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [userName, setUserName] = useState("")
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState("")
@@ -26,18 +30,59 @@ export default function Dashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
 
+  // Check for demo mode or authentication
   useEffect(() => {
-    // Get user name from localStorage
-    const storedName = localStorage.getItem('userName')
-    if (storedName) {
-      setUserName(storedName)
-      setEditedName(storedName)
+    if (status === "loading") return // Still loading
+    
+    const demoMode = localStorage.getItem('demoMode')
+    const demoUser = localStorage.getItem('demoUser')
+    
+    if (demoMode === 'true' && demoUser) {
+      // Demo mode
+      setIsDemoMode(true)
+      const user = JSON.parse(demoUser)
+      setUserName(user.name)
+      setEditedName(user.name)
+      fetchDemoData()
+      
+      // Show upgrade prompt after 2 minutes of usage
+      setTimeout(() => setShowUpgradePrompt(true), 2 * 60 * 1000)
+    } else if (status === "unauthenticated") {
+      // Not authenticated and not in demo mode
+      router.push("/auth/signin")
+      return
+    } else if (session?.user) {
+      // Authenticated user
+      setUserName(session.user.name || session.user.email || "User")
+      setEditedName(session.user.name || session.user.email || "User")
+      fetchDashboardData()
     }
+  }, [status, session, router])
 
-    // Fetch dashboard data
-    fetchDashboardData()
-  }, [])
+  const fetchDemoData = () => {
+    // Load demo data from localStorage
+    const conversations = JSON.parse(localStorage.getItem('demoConversations') || '[]')
+    const concepts = JSON.parse(localStorage.getItem('demoConcepts') || '[]')
+    
+    setDashboardData({
+      conversationsCount: conversations.length,
+      conceptsCount: concepts.length,
+      categoriesCount: new Set(concepts.map((c: any) => c.category)).size,
+      conceptsToReview: concepts.filter((c: any) => c.needsReview).slice(0, 3),
+      recentConversations: conversations.slice(-3).reverse()
+    })
+    setLoading(false)
+    setTimeout(() => setShowLoadingScreen(false), 1500)
+  }
+
+  const handleUpgradeAccount = () => {
+    // Store current demo data for migration
+    localStorage.setItem('pendingMigration', 'true')
+    router.push('/auth/signin')
+  }
 
   const handleEditName = () => {
     setIsEditingName(true)
@@ -167,6 +212,40 @@ export default function Dashboard() {
           <ThemeToggle />
         </div>
 
+        {/* Upgrade Prompt Banner */}
+        {isDemoMode && showUpgradePrompt && (
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Brain className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Loving the demo? Save your progress!</h3>
+                  <p className="text-sm text-gray-600">
+                    Create a free account to save your data permanently and sync across devices.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={handleUpgradeAccount}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                >
+                  Create Account
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowUpgradePrompt(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header with title and action buttons */}
         <div className="flex items-center justify-between">
           <div>
@@ -192,6 +271,25 @@ export default function Dashboard() {
                 Conversations
               </Link>
             </Button>
+            {isDemoMode ? (
+              <Button 
+                variant="outline" 
+                onClick={handleUpgradeAccount}
+                className="shadow-sm bg-gradient-to-r from-green-50 to-blue-50 border-green-200 text-green-700 hover:from-green-100 hover:to-blue-100"
+              >
+                <Brain className="mr-2 h-4 w-4" />
+                Upgrade Account
+              </Button>
+            ) : (
+              <Button 
+                variant="ghost" 
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="shadow-sm"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            )}
           </div>
         </div>
 
@@ -252,6 +350,11 @@ export default function Dashboard() {
               </div>
               <p className="text-muted-foreground mb-4">
                 You've analyzed {dashboardData.conversationsCount} conversations and learned about {dashboardData.conceptsCount} concepts across {dashboardData.categoriesCount} categories.
+                {isDemoMode && (
+                  <span className="block mt-2 text-sm text-amber-600 font-medium">
+                    🚀 Demo Mode - Data stored locally. Create an account to save permanently!
+                  </span>
+                )}
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
                 <Badge variant="secondary" className="px-2 py-1">

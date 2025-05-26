@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -61,6 +61,8 @@ model User {
   sessions      Session[]
   categories    Category[]
   feedback      Feedback[]
+  concepts      Concept[]
+  conversations Conversation[]
   
   @@map("users")
 }
@@ -113,7 +115,7 @@ model Category {
 }
 
 model Concept {
-  id              String    @id @default(uuid())
+  id              String    @id @default(cuid())
   title           String
   category        String
   summary         String
@@ -126,6 +128,10 @@ model Concept {
   confidenceScore Float     @default(0.5)
   lastUpdated     DateTime  @default(now())
   isPlaceholder   Boolean   @default(false)
+  
+  // User isolation
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // Review-related fields
   reviewCount     Int       @default(0)
@@ -173,11 +179,16 @@ model Concept {
 }
 
 model Conversation {
-  id          String    @id @default(uuid())
+  id          String    @id @default(cuid())
   text        String
   title       String    @default("")
   summary     String
   createdAt   DateTime  @default(now())
+  
+  // User isolation
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   concepts    Concept[]
   occurrences Occurrence[]
 }
@@ -194,7 +205,7 @@ model Occurrence {
 }
 
 model CodeSnippet {
-  id          String   @id @default(uuid())
+  id          String   @id @default(cuid())
   language    String
   description String
   code        String

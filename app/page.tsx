@@ -161,20 +161,19 @@ export default function LandingPage() {
                     />
 
                     <Button
-                      onClick={handleStart}
-                      disabled={!name.trim()}
+                      asChild
                       className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                     >
-                      Start Building Your Knowledge Base
-                      <ArrowRight className="w-5 h-5 ml-2" />
+                      <Link href="/auth/signin">
+                        Start Building Your Knowledge Base
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </Link>
                     </Button>
                     
                     <div className="text-center">
-                      <Link href="/dashboard" className={`text-sm text-gray-500 hover:text-gray-700 transition-colors ${!name.trim() ? 'pointer-events-none opacity-50' : ''}`}
-                        tabIndex={!name.trim() ? -1 : 0}
-                        aria-disabled={!name.trim()}>
-                        Or go directly to dashboard →
-                      </Link>
+                      <p className="text-sm text-gray-500">
+                        Try demo instantly or create an account to save your progress
+                      </p>
                     </div>
                   </div>
                 </div>

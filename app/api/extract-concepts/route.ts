@@ -71,15 +71,26 @@ export async function POST(request: Request) {
       // Continue without categories if fetch fails
     }
 
-    // Call the external extraction service
-    const extractionServiceUrl = process.env.EXTRACTION_SERVICE_URL || 'http://localhost:8000/api/v1/extract-concepts';
+    // Call the Python extraction service (deployed as Vercel function)
+    const extractionServiceUrl = process.env.EXTRACTION_SERVICE_URL || '/api/v1/extract-concepts';
     console.log("Connecting to extraction service at:", extractionServiceUrl);
 
     try {
       // Log the request to help with debugging
       console.log(`Sending request to extraction service with ${conversation_text.length} characters of text`);
       
-      const extractionResponse = await fetch(extractionServiceUrl, {
+      // Build full URL for the request
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : (process.env.NODE_ENV === 'production' ? 'https://recall-henna.vercel.app' : 'http://localhost:3000');
+      
+      const fullUrl = extractionServiceUrl.startsWith('http') 
+        ? extractionServiceUrl 
+        : `${baseUrl}${extractionServiceUrl}`;
+      
+      console.log("Full extraction service URL:", fullUrl);
+      
+      const extractionResponse = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,19 +118,17 @@ Examples of good categorization:
 CRITICAL: Only use categories that exist in the existing_categories list provided.`
           }
         }),
-        // Increase timeouts for larger conversations
-        cache: "no-cache",
-        next: { revalidate: 0 }, // Skip cached responses
       });
 
       if (!extractionResponse.ok) {
-        throw new Error(`Extraction service responded with status: ${extractionResponse.status}`);
+        const errorText = await extractionResponse.text();
+        console.error(`Extraction service error (${extractionResponse.status}):`, errorText);
+        throw new Error(`Extraction service returned ${extractionResponse.status}: ${errorText}`);
       }
 
-      console.log("Received response from extraction service");
-      
-      // Parse the response
       const extractionData = await extractionResponse.json();
+
+      console.log("Received response from concept extractor");
       
       // Validate the response format
       console.log("Validating extraction response format");
@@ -177,7 +186,7 @@ CRITICAL: Only use categories that exist in the existing_categories list provide
         // Ensure we have a clean conversation_summary without formatting tags
         conversation_summary: extractionData.conversation_summary 
           ? extractionData.conversation_summary.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim()
-          : extractionData.summary || "Conversation about programming concepts"
+          : "Conversation about programming concepts"
       };
 
       // Extract the category from detected concepts to enhance display
@@ -193,7 +202,16 @@ CRITICAL: Only use categories that exist in the existing_categories list provide
             keyPoints: Array.isArray(concept.keyPoints) && concept.keyPoints.length > 0 
               ? concept.keyPoints 
               : ["Extracted from conversation"],
-            details: concept.details || concept.implementation || concept.summary || "",
+            details: typeof concept.details === 'object' ? concept.details : {
+              implementation: concept.details || concept.implementation || concept.summary || "",
+              complexity: { time: "N/A", space: "N/A" },
+              useCases: [],
+              edgeCases: [],
+              performance: "",
+              interviewQuestions: [],
+              practiceProblems: [],
+              furtherReading: []
+            },
             relatedConcepts: Array.isArray(concept.relatedConcepts) ? concept.relatedConcepts : [],
             codeSnippets: Array.isArray(concept.codeSnippets) ? concept.codeSnippets : []
           };
@@ -209,7 +227,16 @@ CRITICAL: Only use categories that exist in the existing_categories list provide
             category: "General",
             summary: summaryText,
             keyPoints: ["Key points extracted from conversation"],
-            details: "This concept covers the main topics discussed in the conversation.",
+            details: {
+              implementation: "This concept covers the main topics discussed in the conversation.",
+              complexity: { time: "N/A", space: "N/A" },
+              useCases: [],
+              edgeCases: [],
+              performance: "",
+              interviewQuestions: [],
+              practiceProblems: [],
+              furtherReading: []
+            },
             relatedConcepts: []
           }
         ];
@@ -228,7 +255,16 @@ CRITICAL: Only use categories that exist in the existing_categories list provide
             category: "General",
             summary: "Programming concepts discussed in the conversation",
             keyPoints: ["Extracted from conversation"],
-            details: "This concept was extracted from the conversation",
+            details: {
+              implementation: "This concept was extracted from the conversation",
+              complexity: { time: "N/A", space: "N/A" },
+              useCases: [],
+              edgeCases: [],
+              performance: "",
+              interviewQuestions: [],
+              practiceProblems: [],
+              furtherReading: []
+            },
             relatedConcepts: [],
           }
         ],
