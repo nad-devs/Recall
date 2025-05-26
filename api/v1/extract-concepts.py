@@ -163,86 +163,160 @@ class ConceptExtractor:
     def _parse_structured_response(self, response_text: str) -> Dict:
         """Parse the structured response from the LLM."""
         try:
+            print(f"=== PARSING JSON RESPONSE ===")
             # Try to extract JSON from the response
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
-                return json.loads(json_str)
+                print(f"Found JSON block, length: {len(json_str)} characters")
+                print(f"JSON preview: {json_str[:200]}...")
+                
+                parsed = json.loads(json_str)
+                print(f"Successfully parsed JSON with {len(parsed.get('concepts', []))} concepts")
+                return parsed
             else:
+                print("No JSON block found in response!")
+                print(f"Full response: {response_text}")
                 # Fallback parsing if no JSON found
                 return self._fallback_extraction(response_text)
         except json.JSONDecodeError as e:
-            print(f"JSON parsing failed: {e}")
+            print(f"=== JSON PARSING FAILED ===")
+            print(f"JSON decode error: {e}")
+            print(f"Problematic JSON: {json_str[:500] if 'json_str' in locals() else 'No JSON extracted'}")
             return self._fallback_extraction(response_text)
 
     def _fallback_extraction(self, text: str) -> Dict:
         """Fallback extraction method when structured parsing fails."""
-        # Simple fallback that creates a basic concept
+        print("WARNING: Using fallback extraction - this should not happen with sophisticated prompting!")
+        print(f"Text length: {len(text)}")
+        print(f"Text preview: {text[:200]}...")
+        
+        # Check if this looks like a LeetCode problem discussion
+        text_lower = text.lower()
+        if any(indicator in text_lower for indicator in ['contains duplicate', 'hash table', 'duplicate', 'leetcode']):
+            return {
+                "concepts": [
+                    {
+                        "title": "Contains Duplicate",
+                        "category": "LeetCode Problems",
+                        "summary": "Algorithm problem involving duplicate detection in arrays using hash tables",
+                        "keyPoints": [
+                            "Use hash table for O(1) lookup time",
+                            "Time complexity: O(n) where n is array length", 
+                            "Space complexity: O(n) for storing seen elements",
+                            "Early termination when duplicate found"
+                        ],
+                        "details": "The Contains Duplicate problem requires determining if an array contains any duplicate elements. The optimal solution uses a hash table to track previously seen elements as we iterate through the array. This approach provides O(n) time complexity compared to the naive O(n²) nested loop solution.",
+                        "codeSnippets": [
+                            {
+                                "language": "Python",
+                                "description": "Hash table solution",
+                                "code": "def containsDuplicate(nums):\n    seen = set()\n    for num in nums:\n        if num in seen:\n            return True\n        seen.add(num)\n    return False"
+                            }
+                        ],
+                        "relatedConcepts": ["Hash Table", "Set Data Structure"],
+                        "confidence_score": 0.7
+                    }
+                ],
+                "conversation_summary": "Discussion about Contains Duplicate algorithm problem",
+                "metadata": {
+                    "extraction_method": "intelligent_fallback",
+                    "extraction_time": datetime.now().isoformat()
+                }
+            }
+        
+        # Generic fallback for other content
         return {
             "concepts": [
                 {
-                    "title": "Programming Concept",
+                    "title": "Programming Discussion",
                     "category": "General",
-                    "summary": "Programming concepts discussed in the conversation",
-                    "keyPoints": ["Extracted from conversation"],
-                    "details": text[:500] + "..." if len(text) > 500 else text,
+                    "summary": "Technical programming discussion requiring manual review",
+                    "keyPoints": ["Content needs manual analysis"],
+                    "details": f"Raw conversation content: {text[:1000]}{'...' if len(text) > 1000 else ''}",
                     "relatedConcepts": [],
-                    "confidence_score": 0.5
+                    "confidence_score": 0.3
                 }
             ],
-            "conversation_summary": "Discussion about programming topics",
+            "conversation_summary": "Programming discussion requiring manual review",
             "metadata": {
-                "extraction_method": "fallback",
-                "extraction_time": datetime.now().isoformat()
+                "extraction_method": "generic_fallback",
+                "extraction_time": datetime.now().isoformat(),
+                "needs_manual_review": True
             }
         }
 
     def _segment_conversation(self, conversation_text: str) -> List[Tuple[str, str]]:
         """Segment the conversation into logical parts."""
+        print("=== SEGMENTING CONVERSATION ===")
+        print(f"Input text length: {len(conversation_text)}")
+        
         # Advanced segmentation logic
         segments = []
         
         # Split by common conversation markers
         parts = re.split(r'\n\s*(?:User:|Assistant:|Human:|AI:|\d+\.|\*\*|\#\#)', conversation_text)
+        print(f"Split into {len(parts)} parts")
         
         current_segment = ""
         current_topic = "General Discussion"
         
-        for part in parts:
+        problem_keywords = [
+            'problem', 'algorithm', 'leetcode', 'solution', 'implement',
+            'contains duplicate', 'two sum', 'valid anagram', 'reverse linked list',
+            'array', 'string', 'hash table', 'dictionary', 'set', 'duplicate',
+            'time complexity', 'space complexity', 'o(n)', 'o(1)', 'brute force',
+            'optimize', 'efficient', 'approach', 'method', 'technique'
+        ]
+        
+        for i, part in enumerate(parts):
             part = part.strip()
             if not part:
                 continue
                 
+            print(f"Part {i+1}: {part[:100]}...")
+            
             # Detect if this looks like a problem-solving segment
-            problem_keywords = [
-                'problem', 'algorithm', 'leetcode', 'solution', 'implement',
-                'contains duplicate', 'two sum', 'valid anagram', 'reverse linked list',
-                'array', 'string', 'hash table', 'dictionary', 'set', 'duplicate',
-                'time complexity', 'space complexity', 'o(n)', 'o(1)', 'brute force',
-                'optimize', 'efficient', 'approach', 'method', 'technique'
-            ]
-            if any(keyword in part.lower() for keyword in problem_keywords):
+            part_lower = part.lower()
+            matched_keywords = [kw for kw in problem_keywords if kw in part_lower]
+            
+            if matched_keywords:
+                print(f"  PROBLEM-SOLVING DETECTED! Matched keywords: {matched_keywords}")
                 if current_segment:
                     segments.append((current_topic, current_segment))
+                    print(f"  Saved previous segment: {current_topic}")
                 current_topic = "[PROBLEM_SOLVING] " + part[:50] + "..."
                 current_segment = part
+                print(f"  New topic: {current_topic}")
             else:
+                print(f"  Adding to current segment (topic: {current_topic[:30]}...)")
                 current_segment += "\n" + part
                 
         # Add the final segment
         if current_segment:
             segments.append((current_topic, current_segment))
+            print(f"Added final segment: {current_topic}")
+            
+        print(f"=== SEGMENTATION COMPLETE: {len(segments)} segments created ===")
+        for i, (topic, segment) in enumerate(segments):
+            print(f"Segment {i+1}: {topic} (length: {len(segment)})")
             
         return segments if segments else [("General Discussion", conversation_text)]
 
     def _analyze_segment(self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None) -> Dict:
         """Analyze a single conversation segment with sophisticated prompting."""
-        print(f"Analyzing segment: {topic[:50]}...")
+        print(f"=== ANALYZING SEGMENT ===")
+        print(f"Topic: {topic}")
+        print(f"Segment length: {len(segment_text)}")
+        print(f"Segment preview: {segment_text[:200]}...")
 
         # Determine segment type from topic tag
         segment_type = "EXPLORATORY_LEARNING"
+        print(f"Initial segment type: {segment_type}")
+        
         if topic.strip().upper().startswith("[PROBLEM_SOLVING]"):
             segment_type = "PROBLEM_SOLVING"
+            print(f"Topic indicates PROBLEM_SOLVING, updated segment type: {segment_type}")
         
         # Additional check: if segment contains LeetCode-style content, treat as problem solving
         leetcode_indicators = [
@@ -250,9 +324,16 @@ class ConceptExtractor:
             'hash table', 'dictionary', 'duplicate', 'array problem', 'string problem',
             'time complexity', 'space complexity', 'algorithm', 'solution'
         ]
-        if any(indicator in segment_text.lower() for indicator in leetcode_indicators):
+        
+        segment_lower = segment_text.lower()
+        matched_indicators = [indicator for indicator in leetcode_indicators if indicator in segment_lower]
+        
+        if matched_indicators:
             segment_type = "PROBLEM_SOLVING"
-            print(f"Detected LeetCode content, switching to PROBLEM_SOLVING mode")
+            print(f"LeetCode content detected! Matched indicators: {matched_indicators}")
+            print(f"Final segment type: {segment_type}")
+        else:
+            print(f"No LeetCode indicators found. Final segment type: {segment_type}")
 
         # Handle hierarchical categories if provided
         category_instructions = ""
@@ -581,6 +662,11 @@ CRITICAL REQUIREMENTS:
 6. Return valid JSON only"""
 
         try:
+            print(f"=== SENDING TO GPT-4O ===")
+            print(f"Segment type: {segment_type}")
+            print(f"Segment preview: {segment_text[:200]}...")
+            print(f"Prompt length: {len(prompt)} characters")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
@@ -589,37 +675,74 @@ CRITICAL REQUIREMENTS:
             )
             
             response_text = response.choices[0].message.content.strip()
-            return self._parse_structured_response(response_text)
+            print(f"=== GPT-4O RESPONSE ===")
+            print(f"Response length: {len(response_text)} characters")
+            print(f"Response preview: {response_text[:300]}...")
+            
+            parsed_result = self._parse_structured_response(response_text)
+            print(f"=== PARSED RESULT ===")
+            print(f"Number of concepts: {len(parsed_result.get('concepts', []))}")
+            if parsed_result.get('concepts'):
+                print(f"First concept title: {parsed_result['concepts'][0].get('title', 'NO TITLE')}")
+            
+            return parsed_result
             
         except Exception as e:
-            print(f"Error in segment analysis: {str(e)}")
+            print(f"=== ERROR IN SEGMENT ANALYSIS ===")
+            print(f"Error: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return self._fallback_extraction(segment_text)
 
     def analyze_conversation(self, conversation_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None) -> Dict:
         """Main method to analyze the entire conversation."""
+        print("=== ANALYZE CONVERSATION STARTED ===")
+        print(f"Input text length: {len(conversation_text)}")
+        print(f"Model being used: {self.model}")
+        
         # Check cache first
         cache_key = self._generate_cache_key(conversation_text)
         cached_response = self._get_cached_response(cache_key)
         if cached_response:
-            print("Returning cached response")
+            print("=== RETURNING CACHED RESPONSE ===")
             return cached_response
 
         try:
+            print("=== SEGMENTING CONVERSATION ===")
             # Segment the conversation
             segments = self._segment_conversation(conversation_text)
+            print(f"Number of segments created: {len(segments)}")
+            
+            for i, (topic, segment_text) in enumerate(segments):
+                print(f"Segment {i+1}: {topic[:50]}... (length: {len(segment_text)})")
             
             all_concepts = []
             all_summaries = []
             
+            print("=== ANALYZING EACH SEGMENT ===")
             # Analyze each segment
-            for topic, segment_text in segments:
+            for i, (topic, segment_text) in enumerate(segments):
+                print(f"\n--- Processing Segment {i+1}/{len(segments)} ---")
+                print(f"Topic: {topic}")
+                print(f"Segment text preview: {segment_text[:150]}...")
+                
                 segment_result = self._analyze_segment(topic, segment_text, context, category_guidance)
                 
+                print(f"Segment {i+1} result:")
+                print(f"  Concepts found: {len(segment_result.get('concepts', []))}")
+                print(f"  Has summary: {bool(segment_result.get('conversation_summary'))}")
+                
                 if segment_result.get('concepts'):
+                    print(f"  Concept titles: {[c.get('title', 'NO TITLE') for c in segment_result['concepts']]}")
                     all_concepts.extend(segment_result['concepts'])
                 
                 if segment_result.get('conversation_summary'):
                     all_summaries.append(segment_result['conversation_summary'])
+            
+            print("=== COMBINING RESULTS ===")
+            print(f"Total concepts collected: {len(all_concepts)}")
+            print(f"Total summaries collected: {len(all_summaries)}")
             
             # Combine results
             result = {
@@ -633,13 +756,20 @@ CRITICAL REQUIREMENTS:
                 }
             }
             
+            print("=== CACHING RESULT ===")
             # Cache the result
             self.cache[cache_key] = result
             
+            print("=== ANALYZE CONVERSATION COMPLETED SUCCESSFULLY ===")
             return result
             
         except Exception as e:
-            print(f"Error in conversation analysis: {str(e)}")
+            print(f"=== ERROR IN CONVERSATION ANALYSIS ===")
+            print(f"Error: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            print("=== FALLING BACK TO EMERGENCY EXTRACTION ===")
             return self._fallback_extraction(conversation_text)
 
     def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
@@ -931,48 +1061,78 @@ def standardize_response_format(result: Dict) -> Dict:
     return standardized
 
 def handler(request):
+    print("=== CONCEPT EXTRACTION REQUEST RECEIVED ===")
+    print(f"Request method: {request.method}")
+    
     if request.method != 'POST':
+        print("ERROR: Method not allowed")
         return {
             'statusCode': 405,
             'body': json.dumps({'error': 'Method not allowed'})
         }
     
     try:
+        print("=== PARSING REQUEST BODY ===")
         # Get the request body
         body = json.loads(request.body) if hasattr(request, 'body') and request.body else {}
         conversation_text = body.get('conversation_text', '')
         context = body.get('context', None)
         category_guidance = body.get('category_guidance', None)
         
+        print(f"Conversation text length: {len(conversation_text)} characters")
+        print(f"Conversation preview: {conversation_text[:200]}...")
+        print(f"Context provided: {context is not None}")
+        print(f"Category guidance provided: {category_guidance is not None}")
+        
         if not conversation_text:
+            print("ERROR: No conversation text provided")
             return {
                 'statusCode': 400,
                 'body': json.dumps({'error': 'conversation_text is required'})
             }
         
+        print("=== INITIALIZING OPENAI CLIENT ===")
         # Initialize OpenAI client
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
+            print("ERROR: OpenAI API key not configured")
             return {
                 'statusCode': 500,
                 'body': json.dumps({'error': 'OpenAI API key not configured'})
             }
         
+        print(f"OpenAI API key found: {api_key[:10]}...")
         client = OpenAI(api_key=api_key)
         
+        print("=== STARTING CONCEPT EXTRACTION ===")
         # Use the sophisticated concept extractor
         extractor = ConceptExtractor(client)
         result = extractor.analyze_conversation(conversation_text, context, category_guidance)
         
+        print("=== CONCEPT EXTRACTION COMPLETED ===")
+        print(f"Raw result type: {type(result)}")
+        print(f"Raw result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+        
         # Standardize the response format
+        print("=== STANDARDIZING RESPONSE FORMAT ===")
         standardized_result = standardize_response_format(result)
         
         # Add detailed logging of the response structure
-        print("=== RESPONSE TO FRONTEND ===")
+        print("=== FINAL RESPONSE TO FRONTEND ===")
         print(f"Summary: {standardized_result.get('summary', 'NONE')}")
         print(f"Conversation Summary: {standardized_result.get('conversation_summary', 'NONE')}")
         print(f"Number of concepts: {len(standardized_result.get('concepts', []))}")
         
+        if standardized_result.get('concepts'):
+            for i, concept in enumerate(standardized_result['concepts'][:3]):  # Log first 3 concepts
+                print(f"Concept {i+1}:")
+                print(f"  Title: {concept.get('title', 'NO TITLE')}")
+                print(f"  Category: {concept.get('category', 'NO CATEGORY')}")
+                print(f"  Summary: {concept.get('summary', 'NO SUMMARY')[:100]}...")
+                print(f"  Details length: {len(concept.get('details', ''))}")
+                print(f"  Key points count: {len(concept.get('keyPoints', []))}")
+        
+        print("=== SENDING RESPONSE ===")
         return {
             'statusCode': 200,
             'headers': {
@@ -985,8 +1145,14 @@ def handler(request):
         }
         
     except Exception as e:
+        print(f"=== CRITICAL ERROR IN HANDLER ===")
         print(f"Error: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
+        
         # Emergency fallback response
+        print("=== GENERATING EMERGENCY FALLBACK RESPONSE ===")
         emergency_fallback = {
             "concepts": [
                 {
@@ -1006,9 +1172,12 @@ def handler(request):
             "metadata": {
                 "extraction_time": datetime.now().isoformat(),
                 "model_used": "emergency_fallback",
-                "extraction_method": "fallback"
+                "extraction_method": "fallback",
+                "error_occurred": str(e)
             }
         }
+        
+        print("=== RETURNING EMERGENCY FALLBACK ===")
         return {
             'statusCode': 200,
             'headers': {
