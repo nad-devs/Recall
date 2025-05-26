@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -7,7 +8,7 @@ import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { useEffect } from "react"
 
-export default function AuthError() {
+function AuthErrorContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get("error")
 
@@ -104,12 +105,42 @@ export default function AuthError() {
           <Card className="bg-gray-50 border-gray-200">
             <CardContent className="p-4">
               <p className="text-xs text-gray-600 font-mono">
-                Debug Info: Error = {error || 'None'} | URL = {window.location.href}
+                Debug Info: Error = {error || 'None'}
               </p>
             </CardContent>
           </Card>
         )}
       </div>
     </div>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <Card className="bg-white shadow-xl">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-gray-400" />
+            </div>
+            <CardTitle className="text-xl text-gray-900">Loading...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 text-center">
+              Loading error details...
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthError() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AuthErrorContent />
+    </Suspense>
   )
 } 
