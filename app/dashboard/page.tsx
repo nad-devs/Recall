@@ -102,17 +102,25 @@ export default function Dashboard() {
     try {
       setLoading(true)
       
-      // Prepare headers for email-based session
+      // Prepare headers for both email-based and OAuth sessions
       const userEmail = localStorage.getItem('userEmail')
       const userId = localStorage.getItem('userId')
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       }
       
+      // For email-based sessions
       if (userEmail && userId) {
         headers['x-user-email'] = userEmail
         headers['x-user-id'] = userId
+      } 
+      // For OAuth sessions, use session data
+      else if (session?.user?.email) {
+        headers['x-user-email'] = session.user.email
+        headers['x-user-id'] = session.user.id || ''
       }
+      
+      console.log('Dashboard: Using headers:', headers)
       
       // Fetch conversations
       const conversationsResponse = await fetch('/api/conversations', { headers })
