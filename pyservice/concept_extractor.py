@@ -131,8 +131,9 @@ class ConceptExtractor:
         ]
         try:
             async with httpx.AsyncClient() as client:
-                # Change the URL if your frontend runs on a different port or domain
-                resp = await client.get("http://localhost:3000/api/categories")
+                # Use environment variable for frontend URL with fallback
+                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+                resp = await client.get(f"{frontend_url}/api/categories")
                 if resp.status_code == 200:
                     data = resp.json()
                     categories = data.get("categories", [])

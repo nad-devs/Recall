@@ -1,1 +1,17 @@
-{} 
+{
+  "functions": {
+    "api/v1/*.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "/api/v1/$1"
+    }
+  ],
+  "env": {
+    "BACKEND_URL": "https://recall.p3vg.onrender.com",
+    "NEXT_PUBLIC_BACKEND_URL": "https://recall.p3vg.onrender.com"
+  }
+} 
