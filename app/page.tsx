@@ -251,6 +251,11 @@ export default function LandingPage() {
             </div>
             
             <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                <p className="text-sm text-green-700 text-center">
+                  <strong>Privacy Note:</strong> This isn't to send you emails - it's only to identify you uniquely and securely access your learning data.
+                </p>
+              </div>
               <div>
                 <p className="text-sm text-gray-600 mb-3">
                   Enter your email to access your existing account
@@ -373,6 +378,11 @@ export default function LandingPage() {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to organize your knowledge?</h3>
                       <p className="text-gray-600 text-sm">Enter your details to get started</p>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-3">
+                        <p className="text-sm text-green-700 text-center">
+                          <strong>Privacy Note:</strong> We only use your email to identify you uniquely - no marketing emails or spam.
+                        </p>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -470,15 +480,24 @@ export default function LandingPage() {
                         <p className="text-sm text-gray-500">
                           Your data will be saved and accessible from any device
                         </p>
-                        <p className="text-sm text-gray-600">
-                          Already have an account?{" "}
-                          <button
-                            onClick={() => setShowSignIn(true)}
-                            className="text-blue-600 hover:text-blue-800 font-medium underline"
-                          >
-                            Sign in here
-                          </button>
-                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2 items-center justify-center">
+                          <p className="text-sm text-gray-600">Already have an account?</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowSignIn(true)}
+                              className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
+                            >
+                              Email Sign In
+                            </button>
+                            <span className="text-gray-400">|</span>
+                            <button
+                              onClick={() => router.push('/auth/signin')}
+                              className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
+                            >
+                              Google Sign In
+                            </button>
+                          </div>
+                        </div>
                       </div>
                   </div>
                 </div>

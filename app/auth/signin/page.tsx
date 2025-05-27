@@ -139,6 +139,11 @@ export default function SignIn() {
             <p className="text-center text-sm text-gray-600">
               Access your learning dashboard and saved progress
             </p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
+              <p className="text-sm text-green-700 text-center">
+                <strong>Privacy Note:</strong> This isn't to send you emails - it's only to identify you uniquely and securely access your learning data.
+              </p>
+            </div>
             {isGoogleAvailable && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
                 <p className="text-sm text-blue-700 text-center">
