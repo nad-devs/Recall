@@ -251,11 +251,17 @@ class ConceptExtractor:
             # Clean the response text
             cleaned_text = response_text.strip()
             
-            # Remove markdown code blocks if present
+            # Remove markdown code blocks if present - more robust cleaning
             if cleaned_text.startswith("```json"):
                 cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            
             if cleaned_text.endswith("```"):
                 cleaned_text = cleaned_text[:-3]
+            
+            # Remove any remaining backticks at start/end
+            cleaned_text = cleaned_text.strip('`').strip()
             
             # Parse JSON
             response_data = json.loads(cleaned_text)
