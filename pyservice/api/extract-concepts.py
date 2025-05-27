@@ -71,16 +71,8 @@ class ConceptExtractor:
             "Machine Learning",
             "General"
         ]
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get("https://your-app-domain.vercel.app/api/categories")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    categories = data.get("categories", [])
-                    if categories:
-                        return categories
-        except Exception as e:
-            print(f"Failed to fetch categories from API: {e}")
+        # Just return default categories to avoid any connection issues
+        # This ensures backend works regardless of Vercel connectivity
         return default_categories
 
     def _normalize_category(self, suggested_category: str, valid_categories: List[str]) -> Optional[str]:
@@ -362,6 +354,12 @@ Summary:"""
 # Vercel serverless function handler
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # Log the request path to help with debugging
+        print(f"Received POST request to path: {self.path}")
+        
+        # Accept requests to any path - this is more flexible
+        # and will work with different Vercel/Render path configurations
+            
         try:
             # Parse request body
             content_length = int(self.headers['Content-Length'])

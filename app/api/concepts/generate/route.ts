@@ -17,17 +17,37 @@ export async function POST(request: Request) {
       : `Please provide a comprehensive technical explanation of the concept: "${conceptName}".`;
 
     // Use the existing Python backend service to generate the concept
-    const backendResponse = await fetch('http://localhost:8000/api/v1/extract-concepts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        conversation_text: generationPrompt + 
-          ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
-          `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`
-      }),
-    });
+    const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const httpUrl = httpsUrl.replace('https://', 'http://');
+    
+    let backendResponse;
+    try {
+      console.log("Attempting HTTPS connection for concept generation...");
+      backendResponse = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          conversation_text: generationPrompt + 
+            ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
+            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`
+        }),
+      });
+    } catch (sslError) {
+      console.log("HTTPS failed for concept generation, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed');
+      backendResponse = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          conversation_text: generationPrompt + 
+            ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
+            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`
+        }),
+      });
+    }
 
     if (!backendResponse.ok) {
       throw new Error(`Backend service failed: ${backendResponse.status}`);
