@@ -41,7 +41,8 @@ export function useAutoAnalysis({
     
     try {
       console.log("Auto-starting analysis for concept creation...")
-      const response = await fetch('/api/extract-concepts', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

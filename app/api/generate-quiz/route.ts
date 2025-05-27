@@ -13,11 +13,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the Python microservice to generate quiz questions
-    const pythonServiceUrl = process.env.NODE_ENV === 'production' 
-      ? `${process.env.VERCEL_URL}/api/v1/generate-quiz`
-      : 'http://localhost:8000/generate-quiz';
+    const pythonServiceUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
 
-    const response = await fetch(pythonServiceUrl, {
+    const response = await fetch(`${pythonServiceUrl}/api/v1/generate-quiz`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

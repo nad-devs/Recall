@@ -325,14 +325,14 @@ export function useAnalyzePage() {
       // Get custom API key if user has one
       const currentUsageData = getUsageData()
       
-      const response = await fetch('/api/extract-concepts', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          conversation_text: conversationText,
-          customApiKey: currentUsageData.customApiKey
+          conversation_text: conversationText
         }),
       })
 
@@ -503,7 +503,8 @@ export function useAnalyzePage() {
       setLoadingConcepts(prev => [...prev, title])
       
       // Generate AI content for the concept
-      const response = await fetch('/api/extract-concepts', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
