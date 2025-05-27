@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
 import OpenAI from 'openai';
 
 // Initialize OpenAI client
@@ -7,10 +8,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // For open source version, get all conversations (no user filtering)
+    // Validate session
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get conversations for the authenticated user
     const conversations = await prisma.conversation.findMany({
+      where: {
+        userId: user.id
+      },
       orderBy: {
         createdAt: 'desc',
       },

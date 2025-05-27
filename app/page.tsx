@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Brain, MessageSquare, BookOpen, ArrowRight, Sparkles, BarChart3, Upload, FileText, Zap, Target, Search, Github, Heart } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Brain, MessageSquare, BookOpen, ArrowRight, Sparkles, BarChart3, Upload, FileText, Zap, Target, Search, Github, Heart, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,11 +10,85 @@ import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
   const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
   const [isStarting, setIsStarting] = useState(false)
+  const [showSignIn, setShowSignIn] = useState(false)
+  const [signInEmail, setSignInEmail] = useState("")
+  const [isSigningIn, setIsSigningIn] = useState(false)
+  const [emailVerification, setEmailVerification] = useState<{
+    status: 'idle' | 'checking' | 'valid' | 'invalid'
+    message: string
+    suggestion?: string
+  }>({ status: 'idle', message: '' })
   const router = useRouter()
 
+  // Check if user is already logged in
+  useEffect(() => {
+    const userName = localStorage.getItem('userName')
+    const userEmail = localStorage.getItem('userEmail')
+    const userId = localStorage.getItem('userId')
+    
+    if (userName && userEmail && userId) {
+      // User is already logged in, redirect to dashboard
+      router.push('/dashboard')
+    }
+  }, [router])
+
+  const verifyEmail = async (emailToVerify: string) => {
+    if (!isValidEmail(emailToVerify)) {
+      setEmailVerification({
+        status: 'invalid',
+        message: 'Please enter a valid email format'
+      })
+      return false
+    }
+
+    setEmailVerification({ 
+      status: 'checking', 
+      message: 'Verifying email...' 
+    })
+
+    try {
+      const response = await fetch('/api/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: emailToVerify,
+          fast: false 
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.valid) {
+        setEmailVerification({
+          status: 'valid',
+          message: '✓ Email verified successfully'
+        })
+        return true
+      } else {
+        setEmailVerification({
+          status: 'invalid',
+          message: result.reason,
+          suggestion: result.suggestion
+        })
+        return false
+      }
+    } catch (error) {
+      setEmailVerification({
+        status: 'invalid',
+        message: 'Unable to verify email. Please check your connection.'
+      })
+      return false
+    }
+  }
+
   const handleStart = async () => {
-    if (!name.trim()) return
+    if (!name.trim() || !email.trim()) return
+
+    // First verify the email
+    const isEmailValid = await verifyEmail(email)
+    if (!isEmailValid) return
 
     setIsStarting(true)
     const initials = name
@@ -23,36 +97,91 @@ export default function LandingPage() {
       .join("")
       .slice(0, 2)
 
-    // Store user info in localStorage for personalization
-    localStorage.setItem('userName', name.trim())
-    localStorage.setItem('userInitials', initials)
-
-    // Optional: Track user signup for analytics (privacy-friendly)
     try {
-      await fetch('/api/analytics/user-signup', {
+      // Create or get user based on email
+      const response = await fetch('/api/auth/email-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim(),
           timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
-    } catch (error) {
-      // Analytics failure shouldn't block the user experience
-      console.log('Analytics tracking failed (non-critical):', error)
-    }
 
-    // Simulate a brief transition then redirect to auth
-    setTimeout(() => {
-      router.push('/auth/signin')
-    }, 1500)
+      if (!response.ok) {
+        throw new Error('Failed to create user')
+      }
+
+      const { user } = await response.json()
+
+      // Store user info in localStorage
+      localStorage.setItem('userName', user.name)
+      localStorage.setItem('userEmail', user.email)
+      localStorage.setItem('userInitials', initials)
+      localStorage.setItem('userId', user.id)
+
+      // Redirect directly to dashboard
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1500)
+    } catch (error) {
+      console.error('User creation failed:', error)
+      setIsStarting(false)
+      // Show error to user
+      alert('Something went wrong. Please try again.')
+    }
+  }
+
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email.trim())
   }
 
   const isValidName = (name: string) => {
-    const trimmedName = name.trim()
-    return trimmedName.length >= 2 && trimmedName.includes(' ')
+    return name.trim().length >= 2
+  }
+
+  const canStart = isValidEmail(email) && isValidName(name) && emailVerification.status !== 'checking'
+
+  const handleEmailSuggestion = () => {
+    if (emailVerification.suggestion) {
+      setEmail(emailVerification.suggestion)
+      setEmailVerification({ status: 'idle', message: '' })
+    }
+  }
+
+  const handleSignIn = async () => {
+    if (!isValidEmail(signInEmail)) return
+
+    setIsSigningIn(true)
+    try {
+      const response = await fetch('/api/auth/signin-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signInEmail.trim().toLowerCase() })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.user) {
+        // User exists, log them in
+        localStorage.setItem('userName', result.user.name)
+        localStorage.setItem('userEmail', result.user.email)
+        localStorage.setItem('userId', result.user.id)
+        
+        router.push('/dashboard')
+      } else {
+        alert('No account found with this email. Please sign up instead.')
+        setShowSignIn(false)
+        setEmail(signInEmail)
+      }
+    } catch (error) {
+      alert('Something went wrong. Please try again.')
+    } finally {
+      setIsSigningIn(false)
+    }
   }
 
   if (isStarting) {
@@ -72,12 +201,71 @@ export default function LandingPage() {
           <div className="w-64 mx-auto">
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse w-full"></div>
+                      </div>
+        </div>
+      </div>
+
+      {/* Sign In Modal */}
+      {showSignIn && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Sign In</h3>
+              <button
+                onClick={() => setShowSignIn(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-3">
+                  Enter your email to access your existing account
+                </p>
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={signInEmail}
+                  onChange={(e) => setSignInEmail(e.target.value)}
+                  className="h-12 text-lg"
+                  onKeyPress={(e) => e.key === "Enter" && isValidEmail(signInEmail) && handleSignIn()}
+                />
+                {signInEmail.trim() && !isValidEmail(signInEmail) && (
+                  <p className="text-sm text-red-600 mt-1">Please enter a valid email address</p>
+                )}
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleSignIn}
+                  disabled={!isValidEmail(signInEmail) || isSigningIn}
+                  className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSigningIn ? "Signing in..." : "Sign In"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSignIn(false)}
+                  className="h-12 px-6"
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              <div className="text-center">
+                <p className="text-sm text-gray-500">
+                  Don't have an account? Just fill out the form above to create one.
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )}
+    </div>
+  )
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -150,40 +338,117 @@ export default function LandingPage() {
             {/* CTA Section */}
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
               <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to organize your knowledge?</h3>
-                    <p className="text-gray-600 text-sm">Enter your full name to get started</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Enter your full name (e.g., John Smith)"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
-                        onKeyPress={(e) => e.key === "Enter" && isValidName(name) && handleStart()}
-                      />
-                      {name.trim() && !isValidName(name) && (
-                        <p className="text-sm text-red-600">Please enter your full name (first and last name)</p>
-                      )}
+                                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to organize your knowledge?</h3>
+                      <p className="text-gray-600 text-sm">Enter your details to get started</p>
                     </div>
 
-                    <Button
-                      onClick={handleStart}
-                      disabled={!isValidName(name)}
-                      className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Start Building Your Knowledge Base
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Input
+                          type="email"
+                          placeholder="Email (to uniquely identify u)"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value)
+                            setEmailVerification({ status: 'idle', message: '' })
+                          }}
+                          className={`h-12 text-lg text-gray-900 placeholder:text-gray-500 ${
+                            emailVerification.status === 'valid' ? 'border-green-500 bg-green-50' :
+                            emailVerification.status === 'invalid' ? 'border-red-500 bg-red-50' :
+                            emailVerification.status === 'checking' ? 'border-blue-500 bg-blue-50' : ''
+                          }`}
+                        />
+                        
+                        {/* Email verification status */}
+                        {emailVerification.status === 'checking' && (
+                          <div className="flex items-center space-x-2 text-sm text-blue-600">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                            <span>{emailVerification.message}</span>
+                          </div>
+                        )}
+                        
+                        {emailVerification.status === 'valid' && (
+                          <p className="text-sm text-green-600 flex items-center space-x-1">
+                            <span>✓</span>
+                            <span>{emailVerification.message}</span>
+                          </p>
+                        )}
+                        
+                        {emailVerification.status === 'invalid' && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-red-600">{emailVerification.message}</p>
+                            {emailVerification.suggestion && (
+                              <button
+                                onClick={handleEmailSuggestion}
+                                className="text-sm text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Use suggested email: {emailVerification.suggestion}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {email.trim() && !isValidEmail(email) && emailVerification.status === 'idle' && (
+                          <p className="text-sm text-red-600">Please enter a valid email address</p>
+                        )}
+                        
+                        {email.trim() && isValidEmail(email) && emailVerification.status === 'idle' && (
+                          <button
+                            onClick={() => verifyEmail(email)}
+                            className="text-sm text-blue-600 hover:text-blue-800 underline"
+                          >
+                            Click to verify this email address
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="What name would u like to be called"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
+                          onKeyPress={(e) => e.key === "Enter" && canStart && handleStart()}
+                        />
+                        {name.trim() && !isValidName(name) && (
+                          <p className="text-sm text-red-600">Please enter a name (at least 2 characters)</p>
+                        )}
+                      </div>
+
+                      <Button
+                        onClick={handleStart}
+                        disabled={!canStart}
+                        className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {emailVerification.status === 'checking' ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Verifying Email...
+                          </>
+                        ) : (
+                          <>
+                            Start Building Your Knowledge Base
+                            <ArrowRight className="w-5 h-5 ml-2" />
+                          </>
+                        )}
+                      </Button>
                     
-                    <div className="text-center">
-                      <p className="text-sm text-gray-500">
-                        Try demo instantly or create an account to save your progress
-                      </p>
-                    </div>
+                                          <div className="text-center space-y-2">
+                        <p className="text-sm text-gray-500">
+                          Your data will be saved and accessible from any device
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Already have an account?{" "}
+                          <button
+                            onClick={() => setShowSignIn(true)}
+                            className="text-blue-600 hover:text-blue-800 font-medium underline"
+                          >
+                            Sign in here
+                          </button>
+                        </p>
+                      </div>
                   </div>
                 </div>
               </CardContent>

@@ -33,9 +33,21 @@ export default function Dashboard() {
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
 
-  // Check for demo mode or authentication
+  // Check for email-based session, demo mode, or authentication
   useEffect(() => {
-    if (status === "loading") return // Still loading
+    const userName = localStorage.getItem('userName')
+    const userEmail = localStorage.getItem('userEmail')
+    const userId = localStorage.getItem('userId')
+    
+    if (userName && userEmail && userId) {
+      // Email-based session
+      setUserName(userName)
+      setEditedName(userName)
+      fetchDashboardData()
+      return
+    }
+    
+    if (status === "loading") return // Still loading NextAuth
     
     const demoMode = localStorage.getItem('demoMode')
     const demoUser = localStorage.getItem('demoUser')
@@ -52,7 +64,7 @@ export default function Dashboard() {
       setTimeout(() => setShowUpgradePrompt(true), 2 * 60 * 1000)
     } else if (status === "unauthenticated") {
       // Not authenticated and not in demo mode
-      router.push("/auth/signin")
+      router.push("/")
       return
     } else if (session?.user) {
       // Authenticated user
@@ -128,13 +140,25 @@ export default function Dashboard() {
     try {
       setLoading(true)
       
+      // Prepare headers for email-based session
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+      }
+      
       // Fetch conversations
-      const conversationsResponse = await fetch('/api/conversations')
+      const conversationsResponse = await fetch('/api/conversations', { headers })
       const conversations = await conversationsResponse.json()
       console.log('Dashboard: Fetched conversations:', conversations.length, conversations)
       
       // Fetch concepts
-      const conceptsResponse = await fetch('/api/concepts')
+      const conceptsResponse = await fetch('/api/concepts', { headers })
       console.log('Dashboard: Concepts response status:', conceptsResponse.status)
       const conceptsData = await conceptsResponse.json()
       console.log('Dashboard: Fetched concepts raw response:', conceptsData)

@@ -770,30 +770,36 @@ For each concept, provide rich, educational content across three sections:
 
 3. CODE SNIPPETS: Provide 2-3 practical code examples with:
    - Appropriate language tag (e.g., "language": "Python", "SQL", "JavaScript")
-   - Brief description of what the snippet demonstrates
+   - CLEAR, SPECIFIC description explaining exactly what the code does and why it's useful
    - Well-formatted, commented code showing implementation
+   - Make descriptions educational - assume the reader doesn't know what the code does
    
    Example code snippet:
    {
      "language": "SQL",
-     "description": "Creating an efficient composite index",
+     "description": "Creating a composite index to optimize queries that filter by both status and creation date",
      "code": "CREATE INDEX idx_users_status_created ON users(status, created_at);\\n\\n-- This query can now use the index efficiently\\nSELECT * FROM users\\nWHERE status = 'active'\\nAND created_at > '2023-01-01';"
    }
+   
+   CRITICAL: Code descriptions must be educational and specific. Instead of "Hash table implementation", 
+   use "Using a Python dictionary to track seen elements and detect duplicates in O(1) time".
 
 CRITICAL RULE: The 'details'/'implementation' field must ALWAYS be substantially longer and more 
 technical than the 'summary' field. If they are similar in length or content, you are doing it wrong."""
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION:
+CRITICAL - LEETCODE PROBLEM NAMING RULES:
 When detecting LeetCode-style algorithm problems:
 
-1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
-   - ALWAYS use "Contains Duplicate" as the primary concept title, 
-     NOT "Hash Table for Duplicate Detection"
-   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
-   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
-   - Create separate concept entries for techniques (Hash Table, etc.) if needed
+1. PROBLEM NAME MUST BE THE MAIN TITLE (NOT THE TECHNIQUE):
+   ✅ CORRECT: "Contains Duplicate", "Two Sum", "Valid Anagram", "Reverse Linked List"
+   ❌ WRONG: "Using Hash Table", "Hash Table for Duplicate Detection", "Hash Set Implementation"
+   
+   - The technique (Hash Table, Two Pointer, etc.) goes in subcategories, keyPoints, and details
+   - NEVER put the technique name as the main concept title
+   - If you don't know the exact problem name, use descriptive problem-focused titles like:
+     "Array Duplicate Detection Problem" NOT "Hash Table Duplicate Detection"
 
 2. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
    - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
@@ -804,22 +810,27 @@ When detecting LeetCode-style algorithm problems:
      "LeetCode Problems"
    - Do NOT categorize LeetCode problems as just "Algorithm" or other generic categories
 
-3. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
+3. TECHNIQUE INTEGRATION (NOT AS MAIN TITLE):
+   - Mention the technique prominently in the summary: "A problem solved using hash tables..."
+   - Include technique in keyPoints: "Hash table provides O(1) lookup time"
+   - Add technique to subcategories: ["Hash Table", "Array Problems"]
+   - Explain technique thoroughly in the details section
+
+4. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
    - Explain the algorithm step-by-step
    - Include time and space complexity analysis
    - Discuss edge cases and optimizations
    - Explain why the chosen approach (e.g., hash table) is optimal
 
-4. PROVIDE WORKING CODE SOLUTIONS:
+5. PROVIDE WORKING CODE SOLUTIONS:
    - Include a complete, executable solution
    - Add clear comments explaining key steps
    - Show both the naive and optimized approaches when relevant
 
-5. CATEGORIZE CORRECTLY:
-   - Use consistent category "LeetCode Problems" or "Algorithm" for the problem
-   - Use "Data Structure" for Hash Table and other data structures
-   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer")
-   - Link related data structures or techniques
+6. CATEGORIZE CORRECTLY:
+   - Use consistent category "LeetCode Problems" for the main problem
+   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer", "Array")
+   - Link related data structures or techniques in relatedConcepts
 
 Example for "Contains Duplicate":
 {
@@ -845,7 +856,7 @@ trading some space efficiency for significant time optimization.",
   "codeSnippets": [
     {
       "language": "Python",
-      "description": "Hash table implementation",
+      "description": "Using a Python dictionary to track seen elements and detect duplicates in O(1) lookup time",
       "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
     }
   ]
@@ -857,18 +868,17 @@ trading some space efficiency for significant time optimization.",
             base_instructions = (
                 "You are an expert technical knowledge extraction system. Your job is to "
                 "analyze programming and computer science conversations and extract:\n"
-                "- Extract the main problem as the primary concept (e.g., \"Contains Duplicate Problem\")\n"
-                "- Clearly highlight the key technique/data structure used in the solution\n"
-                "- Include it in the concept's 'summary' and 'keyPoints' fields\n"
-                "- Add it to the 'relationships' and 'subcategories' fields\n"
-                "- Include the solution approach and code if present\n"
-                "- For common techniques like Hash Tables, Two-Pointer, Frequency counting, make sure they are prominently featured\n"
+                "- ALWAYS prioritize the PROBLEM NAME as the primary concept title (e.g., \"Contains Duplicate\", \"Two Sum\", \"Valid Anagram\")\n"
+                "- NEVER use technique names as the main concept title (avoid \"Using Hash Table\" or \"Hash Table for Detection\")\n"
+                "- The technique/data structure should be mentioned in summary, details, keyPoints, and subcategories\n"
+                "- Include the complete solution approach and code if present\n"
+                "- For LeetCode-style problems, ALWAYS use the standard problem name as the title\n"
                 "- Limit to 1-3 concepts maximum\n"
                 "- NO duplicates or overlapping concepts\n"
-                "- Make 'summary' a concise statement of what was learned\n"
-                "- Make 'keyPoints' a list of the most important takeaways\n"
+                "- Make 'summary' a concise statement of what the problem is about\n"
+                "- Make 'keyPoints' include both the problem approach AND the technique used\n"
                 "- Include only MAJOR topics as separate concepts\n"
-                "- Implementation details and minor techniques should be included WITHIN the relevant concept\n\n"
+                "- Implementation details and techniques should be included WITHIN the relevant problem concept\n\n"
             )
             
             concept_requirements = (
@@ -1273,12 +1283,12 @@ trading some space efficiency for significant time optimization.",
                         "codeSnippets": [
                             {
                                 "language": "Python",
-                                "description": "Hash table implementation",
+                                "description": "Using a Python dictionary to track seen elements and detect duplicates in O(1) lookup time",
                                 "code": "def containsDuplicate(nums):\n    seen = {}  # Hash table to track elements\n    \n    for num in nums:\n        # If we've seen this number before, return True\n        if num in seen:\n            return True\n        # Otherwise, add it to our hash table\n        seen[num] = True\n    \n    # If we've checked all elements without finding duplicates\n    return False"
                             },
                             {
                                 "language": "JavaScript",
-                                "description": "Using Set for duplicate detection",
+                                "description": "Using JavaScript Set data structure to efficiently check for duplicates with built-in has() method",
                                 "code": "function containsDuplicate(nums) {\n    const seen = new Set();\n    \n    for (const num of nums) {\n        // If we've seen this number before, return true\n        if (seen.has(num)) {\n            return true;\n        }\n        // Otherwise, add it to our set\n        seen.add(num);\n    }\n    \n    // If we've checked all elements without finding duplicates\n    return false;\n}"
                             }
                         ],
@@ -1315,7 +1325,7 @@ trading some space efficiency for significant time optimization.",
                         "codeSnippets": [
                             {
                                 "language": "Python",
-                                "description": "Using dictionary as hash table",
+                                "description": "Basic hash table operations using Python dictionary for key-value storage and O(1) lookups",
                                 "code": "# Create a hash table\nhash_table = {}\n\n# Insert a key-value pair\nhash_table[\"key1\"] = \"value1\"\n\n# Check if a key exists\nif \"key1\" in hash_table:\n    print(\"Key exists!\")\n\n# Get a value by key\nvalue = hash_table.get(\"key1\", \"default_value\")"
                             }
                         ],

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
 
 // Function to calculate string similarity (Levenshtein distance-based)
 function calculateSimilarity(str1: string, str2: string): number {
@@ -617,10 +618,19 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
 export async function GET(request: Request) {
   console.log('📋📋📋 MAIN CONCEPTS API ROUTE CALLED 📋📋📋');
   try {
+    // Validate session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Fetch concepts from the database with better error handling
     let concepts;
     try {
       concepts = await prisma.concept.findMany({
+        where: {
+          userId: user.id
+        },
         include: {
           occurrences: true,
         },
