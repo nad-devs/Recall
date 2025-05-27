@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
 
 // Function to calculate string similarity (Levenshtein distance-based)
 function calculateSimilarity(str1: string, str2: string): number {
@@ -617,10 +618,19 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
 export async function GET(request: Request) {
   console.log('📋📋📋 MAIN CONCEPTS API ROUTE CALLED 📋📋📋');
   try {
+    // Validate session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Fetch concepts from the database with better error handling
     let concepts;
     try {
       concepts = await prisma.concept.findMany({
+        where: {
+          userId: user.id
+        },
         include: {
           occurrences: true,
         },
@@ -816,16 +826,36 @@ export async function POST(request: Request) {
         ? `Based on this conversation:\n\n${context}\n\nPlease provide a detailed explanation of the concept: ${title}.` 
         : `Please provide a detailed explanation of the concept: ${title}.`;
       
-      const generationResponse = await fetch('http://localhost:8000/api/v1/extract-concepts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          conversation_text: generationPrompt +
-          ` Include summary, key points, code examples if applicable, and any related concepts.` 
-        }),
-      });
+      // Use consistent backend URL logic with fallback
+      const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+      const httpUrl = httpsUrl.replace('https://', 'http://');
+      
+      let generationResponse;
+      try {
+        console.log("Attempting HTTPS connection for concept generation...");
+        generationResponse = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: generationPrompt +
+            ` Include summary, key points, code examples if applicable, and any related concepts.` 
+          }),
+        });
+      } catch (sslError) {
+        console.log("HTTPS failed for concept generation, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed');
+        generationResponse = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: generationPrompt +
+            ` Include summary, key points, code examples if applicable, and any related concepts.` 
+          }),
+        });
+      }
       
       if (!generationResponse.ok) {
         throw new Error('Failed to generate concept content');

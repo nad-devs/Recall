@@ -131,8 +131,8 @@ class ConceptExtractor:
         ]
         try:
             async with httpx.AsyncClient() as client:
-                # Get frontend URL from environment variable
-                frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+                # Use environment variable for frontend URL with fallback
+                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
                 resp = await client.get(f"{frontend_url}/api/categories")
                 if resp.status_code == 200:
                     data = resp.json()
@@ -252,11 +252,17 @@ class ConceptExtractor:
             # Clean the response text
             cleaned_text = response_text.strip()
             
-            # Remove markdown code blocks if present
+            # Remove markdown code blocks if present - more robust cleaning
             if cleaned_text.startswith("```json"):
                 cleaned_text = cleaned_text[7:]
+            elif cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text[3:]
+            
             if cleaned_text.endswith("```"):
                 cleaned_text = cleaned_text[:-3]
+            
+            # Remove any remaining backticks at start/end
+            cleaned_text = cleaned_text.strip('`').strip()
             
             # Parse JSON
             response_data = json.loads(cleaned_text)
@@ -764,30 +770,36 @@ For each concept, provide rich, educational content across three sections:
 
 3. CODE SNIPPETS: Provide 2-3 practical code examples with:
    - Appropriate language tag (e.g., "language": "Python", "SQL", "JavaScript")
-   - Brief description of what the snippet demonstrates
+   - CLEAR, SPECIFIC description explaining exactly what the code does and why it's useful
    - Well-formatted, commented code showing implementation
+   - Make descriptions educational - assume the reader doesn't know what the code does
    
    Example code snippet:
    {
      "language": "SQL",
-     "description": "Creating an efficient composite index",
+     "description": "Creating a composite index to optimize queries that filter by both status and creation date",
      "code": "CREATE INDEX idx_users_status_created ON users(status, created_at);\\n\\n-- This query can now use the index efficiently\\nSELECT * FROM users\\nWHERE status = 'active'\\nAND created_at > '2023-01-01';"
    }
+   
+   CRITICAL: Code descriptions must be educational and specific. Instead of "Hash table implementation", 
+   use "Using a Python dictionary to track seen elements and detect duplicates in O(1) time".
 
 CRITICAL RULE: The 'details'/'implementation' field must ALWAYS be substantially longer and more 
 technical than the 'summary' field. If they are similar in length or content, you are doing it wrong."""
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION:
+CRITICAL - LEETCODE PROBLEM NAMING RULES:
 When detecting LeetCode-style algorithm problems:
 
-1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
-   - ALWAYS use "Contains Duplicate" as the primary concept title, 
-     NOT "Hash Table for Duplicate Detection"
-   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
-   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
-   - Create separate concept entries for techniques (Hash Table, etc.) if needed
+1. PROBLEM NAME MUST BE THE MAIN TITLE (NOT THE TECHNIQUE):
+   ✅ CORRECT: "Contains Duplicate", "Two Sum", "Valid Anagram", "Reverse Linked List"
+   ❌ WRONG: "Using Hash Table", "Hash Table for Duplicate Detection", "Hash Set Implementation"
+   
+   - The technique (Hash Table, Two Pointer, etc.) goes in subcategories, keyPoints, and details
+   - NEVER put the technique name as the main concept title
+   - If you don't know the exact problem name, use descriptive problem-focused titles like:
+     "Array Duplicate Detection Problem" NOT "Hash Table Duplicate Detection"
 
 2. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
    - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
@@ -798,22 +810,27 @@ When detecting LeetCode-style algorithm problems:
      "LeetCode Problems"
    - Do NOT categorize LeetCode problems as just "Algorithm" or other generic categories
 
-3. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
+3. TECHNIQUE INTEGRATION (NOT AS MAIN TITLE):
+   - Mention the technique prominently in the summary: "A problem solved using hash tables..."
+   - Include technique in keyPoints: "Hash table provides O(1) lookup time"
+   - Add technique to subcategories: ["Hash Table", "Array Problems"]
+   - Explain technique thoroughly in the details section
+
+4. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
    - Explain the algorithm step-by-step
    - Include time and space complexity analysis
    - Discuss edge cases and optimizations
    - Explain why the chosen approach (e.g., hash table) is optimal
 
-4. PROVIDE WORKING CODE SOLUTIONS:
+5. PROVIDE WORKING CODE SOLUTIONS:
    - Include a complete, executable solution
    - Add clear comments explaining key steps
    - Show both the naive and optimized approaches when relevant
 
-5. CATEGORIZE CORRECTLY:
-   - Use consistent category "LeetCode Problems" or "Algorithm" for the problem
-   - Use "Data Structure" for Hash Table and other data structures
-   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer")
-   - Link related data structures or techniques
+6. CATEGORIZE CORRECTLY:
+   - Use consistent category "LeetCode Problems" for the main problem
+   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer", "Array")
+   - Link related data structures or techniques in relatedConcepts
 
 Example for "Contains Duplicate":
 {
@@ -839,7 +856,7 @@ trading some space efficiency for significant time optimization.",
   "codeSnippets": [
     {
       "language": "Python",
-      "description": "Hash table implementation",
+      "description": "Using a Python dictionary to track seen elements and detect duplicates in O(1) lookup time",
       "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
     }
   ]
@@ -849,24 +866,19 @@ trading some space efficiency for significant time optimization.",
         if segment_type == "PROBLEM_SOLVING":
             # Build the problem-solving prompt in readable sections
             base_instructions = (
-                "You are an ELITE technical knowledge extraction system. Your job is to "
-                "analyze programming conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
-                "🎯 CONCEPT IDENTIFICATION RULES:\n"
-                "1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum')\n"
-                "2. ALGORITHMIC TECHNIQUES: Extract the specific approach used (e.g., 'Hash Table for Duplicate Detection', 'Two Pointer Technique')\n"
-                "3. DATA STRUCTURES: Only extract if they're the main focus, not just mentioned in passing\n"
-                "4. DESIGN PATTERNS: Extract architectural or coding patterns being discussed\n"
-                "5. OPTIMIZATION STRATEGIES: Extract performance improvement techniques\n\n"
-                "🚫 AVOID THESE GENERIC CONCEPTS:\n"
-                "- 'Iteration', 'Loop', 'Variables', 'Programming', 'Coding'\n"
-                "- 'Array', 'String' (unless they're the main focus with specific techniques)\n"
-                "- 'Function', 'Method' (unless discussing specific patterns)\n\n"
-                "✅ QUALITY STANDARDS:\n"
-                "- Each concept must be IMMEDIATELY USEFUL for future reference\n"
-                "- Focus on concepts someone would want to review before an interview\n"
-                "- Include the WHY behind each technique, not just the HOW\n"
-                "- Limit to 1-3 HIGH-VALUE concepts maximum\n"
-                "- NO overlapping or duplicate concepts\n\n"
+                "You are an expert technical knowledge extraction system. Your job is to "
+                "analyze programming and computer science conversations and extract:\n"
+                "- ALWAYS prioritize the PROBLEM NAME as the primary concept title (e.g., \"Contains Duplicate\", \"Two Sum\", \"Valid Anagram\")\n"
+                "- NEVER use technique names as the main concept title (avoid \"Using Hash Table\" or \"Hash Table for Detection\")\n"
+                "- The technique/data structure should be mentioned in summary, details, keyPoints, and subcategories\n"
+                "- Include the complete solution approach and code if present\n"
+                "- For LeetCode-style problems, ALWAYS use the standard problem name as the title\n"
+                "- Limit to 1-3 concepts maximum\n"
+                "- NO duplicates or overlapping concepts\n"
+                "- Make 'summary' a concise statement of what the problem is about\n"
+                "- Make 'keyPoints' include both the problem approach AND the technique used\n"
+                "- Include only MAJOR topics as separate concepts\n"
+                "- Implementation details and techniques should be included WITHIN the relevant problem concept\n\n"
             )
             
             concept_requirements = (
@@ -931,22 +943,19 @@ trading some space efficiency for significant time optimization.",
         else:
             # Build the exploratory/learning prompt in readable sections
             base_instructions = (
-                "You are an ELITE technical knowledge extraction system. Your job is to "
-                "analyze technical learning conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
-                "CONCEPT IDENTIFICATION RULES:\n"
-                "1. TECHNOLOGIES & FRAMEWORKS: Extract specific tools, libraries, or platforms being learned\n"
-                "2. ARCHITECTURAL PATTERNS: Extract design patterns, system architectures, or methodologies\n"
-                "3. TECHNICAL CONCEPTS: Extract core computer science or engineering principles\n"
-                "4. IMPLEMENTATION STRATEGIES: Extract specific approaches to solving technical challenges\n"
-                "5. BEST PRACTICES: Extract proven techniques and methodologies\n\n"
-                "QUALITY STANDARDS:\n"
-                "- Each concept must be SPECIFIC and ACTIONABLE\n"
-                "- Avoid generic concepts like 'Programming' or 'Development'\n"
-                "- Focus on concepts that provide concrete learning value\n"
-                "- Include practical applications and real-world context\n"
-                "- Extract the INSIGHTS and UNDERSTANDING gained, not just facts\n"
-                "- Limit to 1-5 HIGH-VALUE concepts maximum\n"
-                "- NO overlapping or duplicate concepts\n\n"
+                "You are an expert technical knowledge extraction system. Your job is to "
+                "analyze programming and computer science conversations and extract:\n"
+                "- Extract a list of the main topics or concepts the user learned about\n"
+                "- For each topic, provide a concise note-style explanation of what was learned (focus on new knowledge or insights gained)\n"
+                "- Do NOT include the user's struggles, questions, or the learning process—just the final learning outcomes\n"
+                "- For each topic, also extract 2-5 key points summarizing the most important takeaways\n"
+                "- If relevant, include related concepts, but do not include Q&A, misconceptions, or learning journey\n"
+                "- Limit to 1-7 concepts maximum\n"
+                "- NO duplicates or overlapping concepts (normalize similar names, e.g., 'Frequency Count' and 'Frequency Counting')\n"
+                "- Make 'summary' a concise statement of what was learned\n"
+                "- Make 'keyPoints' a list of the most important takeaways\n"
+                "- Include only MAJOR topics as separate concepts\n"
+                "- Implementation details and minor techniques should be included WITHIN the relevant concept\n\n"
             )
             
             concept_requirements = (
@@ -1274,12 +1283,12 @@ trading some space efficiency for significant time optimization.",
                         "codeSnippets": [
                             {
                                 "language": "Python",
-                                "description": "Hash table implementation",
+                                "description": "Using a Python dictionary to track seen elements and detect duplicates in O(1) lookup time",
                                 "code": "def containsDuplicate(nums):\n    seen = {}  # Hash table to track elements\n    \n    for num in nums:\n        # If we've seen this number before, return True\n        if num in seen:\n            return True\n        # Otherwise, add it to our hash table\n        seen[num] = True\n    \n    # If we've checked all elements without finding duplicates\n    return False"
                             },
                             {
                                 "language": "JavaScript",
-                                "description": "Using Set for duplicate detection",
+                                "description": "Using JavaScript Set data structure to efficiently check for duplicates with built-in has() method",
                                 "code": "function containsDuplicate(nums) {\n    const seen = new Set();\n    \n    for (const num of nums) {\n        // If we've seen this number before, return true\n        if (seen.has(num)) {\n            return true;\n        }\n        // Otherwise, add it to our set\n        seen.add(num);\n    }\n    \n    // If we've checked all elements without finding duplicates\n    return false;\n}"
                             }
                         ],
@@ -1316,7 +1325,7 @@ trading some space efficiency for significant time optimization.",
                         "codeSnippets": [
                             {
                                 "language": "Python",
-                                "description": "Using dictionary as hash table",
+                                "description": "Basic hash table operations using Python dictionary for key-value storage and O(1) lookups",
                                 "code": "# Create a hash table\nhash_table = {}\n\n# Insert a key-value pair\nhash_table[\"key1\"] = \"value1\"\n\n# Check if a key exists\nif \"key1\" in hash_table:\n    print(\"Key exists!\")\n\n# Get a value by key\nvalue = hash_table.get(\"key1\", \"default_value\")"
                             }
                         ],
@@ -1725,87 +1734,3 @@ async def health_check():
         "cache_size": len(concept_extractor.cache),
         "service": "Technical Concept Extractor"
     }
-
-
-class QuizRequest(BaseModel):
-    concept: Dict
-
-
-@app.post("/api/v1/generate-quiz")
-async def generate_quiz(req: QuizRequest):
-    """Generate quiz questions for a given concept."""
-    try:
-        concept = req.concept
-        if not concept:
-            raise HTTPException(status_code=400, detail="Missing concept data")
-        
-        # Create quiz generation prompt
-        prompt = f"""
-        Based on the following programming concept, generate 5 multiple-choice quiz questions to test understanding.
-        
-        Concept: {concept.get('title', '')}
-        Summary: {concept.get('summary', '')}
-        
-        For each question:
-        1. Create a clear, specific question about the concept
-        2. Provide 4 multiple-choice options (A, B, C, D)
-        3. Indicate the correct answer (0-3 index)
-        4. Provide a brief explanation of why the answer is correct
-        
-        Make the questions practical and test real understanding, not just memorization.
-        
-        Return the response in this exact JSON format:
-        {{
-          "questions": [
-            {{
-              "question": "Question text here?",
-              "options": ["Option A", "Option B", "Option C", "Option D"],
-              "correctAnswer": 0,
-              "explanation": "Explanation of why this answer is correct."
-            }}
-          ]
-        }}
-        """
-        
-        # Use the same client as concept extraction
-        response = await concept_extractor.client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert programming instructor creating quiz questions. Always respond with valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            max_tokens=2000,
-            temperature=0.7,
-        )
-        
-        content = response.choices[0].message.content.strip()
-        
-        # Extract JSON from response (handle markdown wrapping)
-        content = re.sub(r'```json\s*', '', content)
-        content = re.sub(r'```\s*$', '', content)
-        content = content.strip()
-        
-        # Parse the JSON response
-        quiz_data = json.loads(content)
-        
-        return {
-            "questions": quiz_data["questions"],
-            "metadata": {
-                "conceptTitle": concept.get('title', ''),
-                "difficulty": "intermediate",
-                "totalQuestions": len(quiz_data["questions"])
-            }
-        }
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse quiz JSON response: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate valid quiz questions")
-    except Exception as e:
-        logger.error(f"Error generating quiz questions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
