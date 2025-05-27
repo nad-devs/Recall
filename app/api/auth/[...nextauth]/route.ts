@@ -38,6 +38,9 @@ console.log(`📋 Total providers configured: ${providers.length}`)
 const handler = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
+  session: {
+    strategy: "database",
+  },
   callbacks: {
     async session({ session, user }) {
       console.log('🔄 Session callback triggered for user:', user?.id)
@@ -71,22 +74,19 @@ const handler = NextAuth({
             where: { email: user.email.toLowerCase() }
           })
           
-          if (existingUser && !existingUser.email) {
-            // This is an email-based account, merge it with OAuth
-            console.log('🔄 Merging email-based account with OAuth for:', user.email)
+          if (existingUser) {
+            // This is an existing account, merge it with OAuth
+            console.log('🔄 Merging existing account with OAuth for:', user.email)
             
             // Update the existing user to include OAuth data
             await prisma.user.update({
               where: { id: existingUser.id },
               data: {
-                email: user.email.toLowerCase(),
                 image: user.image,
                 lastActiveAt: new Date()
               }
             })
             
-            // Update the user object to use the existing user's ID
-            user.id = existingUser.id
             console.log('✅ Account merge completed')
           }
         }
@@ -116,19 +116,26 @@ const handler = NextAuth({
     },
     async redirect({ url, baseUrl }) {
       console.log('🔄 Redirect callback:', { url, baseUrl })
+      
+      // If the URL is the dashboard, allow it
+      if (url === `${baseUrl}/dashboard` || url === '/dashboard') {
+        console.log('✅ Redirecting to dashboard')
+        return `${baseUrl}/dashboard`
+      }
+      
       // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`
       // Allows callback URLs on the same origin
       else if (new URL(url).origin === baseUrl) return url
-      return baseUrl
+      
+      // Default redirect to dashboard after successful sign-in
+      console.log('✅ Default redirect to dashboard')
+      return `${baseUrl}/dashboard`
     }
   },
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error',
-  },
-  session: {
-    strategy: "database",
   },
   events: {
     async signIn(message) {
