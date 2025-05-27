@@ -90,6 +90,20 @@ export default function LandingPage() {
     const isEmailValid = await verifyEmail(email)
     if (!isEmailValid) return
 
+    // Check if this is a Gmail user and suggest OAuth
+    const isGmailUser = email.toLowerCase().includes('@gmail.com') || email.toLowerCase().includes('@googlemail.com')
+    if (isGmailUser) {
+      const useOAuth = confirm(
+        `We detected you're using Gmail! You can sign up with Google OAuth for a faster and more secure experience, or continue with email signup. Would you like to use Google Sign-Up?`
+      )
+      
+      if (useOAuth) {
+        // Redirect to OAuth signin page
+        router.push('/auth/signin')
+        return
+      }
+    }
+
     setIsStarting(true)
     const initials = name
       .split(" ")
@@ -157,16 +171,33 @@ export default function LandingPage() {
 
     setIsSigningIn(true)
     try {
-      const response = await fetch('/api/auth/signin-check', {
+      // Check if user exists and what authentication methods are available
+      const response = await fetch('/api/auth/validate-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: signInEmail.trim().toLowerCase() })
+        body: JSON.stringify({ 
+          email: signInEmail.trim().toLowerCase(),
+          method: 'email'
+        })
       })
 
       const result = await response.json()
 
-      if (response.ok && result.user) {
-        // User exists, log them in
+      if (response.ok && result.exists) {
+        // Check if this is a Gmail user who could use OAuth
+        if (result.isGmailUser && result.canUseOAuth) {
+          const useOAuth = confirm(
+            `We detected you're using Gmail! You can sign in with Google OAuth for a faster experience, or continue with email. Would you like to use Google Sign-In?`
+          )
+          
+          if (useOAuth) {
+            // Redirect to OAuth signin page
+            router.push('/auth/signin')
+            return
+          }
+        }
+        
+        // User exists, log them in with email method
         localStorage.setItem('userName', result.user.name)
         localStorage.setItem('userEmail', result.user.email)
         localStorage.setItem('userId', result.user.id)

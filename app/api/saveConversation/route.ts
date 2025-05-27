@@ -195,27 +195,11 @@ export async function POST(request: Request) {
       });
     });
 
-    // Create demo user if it doesn't exist
-    let demoUser;
-    try {
-      demoUser = await prisma.user.findUnique({
-        where: { email: 'demo@recall.app' }
-      });
-      
-      if (!demoUser) {
-        demoUser = await prisma.user.create({
-          data: {
-            email: 'demo@recall.app',
-            name: 'Demo User',
-            id: 'demo-user-id'
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Error creating demo user:', error);
-      // Use a fallback approach
-      demoUser = { id: 'demo-user-id' };
-    }
+    // This endpoint requires authentication
+    return NextResponse.json(
+      { error: 'Authentication required. Please sign in to save conversations.' },
+      { status: 401 }
+    )
 
     // Create the conversation
     const conversationData: any = {
