@@ -41,7 +41,7 @@ export function useAutoAnalysis({
     
     try {
       console.log("Auto-starting analysis for concept creation...")
-      const response = await fetch('/api/extract-concepts', {
+      const response = await fetch(`${process.env.BACKEND_URL}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

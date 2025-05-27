@@ -85,41 +85,54 @@ async function runAPIVerification() {
   log('🔍 Starting API Verification for Recall', 'blue');
   log('=' * 50, 'blue');
 
-  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
 
   const tests = [
-    // Core API endpoints
+    // Frontend API endpoints
     {
-      name: 'Health Check',
-      url: `${baseUrl}/api/health`,
+      name: 'Frontend - Conversations API (GET)',
+      url: `${frontendUrl}/api/conversations`,
       method: 'GET',
       expected: 200
     },
     {
-      name: 'Conversations API (GET)',
-      url: `${baseUrl}/api/conversations`,
+      name: 'Frontend - Concepts API (GET)',
+      url: `${frontendUrl}/api/concepts`,
       method: 'GET',
       expected: 200
     },
     {
-      name: 'Concepts API (GET)',
-      url: `${baseUrl}/api/concepts`,
+      name: 'Frontend - Categories API (GET)',
+      url: `${frontendUrl}/api/categories`,
+      method: 'GET',
+      expected: 200
+    },
+    // Backend API endpoints
+    {
+      name: 'Backend - Health Check',
+      url: `${backendUrl}/api/v1/health`,
       method: 'GET',
       expected: 200
     },
     {
-      name: 'Categories API (GET)',
-      url: `${baseUrl}/api/categories`,
-      method: 'GET',
-      expected: 200
-    },
-    // Test concept extraction with sample data
-    {
-      name: 'Concept Extraction API',
-      url: `${baseUrl}/api/extract-concepts`,
+      name: 'Backend - Concept Extraction API',
+      url: `${backendUrl}/api/v1/extract-concepts`,
       method: 'POST',
       data: {
         conversation_text: "Hash tables are data structures that provide O(1) average case lookup time."
+      },
+      expected: 200
+    },
+    {
+      name: 'Backend - Quiz Generation API',
+      url: `${backendUrl}/api/v1/generate-quiz`,
+      method: 'POST',
+      data: {
+        concept: {
+          title: "Hash Tables",
+          summary: "Data structures for fast key-value lookups"
+        }
       },
       expected: 200
     }
@@ -164,11 +177,12 @@ Options:
   --help, -h     Show this help message
   
 Environment Variables:
-  BASE_URL       Frontend URL (default: http://localhost:3000)
+  FRONTEND_URL   Frontend URL (default: http://localhost:3000)
+  BACKEND_URL    Backend URL (default: http://localhost:8000)
 
 Examples:
   node scripts/verify-apis.js
-  BASE_URL=https://myapp.com node scripts/verify-apis.js
+  FRONTEND_URL=https://myapp.vercel.app BACKEND_URL=https://myapp.onrender.com node scripts/verify-apis.js
 `);
   process.exit(0);
 }

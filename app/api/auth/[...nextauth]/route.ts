@@ -35,6 +35,11 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 
 console.log(`📋 Total providers configured: ${providers.length}`)
 
+// If no providers are configured, log a warning but continue
+if (providers.length === 0) {
+  console.warn('⚠️ No OAuth providers configured. Authentication will not be available.')
+}
+
 const handler = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,

@@ -325,7 +325,7 @@ export function useAnalyzePage() {
       // Get custom API key if user has one
       const currentUsageData = getUsageData()
       
-      const response = await fetch('/api/extract-concepts', {
+      const response = await fetch(`${process.env.BACKEND_URL}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +503,7 @@ export function useAnalyzePage() {
       setLoadingConcepts(prev => [...prev, title])
       
       // Generate AI content for the concept
-      const response = await fetch('/api/extract-concepts', {
+      const response = await fetch(`${process.env.BACKEND_URL}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

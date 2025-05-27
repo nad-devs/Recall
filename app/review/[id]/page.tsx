@@ -64,7 +64,7 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
         }
         
         // Generate quiz questions via API route
-        const quizResponse = await fetch('/api/generate-quiz', {
+        const quizResponse = await fetch(`${process.env.BACKEND_URL}/api/v1/generate-quiz`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
