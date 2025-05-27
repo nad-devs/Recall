@@ -12,6 +12,7 @@
   ],
   "env": {
     "BACKEND_URL": "https://recall.p3vg.onrender.com",
-    "NEXT_PUBLIC_BACKEND_URL": "https://recall.p3vg.onrender.com"
+    "NEXT_PUBLIC_BACKEND_URL": "https://recall.p3vg.onrender.com",
+    "EXTRACTION_SERVICE_URL": "https://recall.p3vg.onrender.com/api/v1/extract-concepts"
   }
 } 
