@@ -640,8 +640,32 @@ export default function ConceptsPage() {
                           </svg>
                         </div>
                       ) : error ? (
-                        <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md text-sm">
-                          {error}
+                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                          <div className="bg-red-50 dark:bg-red-950/20 rounded-full p-4">
+                            <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                              Unable to load concepts
+                            </h3>
+                            <p className="text-muted-foreground max-w-md">
+                              {error === 'Failed to fetch concepts' 
+                                ? "It looks like you haven't analyzed any conversations yet. Start by analyzing a conversation to create your first concepts!"
+                                : error
+                              }
+                            </p>
+                          </div>
+                          <div className="flex gap-3">
+                            <Button asChild>
+                              <Link href="/analyze">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Analyze a Conversation
+                              </Link>
+                            </Button>
+                            <Button variant="outline" onClick={refreshData}>
+                              Try Again
+                            </Button>
+                          </div>
                         </div>
                       ) : filteredSortedCategories.length > 0 ? (
                         filteredSortedCategories.map((category) => (
@@ -678,8 +702,25 @@ export default function ConceptsPage() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
-                            No concepts found. Create a concept from your conversations to get started!
+                          <div className="md:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
+                            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
+                              <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                No concepts yet
+                              </h3>
+                              <p className="text-muted-foreground max-w-md">
+                                Start by analyzing a conversation to extract concepts automatically. 
+                                Your learning journey begins with your first analysis!
+                              </p>
+                            </div>
+                            <Button asChild className="mt-4">
+                              <Link href="/analyze">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Analyze Your First Conversation
+                              </Link>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -736,8 +777,25 @@ export default function ConceptsPage() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
-                            No concepts found. Create a concept from your conversations to get started!
+                          <div className="md:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
+                            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
+                              <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                No concepts yet
+                              </h3>
+                              <p className="text-muted-foreground max-w-md">
+                                Start by analyzing a conversation to extract concepts automatically. 
+                                Your learning journey begins with your first analysis!
+                              </p>
+                            </div>
+                            <Button asChild className="mt-4">
+                              <Link href="/analyze">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Analyze Your First Conversation
+                              </Link>
+                            </Button>
                           </div>
                         </div>
                       )}

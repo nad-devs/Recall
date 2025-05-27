@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { validateSession } from '@/lib/session';
 import { 
   getClientIP, 
   canMakeServerConversation, 
@@ -28,11 +29,87 @@ interface Concept {
 
 export async function POST(request: Request) {
   try {
-    const { conversation_text, analysis, confirmUpdate = false, customApiKey } = await request.json();
+    const { conversation_text, analysis, confirmUpdate = false, customApiKey, userInfo } = await request.json();
     
     // Get client information for usage tracking
     const clientIP = getClientIP(request);
     const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    // Try to get authenticated user first
+    let user = await validateSession(request as any);
+    
+    // If no authenticated user but we have userInfo, try to find or create user
+    if (!user && userInfo) {
+      try {
+        // Try to find existing user by email
+        let existingUser = await prisma.user.findUnique({
+          where: { email: userInfo.email.toLowerCase().trim() }
+        });
+        
+        if (!existingUser) {
+          // Create new user for email-based authentication
+          existingUser = await prisma.user.create({
+            data: {
+              name: userInfo.name,
+              email: userInfo.email.toLowerCase().trim(),
+              emailVerified: null, // Email-based users don't need verification
+              lastActiveAt: new Date(),
+            }
+          });
+        } else {
+          // Update last active time
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { lastActiveAt: new Date() }
+          });
+        }
+        
+        user = {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          isEmailBased: true
+        };
+      } catch (error) {
+        console.error('Error creating/finding user:', error);
+      }
+    }
+    
+    // If still no user, create anonymous conversation (for demo purposes)
+    if (!user) {
+      console.log('No user found - creating anonymous conversation');
+      // For now, we'll create a demo user or handle anonymously
+      // You can modify this behavior based on your requirements
+      try {
+        let demoUser = await prisma.user.findFirst({
+          where: { email: 'demo@recall.app' }
+        });
+        
+        if (!demoUser) {
+          demoUser = await prisma.user.create({
+            data: {
+              name: 'Demo User',
+              email: 'demo@recall.app',
+              emailVerified: null,
+              lastActiveAt: new Date(),
+            }
+          });
+        }
+        
+        user = {
+          id: demoUser.id,
+          name: demoUser.name,
+          email: demoUser.email,
+          isEmailBased: true
+        };
+      } catch (error) {
+        console.error('Error creating demo user:', error);
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Unable to save conversation. Please try again.' 
+        }, { status: 500 });
+      }
+    }
     
     // Validate API key if provided
     let validatedApiKey = null;
@@ -56,13 +133,16 @@ export async function POST(request: Request) {
     }
 
     // Check if user can make a conversation (server-side validation)
-    const canMake = await canMakeServerConversation(clientIP, userAgent, validatedApiKey);
-    if (!canMake) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'You have reached the 25 free conversation limit. Please add your OpenAI API key to continue.',
-        requiresApiKey: true
-      }, { status: 403 });
+    // Skip this check for authenticated users or users with valid API keys
+    if (!user.isEmailBased && !validatedApiKey) {
+      const canMake = await canMakeServerConversation(clientIP, userAgent, validatedApiKey);
+      if (!canMake) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'You have reached the 25 free conversation limit. Please add your OpenAI API key to continue.',
+          requiresApiKey: true
+        }, { status: 403 });
+      }
     }
     
     console.log("🔍 SERVER RECEIVED DATA:");
@@ -195,18 +275,12 @@ export async function POST(request: Request) {
       });
     });
 
-    // This endpoint requires authentication
-    return NextResponse.json(
-      { error: 'Authentication required. Please sign in to save conversations.' },
-      { status: 401 }
-    )
-
     // Create the conversation
     const conversationData: any = {
       text: conversation_text,
       summary: analysis?.conversation_summary || '',
       createdAt: new Date(),
-      userId: demoUser.id
+      userId: user.id
     };
     
     if (analysis?.conversation_title) {
@@ -349,7 +423,7 @@ export async function POST(request: Request) {
             confidenceScore: 0.5,
             lastUpdated: new Date(),
             conversationId: conversation.id,
-            userId: demoUser.id,
+            userId: user.id,
             codeSnippets: {
               create: (concept.codeSnippets || []).map((snippet: CodeSnippet) => ({
                 language: snippet.language || 'Unknown',
