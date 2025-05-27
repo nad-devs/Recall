@@ -14,8 +14,22 @@ export async function POST(request: NextRequest) {
 
     console.log("🔄 Proxying request to Render backend...");
 
-    // Use HTTPS for Render backend - it's working correctly
-    const backendUrl = 'https://recall.p3vg.onrender.com';
+    // Use environment variable with fallback
+    const backendUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    
+    // First, wake up the service with a health check to avoid SSL cold start issues
+    try {
+      console.log("🔋 Warming up backend service...");
+      await fetch(`${backendUrl}/api/v1/health`, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(10000) // 10 second timeout for health check
+      });
+      console.log("✅ Backend service is awake");
+      // Small delay to ensure SSL is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (warmupError) {
+      console.log("⚠️ Service warmup failed, proceeding anyway:", warmupError instanceof Error ? warmupError.message : 'Unknown error');
+    }
 
     try {
       console.log("🌐 Connecting to Render backend via HTTPS...");
