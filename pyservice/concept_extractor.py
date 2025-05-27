@@ -794,7 +794,12 @@ When detecting LeetCode-style algorithm problems:
 
 1. PROBLEM NAME MUST BE THE MAIN TITLE (NOT THE TECHNIQUE):
    ✅ CORRECT: "Contains Duplicate", "Two Sum", "Valid Anagram", "Reverse Linked List"
-   ❌ WRONG: "Using Hash Table", "Hash Table for Duplicate Detection", "Hash Set Implementation"
+   ❌ WRONG: "Using Hash Table", "Hash Table for Duplicate Detection", "Hash Set Implementation", "Efficient Duplicate Detection in Lists Using Sets"
+   
+   SPECIFIC RULE FOR DUPLICATE DETECTION:
+   - If the conversation mentions "Contains Duplicate" problem → title MUST be "Contains Duplicate"
+   - If the conversation mentions "duplicate detection" or "finding duplicates" → title MUST be "Contains Duplicate"
+   - NEVER use descriptive titles like "Efficient Duplicate Detection" or "Duplicate Detection Using Sets"
    
    - The technique (Hash Table, Two Pointer, etc.) goes in subcategories, keyPoints, and details
    - NEVER put the technique name as the main concept title
@@ -832,11 +837,17 @@ When detecting LeetCode-style algorithm problems:
    - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer", "Array")
    - Link related data structures or techniques in relatedConcepts
 
+MANDATORY TITLE VALIDATION:
+- If conversation contains "Contains Duplicate" → title = "Contains Duplicate"
+- If conversation contains "Two Sum" → title = "Two Sum"  
+- If conversation contains "Valid Anagram" → title = "Valid Anagram"
+- If conversation contains "Reverse Linked List" → title = "Reverse Linked List"
+
 Example for "Contains Duplicate":
 {
   "title": "Contains Duplicate",
   "category": "LeetCode Problems",
-  "summary": "A problem that involves finding if an array contains any duplicate elements.",
+  "summary": "A problem that involves finding if an array contains any duplicate elements using hash table for O(n) time complexity.",
   "details": "The Contains Duplicate problem asks us to determine if an array contains any 
 duplicate elements. The most efficient approach uses a hash table (dictionary) to track 
 elements we've seen.
@@ -857,7 +868,7 @@ trading some space efficiency for significant time optimization.",
     {
       "language": "Python",
       "description": "Using a Python dictionary to track seen elements and detect duplicates in O(1) lookup time",
-      "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
+      "code": "def containsDuplicate(nums):\n    seen = {}  # Hash table to track elements\n    \n    for num in nums:\n        # If we've seen this number before, return True\n        if num in seen:\n            return True\n        # Otherwise, add it to our hash table\n        seen[num] = True\n    \n    # If we've checked all elements without finding duplicates\n    return False"
     }
   ]
 }
@@ -1091,6 +1102,10 @@ trading some space efficiency for significant time optimization.",
 
             # If we get at least one concept, return it
             if single_pass_result.get("concepts"):
+                # FIRST: Validate and fix LeetCode problem titles
+                for concept in single_pass_result.get("concepts", []):
+                    self._validate_and_fix_leetcode_title(concept, req.conversation_text)
+                
                 # Simple title-based deduplication (keep highest confidence)
                 unique_concepts = {}
                 for concept in single_pass_result.get("concepts", []):
@@ -1394,6 +1409,55 @@ trading some space efficiency for significant time optimization.",
         except Exception as e:
             print(f"Error analyzing conversation: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    def _validate_and_fix_leetcode_title(self, concept: Dict, conversation_text: str) -> None:
+        """Validate and fix LeetCode problem titles to ensure they follow naming conventions."""
+        title = concept.get("title", "").lower()
+        conversation_lower = conversation_text.lower()
+        
+        # Define exact mappings for common LeetCode problems
+        leetcode_mappings = {
+            # If conversation mentions these, use the exact title
+            "contains duplicate": "Contains Duplicate",
+            "two sum": "Two Sum",
+            "valid anagram": "Valid Anagram",
+            "reverse linked list": "Reverse Linked List",
+            "valid parentheses": "Valid Parentheses",
+            "maximum subarray": "Maximum Subarray",
+            "merge two sorted lists": "Merge Two Sorted Lists",
+            "climbing stairs": "Climbing Stairs",
+            "best time to buy and sell stock": "Best Time to Buy and Sell Stock"
+        }
+        
+        # Check if conversation mentions any of these problems
+        for problem_phrase, correct_title in leetcode_mappings.items():
+            if problem_phrase in conversation_lower:
+                # Check if current title is wrong (descriptive instead of problem name)
+                wrong_patterns = [
+                    "efficient", "detection", "using", "implementation", "algorithm",
+                    "technique", "approach", "method", "solution"
+                ]
+                
+                # If title contains wrong patterns or doesn't match the correct title
+                if (any(pattern in title for pattern in wrong_patterns) or 
+                    title != correct_title.lower()):
+                    
+                    print(f"🔧 Fixing LeetCode title: '{concept['title']}' → '{correct_title}'")
+                    concept["title"] = correct_title
+                    
+                    # Ensure it's categorized as LeetCode Problems
+                    if concept.get("category") != "LeetCode Problems":
+                        concept["category"] = "LeetCode Problems"
+                    
+                    # Update summary to be problem-focused
+                    if "contains duplicate" in problem_phrase:
+                        concept["summary"] = "A problem that involves finding if an array contains any duplicate elements using hash table for O(n) time complexity."
+                    elif "two sum" in problem_phrase:
+                        concept["summary"] = "A problem that asks to find two numbers in an array that add up to a specific target."
+                    elif "valid anagram" in problem_phrase:
+                        concept["summary"] = "A problem that determines if two strings are anagrams of each other."
+                    
+                break  # Only fix the first match
 
     def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
         """Get rich description and key points for a technique."""
