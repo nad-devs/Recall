@@ -1,3 +1,0 @@
-"""
-Technical Concept Extractor API
-""" 
