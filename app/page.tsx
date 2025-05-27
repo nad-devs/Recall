@@ -107,7 +107,7 @@ export default function LandingPage() {
     setIsStarting(true)
     const initials = name
       .split(" ")
-      .map((word) => word.charAt(0).toUpperCase())
+      .map((word: string) => word.charAt(0).toUpperCase())
       .join("")
       .slice(0, 2)
 
@@ -198,11 +198,28 @@ export default function LandingPage() {
         }
         
         // User exists, log them in with email method
-        localStorage.setItem('userName', result.user.name)
+        const userName = result.user.name || 'User'
+        const initials = userName
+          .split(" ")
+          .map((word: string) => word.charAt(0).toUpperCase())
+          .join("")
+          .slice(0, 2)
+
+        localStorage.setItem('userName', userName)
         localStorage.setItem('userEmail', result.user.email)
+        localStorage.setItem('userInitials', initials)
         localStorage.setItem('userId', result.user.id)
         
-        router.push('/dashboard')
+        // Close the modal and show welcome message
+        setShowSignIn(false)
+        
+        // Show a brief welcome message before redirecting
+        setIsStarting(true)
+        setName(userName) // Set the name for the welcome screen
+        
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1500)
       } else {
         alert('No account found with this email. Please sign up instead.')
         setShowSignIn(false)
@@ -487,7 +504,7 @@ export default function LandingPage() {
                               onClick={() => setShowSignIn(true)}
                               className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
                             >
-                              Email Sign In
+                              Sign in here
                             </button>
                             <span className="text-gray-400">|</span>
                             <button
