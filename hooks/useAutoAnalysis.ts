@@ -41,16 +41,35 @@ export function useAutoAnalysis({
     
     try {
       console.log("Auto-starting analysis for concept creation...")
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
-      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversation_text: textToAnalyze
-        }),
-      })
+      
+      // Try HTTPS first, fallback to HTTP if SSL fails
+      const httpsUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const httpUrl = httpsUrl.replace('https://', 'http://')
+      
+      let response
+      try {
+        console.log("Attempting HTTPS connection...")
+        response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conversation_text: textToAnalyze
+          }),
+        })
+      } catch (sslError) {
+        console.log("HTTPS failed, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed')
+        response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conversation_text: textToAnalyze
+          }),
+        })
+      }
       
       const data = await response.json()
       

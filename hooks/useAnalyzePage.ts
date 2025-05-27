@@ -322,19 +322,34 @@ export function useAnalyzePage() {
     try {
       console.log("Sending conversation to extraction service...")
       
-      // Get custom API key if user has one
-      const currentUsageData = getUsageData()
+      // Try HTTPS first, fallback to HTTP if SSL fails
+      const httpsUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const httpUrl = httpsUrl.replace('https://', 'http://')
       
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
-      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          conversation_text: conversationText
-        }),
-      })
+      let response
+      try {
+        console.log("Attempting HTTPS connection...")
+        response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: conversationText
+          }),
+        })
+      } catch (sslError) {
+        console.log("HTTPS failed, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed')
+        response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: conversationText
+          }),
+        })
+      }
 
       const data = await response.json()
 
@@ -503,16 +518,33 @@ export function useAnalyzePage() {
       setLoadingConcepts(prev => [...prev, title])
       
       // Generate AI content for the concept
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
-      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          conversation_text: `Please explain and provide details about the concept: ${title}\n\nInclude:\n- What it is and how it works\n- Key principles and components\n- Implementation details and examples\n- Use cases and applications\n- Related concepts and technologies\n- Code examples if applicable`
-        }),
-      })
+      const httpsUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const httpUrl = httpsUrl.replace('https://', 'http://')
+      
+      let response
+      try {
+        console.log("Attempting HTTPS connection for concept generation...")
+        response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: `Please explain and provide details about the concept: ${title}\n\nInclude:\n- What it is and how it works\n- Key principles and components\n- Implementation details and examples\n- Use cases and applications\n- Related concepts and technologies\n- Code examples if applicable`
+          }),
+        })
+      } catch (sslError) {
+        console.log("HTTPS failed for concept generation, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed')
+        response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: `Please explain and provide details about the concept: ${title}\n\nInclude:\n- What it is and how it works\n- Key principles and components\n- Implementation details and examples\n- Use cases and applications\n- Related concepts and technologies\n- Code examples if applicable`
+          }),
+        })
+      }
 
       if (!response.ok) {
         throw new Error('Failed to generate concept content')

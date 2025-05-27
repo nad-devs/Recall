@@ -13,15 +13,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the Python microservice to generate quiz questions
-    const pythonServiceUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const httpUrl = httpsUrl.replace('https://', 'http://');
 
-    const response = await fetch(`${pythonServiceUrl}/api/v1/generate-quiz`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ concept }),
-    });
+    let response;
+    try {
+      console.log("Attempting HTTPS connection for quiz generation...");
+      response = await fetch(`${httpsUrl}/api/v1/generate-quiz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ concept }),
+      });
+    } catch (sslError) {
+      console.log("HTTPS failed for quiz generation, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed');
+      response = await fetch(`${httpUrl}/api/v1/generate-quiz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ concept }),
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Python service responded with status: ${response.status}`);
