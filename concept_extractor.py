@@ -1547,6 +1547,20 @@ trading some space efficiency for significant time optimization.",
 concept_extractor = ConceptExtractor()
 
 
+@app.get("/")
+async def root():
+    """Root endpoint to verify service is running."""
+    return {
+        "message": "Technical Concept Extractor API is running",
+        "status": "healthy",
+        "endpoints": [
+            "/api/v1/extract-concepts",
+            "/api/v1/health",
+            "/api/v1/generate-quiz"
+        ]
+    }
+
+
 @app.post("/api/v1/extract-concepts")
 async def extract_concepts(req: ConversationRequest):
     """Extract technical concepts from a conversation with comprehensive analysis and logging."""
