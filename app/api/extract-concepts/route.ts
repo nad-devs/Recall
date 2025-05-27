@@ -14,12 +14,12 @@ export async function POST(request: NextRequest) {
 
     console.log("🔄 Proxying request to Render backend...");
 
-    // Use HTTP only for Render backend due to SSL issues
-    const httpUrl = 'http://recall.p3vg.onrender.com';
+    // Use HTTPS for Render backend - it's working correctly
+    const backendUrl = 'https://recall.p3vg.onrender.com';
 
     try {
-      console.log("🌐 Connecting to Render backend via HTTP...");
-      const response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+      console.log("🌐 Connecting to Render backend via HTTPS...");
+      const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
             error: 'Backend service error',
             status: response.status,
             details: errorText,
-            backendUrl: httpUrl
+            backendUrl: backendUrl
           },
           { status: response.status }
         );
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         { 
           error: 'Backend service unavailable',
           details: fetchError instanceof Error ? fetchError.message : 'Unknown error',
-          backendUrl: httpUrl
+          backendUrl: backendUrl
         },
         { status: 503 }
       );
