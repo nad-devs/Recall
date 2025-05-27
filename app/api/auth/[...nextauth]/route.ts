@@ -65,6 +65,32 @@ const handler = NextAuth({
       })
       
       try {
+        // Check if there's an existing email-based account with the same email
+        if (user.email && account?.provider === 'google') {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email.toLowerCase() }
+          })
+          
+          if (existingUser && !existingUser.email) {
+            // This is an email-based account, merge it with OAuth
+            console.log('🔄 Merging email-based account with OAuth for:', user.email)
+            
+            // Update the existing user to include OAuth data
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                email: user.email.toLowerCase(),
+                image: user.image,
+                lastActiveAt: new Date()
+              }
+            })
+            
+            // Update the user object to use the existing user's ID
+            user.id = existingUser.id
+            console.log('✅ Account merge completed')
+          }
+        }
+        
         // Track sign-in analytics
         if (user.email) {
           await prisma.analytics.create({
@@ -73,15 +99,16 @@ const handler = NextAuth({
               event: "user_sign_in",
               properties: JSON.stringify({
                 provider: account?.provider,
-                isNewUser: !user.id
+                isNewUser: !user.id,
+                email: user.email
               })
             }
           })
           console.log('✅ Sign-in analytics recorded')
         }
       } catch (error) {
-        console.error('❌ Error recording sign-in analytics:', error)
-        // Don't block sign-in if analytics fails
+        console.error('❌ Error in sign-in callback:', error)
+        // Don't block sign-in if analytics or merge fails
       }
       
       console.log('✅ Sign-in approved for user:', user?.email)

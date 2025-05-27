@@ -88,29 +88,7 @@ export default function SignIn() {
     }
   }
 
-  const handleTryDemo = () => {
-    console.log('🎮 Starting demo mode...')
-    try {
-      // Set demo mode flag
-      const demoUser = {
-        name: 'Demo User',
-        id: 'demo-' + Date.now(),
-        createdAt: new Date().toISOString()
-      }
-      
-      localStorage.setItem('demoMode', 'true')
-      localStorage.setItem('demoUser', JSON.stringify(demoUser))
-      
-      console.log('✅ Demo mode data stored:', demoUser)
-      console.log('🔄 Redirecting to dashboard...')
-      
-      // Redirect to dashboard
-      router.push('/dashboard')
-    } catch (error) {
-      console.error('❌ Error setting up demo mode:', error)
-      setError('Failed to start demo mode')
-    }
-  }
+
 
   // Check if Google provider is available
   const isGoogleAvailable = providers?.google
@@ -154,51 +132,20 @@ export default function SignIn() {
           </Card>
         )}
 
-        {/* Try Demo Card */}
-        <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200 shadow-xl">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Try Demo</h3>
-                <p className="text-sm text-gray-600">Instant access, no signup required</p>
-              </div>
-            </div>
-            <Button
-              onClick={handleTryDemo}
-              disabled={isLoading}
-              className="w-full h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:opacity-50"
-            >
-              <Zap className="w-5 h-5 mr-2" />
-              {loadingProvider === 'demo' ? 'Starting Demo...' : 'Start Demo Now'}
-            </Button>
-            <p className="text-xs text-gray-500 text-center">
-              ✨ Full features • 💾 Temporary data • 🚀 Upgrade anytime
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Divider */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-3 bg-gradient-to-br from-blue-50 via-white to-purple-50 text-gray-500">
-              Or create a permanent account
-            </span>
-          </div>
-        </div>
-
         {/* Sign In Card */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-center text-xl">Save Your Data Forever</CardTitle>
+            <CardTitle className="text-center text-xl">Sign In to Your Account</CardTitle>
             <p className="text-center text-sm text-gray-600">
-              Sync across devices and never lose your progress
+              Access your learning dashboard and saved progress
             </p>
+            {isGoogleAvailable && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                <p className="text-sm text-blue-700 text-center">
+                  <strong>Gmail users:</strong> Sign in with Google for the fastest experience!
+                </p>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Loading state while fetching providers */}
@@ -256,7 +203,7 @@ export default function SignIn() {
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-500">
-          Demo mode stores data locally. Sign up to save permanently and sync across devices.
+          New to Recall? <a href="/" className="text-blue-600 hover:text-blue-800 underline">Sign up here</a>
         </div>
 
         {/* Debug Info (only in development) */}
