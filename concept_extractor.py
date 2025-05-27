@@ -524,14 +524,29 @@ class ConceptExtractor:
                 "First, determine if this is:\n"
                 "1. A PROBLEM-SOLVING conversation (discussing a specific algorithm or coding problem)\n"
                 "2. An EXPLORATORY LEARNING conversation (learning about a technology or concept)\n\n"
+                "ENHANCED PROBLEM-SOLVING DETECTION:\n"
+                "Look for these indicators of PROBLEM-SOLVING conversations:\n"
+                "- Mentions of specific LeetCode problems (Contains Duplicate, Valid Anagram, Two Sum, etc.)\n"
+                "- References to 'NeetCode', 'Blind 75', 'Blind75', 'LeetCode', or 'DSA practice'\n"
+                "- Discussion of algorithm implementation steps or coding approaches\n"
+                "- Mentions of data structures in problem-solving context (hash table for duplicates, etc.)\n"
+                "- Learning progress tracking ('X down, Y to go', 'problem X of Y')\n"
+                "- Step-by-step problem-solving methodology discussions\n"
+                "- Coding interview preparation context\n\n"
             )
             
             problem_solving_rules = (
                 "For PROBLEM-SOLVING conversations:\n"
                 "- Use ONE segment for each distinct problem discussed\n"
                 "- Do NOT create separate segments for different approaches to the same problem\n"
-                "- When naming the topic, include the main technique used (e.g., 'Contains Duplicate Problem (Hash Table)')\n"
-                "- Example: 'Contains Duplicate Problem (Hash Table)' or 'Valid Anagram (Frequency Counting)'\n\n"
+                "- When naming the topic, use the EXACT problem name first, then add technique in parentheses\n"
+                "- ALWAYS preserve standard LeetCode problem names (e.g., 'Contains Duplicate', not 'Hash Table for Duplicate Detection')\n"
+                "- Include learning context if present (e.g., 'Contains Duplicate (NeetCode Blind 75 - Hash Table)')\n"
+                "- For DSA practice conversations, include the learning journey context\n"
+                "- Examples:\n"
+                "  * 'Contains Duplicate (NeetCode Blind 75 - Hash Table)'\n"
+                "  * 'Valid Anagram (LeetCode Practice - Frequency Counting)'\n"
+                "  * 'Two Sum (DSA Learning - Hash Table)'\n\n"
             )
             
             exploratory_rules = (
@@ -779,7 +794,7 @@ technical than the 'summary' field. If they are similar in length or content, yo
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION:
+IMPORTANT - LEETCODE PROBLEM DETECTION AND LEARNING CONTEXT:
 When detecting LeetCode-style algorithm problems:
 
 1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
@@ -789,7 +804,14 @@ When detecting LeetCode-style algorithm problems:
    - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
    - Create separate concept entries for techniques (Hash Table, etc.) if needed
 
-2. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
+2. DETECT AND PRESERVE LEARNING JOURNEY CONTEXT:
+   - Look for mentions of "NeetCode", "Blind 75", "Blind75", "DSA practice"
+   - Detect progress tracking patterns ("1 down, 74 to go", "problem X of Y")
+   - Include learning methodology discussions (step-by-step approach, syntax vs concepts)
+   - Capture systematic learning approaches and curriculum references
+   - Note interview preparation context
+
+3. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
    - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
      "LeetCode Problems"
    - Common indicators: array manipulation problems, string problems with specific constraints, 
@@ -798,48 +820,51 @@ When detecting LeetCode-style algorithm problems:
      "LeetCode Problems"
    - Do NOT categorize LeetCode problems as just "Algorithm" or other generic categories
 
-3. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
+4. EXTRACT LEARNING METHODOLOGY AS SEPARATE CONCEPTS WHEN RELEVANT:
+   - If the conversation discusses learning approach, create a separate concept for it
+   - Examples: "DSA Learning Methodology", "Problem-Solving Approach", "NeetCode Blind 75 Progress"
+   - Include insights about learning syntax vs understanding concepts
+   - Capture step-by-step problem-solving techniques
+
+5. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
    - Explain the algorithm step-by-step
    - Include time and space complexity analysis
    - Discuss edge cases and optimizations
    - Explain why the chosen approach (e.g., hash table) is optimal
 
-4. PROVIDE WORKING CODE SOLUTIONS:
+6. PROVIDE WORKING CODE SOLUTIONS:
    - Include a complete, executable solution
    - Add clear comments explaining key steps
    - Show both the naive and optimized approaches when relevant
 
-5. CATEGORIZE CORRECTLY:
-   - Use consistent category "LeetCode Problems" or "Algorithm" for the problem
-   - Use "Data Structure" for Hash Table and other data structures
-   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer")
-   - Link related data structures or techniques
+7. CATEGORIZE CORRECTLY:
+   - Use consistent category "LeetCode Problems" for the main problem
+   - Use "Learning & Development" for learning methodology concepts
+   - Use "Algorithm Technique" for specific techniques (Hash Table, Two Pointer)
+   - Include appropriate subcategories and related concepts
 
-Example for "Contains Duplicate":
+Example for "Contains Duplicate" with learning context:
 {
   "title": "Contains Duplicate",
   "category": "LeetCode Problems",
-  "summary": "A problem that involves finding if an array contains any duplicate elements.",
-  "details": "The Contains Duplicate problem asks us to determine if an array contains any 
-duplicate elements. The most efficient approach uses a hash table (dictionary) to track 
-elements we've seen.
+  "summary": "A LeetCode problem from the NeetCode Blind 75 that involves finding if an array contains any duplicate elements using hash table approach.",
+  "details": "The Contains Duplicate problem is part of the NeetCode Blind 75 curriculum and asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen.
 
-As we iterate through the array, we check if each element already exists in our hash table. 
-If it does, we've found a duplicate and return true. If we finish iterating without finding 
-any duplicates, we return false.
+As we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false.
 
-This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, 
-trading some space efficiency for significant time optimization.",
+This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization. The problem demonstrates fundamental hash table usage patterns that appear frequently in coding interviews.",
   "keyPoints": [
+    "Part of NeetCode Blind 75 problem set",
     "Use a hash table to track previously seen elements",
     "Time complexity is O(n) where n is the length of the array",
     "Space complexity is also O(n) in the worst case",
     "Early termination occurs as soon as the first duplicate is found"
   ],
+  "relatedConcepts": ["Hash Table", "NeetCode Blind 75", "Array Problems"],
   "codeSnippets": [
     {
       "language": "Python",
-      "description": "Hash table implementation",
+      "description": "Hash table implementation for Contains Duplicate",
       "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
     }
   ]
