@@ -618,10 +618,12 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
 export async function GET(request: Request) {
   console.log('📋📋📋 MAIN CONCEPTS API ROUTE CALLED 📋📋📋');
   try {
-    // Validate session
+    // Validate session - but make it optional
     const user = await validateSession(request as NextRequest);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      // Return empty concepts array for unauthenticated users instead of 401
+      console.log('No authenticated user - returning empty concepts array');
+      return NextResponse.json({ concepts: [] });
     }
 
     // Fetch concepts from the database with better error handling

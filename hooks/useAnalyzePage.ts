@@ -78,6 +78,9 @@ export function useAnalyzePage() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [usageData, setUsageData] = useState(getUsageData())
 
+  // Add state for user info modal
+  const [showUserInfoModal, setShowUserInfoModal] = useState(false)
+
   const { toast } = useToast()
 
   // Update usage data when component mounts
@@ -404,11 +407,22 @@ export function useAnalyzePage() {
   const handleSaveConversation = async () => {
     if (!analysisResult) return
 
-    // Check if user can make a conversation (only when saving)
-    if (!canMakeConversation()) {
-      setShowApiKeyModal(true)
+    // Check if we have user info in localStorage
+    const userName = localStorage.getItem('userName')
+    const userEmail = localStorage.getItem('userEmail')
+    
+    // If no user info, show the user info modal first
+    if (!userName || !userEmail) {
+      setShowUserInfoModal(true)
       return
     }
+
+    // Remove the authentication requirement - allow saving without sign-in
+    // Users can now save conversations with just their name and email
+    // if (!canMakeConversation()) {
+    //   setShowApiKeyModal(true)
+    //   return
+    // }
 
     setIsSaving(true)
     setSaveError(null)
@@ -437,15 +451,42 @@ export function useAnalyzePage() {
     }
   }
 
+  // Handle user info provided
+  const handleUserInfoProvided = async (userInfo: { name: string; email: string }) => {
+    setShowUserInfoModal(false)
+    
+    toast({
+      title: "User Info Saved",
+      description: "Now saving your conversation...",
+      duration: 2000,
+    })
+    
+    // Now proceed with saving the conversation
+    await handleSaveConversation()
+  }
+
+  // Handle user info modal close
+  const handleUserInfoModalClose = () => {
+    setShowUserInfoModal(false)
+  }
+
   // Perform the actual save operation
   const performSaveConversation = async () => {
     if (!analysisResult) return
     
     try {
+      // Get user info from localStorage if available (for non-authenticated users)
+      const userName = localStorage.getItem('userName')
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      
       const response = await fetch('/api/saveConversation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // Include user headers if available for session validation
+          ...(userEmail && { 'x-user-email': userEmail }),
+          ...(userId && { 'x-user-id': userId }),
         },
         body: JSON.stringify({
           conversation_text: conversationText,
@@ -454,7 +495,13 @@ export function useAnalyzePage() {
             conversation_title: analysisResult.conversationTitle || generateTitleFromConcepts(analysisResult.concepts),
             conversation_summary: analysisResult.overallSummary
           },
-          customApiKey: getUsageData().customApiKey
+          customApiKey: getUsageData().customApiKey,
+          // Include user info for non-authenticated saves
+          userInfo: userName && userEmail ? {
+            name: userName,
+            email: userEmail,
+            id: userId
+          } : null
         }),
       })
 
@@ -469,9 +516,11 @@ export function useAnalyzePage() {
       }
       
       if (data.success) {
-        // Increment conversation count only on successful save
-        const updatedUsageData = incrementConversationCount()
-        setUsageData(updatedUsageData)
+        // Only increment conversation count if user has usage tracking
+        if (canMakeConversation() || getUsageData().hasCustomApiKey) {
+          const updatedUsageData = incrementConversationCount()
+          setUsageData(updatedUsageData)
+        }
         
         toast({
           title: "Success",
@@ -913,6 +962,7 @@ export function useAnalyzePage() {
     updatedConceptsCount,
     showApiKeyModal,
     usageData,
+    showUserInfoModal,
 
     // Setters
     setConversationText,
@@ -953,5 +1003,9 @@ export function useAnalyzePage() {
     handleApiKeySet,
     handleApiKeyModalClose,
     getRemainingConversations,
+
+    // User info modal functions
+    handleUserInfoProvided,
+    handleUserInfoModalClose,
   }
 } 
