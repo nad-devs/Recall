@@ -167,17 +167,12 @@ export async function POST(request: NextRequest) {
 
     console.log("Server: Proxying request to Render backend...");
 
-    // Proxy to Render backend with fallback mechanism
-    const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
-    const httpUrl = httpsUrl.replace('https://', 'http://');
+    // Use HTTP only for Render backend due to SSL issues
+    const httpUrl = 'http://recall.p3vg.onrender.com';
 
-    let response;
-    let lastError;
-
-    // Try HTTPS first
     try {
-      console.log("Server: Attempting HTTPS connection to Render...");
-      response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+      console.log("Server: Connecting to Render backend via HTTP...");
+      const response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,54 +184,25 @@ export async function POST(request: NextRequest) {
       });
 
       if (response.ok) {
-        console.log("Server: HTTPS connection successful");
+        console.log("Server: HTTP connection successful");
         const result = await response.json();
         return NextResponse.json(result);
       } else {
-        throw new Error(`HTTPS request failed with status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Server: Render backend error:", response.status, errorText);
+        throw new Error(`Backend responded with status: ${response.status} - ${errorText}`);
       }
-    } catch (httpsError) {
-      console.log("Server: HTTPS failed:", httpsError instanceof Error ? httpsError.message : 'Unknown HTTPS error');
-      lastError = httpsError;
-    }
-
-    // Try HTTP fallback
-    try {
-      console.log("Server: Attempting HTTP fallback to Render...");
-      response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    } catch (error) {
+      console.error("Server: Failed to connect to Render backend:", error);
+      return NextResponse.json(
+        { 
+          error: 'Backend service unavailable',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          backendUrl: httpUrl
         },
-        body: JSON.stringify({ 
-          conversation_text,
-          customApiKey 
-        }),
-      });
-
-      if (response.ok) {
-        console.log("Server: HTTP fallback successful");
-        const result = await response.json();
-        return NextResponse.json(result);
-      } else {
-        throw new Error(`HTTP request failed with status: ${response.status}`);
-      }
-    } catch (httpError) {
-      console.log("Server: HTTP fallback also failed:", httpError instanceof Error ? httpError.message : 'Unknown HTTP error');
-      lastError = httpError;
+        { status: 503 }
+      );
     }
-
-    // If both HTTPS and HTTP failed, return error
-    console.error("Server: Both HTTPS and HTTP requests to Render failed");
-    return NextResponse.json(
-      { 
-        error: 'Backend service unavailable',
-        details: lastError instanceof Error ? lastError.message : 'Unknown error',
-        httpsUrl,
-        httpUrl
-      },
-      { status: 503 }
-    );
 
   } catch (error) {
     console.error('Error in extract-concepts proxy:', error);
