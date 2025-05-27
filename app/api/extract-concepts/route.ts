@@ -5,32 +5,33 @@ function extractLeetCodeConcepts(conversationText: string) {
   const text = conversationText.toLowerCase();
   const concepts = [];
   
-  // Check for specific LeetCode problems
-  if (text.includes('contains duplicate') || text.includes('duplicate')) {
+  // Check for specific LeetCode problems - use EXACT problem names
+  if (text.includes('contains duplicate') || (text.includes('duplicate') && (text.includes('array') || text.includes('list')))) {
     concepts.push({
       title: "Contains Duplicate",
       category: "LeetCode Problems",
-      summary: "Algorithm problem involving duplicate detection in arrays using hash tables",
+      summary: "A problem that involves finding if an array contains any duplicate elements.",
       keyPoints: [
         "Use hash table for O(1) lookup time",
         "Time complexity: O(n) where n is array length", 
         "Space complexity: O(n) for storing seen elements",
-        "Early termination when duplicate found"
+        "Early termination when duplicate found",
+        "Optimal approach compared to O(n²) nested loops"
       ],
-      details: "The Contains Duplicate problem requires determining if an array contains any duplicate elements. The optimal solution uses a hash table to track previously seen elements as we iterate through the array. This approach provides O(n) time complexity compared to the naive O(n²) nested loop solution.",
+      details: "The Contains Duplicate problem asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen. As we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false. This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization.",
       codeSnippets: [
         {
           language: "Python",
-          description: "Hash table solution",
+          description: "Optimal hash table solution",
           code: "def containsDuplicate(nums):\n    seen = set()\n    for num in nums:\n        if num in seen:\n            return True\n        seen.add(num)\n    return False"
         }
       ],
       relatedConcepts: ["Hash Table", "Set Data Structure", "Time Complexity Analysis"],
-      confidence_score: 0.9
+      confidence_score: 0.95
     });
     
     // Add Hash Table concept if discussing the technique
-    if (text.includes('hash table') || text.includes('hash map') || text.includes('set')) {
+    if (text.includes('hash table') || text.includes('hash map') || text.includes('set') || text.includes('dictionary')) {
       concepts.push({
         title: "Hash Table",
         category: "Data Structures",
@@ -39,18 +40,19 @@ function extractLeetCodeConcepts(conversationText: string) {
           "Provides O(1) average time for lookups, insertions, deletions",
           "Uses hash function to map keys to array indices",
           "Ideal for duplicate detection and frequency counting",
-          "Space complexity is O(n) for n unique elements"
+          "Space complexity is O(n) for n unique elements",
+          "Handles collisions through chaining or open addressing"
         ],
-        details: "Hash tables work by using a hash function to convert keys into array indices. When we want to store or retrieve a value, we hash the key to get an index and access that position in the underlying array. This allows for constant-time operations in the average case.",
+        details: "Hash tables work by using a hash function to convert keys into array indices. When we want to store or retrieve a value, we hash the key to get an index and access that position in the underlying array. This allows for constant-time operations in the average case. In the context of duplicate detection, hash tables excel because they can quickly determine if an element has been seen before without needing to search through all previously encountered elements.",
         codeSnippets: [
           {
             language: "Python",
-            description: "Basic hash table usage",
-            code: "seen = set()  # or dict()\nif element in seen:\n    # Found duplicate"
+            description: "Basic hash table usage for duplicate detection",
+            code: "seen = set()  # Hash table implementation\nfor element in array:\n    if element in seen:\n        return True  # Duplicate found\n    seen.add(element)"
           }
         ],
         relatedConcepts: ["Contains Duplicate", "Hashing", "Collision Handling"],
-        confidence_score: 0.85
+        confidence_score: 0.9
       });
     }
   }
@@ -142,12 +144,12 @@ export async function POST(request: NextRequest) {
         headers: {
           'User-Agent': 'Vercel-Frontend/1.0',
         },
-        signal: AbortSignal.timeout(10000), // 10 second timeout for health check
+        signal: AbortSignal.timeout(15000), // Increased timeout for health check
         keepalive: false,
       });
       console.log("✅ Backend service is awake");
-      // Small delay to ensure SSL is fully initialized
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Longer delay to ensure SSL is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (warmupError) {
       console.log("⚠️ Service warmup failed, proceeding anyway:", warmupError instanceof Error ? warmupError.message : 'Unknown error');
     }
@@ -183,12 +185,13 @@ export async function POST(request: NextRequest) {
     
     let response;
     let backendSuccess = false;
+    let lastError = null;
     
-    // Strategy 1: Try HTTPS with aggressive SSL bypass
+    // Strategy 1: Try HTTPS with aggressive SSL bypass (longer timeout)
     try {
       console.log("🔒 Attempting HTTPS with forced SSL bypass...");
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased to 45 seconds
       
       response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
         ...createFetchOptions(httpsUrl),
@@ -198,12 +201,13 @@ export async function POST(request: NextRequest) {
       console.log("✅ HTTPS connection successful with SSL bypass");
       backendSuccess = true;
     } catch (sslError) {
+      lastError = sslError;
       console.log("🔄 HTTPS with SSL bypass failed, trying direct HTTP...", sslError instanceof Error ? sslError.message : 'Connection failed');
       
-      // Strategy 2: Direct HTTP fallback
+      // Strategy 2: Direct HTTP fallback (longer timeout)
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased to 45 seconds
         
         response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
           ...createFetchOptions(httpUrl),
@@ -213,6 +217,7 @@ export async function POST(request: NextRequest) {
         console.log("✅ HTTP connection successful");
         backendSuccess = true;
       } catch (httpError) {
+        lastError = httpError;
         console.log("🔄 HTTP also failed, trying without timeout...", httpError instanceof Error ? httpError.message : 'Connection failed');
         
         // Strategy 3: Last resort - no timeout, basic fetch
@@ -230,6 +235,7 @@ export async function POST(request: NextRequest) {
           console.log("✅ Basic HTTP connection successful");
           backendSuccess = true;
         } catch (finalError) {
+          lastError = finalError;
           console.log("❌ All backend connection attempts failed:", finalError instanceof Error ? finalError.message : 'Connection failed');
           backendSuccess = false;
         }
@@ -241,24 +247,18 @@ export async function POST(request: NextRequest) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
     }
 
-    // If backend failed, try fallback extraction for LeetCode problems
+    // If backend failed completely, return a proper error (NO FALLBACK)
     if (!backendSuccess || !response) {
-      console.log("🔄 Backend failed, trying fallback extraction for LeetCode problems...");
-      const fallbackResult = extractLeetCodeConcepts(conversation_text);
-      
-      if (fallbackResult.concepts.length > 0) {
-        console.log("✅ Fallback extraction successful:", fallbackResult.concepts.length, "concepts found");
-        return NextResponse.json(fallbackResult);
-      } else {
-        console.log("❌ Fallback extraction found no concepts");
-        return NextResponse.json(
-          { 
-            error: 'Backend service unavailable and no fallback concepts found',
-            details: 'Please try again later or check your internet connection'
-          },
-          { status: 503 }
-        );
-      }
+      console.log("❌ Backend completely failed - no fallback, returning error");
+      return NextResponse.json(
+        { 
+          error: 'AI analysis service temporarily unavailable',
+          details: 'The AI backend service is not responding. Please try again in a moment.',
+          lastError: lastError instanceof Error ? lastError.message : 'Connection failed',
+          suggestion: 'The service may be starting up. Please wait 30 seconds and try again.'
+        },
+        { status: 503 }
+      );
     }
 
     console.log(`📊 Backend response status: ${response.status}`);
@@ -272,41 +272,20 @@ export async function POST(request: NextRequest) {
         conceptTitles: result.concepts?.map((c: any) => c.title) || []
       });
       
-      // If backend returned no concepts but this looks like a LeetCode problem, try fallback
-      if ((!result.concepts || result.concepts.length === 0) && 
-          (conversation_text.toLowerCase().includes('leetcode') || 
-           conversation_text.toLowerCase().includes('contains duplicate') ||
-           conversation_text.toLowerCase().includes('valid anagram') ||
-           conversation_text.toLowerCase().includes('two sum'))) {
-        console.log("🔄 Backend returned no concepts for LeetCode content, trying fallback...");
-        const fallbackResult = extractLeetCodeConcepts(conversation_text);
-        
-        if (fallbackResult.concepts.length > 0) {
-          console.log("✅ Fallback extraction enhanced the result");
-          return NextResponse.json(fallbackResult);
-        }
-      }
-      
+      // Return the AI result directly - no fallback interference
       return NextResponse.json(result);
     } else {
       const errorText = await response.text();
       console.error("❌ Render backend error:", response.status, errorText);
       
-      // Try fallback extraction for LeetCode problems even if backend returned an error
-      console.log("🔄 Backend error, trying fallback extraction...");
-      const fallbackResult = extractLeetCodeConcepts(conversation_text);
-      
-      if (fallbackResult.concepts.length > 0) {
-        console.log("✅ Fallback extraction successful despite backend error");
-        return NextResponse.json(fallbackResult);
-      }
-      
+      // Return backend error directly - no fallback
       return NextResponse.json(
         { 
-          error: 'Backend service error',
+          error: 'AI analysis service error',
           status: response.status,
           details: errorText,
-          backendUrl: httpsUrl
+          backendUrl: httpsUrl,
+          suggestion: 'The AI service encountered an error. Please try again.'
         },
         { status: response.status }
       );
@@ -315,28 +294,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('💥 Error in extract-concepts proxy:', error);
     
-    // Try fallback extraction as last resort
-    try {
-      const body = await request.json();
-      const { conversation_text } = body;
-      
-      if (conversation_text) {
-        console.log("🔄 Trying fallback extraction due to error...");
-        const fallbackResult = extractLeetCodeConcepts(conversation_text);
-        
-        if (fallbackResult.concepts.length > 0) {
-          console.log("✅ Fallback extraction successful despite error");
-          return NextResponse.json(fallbackResult);
-        }
-      }
-    } catch (fallbackError) {
-      console.log("❌ Fallback extraction also failed:", fallbackError);
-    }
-    
+    // Return error directly - no fallback
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        suggestion: 'Please try again. If the problem persists, the AI service may be starting up.'
       },
       { status: 500 }
     );
