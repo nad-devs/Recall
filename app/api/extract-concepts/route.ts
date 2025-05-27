@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log("🌐 Connecting to Render backend via HTTPS...");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
         method: 'POST',
         headers: {
@@ -26,12 +29,17 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({ 
           conversation_text,
+          ...(customApiKey && { customApiKey }),
           context: null,
           category_guidance: null
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       console.log(`📊 Backend response status: ${response.status}`);
+      console.log(`📊 Backend response headers:`, Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         console.log("✅ HTTP connection successful");
