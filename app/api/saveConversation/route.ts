@@ -275,6 +275,7 @@ export async function POST(request: Request) {
       });
     });
 
+    console.log("💾 CREATING CONVERSATION IN DATABASE...");
     // Create the conversation
     const conversationData: any = {
       text: conversation_text,
@@ -289,6 +290,14 @@ export async function POST(request: Request) {
     
     const conversation = await prisma.conversation.create({
       data: conversationData,
+    });
+
+    console.log("✅ CONVERSATION CREATED:", {
+      id: conversation.id,
+      userId: conversation.userId,
+      title: conversation.title,
+      summary: conversation.summary?.substring(0, 100) + '...',
+      textLength: conversation.text.length
     });
 
     // Store created concept IDs to establish relationships later
@@ -497,14 +506,28 @@ export async function POST(request: Request) {
     // Increment conversation count on successful save
     await incrementServerConversationCount(clientIP, userAgent, validatedApiKey);
 
+    console.log("🎉 CONVERSATION SAVE COMPLETED SUCCESSFULLY!");
+    console.log("📊 Final Results:", {
+      conversationId: conversation.id,
+      conceptCount: Array.from(createdConceptIds.values()).length,
+      conceptIds: Array.from(createdConceptIds.values()),
+      conceptTitles: Array.from(createdConceptIds.keys()),
+      userId: user.id,
+      userEmail: user.email
+    });
+
     // Return a success response with redirect to the concepts page
-    return NextResponse.json({ 
+    const response = { 
       success: true, 
       message: "Conversation saved successfully",
       conversationId: conversation.id,
       conceptIds: Array.from(createdConceptIds.values()),
+      conceptCount: Array.from(createdConceptIds.values()).length,
       redirectTo: `/conversation/${conversation.id}`
-    });
+    };
+    
+    console.log("📤 SENDING RESPONSE:", response);
+    return NextResponse.json(response);
 
   } catch (error: unknown) {
     console.error('Error saving conversation:', error);
