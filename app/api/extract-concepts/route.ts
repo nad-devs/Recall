@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 
@@ -153,204 +153,60 @@ CRITICAL: Extract 1-3 HIGH-VALUE concepts maximum. Focus on specific problems, t
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { conversation_text, customApiKey } = await request.json();
+    const body = await request.json();
+    const { conversation_text, customApiKey } = body;
 
-    if (!conversation_text || conversation_text.trim().length === 0) {
+    if (!conversation_text) {
       return NextResponse.json(
-        { error: 'Conversation text is required' },
+        { error: 'Missing conversation text' },
         { status: 400 }
       );
     }
 
-    // Fetch existing categories and build enhanced category guidance
-    let existingCategories: string[][] = [];
-    let categoryKeywords: { [key: string]: string[] } = {};
-    
+    // Proxy to Render backend with fallback mechanism
+    const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const httpUrl = httpsUrl.replace('https://', 'http://');
+
+    let response;
     try {
-      const categories = await prisma.category.findMany({
-        select: {
-          id: true,
-          name: true,
-          parentId: true,
+      console.log("Server: Attempting HTTPS connection to Render...");
+      response = await fetch(`${httpsUrl}/api/v1/extract-concepts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ 
+          conversation_text,
+          customApiKey 
+        }),
       });
-      
-      // Build keyword mapping from existing concepts first
-      categoryKeywords = await buildCategoryKeywordMapping();
-      
-      // Convert to paths (now with access to categoryKeywords)
-      existingCategories = buildCategoryPaths(categories, categoryKeywords);
-      
-      // DEBUG: Log what we found
-      console.log("=== CATEGORY LEARNING DEBUG ===");
-      console.log("Existing category paths:", existingCategories);
-      console.log("Category keywords:", categoryKeywords);
-      console.log("===============================");
-      
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      // Continue without categories if fetch fails
+    } catch (sslError) {
+      console.log("Server: HTTPS failed, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed');
+      response = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          conversation_text,
+          customApiKey 
+        }),
+      });
     }
 
-    // Use OpenAI directly since Python microservice isn't working
-    console.log("Using direct OpenAI integration for concept extraction");
-
-    try {
-      // Log the request to help with debugging
-      console.log(`Analyzing conversation with ${conversation_text.length} characters of text`);
-      
-      const extractionData = await extractConceptsWithOpenAI(conversation_text, customApiKey, existingCategories);
-
-      console.log("Received response from concept extractor");
-      
-      // Validate the response format
-      console.log("Validating extraction response format");
-      
-      // Ensure extractionData has concepts array
-      if (!extractionData.concepts || !Array.isArray(extractionData.concepts)) {
-        console.error("Invalid response format - missing concepts array:", extractionData);
-        extractionData.concepts = [];
-      }
-      
-      // ENHANCED: Post-process concepts to upgrade categories using our learning system
-      if (extractionData.concepts && extractionData.concepts.length > 0) {
-        extractionData.concepts = await enhanceCategoriesWithLearning(
-          extractionData.concepts, 
-          existingCategories, 
-          categoryKeywords
-        );
-      }
-
-      // Check if we got an empty concepts array but have a summary
-      if ((!extractionData.concepts || extractionData.concepts.length === 0) && extractionData.conversation_summary) {
-        console.log("Received empty concepts array with summary - creating fallback concepts");
-        
-        // Create fallback concepts based on the summary and conversation text
-        extractionData.concepts = generateFallbackConcepts(conversation_text, extractionData.conversation_summary);
-      }
-      
-      // Ensure each concept has required fields
-      extractionData.concepts = extractionData.concepts.map((concept: any) => {
-        // Make sure required fields are present
-        return {
-          title: concept.title || "Untitled Concept",
-          category: concept.category || "General",
-          summary: concept.summary || extractionData.conversation_summary || "",
-          keyPoints: Array.isArray(concept.keyPoints) ? concept.keyPoints : [],
-          // Ensure details has the correct structure expected by the frontend
-          details: typeof concept.details === 'object' ? concept.details : {
-            implementation: concept.details || concept.implementation || concept.summary || "",
-            complexity: concept.complexity || { time: "O(n)", space: "O(n)" },
-            useCases: concept.useCases || [],
-            edgeCases: concept.edgeCases || [],
-            performance: concept.performance || "",
-            interviewQuestions: [],
-            practiceProblems: [],
-            furtherReading: []
-          },
-          relatedConcepts: Array.isArray(concept.relatedConcepts) ? concept.relatedConcepts : [],
-          ...concept
-        };
-      });
-
-      // Transform the data to ensure it contains conversation_summary
-      const transformedData = {
-        ...extractionData,
-        // Ensure we have a clean conversation_summary without formatting tags
-        conversation_summary: extractionData.conversation_summary 
-          ? extractionData.conversation_summary.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim()
-          : "Conversation about programming concepts"
-      };
-
-      // Extract the category from detected concepts to enhance display
-      if (transformedData.concepts && transformedData.concepts.length > 0) {
-        console.log(`Successfully processed ${transformedData.concepts.length} concepts`);
-        
-        // Ensure the concepts have proper fields by rechecking
-        transformedData.concepts = transformedData.concepts.map((concept: any) => {
-          return {
-            title: concept.title || "Untitled Concept",
-            category: concept.category || "General",
-            summary: concept.summary || transformedData.conversation_summary || "",
-            keyPoints: Array.isArray(concept.keyPoints) && concept.keyPoints.length > 0 
-              ? concept.keyPoints 
-              : ["Extracted from conversation"],
-            details: typeof concept.details === 'object' ? concept.details : {
-              implementation: concept.details || concept.implementation || concept.summary || "",
-              complexity: { time: "N/A", space: "N/A" },
-              useCases: [],
-              edgeCases: [],
-              performance: "",
-              interviewQuestions: [],
-              practiceProblems: [],
-              furtherReading: []
-            },
-            relatedConcepts: Array.isArray(concept.relatedConcepts) ? concept.relatedConcepts : [],
-            codeSnippets: Array.isArray(concept.codeSnippets) ? concept.codeSnippets : []
-          };
-        });
-      } else {
-        console.log("No concepts found in response - creating fallback");
-        
-        // Create a simple fallback concept based on the summary
-        const summaryText = transformedData.conversation_summary || "Discussion about programming topics";
-        transformedData.concepts = [
-          {
-            title: summaryText.length > 40 ? summaryText.substring(0, 40) + "..." : summaryText,
-            category: "General",
-            summary: summaryText,
-            keyPoints: ["Key points extracted from conversation"],
-            details: {
-              implementation: "This concept covers the main topics discussed in the conversation.",
-              complexity: { time: "N/A", space: "N/A" },
-              useCases: [],
-              edgeCases: [],
-              performance: "",
-              interviewQuestions: [],
-              practiceProblems: [],
-              furtherReading: []
-            },
-            relatedConcepts: []
-          }
-        ];
-      }
-
-      // Return the transformed data
-      return NextResponse.json(transformedData);
-    } catch (error) {
-      console.error("Error calling extraction service:", error);
-      
-      // Create a basic response with proper format to avoid frontend errors
-      const fallbackResponse = {
-        concepts: [
-          {
-            title: "Programming Concept",
-            category: "General",
-            summary: "Programming concepts discussed in the conversation",
-            keyPoints: ["Extracted from conversation"],
-            details: {
-              implementation: "This concept was extracted from the conversation",
-              complexity: { time: "N/A", space: "N/A" },
-              useCases: [],
-              edgeCases: [],
-              performance: "",
-              interviewQuestions: [],
-              practiceProblems: [],
-              furtherReading: []
-            },
-            relatedConcepts: [],
-          }
-        ],
-        conversation_summary: "Discussion about programming topics",
-        error: error instanceof Error ? error.message : "Unknown error occurred"
-      };
-      
-      return NextResponse.json(fallbackResponse);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Render backend error:', errorText);
+      throw new Error(`Backend responded with status: ${response.status}`);
     }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error extracting concepts:', error);
+    console.error('Error in extract-concepts proxy:', error);
+    
     return NextResponse.json(
       { error: 'Failed to extract concepts' },
       { status: 500 }
