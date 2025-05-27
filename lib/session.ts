@@ -1,8 +1,34 @@
 import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { PrismaClient } from '@prisma/client'
+import NextAuth from "next-auth"
+import { PrismaAdapter } from "@next-auth/prisma-adapter"
+import GoogleProvider from "next-auth/providers/google"
+import GitHubProvider from "next-auth/providers/github"
 
 const prisma = new PrismaClient()
+
+// NextAuth configuration for server-side session validation
+const authOptions = {
+  adapter: PrismaAdapter(prisma),
+  providers: [
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    ] : []),
+    ...(process.env.GITHUB_ID && process.env.GITHUB_SECRET ? [
+      GitHubProvider({
+        clientId: process.env.GITHUB_ID,
+        clientSecret: process.env.GITHUB_SECRET,
+      })
+    ] : [])
+  ],
+  session: {
+    strategy: "database" as const,
+  },
+}
 
 export interface SessionUser {
   id: string
@@ -14,7 +40,7 @@ export interface SessionUser {
 export async function validateSession(request: NextRequest): Promise<SessionUser | null> {
   try {
     // First, try to get NextAuth session (OAuth)
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (session?.user?.email) {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email }
