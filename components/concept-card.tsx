@@ -13,6 +13,28 @@ import { ConceptConnectionDialog } from "@/components/concept-connection-dialog"
 import { connectConcepts, disconnectConcepts } from "@/lib/concept-utils"
 import React, { createContext, useContext } from "react"
 
+// Get authentication headers
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Check if we're in browser environment
+  if (typeof window !== 'undefined') {
+    const userEmail = localStorage.getItem('userEmail');
+    const userId = localStorage.getItem('userId');
+    
+    console.log('🔧 Concept Card - Auth headers:', { userEmail, userId });
+    
+    if (userEmail && userId) {
+      headers['x-user-email'] = userEmail;
+      headers['x-user-id'] = userId;
+    }
+  }
+  
+  return headers;
+}
+
 // Enhanced category interface for hierarchical display
 interface CategoryOption {
   value: string;
@@ -34,14 +56,18 @@ interface ConceptCardProps {
   enableRightClickLinking?: boolean
 }
 
-// Context for selected source concept for linking
+// Create a context for linking state
 const LinkingContext = createContext<{
-  selected: { id: string, title: string } | null,
-  setSelected: (v: { id: string, title: string } | null) => void
-}>({ selected: null, setSelected: () => {} });
+  selected: { id: string; title: string } | null;
+  setSelected: (concept: { id: string; title: string } | null) => void;
+}>({
+  selected: null,
+  setSelected: () => {},
+});
 
 export function LinkingProvider({ children }: { children: React.ReactNode }) {
-  const [selected, setSelected] = useState<{ id: string, title: string } | null>(null);
+  const [selected, setSelected] = useState<{ id: string; title: string } | null>(null);
+  
   return (
     <LinkingContext.Provider value={{ selected, setSelected }}>
       {children}
@@ -86,18 +112,21 @@ export function ConceptCard({
   
   const { selected: selectedSourceConceptForLinking, setSelected: setSelectedSourceConceptForLinking } = useLinking();
   
-  // Fetch available categories when editing starts
   const fetchCategories = async () => {
     setIsLoadingCategories(true);
     try {
       // Fetch existing categories from the database
-      const response = await fetch('/api/categories');
+      const response = await fetch('/api/categories', {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         const categoryPaths = data.categories || [];
         
         // Also get categories from existing concepts to show learned patterns
-        const conceptsResponse = await fetch('/api/concepts');
+        const conceptsResponse = await fetch('/api/concepts', {
+          headers: getAuthHeaders()
+        });
         const conceptsData = conceptsResponse.ok ? await conceptsResponse.json() : { concepts: [] };
         const existingCategories = new Set<string>(conceptsData.concepts?.map((c: any) => c.category).filter(Boolean) || []);
         
@@ -319,28 +348,18 @@ export function ConceptCard({
 
     setIsSaving(true)
     try {
-      // Prepare authentication headers
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      // For email-based sessions
-      if (userEmail && userId) {
-        headers['x-user-email'] = userEmail
-        headers['x-user-id'] = userId
-      }
-
       const response = await fetch(`/api/concepts/${id}`, {
         method: 'PUT',
-        headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           category: selectedCategory,
         }),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed - please make sure you are logged in')
+        }
         throw new Error('Failed to update category')
       }
 
@@ -358,7 +377,7 @@ export function ConceptCard({
       console.error('Error updating category:', error)
       toast({
         title: "Error",
-        description: "Failed to update category",
+        description: error instanceof Error ? error.message : "Failed to update category",
         variant: "destructive",
         duration: 3000,
       })
@@ -386,26 +405,16 @@ export function ConceptCard({
 
     setIsSaving(true)
     try {
-      // Prepare authentication headers
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      // For email-based sessions
-      if (userEmail && userId) {
-        headers['x-user-email'] = userEmail
-        headers['x-user-id'] = userId
-      }
-
       const response = await fetch(`/api/concepts/${id}`, {
         method: 'PUT',
-        headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify({ title: editedTitle.trim() }),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed - please make sure you are logged in')
+        }
         throw new Error('Failed to update title')
       }
 
@@ -421,7 +430,7 @@ export function ConceptCard({
       console.error('Error updating title:', error)
       toast({
         title: "Error",
-        description: "Failed to update title. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update title. Please try again.",
         variant: "destructive",
       })
       setEditedTitle(title || "") // Reset to original
@@ -446,9 +455,13 @@ export function ConceptCard({
         // Fallback: only if no onDelete prop is provided, make the API call directly
         const response = await fetch(`/api/concepts/${id}`, {
           method: 'DELETE',
+          headers: getAuthHeaders(),
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Authentication failed - please make sure you are logged in')
+          }
           throw new Error('Failed to delete concept');
         }
         
@@ -478,7 +491,7 @@ export function ConceptCard({
       console.error('Error deleting concept:', error);
       toast({
         title: "Error",
-        description: "Failed to delete concept",
+        description: error instanceof Error ? error.message : "Failed to delete concept",
         variant: "destructive",
         duration: 3000,
       });
@@ -491,8 +504,13 @@ export function ConceptCard({
   const handleConnectConcept = async (targetConceptId: string) => {
     try {
       // First, get the target concept data to add to our local state
-      const targetResponse = await fetch(`/api/concepts/${targetConceptId}`);
+      const targetResponse = await fetch(`/api/concepts/${targetConceptId}`, {
+        headers: getAuthHeaders()
+      });
       if (!targetResponse.ok) {
+        if (targetResponse.status === 401) {
+          throw new Error('Authentication failed - please make sure you are logged in')
+        }
         throw new Error('Failed to fetch target concept');
       }
       const targetData = await targetResponse.json();
@@ -515,7 +533,9 @@ export function ConceptCard({
       });
       
       // Fetch fresh data to ensure UI is consistent
-      fetch(`/api/concepts/${id}`)
+      fetch(`/api/concepts/${id}`, {
+        headers: getAuthHeaders()
+      })
         .then(res => res.json())
         .then(data => {
           if (data.relatedConcepts) {
@@ -538,7 +558,7 @@ export function ConceptCard({
       console.error('Error connecting concepts:', error);
       toast({
         title: "Error",
-        description: "Failed to establish concept relationship",
+        description: error instanceof Error ? error.message : "Failed to establish concept relationship",
         variant: "destructive",
       });
       throw error;
@@ -569,7 +589,9 @@ export function ConceptCard({
       });
       
       // Fetch fresh data to ensure UI is consistent
-      fetch(`/api/concepts/${id}`)
+      fetch(`/api/concepts/${id}`, {
+        headers: getAuthHeaders()
+      })
         .then(res => res.json())
         .then(data => {
           if (data.relatedConcepts) {
@@ -595,7 +617,7 @@ export function ConceptCard({
       console.error('Error disconnecting concepts:', error);
       toast({
         title: "Error",
-        description: "Failed to remove concept relationship",
+        description: error instanceof Error ? error.message : "Failed to remove concept relationship",
         variant: "destructive",
       });
     }
@@ -640,7 +662,7 @@ export function ConceptCard({
       
       toast({
         title: "Concept Selected",
-        description: `Right-click another concept to link with \"${title}\"`,
+        description: `Right-click another concept to link with "${title}"`,
         duration: 5000,
       });
     } else if (selectedSourceConceptForLinking.id === id) {
@@ -662,7 +684,7 @@ export function ConceptCard({
       
       toast({
         title: "Connecting...",
-        description: `Linking \"${sourceTitle}\" to \"${title}\"`,
+        description: `Linking "${sourceTitle}" to "${title}"`,
       });
       
       connectConcepts(sourceId, id)
@@ -767,7 +789,9 @@ export function ConceptCard({
       // Force a refresh of the concept data
       const refreshData = async () => {
         try {
-          const response = await fetch(`/api/concepts/${id}`);
+          const response = await fetch(`/api/concepts/${id}`, {
+            headers: getAuthHeaders()
+          });
           if (!response.ok) throw new Error("Failed to fetch updated concept");
           
           const data = await response.json();
@@ -814,7 +838,7 @@ export function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group transition-all duration-200 overflow-hidden ${
+        className={`group transition-all duration-200 overflow-hidden h-full flex flex-col ${
           isSelected ? "ring-2 ring-primary" : ""
         } ${
           selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
@@ -875,8 +899,8 @@ export function ConceptCard({
             </span>
           </div>
         )}
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start gap-2">
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-start gap-3">
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
@@ -919,7 +943,7 @@ export function ConceptCard({
               </div>
             ) : (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <CardTitle className="text-lg truncate flex-1 min-w-0">{title}</CardTitle>
+                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -1065,7 +1089,7 @@ export function ConceptCard({
             <CardDescription className="line-clamp-2 break-words">{getDescriptionText()}</CardDescription>
           )}
         </CardHeader>
-        <CardContent className="pb-2 space-y-2">
+        <CardContent className="pb-3 space-y-3 flex-1">
           <div className="flex items-center text-sm text-muted-foreground">
             <MessageSquare className="mr-1 h-3 w-3" />
             Discussed in {discussedInConversations?.length || 0} conversation{discussedInConversations?.length !== 1 ? "s" : ""}
@@ -1204,7 +1228,9 @@ export function ConceptCard({
                                         // If we have a string-based related concept, try to get its ID
                                         if (typeof related === 'string' && !relatedId) {
                                           try {
-                                            const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(related)}`);
+                                            const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(related)}`, {
+                                              headers: getAuthHeaders()
+                                            });
                                             if (titleResponse.ok) {
                                               const conceptData = await titleResponse.json();
                                               if (conceptData && conceptData.id) {

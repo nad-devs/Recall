@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateSession } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate user session
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { concept } = body;
+
+    console.log('🔧 Generate Quiz API - User:', user.id, 'Concept:', concept?.title);
 
     if (!concept || !concept.title || !concept.summary) {
       return NextResponse.json(
@@ -42,6 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
+    console.log('🔧 Generate Quiz API - Success, generated', result.questions?.length || 0, 'questions');
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error generating quiz questions:', error);

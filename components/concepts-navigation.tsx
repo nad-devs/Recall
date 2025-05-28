@@ -333,11 +333,127 @@ export function ConceptsNavigation({
     setIsRenamingCategory(false)
   }, [])
 
+  // Helper function to get authentication headers
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    }
+    
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      
+      console.log('🔧 Environment check:')
+      console.log('🔧 - window.location.origin:', window.location.origin)
+      console.log('🔧 - window.location.href:', window.location.href)
+      console.log('🔧 - process.env.NODE_ENV:', process.env.NODE_ENV)
+      console.log('🔧 - process.env.NEXT_PUBLIC_BACKEND_URL:', process.env.NEXT_PUBLIC_BACKEND_URL)
+      console.log('🔧 Auth check - userEmail:', userEmail ? 'present' : 'missing')
+      console.log('🔧 Auth check - userId:', userId ? 'present' : 'missing')
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+        console.log('🔧 Added email-based auth headers')
+      } else {
+        console.warn('🔧 No authentication data found in localStorage')
+      }
+    } else {
+      console.log('🔧 Server-side environment, no localStorage available')
+    }
+    
+    return headers
+  }
+
+  // Robust API call utility that works in both dev and production
+  const makeApiCall = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const fullUrl = `${baseUrl}${endpoint}`
+    
+    // Add cache-busting parameter to prevent cached redirects
+    const separator = endpoint.includes('?') ? '&' : '?'
+    const cacheBustEndpoint = `${endpoint}${separator}_t=${Date.now()}`
+    const cacheBustFullUrl = `${fullUrl}${separator}_t=${Date.now()}`
+    
+    console.log('🔧 Making API call to:', endpoint)
+    console.log('🔧 Cache-bust endpoint:', cacheBustEndpoint)
+    console.log('🔧 Full URL:', fullUrl)
+    console.log('🔧 Options:', options)
+    
+    // Ensure headers include cache control
+    const enhancedOptions = {
+      ...options,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        ...options.headers
+      }
+    }
+    
+    try {
+      // First try with relative path (preferred)
+      const response = await fetch(cacheBustEndpoint, enhancedOptions)
+      console.log('🔧 Response status:', response.status)
+      console.log('🔧 Response URL:', response.url)
+      
+      if (response.ok) {
+        return response
+      }
+      
+      // If relative path fails and we get a redirect or error, try with full URL
+      if (response.status === 401 || response.status === 404) {
+        console.log('🔧 Relative path failed, trying full URL...')
+        const fullResponse = await fetch(cacheBustFullUrl, enhancedOptions)
+        console.log('🔧 Full URL response status:', fullResponse.status)
+        return fullResponse
+      }
+      
+      return response
+    } catch (error) {
+      console.error('🔧 API call error:', error)
+      // If fetch fails completely, try with full URL as fallback
+      console.log('🔧 Fetch failed, trying full URL as fallback...')
+      return await fetch(cacheBustFullUrl, enhancedOptions)
+    }
+  }, [])
+
+  // Test API connectivity
+  const testApiConnectivity = useCallback(async () => {
+    try {
+      console.log('🔧 Testing API connectivity...')
+      const response = await fetch('/api/concepts', {
+        method: 'GET',
+        headers: getAuthHeaders()
+      })
+      console.log('🔧 API test response status:', response.status)
+      console.log('🔧 API test response URL:', response.url)
+      return response.ok
+    } catch (error) {
+      console.error('🔧 API connectivity test failed:', error)
+      return false
+    }
+  }, [])
+
+  // Enhanced createPlaceholderConcept with connectivity test
   const createPlaceholderConcept = useCallback(async (category: string) => {
     try {
-      const response = await fetch('/api/concepts', {
+      // First test API connectivity
+      const isConnected = await testApiConnectivity()
+      if (!isConnected) {
+        console.warn('🔧 API connectivity test failed, but proceeding anyway...')
+      }
+      
+      const headers = getAuthHeaders()
+      console.log('🔧 Creating placeholder concept for category:', category)
+      console.log('🔧 Using headers:', headers)
+      console.log('🔧 Current window location:', typeof window !== 'undefined' ? window.location.href : 'server-side')
+      
+      const response = await makeApiCall('/api/concepts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           title: "📌 Add Concepts Here",
           category: category,
@@ -347,9 +463,37 @@ export function ConceptsNavigation({
         })
       })
       
+      console.log('🔧 Response status:', response.status)
+      console.log('🔧 Response URL:', response.url)
+      
       if (!response.ok) {
-        throw new Error('Failed to create placeholder concept')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('🔧 Error response:', errorData)
+        
+        // If we get a 401, it might be an auth issue - let's provide more helpful error
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please refresh the page and try again. Your session may have expired.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Authentication failed. Please refresh the page and try again.')
+        } else if (response.status === 429) {
+          toast({
+            title: "Rate Limited",
+            description: "Too many requests. Please wait a moment and try again.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Rate limited')
+        }
+        
+        throw new Error(errorData.error || 'Failed to create placeholder concept')
       }
+      
+      const data = await response.json()
+      console.log('🔧 Success response:', data)
       
       // Refresh the data to show the new placeholder concept
       if (onDataRefresh) {
@@ -359,7 +503,7 @@ export function ConceptsNavigation({
       console.error('Error creating placeholder concept:', error)
       throw error // Re-throw to be handled by calling function
     }
-  }, [onDataRefresh])
+  }, [onDataRefresh, makeApiCall, testApiConnectivity])
 
   const handleCreateSubcategory = useCallback(async () => {
     // Prevent multiple concurrent operations

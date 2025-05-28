@@ -732,23 +732,53 @@ export function ResultsView(props: ResultsViewProps) {
                             {rootCategory && (
                               <div className="flex items-center space-x-2">
                                 <label className="text-xs text-muted-foreground min-w-[80px]">Subcategory:</label>
-                                <Autocomplete
-                                  options={categoryOptions
-                                    .filter(opt => opt.value.startsWith(rootCategory + ' > '))
-                                    .map(opt => ({
-                                      ...opt,
-                                      label: opt.value.split(' > ')[1],
-                                      value: opt.value.split(' > ')[1],
-                                      description: 'Subcategory'
-                                    }))
-                                    .concat([
-                                      { value: '', label: 'No subcategory', description: 'Use root category only' }
-                                    ])}
-                                  value={subCategory}
-                                  onChange={setSubCategory}
-                                  placeholder="Select subcategory (optional)..."
-                                  className="flex-1"
-                                />
+                                <div className="flex-1 flex items-center space-x-2">
+                                  <Autocomplete
+                                    options={categoryOptions
+                                      .filter(opt => opt.value.startsWith(rootCategory + ' > '))
+                                      .map(opt => ({
+                                        ...opt,
+                                        label: opt.value.split(' > ')[1],
+                                        value: opt.value.split(' > ')[1],
+                                        description: 'Subcategory'
+                                      }))
+                                      .concat([
+                                        { value: '', label: 'No subcategory', description: 'Use root category only' },
+                                        { value: 'LeetCode Problems', label: 'LeetCode Problems', description: 'Algorithm problems from LeetCode' }
+                                      ])}
+                                    value={subCategory}
+                                    onChange={setSubCategory}
+                                    placeholder="Select or type new subcategory..."
+                                    className="flex-1"
+                                  />
+                                  {subCategory && subCategory !== '' && !categoryOptions.some(opt => opt.value === `${rootCategory} > ${subCategory}`) && (
+                                    <button
+                                      onClick={() => {
+                                        // Add the new subcategory to options for future use
+                                        const newCategoryPath = `${rootCategory} > ${subCategory}`
+                                        setCategoryOptions(prev => [
+                                          ...prev,
+                                          {
+                                            value: newCategoryPath,
+                                            label: newCategoryPath,
+                                            description: 'Custom subcategory'
+                                          }
+                                        ])
+                                        
+                                        toast({
+                                          title: "Subcategory Added",
+                                          description: `"${subCategory}" added as a new subcategory under "${rootCategory}"`,
+                                        })
+                                      }}
+                                      className="inline-flex items-center justify-center rounded-md bg-green-600 text-white px-2 py-1 text-sm font-medium hover:bg-green-700"
+                                      title="Add new subcategory"
+                                    >
+                                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M12 5v14M5 12h14"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             )}
                             

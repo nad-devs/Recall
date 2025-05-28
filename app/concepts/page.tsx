@@ -81,16 +81,28 @@ export default function ConceptsPage() {
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
-    const userEmail = localStorage.getItem('userEmail')
-    const userId = localStorage.getItem('userId')
     const headers: HeadersInit = {
       'Content-Type': 'application/json'
     }
     
-    // For email-based sessions
-    if (userEmail && userId) {
-      headers['x-user-email'] = userEmail
-      headers['x-user-id'] = userId
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      
+      console.log('🔧 Auth check - userEmail:', userEmail ? 'present' : 'missing')
+      console.log('🔧 Auth check - userId:', userId ? 'present' : 'missing')
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+        console.log('🔧 Added email-based auth headers')
+      } else {
+        console.warn('🔧 No authentication data found in localStorage')
+      }
+    } else {
+      console.log('🔧 Server-side environment, no localStorage available')
     }
     
     return headers
@@ -247,17 +259,54 @@ export default function ConceptsPage() {
   const handleAddConcept = async (title: string) => {
     try {
       setIsCreatingConcept(true)
+      const headers = getAuthHeaders()
+      console.log('🔧 Creating concept with title:', title)
+      console.log('🔧 Using headers:', headers)
+      console.log('🔧 Current window location:', typeof window !== 'undefined' ? window.location.href : 'server-side')
+      
       const response = await fetch('/api/concepts', {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers,
         body: JSON.stringify({ title }),
       })
 
+      console.log('🔧 Response status:', response.status)
+      console.log('🔧 Response URL:', response.url)
+
       if (!response.ok) {
-        throw new Error('Failed to create concept')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('🔧 Error response:', errorData)
+        
+        // Provide more specific error messages
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please refresh the page and try again. Your session may have expired.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Authentication failed')
+        } else if (response.status === 429) {
+          toast({
+            title: "Rate Limited",
+            description: "Too many requests. Please wait a moment and try again.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Rate limited')
+        } else {
+          toast({
+            title: "Error Creating Concept",
+            description: errorData.error || 'Failed to create concept. Please try again.',
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Failed to create concept')
+        }
       }
 
       const data = await response.json()
+      console.log('🔧 Success response:', data)
       
       // Refresh data to get updated concepts (including removed placeholders)
       await refreshData()
@@ -267,6 +316,18 @@ export default function ConceptsPage() {
       router.push(`/concept/${data.concept.id}`)
     } catch (error) {
       console.error('Error creating concept:', error)
+      // Don't show additional toast if we already showed one above
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (!errorMessage.includes('Authentication failed') && 
+          !errorMessage.includes('Rate limited') && 
+          !errorMessage.includes('Failed to create concept')) {
+        toast({
+          title: "Unexpected Error",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      }
     } finally {
       setIsCreatingConcept(false)
     }
@@ -696,9 +757,9 @@ export default function ConceptsPage() {
                               {category}
                             </h2>
                             <CategoryDropZone category={category} onDrop={handleConceptDrop}>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                 {filteredConceptsByCategory[category].map((concept) => (
-                                  <div key={concept.id}>
+                                  <div key={concept.id} className="h-full">
                                     <ConceptCard 
                                       concept={concept} 
                                       showDescription={true}
@@ -716,14 +777,14 @@ export default function ConceptsPage() {
                           </div>
                         ))
                       ) : searchQuery && concepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          <div className="md:col-span-2 xl:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
                             No concepts found matching "{searchQuery}"{selectedCategory && ` in ${selectedCategory}`}. Try a different search term.
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          <div className="md:col-span-2 xl:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
                             <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
                               <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                             </div>
@@ -772,33 +833,34 @@ export default function ConceptsPage() {
                           {error}
                         </div>
                       ) : filteredConcepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                           {filteredConcepts
                             .sort((a, b) => a.title.localeCompare(b.title))
                             .map((concept) => (
-                              <ConceptCard 
-                                key={concept.id} 
-                                concept={concept} 
-                                showDescription={true}
-                                showRelatedConcepts={false}
-                                onCategoryUpdate={handleCategoryUpdate}
-                                onDelete={handleDeleteConcept}
-                                isLoading={loadingConcepts.includes(concept.id)}
-                                isSelected={selectedConcepts.has(concept.id)}
-                                onSelect={handleConceptSelect}
-                                enableRightClickLinking={true}
-                              />
+                              <div key={concept.id} className="h-full">
+                                <ConceptCard 
+                                  concept={concept} 
+                                  showDescription={true}
+                                  showRelatedConcepts={false}
+                                  onCategoryUpdate={handleCategoryUpdate}
+                                  onDelete={handleDeleteConcept}
+                                  isLoading={loadingConcepts.includes(concept.id)}
+                                  isSelected={selectedConcepts.has(concept.id)}
+                                  onSelect={handleConceptSelect}
+                                  enableRightClickLinking={true}
+                                />
+                              </div>
                             ))}
                         </div>
                       ) : searchQuery && concepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          <div className="md:col-span-2 xl:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
                             No concepts found matching "{searchQuery}"{selectedCategory && ` in ${selectedCategory}`}. Try a different search term.
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          <div className="md:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                          <div className="md:col-span-2 xl:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
                             <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
                               <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                             </div>

@@ -91,11 +91,31 @@ export function useAnalyzePage() {
   // Function to check for existing concepts
   const checkForExistingConcepts = async (concepts: Concept[]): Promise<ConceptMatch[]> => {
     try {
+      // Get authentication headers
+      const getAuthHeaders = () => {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        // Check if we're in browser environment
+        if (typeof window !== 'undefined') {
+          const userEmail = localStorage.getItem('userEmail');
+          const userId = localStorage.getItem('userId');
+          
+          console.log('🔧 Check Existing Concepts - Auth headers:', { userEmail, userId });
+          
+          if (userEmail && userId) {
+            headers['x-user-email'] = userEmail;
+            headers['x-user-id'] = userId;
+          }
+        }
+        
+        return headers;
+      };
+
       const response = await fetch('/api/concepts/check-existing', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ 
           concepts: concepts.map(c => ({
             title: c.title,
@@ -106,11 +126,16 @@ export function useAnalyzePage() {
       })
 
       if (!response.ok) {
-        console.error('Failed to check existing concepts')
+        if (response.status === 401) {
+          console.error('Authentication failed for concept checking - user may not be logged in')
+          return []
+        }
+        console.error('Failed to check existing concepts:', response.status, response.statusText)
         return []
       }
 
       const data = await response.json()
+      console.log('🔧 Check Existing Concepts - Found matches:', data.matches?.length || 0)
       return data.matches || []
     } catch (error) {
       console.error('Error checking existing concepts:', error)

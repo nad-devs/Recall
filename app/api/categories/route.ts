@@ -1,10 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
+import { NextRequest } from 'next/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Fetch categories from concepts instead of the category table
+    // Validate user session
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Fetch categories from concepts that belong to the user
     const concepts = await prisma.concept.findMany({
+      where: {
+        userId: user.id
+      },
       select: { category: true },
       distinct: ['category'],
     });
@@ -18,12 +32,22 @@ export async function GET() {
       flatCategories: categoryStrings
     });
   } catch (error) {
+    console.error('Error fetching categories:', error);
     return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
   }
 } 
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Validate user session
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { name, parentPath } = await request.json();
     
     if (!name) {
@@ -35,15 +59,27 @@ export async function POST(request: Request) {
       ? [...parentPath, name].join(' > ')
       : name;
     
-    // Check if category already exists
+    // Check if category already exists for this user
     const existingConcept = await prisma.concept.findFirst({
-      where: { category: newCategoryPath }
+      where: { 
+        category: newCategoryPath,
+        userId: user.id
+      }
     });
     
     if (existingConcept) {
       return NextResponse.json({ error: 'Category already exists' }, { status: 400 });
     }
     
+    // Create a conversation first
+    const conversation = await prisma.conversation.create({
+      data: {
+        text: `Auto-generated conversation for category: ${newCategoryPath}`,
+        summary: `Category: ${newCategoryPath}`,
+        userId: user.id,
+      }
+    });
+
     // Create a placeholder concept for the new category
     const concept = await prisma.concept.create({
       data: {
@@ -57,13 +93,8 @@ export async function POST(request: Request) {
         relationships: "",
         confidenceScore: 0.1,
         lastUpdated: new Date(),
-        // Create a dummy conversation for the concept
-        conversation: {
-          create: {
-            text: `Auto-generated conversation for category: ${newCategoryPath}`,
-            summary: `Category: ${newCategoryPath}`,
-          }
-        }
+        userId: user.id, // Associate with the user
+        conversationId: conversation.id, // Link to the conversation
       }
     });
     
@@ -74,16 +105,25 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
+    // Validate user session
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { action, categoryPath, newName, newParentPath } = await request.json();
     
     console.log('PUT /api/categories called with:', { action, categoryPath, newName, newParentPath });
     
     if (action === 'rename') {
-      return await handleRenameCategory(categoryPath, newName);
+      return await handleRenameCategory(categoryPath, newName, user.id);
     } else if (action === 'move') {
-      return await handleMoveCategory(categoryPath, newParentPath);
+      return await handleMoveCategory(categoryPath, newParentPath, user.id);
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
@@ -94,35 +134,42 @@ export async function PUT(request: Request) {
 }
 
 // Handle renaming a category
-async function handleRenameCategory(categoryPath: string[], newName: string) {
+async function handleRenameCategory(categoryPath: string[], newName: string, userId: string) {
   const oldCategoryPath = categoryPath.join(' > ');
   const newCategoryPath = [...categoryPath.slice(0, -1), newName].join(' > ');
   
   console.log('Renaming category from:', oldCategoryPath, 'to:', newCategoryPath);
   
-  // Check if new category path already exists
+  // Check if new category path already exists for this user
   const existingConcept = await prisma.concept.findFirst({
-    where: { category: newCategoryPath }
+    where: { 
+      category: newCategoryPath,
+      userId: userId
+    }
   });
   
   if (existingConcept) {
     return NextResponse.json({ error: 'Category with new name already exists' }, { status: 400 });
   }
   
-  // Update all concepts that exactly match the old path
+  // Update all concepts that exactly match the old path and belong to the user
   const exactMatches = await prisma.concept.updateMany({
-    where: { category: oldCategoryPath },
+    where: { 
+      category: oldCategoryPath,
+      userId: userId
+    },
     data: { category: newCategoryPath }
   });
   
   console.log('Updated', exactMatches.count, 'concepts with exact match');
   
-  // Update all concepts that have the old path as a prefix (subcategories)
+  // Update all concepts that have the old path as a prefix (subcategories) and belong to the user
   const conceptsToUpdate = await prisma.concept.findMany({
     where: {
       category: {
         startsWith: oldCategoryPath + ' > '
-      }
+      },
+      userId: userId
     }
   });
   
@@ -144,7 +191,7 @@ async function handleRenameCategory(categoryPath: string[], newName: string) {
 }
 
 // Handle moving a category to a new parent
-async function handleMoveCategory(categoryPath: string[], newParentPath: string[] | null) {
+async function handleMoveCategory(categoryPath: string[], newParentPath: string[] | null, userId: string) {
   const oldCategoryPath = categoryPath.join(' > ');
   const categoryName = categoryPath[categoryPath.length - 1];
   const newCategoryPath = newParentPath && newParentPath.length > 0
@@ -153,29 +200,36 @@ async function handleMoveCategory(categoryPath: string[], newParentPath: string[
   
   console.log('Moving category from:', oldCategoryPath, 'to:', newCategoryPath);
   
-  // Check if new category path already exists
+  // Check if new category path already exists for this user
   const existingConcept = await prisma.concept.findFirst({
-    where: { category: newCategoryPath }
+    where: { 
+      category: newCategoryPath,
+      userId: userId
+    }
   });
   
   if (existingConcept && newCategoryPath !== oldCategoryPath) {
     return NextResponse.json({ error: 'Target category already exists' }, { status: 400 });
   }
   
-  // Update all concepts that exactly match the old path
+  // Update all concepts that exactly match the old path and belong to the user
   const exactMatches = await prisma.concept.updateMany({
-    where: { category: oldCategoryPath },
+    where: { 
+      category: oldCategoryPath,
+      userId: userId
+    },
     data: { category: newCategoryPath }
   });
   
   console.log('Updated', exactMatches.count, 'concepts with exact match');
   
-  // Update all concepts that have the old path as a prefix (subcategories)
+  // Update all concepts that have the old path as a prefix (subcategories) and belong to the user
   const conceptsToUpdate = await prisma.concept.findMany({
     where: {
       category: {
         startsWith: oldCategoryPath + ' > '
-      }
+      },
+      userId: userId
     }
   });
   

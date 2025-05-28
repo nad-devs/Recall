@@ -35,6 +35,35 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
   // Unwrap params using React.use()
   const resolvedParams = use(params)
 
+  // Helper function to get authentication headers
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    }
+    
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      
+      console.log('🔧 Review page auth check - userEmail:', userEmail ? 'present' : 'missing')
+      console.log('🔧 Review page auth check - userId:', userId ? 'present' : 'missing')
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+        console.log('🔧 Added email-based auth headers to review page')
+      } else {
+        console.warn('🔧 No authentication data found in localStorage for review page')
+      }
+    } else {
+      console.log('🔧 Server-side environment, no localStorage available')
+    }
+    
+    return headers
+  }
+
   useEffect(() => {
     const conceptId = resolvedParams.id
     if (!conceptId) return
@@ -42,10 +71,30 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
     async function fetchConceptAndGenerateQuiz() {
       try {
         setLoading(true)
-        // Fetch concept from database
-        const conceptRes = await fetch(`/api/concepts/${conceptId}`)
-        if (!conceptRes.ok) throw new Error("Failed to fetch concept")
+        
+        // Fetch concept from database with authentication headers
+        console.log('🔧 Fetching concept with ID:', conceptId)
+        const conceptRes = await fetch(`/api/concepts/${conceptId}`, {
+          headers: getAuthHeaders()
+        })
+        
+        console.log('🔧 Concept fetch response status:', conceptRes.status)
+        
+        if (!conceptRes.ok) {
+          if (conceptRes.status === 401) {
+            toast({
+              title: "Authentication Error",
+              description: "Please refresh the page and try again. Your session may have expired.",
+              variant: "destructive",
+              duration: 5000,
+            })
+            throw new Error('Authentication failed. Please refresh the page and try again.')
+          }
+          throw new Error("Failed to fetch concept")
+        }
+        
         const conceptData = await conceptRes.json()
+        console.log('🔧 Concept data received:', conceptData)
         
         const conceptObj = conceptData.concept
         setConcept(conceptObj)
@@ -63,12 +112,11 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
           keyPoints = conceptObj.keyPoints
         }
         
-        // Generate quiz questions via API route
+        // Generate quiz questions via API route with authentication headers
+        console.log('🔧 Generating quiz questions...')
         const quizResponse = await fetch('/api/generate-quiz', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             concept: {
               title: conceptObj.title,
@@ -80,20 +128,33 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
           })
         });
 
+        console.log('🔧 Quiz generation response status:', quizResponse.status)
+
         if (!quizResponse.ok) {
+          if (quizResponse.status === 401) {
+            toast({
+              title: "Authentication Error",
+              description: "Please refresh the page and try again. Your session may have expired.",
+              variant: "destructive",
+              duration: 5000,
+            })
+            throw new Error('Authentication failed for quiz generation. Please refresh the page and try again.')
+          }
           throw new Error("Failed to generate quiz questions")
         }
 
         const generatedQuestionsObj = await quizResponse.json();
         const generatedQuestions = generatedQuestionsObj.questions || [];
+        console.log('🔧 Generated questions:', generatedQuestions.length)
         setQuestions(generatedQuestions)
         setTotalQuestions(generatedQuestions.length)
       } catch (error) {
         console.error("Error loading concept:", error)
         toast({
           title: "Error",
-          description: "Failed to load concept or generate quiz",
-          variant: "destructive"
+          description: error instanceof Error ? error.message : "Failed to load concept or generate quiz",
+          variant: "destructive",
+          duration: 5000,
         })
       } finally {
         setLoading(false)
@@ -110,19 +171,40 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
     const conceptId = resolvedParams.id
     if (!conceptId) return
     
-    // Update review stats in database
+    // Update review stats in database with authentication headers
     try {
+      console.log('🔧 Updating review stats for concept:', conceptId)
       const response = await fetch(`/api/concepts/${conceptId}/review`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ score, totalQuestions })
       })
       
+      console.log('🔧 Review update response status:', response.status)
+      
       if (!response.ok) {
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please refresh the page and try again. Your session may have expired.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Authentication failed for review update. Please refresh the page and try again.')
+        } else if (response.status === 429) {
+          toast({
+            title: "Rate Limited",
+            description: "Too many requests. Please wait a moment and try again.",
+            variant: "destructive",
+            duration: 5000,
+          })
+          throw new Error('Rate limited')
+        }
         throw new Error("Failed to update review stats")
       }
+      
+      const responseData = await response.json()
+      console.log('🔧 Review update successful:', responseData)
       
       toast({
         title: "Review Completed",
@@ -133,8 +215,9 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
       console.error("Error updating review stats:", error)
       toast({
         title: "Error",
-        description: "Failed to save review progress",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Failed to save review progress",
+        variant: "destructive",
+        duration: 5000,
       })
     }
   }
