@@ -370,18 +370,12 @@ export function ResultsView(props: ResultsViewProps) {
   }
 
   return (
-    <motion.div
+    <div
       className="lg:col-span-3 space-y-6"
-      initial={{ x: 50, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.5, delay: 0.4 }}
     >
       {/* Save button at the top */}
       {analysisResult && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+        <div
           className="flex justify-end mb-4"
         >
           <button
@@ -429,25 +423,21 @@ export function ResultsView(props: ResultsViewProps) {
               </>
             )}
           </button>
-        </motion.div>
+        </div>
       )}
 
       {/* Save error display */}
       {saveError && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-destructive/15 text-destructive px-4 py-2 rounded-md text-sm mb-4"
         >
           {saveError}
-        </motion.div>
+        </div>
       )}
 
       {/* Concept confirmation dialog */}
       {showConceptConfirmation && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4"
         >
           <h3 className="font-medium text-yellow-800 mb-2">Existing concepts found</h3>
@@ -473,7 +463,7 @@ export function ResultsView(props: ResultsViewProps) {
               Cancel
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Main content based on current state */}
@@ -1446,6 +1436,6 @@ export function ResultsView(props: ResultsViewProps) {
           isProcessing={isSaving}
         />
       )}
-    </motion.div>
+    </div>
   )
 } 
