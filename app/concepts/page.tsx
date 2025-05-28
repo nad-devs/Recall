@@ -79,6 +79,23 @@ export default function ConceptsPage() {
   const [showNeedsReview, setShowNeedsReview] = useState(false)
   const { toast } = useToast()
 
+  // Helper function to get authentication headers
+  const getAuthHeaders = (): HeadersInit => {
+    const userEmail = localStorage.getItem('userEmail')
+    const userId = localStorage.getItem('userId')
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    }
+    
+    // For email-based sessions
+    if (userEmail && userId) {
+      headers['x-user-email'] = userEmail
+      headers['x-user-id'] = userId
+    }
+    
+    return headers
+  }
+
   // Filter concepts based on search query, selected category, and needs review filter
   const filteredConcepts = concepts.filter(concept => {
     const matchesSearch = concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,11 +145,18 @@ export default function ConceptsPage() {
   const fetchConcepts = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/concepts')
+      
+      const headers = getAuthHeaders()
+      
+      console.log('Concepts page: Using headers:', headers)
+      
+      const response = await fetch('/api/concepts', { headers })
       if (!response.ok) {
         throw new Error('Failed to fetch concepts')
       }
       const data = await response.json()
+      
+      console.log('Concepts page: Fetched concepts raw response:', data)
       
       // Check if we have concepts data in the response
       if (data.concepts && Array.isArray(data.concepts)) {
@@ -225,9 +249,7 @@ export default function ConceptsPage() {
       setIsCreatingConcept(true)
       const response = await fetch('/api/concepts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ title }),
       })
 
@@ -354,9 +376,7 @@ export default function ConceptsPage() {
       const updatePromises = Array.from(conceptsToMove).map(async (conceptId) => {
         const response = await fetch(`/api/concepts/${conceptId}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             category: newCategory,
           }),
@@ -403,6 +423,7 @@ export default function ConceptsPage() {
     try {
       const response = await fetch(`/api/concepts/${conceptId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -443,7 +464,7 @@ export default function ConceptsPage() {
       // Update concepts in the database using PUT method (not PATCH)
       const updatePromises = conceptIds.map(async (conceptId) => {
         // First fetch the current concept to preserve other fields
-        const response = await fetch(`/api/concepts/${conceptId}`)
+        const response = await fetch(`/api/concepts/${conceptId}`, { headers: getAuthHeaders() })
         if (!response.ok) {
           throw new Error(`Failed to fetch concept ${conceptId}`)
         }
@@ -452,7 +473,7 @@ export default function ConceptsPage() {
         // Update with new category while preserving other fields
         const updateResponse = await fetch(`/api/concepts/${conceptId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             ...conceptData,
             category: newCategory
