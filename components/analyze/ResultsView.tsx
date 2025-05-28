@@ -110,6 +110,11 @@ export function ResultsView(props: ResultsViewProps) {
   const [isAddingSubcategory, setIsAddingSubcategory] = useState(false)
   const [categoryOptions, setCategoryOptions] = useState<Array<{value: string, label: string, description?: string}>>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(false)
+  
+  // Add title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editingTitleValue, setEditingTitleValue] = useState("")
+  const [isSavingTitle, setIsSavingTitle] = useState(false)
 
   // Fetch categories for the picker and autocomplete
   useEffect(() => {
@@ -189,6 +194,70 @@ export function ResultsView(props: ResultsViewProps) {
       setIsAddingSubcategory(false);
     }
   }, [isEditingCategory, selectedConcept]);
+
+  // Handle title update
+  const handleTitleUpdate = async () => {
+    if (!selectedConcept || editingTitleValue.trim() === selectedConcept.title) {
+      setIsEditingTitle(false)
+      return
+    }
+
+    if (!editingTitleValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Title cannot be empty",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingTitle(true)
+    try {
+      // Prepare authentication headers
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+      }
+
+      const response = await fetch(`/api/concepts/${selectedConcept.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ title: editingTitleValue.trim() }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update title')
+      }
+
+      // Update the selected concept title locally
+      const updatedConcept = { ...selectedConcept, title: editingTitleValue.trim() }
+      setSelectedConcept(updatedConcept)
+
+      toast({
+        title: "Title updated",
+        description: `Concept title changed to "${editingTitleValue.trim()}"`,
+      })
+
+      setIsEditingTitle(false)
+    } catch (error) {
+      console.error('Error updating title:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update title. Please try again.",
+        variant: "destructive",
+      })
+      setEditingTitleValue(selectedConcept.title) // Reset to original
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
 
   // Helper to get unique root categories
   const rootOptions = Array.from(new Set(categories.map(path => path[0]).filter(Boolean)))
@@ -410,7 +479,7 @@ export function ResultsView(props: ResultsViewProps) {
       {/* Main content based on current state */}
       {showAddConceptCard ? (
         // Add Concept Card
-        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm group">
           <div className="p-6">
             <p className="text-muted-foreground mb-4">
               Add a concept that wasn't identified in the conversation.
@@ -474,7 +543,7 @@ export function ResultsView(props: ResultsViewProps) {
         </div>
       ) : selectedConcept && editConceptMode ? (
         // Edit concept form
-        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm group">
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">Edit Concept</h3>
             <form onSubmit={(e) => {
@@ -500,49 +569,67 @@ export function ResultsView(props: ResultsViewProps) {
                   <div className="flex gap-2 items-center flex-wrap">
                     {categoryPathParts.map((part, idx) => (
                       <React.Fragment key={idx}>
-                        <input
-                          type="text"
-                          value={part}
-                          onChange={e => {
-                            const newParts = [...categoryPathParts];
-                            newParts[idx] = e.target.value;
-                            setCategoryPathParts(newParts);
-                          }}
-                          className="rounded-md border border-input bg-background px-2 py-1 text-xs w-36"
-                          placeholder={idx === 0 ? "Root category" : `Subcategory ${idx}`}
-                        />
-                        {idx < categoryPathParts.length - 1 && <span className="mx-1">&gt;</span>}
+                        <div className="flex items-center gap-1">
+                          <Autocomplete
+                            value={part}
+                            onChange={(value) => {
+                              const newParts = [...categoryPathParts];
+                              newParts[idx] = value;
+                              setCategoryPathParts(newParts);
+                            }}
+                            options={categoryOptions}
+                            placeholder={idx === 0 ? "Root category" : `Subcategory ${idx}`}
+                            className="w-40"
+                            disabled={isLoadingCategories}
+                            maxSuggestions={8}
+                          />
+                          {idx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newParts = categoryPathParts.filter((_, i) => i !== idx);
+                                setCategoryPathParts(newParts);
+                              }}
+                              className="text-destructive hover:bg-destructive/10 rounded p-1"
+                              title="Remove this subcategory"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        {idx < categoryPathParts.length - 1 && <span className="mx-2 text-muted-foreground font-bold">&gt;</span>}
                       </React.Fragment>
                     ))}
                     {isAddingSubcategory ? (
-                      <input
-                        type="text"
-                        value={""}
-                        autoFocus
-                        onBlur={e => {
-                          if (e.target.value.trim()) {
-                            setCategoryPathParts([...categoryPathParts, e.target.value.trim()]);
-                          }
-                          setIsAddingSubcategory(false);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                            setCategoryPathParts([...categoryPathParts, e.currentTarget.value.trim()]);
-                            setIsAddingSubcategory(false);
-                          } else if (e.key === 'Escape') {
-                            setIsAddingSubcategory(false);
-                          }
-                        }}
-                        className="rounded-md border border-input bg-background px-2 py-1 text-xs w-36"
-                        placeholder="New subcategory"
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="mx-2 text-muted-foreground font-bold">&gt;</span>
+                        <Autocomplete
+                          value=""
+                          onChange={(value) => {
+                            if (value.trim()) {
+                              setCategoryPathParts([...categoryPathParts, value.trim()]);
+                              setIsAddingSubcategory(false);
+                            }
+                          }}
+                          options={categoryOptions}
+                          placeholder="Enter subcategory..."
+                          className="w-40"
+                          disabled={isLoadingCategories}
+                          maxSuggestions={8}
+                        />
+                      </div>
                     ) : (
                       <button
                         type="button"
-                        className="ml-1 text-xs px-2 py-1 rounded bg-primary text-white"
+                        className="ml-2 text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 font-medium flex items-center gap-1 shadow-sm border border-green-700 dark:border-green-400 transition-all duration-200"
                         onClick={() => setIsAddingSubcategory(true)}
                       >
-                        + Add
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Add
                       </button>
                     )}
                   </div>
@@ -551,15 +638,40 @@ export function ResultsView(props: ResultsViewProps) {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button
-                      className="text-xs px-2 py-1 rounded bg-primary text-white"
-                      onClick={() => handleCategoryUpdate(categoryPathParts.filter(Boolean).join(' > '))}
+                      className="text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 font-medium"
+                      onClick={() => {
+                        // Auto-correct common misspellings and format
+                        const correctedParts = categoryPathParts
+                          .filter(Boolean)
+                          .map(part => {
+                            const trimmed = part.trim();
+                            // Auto-correct "Artificial Intelligence" variations
+                            if (/^(ai|artificial\s*intelligence?|artif\w*\s*intel\w*|machine\s*learning)$/i.test(trimmed)) {
+                              return 'Artificial Intelligence';
+                            }
+                            // Auto-correct "Natural Language Processing" variations
+                            if (/^(nlp|natural\s*language?\s*process\w*|nat\w*\s*lang\w*)$/i.test(trimmed)) {
+                              return 'Natural Language Processing';
+                            }
+                            // Capitalize first letter of each word
+                            return trimmed.split(' ').map(word => 
+                              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                            ).join(' ');
+                          });
+                        
+                        const newPath = correctedParts.join(' > ');
+                        handleCategoryUpdate(newPath);
+                      }}
                       disabled={!categoryPathParts[0]?.trim()}
                     >
-                      Save
+                      Save Category
                     </button>
                     <button
-                      className="text-xs px-2 py-1 rounded border border-input"
-                      onClick={() => setIsEditingCategory(false)}
+                      className="text-sm px-4 py-2 rounded-md border border-input hover:bg-muted font-medium"
+                      onClick={() => {
+                        setIsEditingCategory(false);
+                        setIsAddingSubcategory(false);
+                      }}
                     >
                       Cancel
                     </button>
@@ -587,184 +699,78 @@ export function ResultsView(props: ResultsViewProps) {
       ) : selectedConcept ? (
         // Selected concept details
         <>
-          <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+          <div className="rounded-lg border bg-card text-card-foreground shadow-sm group">
             <div className="p-6">
               <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-2xl font-semibold">{selectedConcept.title}</h2>
-                  <div className="flex items-center mt-1 text-sm text-muted-foreground">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-3.5 w-3.5 mr-1"
-                    >
-                      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
-                      <path d="M7 7h.01" />
-                    </svg>
-                    <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
-                      {selectedConcept.categoryPath ? (
-                        <span>
-                          {selectedConcept.categoryPath.join(' > ')}
-                        </span>
-                      ) : (
-                        selectedConcept.category
-                      )}
-                      <button 
-                        className="ml-2 text-primary hover:text-primary/80 hover:bg-primary/10 rounded p-1 transition-colors" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditCategoryValue(selectedConcept.categoryPath ? 
-                            selectedConcept.categoryPath.join(' > ') : 
-                            selectedConcept.category);
-                          setIsEditingCategory(true);
+                <div className="flex-1 min-w-0">
+                  {isEditingTitle ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={editingTitleValue}
+                        onChange={(e) => setEditingTitleValue(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            handleTitleUpdate()
+                          } else if (e.key === 'Escape') {
+                            setEditingTitleValue(selectedConcept.title)
+                            setIsEditingTitle(false)
+                          }
                         }}
-                        title="Edit category"
+                        className="text-2xl font-semibold bg-background border rounded px-2 py-1 flex-1"
+                        autoFocus
+                        disabled={isSavingTitle}
+                      />
+                      <button 
+                        onClick={handleTitleUpdate}
+                        disabled={isSavingTitle}
+                        className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-8 w-8"
+                        title="Save title"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                        {isSavingTitle ? (
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20,6 9,17 4,12"/>
+                          </svg>
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setEditingTitleValue(selectedConcept.title)
+                          setIsEditingTitle(false)
+                        }}
+                        disabled={isSavingTitle}
+                        className="inline-flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                        title="Cancel"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="m18 6-12 12"/>
+                          <path d="m6 6 12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <h2 className="text-2xl font-semibold truncate">{selectedConcept.title}</h2>
+                      <button 
+                        onClick={() => {
+                          setEditingTitleValue(selectedConcept.title)
+                          setIsEditingTitle(true)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-6 w-6 flex-shrink-0"
+                        title="Edit title"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 20h9"/>
                           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
                         </svg>
                       </button>
                     </div>
-                    {isEditingCategory && (
-                      <div className="relative ml-2 flex flex-col gap-3 items-start bg-muted/50 p-3 rounded-md border">
-                        <div className="flex gap-2 items-center flex-wrap">
-                          {categoryPathParts.map((part, idx) => (
-                            <React.Fragment key={idx}>
-                              <div className="flex items-center gap-1">
-                                <Autocomplete
-                                  value={part}
-                                  onChange={(value) => {
-                                    const newParts = [...categoryPathParts];
-                                    newParts[idx] = value;
-                                    setCategoryPathParts(newParts);
-                                  }}
-                                  options={categoryOptions}
-                                  placeholder={idx === 0 ? "Root category" : `Subcategory ${idx}`}
-                                  className="w-40"
-                                  disabled={isLoadingCategories}
-                                  maxSuggestions={8}
-                                />
-                                {idx > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const newParts = categoryPathParts.filter((_, i) => i !== idx);
-                                      setCategoryPathParts(newParts);
-                                    }}
-                                    className="text-destructive hover:bg-destructive/10 rounded p-1"
-                                    title="Remove this subcategory"
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <path d="M18 6L6 18M6 6l12 12"/>
-                                    </svg>
-                                  </button>
-                                )}
-                              </div>
-                              {idx < categoryPathParts.length - 1 && <span className="mx-2 text-muted-foreground font-bold">&gt;</span>}
-                            </React.Fragment>
-                          ))}
-                          {isAddingSubcategory ? (
-                            <div className="flex items-center gap-2">
-                              <span className="mx-2 text-muted-foreground font-bold">&gt;</span>
-                              <Autocomplete
-                                value=""
-                                onChange={(value) => {
-                                  if (value.trim()) {
-                                    setCategoryPathParts([...categoryPathParts, value.trim()]);
-                                    setIsAddingSubcategory(false);
-                                  }
-                                }}
-                                options={categoryOptions}
-                                placeholder="Enter subcategory..."
-                                className="w-40"
-                                disabled={isLoadingCategories}
-                                maxSuggestions={8}
-                              />
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              className="ml-2 text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 font-medium flex items-center gap-1 shadow-sm border border-green-700 dark:border-green-400 transition-all duration-200"
-                              onClick={() => setIsAddingSubcategory(true)}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 5v14M5 12h14"/>
-                              </svg>
-                              Add
-                            </button>
-                          )}
-                        </div>
-                        
-                        <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded border-l-4 border-blue-400">
-                          <strong>Preview:</strong> {categoryPathParts.filter(Boolean).join(' > ') || 'Enter categories above'}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <button
-                            className="text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 font-medium"
-                            onClick={() => {
-                              // Auto-correct common misspellings and format
-                              const correctedParts = categoryPathParts
-                                .filter(Boolean)
-                                .map(part => {
-                                  const trimmed = part.trim();
-                                  // Auto-correct "Artificial Intelligence" variations
-                                  if (/^(ai|artificial\s*intelligence?|artif\w*\s*intel\w*|machine\s*learning)$/i.test(trimmed)) {
-                                    return 'Artificial Intelligence';
-                                  }
-                                  // Auto-correct "Natural Language Processing" variations
-                                  if (/^(nlp|natural\s*language?\s*process\w*|nat\w*\s*lang\w*)$/i.test(trimmed)) {
-                                    return 'Natural Language Processing';
-                                  }
-                                  // Capitalize first letter of each word
-                                  return trimmed.split(' ').map(word => 
-                                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                                  ).join(' ');
-                                });
-                              
-                              const newPath = correctedParts.join(' > ');
-                              handleCategoryUpdate(newPath);
-                            }}
-                            disabled={!categoryPathParts[0]?.trim()}
-                          >
-                            Save Category
-                          </button>
-                          <button
-                            className="text-sm px-4 py-2 rounded-md border border-input hover:bg-muted font-medium"
-                            onClick={() => {
-                              setIsEditingCategory(false);
-                              setIsAddingSubcategory(false);
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {selectedConcept.relatedConcepts.length > 0 && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        Related to: {formatRelatedConcepts(selectedConcept.relatedConcepts)}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
                 
                 {/* Delete button */}
@@ -1216,7 +1222,185 @@ export function ResultsView(props: ResultsViewProps) {
               </div>
             </div>
           </motion.div>
-        </>
+
+          {/* Category and related concepts display */}
+          <div className="flex items-center mt-1 text-sm text-muted-foreground">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5 mr-1"
+            >
+              <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+              <path d="M7 7h.01" />
+            </svg>
+            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
+              {selectedConcept.categoryPath ? (
+                <span>
+                  {selectedConcept.categoryPath.join(' > ')}
+                </span>
+              ) : (
+                selectedConcept.category
+              )}
+              <button 
+                className="ml-2 text-primary hover:text-primary/80 hover:bg-primary/10 rounded p-1 transition-colors" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditCategoryValue(selectedConcept.categoryPath ? 
+                    selectedConcept.categoryPath.join(' > ') : 
+                    selectedConcept.category);
+                  setIsEditingCategory(true);
+                }}
+                title="Edit category"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 20h9"/>
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                </svg>
+              </button>
+            </div>
+            
+            {/* Category editing UI */}
+            {isEditingCategory && (
+              <div className="relative ml-2 flex flex-col gap-3 items-start bg-muted/50 p-3 rounded-md border">
+                <div className="flex gap-2 items-center flex-wrap">
+                  {categoryPathParts.map((part, idx) => (
+                    <React.Fragment key={idx}>
+                      <div className="flex items-center gap-1">
+                        <Autocomplete
+                          value={part}
+                          onChange={(value) => {
+                            const newParts = [...categoryPathParts];
+                            newParts[idx] = value;
+                            setCategoryPathParts(newParts);
+                          }}
+                          options={categoryOptions}
+                          placeholder={idx === 0 ? "Root category" : `Subcategory ${idx}`}
+                          className="w-40"
+                          disabled={isLoadingCategories}
+                          maxSuggestions={8}
+                        />
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newParts = categoryPathParts.filter((_, i) => i !== idx);
+                              setCategoryPathParts(newParts);
+                            }}
+                            className="text-destructive hover:bg-destructive/10 rounded p-1"
+                            title="Remove this subcategory"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {idx < categoryPathParts.length - 1 && <span className="mx-2 text-muted-foreground font-bold">&gt;</span>}
+                    </React.Fragment>
+                  ))}
+                  {isAddingSubcategory ? (
+                    <div className="flex items-center gap-2">
+                      <span className="mx-2 text-muted-foreground font-bold">&gt;</span>
+                      <Autocomplete
+                        value=""
+                        onChange={(value) => {
+                          if (value.trim()) {
+                            setCategoryPathParts([...categoryPathParts, value.trim()]);
+                            setIsAddingSubcategory(false);
+                          }
+                        }}
+                        options={categoryOptions}
+                        placeholder="Enter subcategory..."
+                        className="w-40"
+                        disabled={isLoadingCategories}
+                        maxSuggestions={8}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ml-2 text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 font-medium flex items-center gap-1 shadow-sm border border-green-700 dark:border-green-400 transition-all duration-200"
+                      onClick={() => setIsAddingSubcategory(true)}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 5v14M5 12h14"/>
+                      </svg>
+                      Add
+                    </button>
+                  )}
+                </div>
+                
+                <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded border-l-4 border-blue-400">
+                  <strong>Preview:</strong> {categoryPathParts.filter(Boolean).join(' > ') || 'Enter categories above'}
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    className="text-sm px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 font-medium"
+                    onClick={() => {
+                      // Auto-correct common misspellings and format
+                      const correctedParts = categoryPathParts
+                        .filter(Boolean)
+                        .map(part => {
+                          const trimmed = part.trim();
+                          // Auto-correct "Artificial Intelligence" variations
+                          if (/^(ai|artificial\s*intelligence?|artif\w*\s*intel\w*|machine\s*learning)$/i.test(trimmed)) {
+                            return 'Artificial Intelligence';
+                          }
+                          // Auto-correct "Natural Language Processing" variations
+                          if (/^(nlp|natural\s*language?\s*process\w*|nat\w*\s*lang\w*)$/i.test(trimmed)) {
+                            return 'Natural Language Processing';
+                          }
+                          // Capitalize first letter of each word
+                          return trimmed.split(' ').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                          ).join(' ');
+                        });
+                      
+                      const newPath = correctedParts.join(' > ');
+                      handleCategoryUpdate(newPath);
+                    }}
+                    disabled={!categoryPathParts[0]?.trim()}
+                  >
+                    Save Category
+                  </button>
+                  <button
+                    className="text-sm px-4 py-2 rounded-md border border-input hover:bg-muted font-medium"
+                    onClick={() => {
+                      setIsEditingCategory(false);
+                      setIsAddingSubcategory(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {selectedConcept.relatedConcepts.length > 0 && (
+              <span className="ml-2 text-xs text-muted-foreground">
+                Related to: {formatRelatedConcepts(selectedConcept.relatedConcepts)}
+              </span>
+            )}
+          </div>
+        </div>
       ) : (
         // Empty state when no concept is selected
         <div className="flex items-center justify-center h-[calc(100vh-200px)]">

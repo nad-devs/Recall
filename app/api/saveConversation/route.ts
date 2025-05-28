@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         message: "Conversation already exists",
         conversationId: existingConversation.id,
         alreadyExists: true,
-        redirectTo: `/conversation/${existingConversation.id}`
+        redirectTo: `/concepts`
       });
     }
 
@@ -523,7 +523,7 @@ export async function POST(request: Request) {
       conversationId: conversation.id,
       conceptIds: Array.from(createdConceptIds.values()),
       conceptCount: Array.from(createdConceptIds.values()).length,
-      redirectTo: `/conversation/${conversation.id}`
+      redirectTo: `/concepts`
     };
     
     console.log("📤 SENDING RESPONSE:", response);

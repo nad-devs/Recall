@@ -531,7 +531,7 @@ export function useAnalyzePage() {
         if (data.redirectTo) {
           window.location.href = data.redirectTo
         } else {
-          window.location.href = '/dashboard'
+          window.location.href = '/concepts'
         }
       } else {
         setSaveError(data.error || 'Failed to save conversation properly.')

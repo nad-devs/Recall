@@ -319,11 +319,22 @@ export function ConceptCard({
 
     setIsSaving(true)
     try {
+      // Prepare authentication headers
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+      }
+
       const response = await fetch(`/api/concepts/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           category: selectedCategory,
         }),
@@ -375,11 +386,22 @@ export function ConceptCard({
 
     setIsSaving(true)
     try {
+      // Prepare authentication headers
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+      }
+
       const response = await fetch(`/api/concepts/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ title: editedTitle.trim() }),
       })
 
@@ -792,12 +814,20 @@ export function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group cursor-pointer transition-all duration-200 hover:shadow-md relative overflow-hidden ${
+        className={`group transition-all duration-200 overflow-hidden ${
           isSelected ? "ring-2 ring-primary" : ""
         } ${
-          isDropTarget ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20" : ""
+          selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
+        } ${
+          isLinkedToSource() ? "ring-2 ring-green-500" : ""
+        } ${
+          enableRightClickLinking && selectedSourceConceptForLinking && selectedSourceConceptForLinking.id !== id ? "cursor-pointer hover:bg-accent/50" : ""
+        } ${
+          isDropTarget ? "ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-950/20" : ""
         } ${
           isPlaceholder ? "border-dashed border-2 border-muted-foreground/30 bg-muted/20 opacity-75" : ""
+        } ${
+          needsReview ? "border-2 border-amber-400 bg-amber-50/50 dark:border-amber-500 dark:bg-amber-950/20" : ""
         }`}
         style={{ cursor: isLoading ? 'wait' : (isDragging ? 'grabbing' : 'pointer') }}
         onClick={handleClick}
@@ -846,7 +876,7 @@ export function ConceptCard({
           </div>
         )}
         <CardHeader className="pb-2">
-          <div className="flex justify-between items-start">
+          <div className="flex justify-between items-start gap-2">
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
@@ -889,7 +919,7 @@ export function ConceptCard({
               </div>
             ) : (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <CardTitle className="text-lg truncate">{title}</CardTitle>
+                <CardTitle className="text-lg truncate flex-1 min-w-0">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -901,7 +931,7 @@ export function ConceptCard({
                 </Button>
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 items-start flex-shrink-0">
               {/* Placeholder badge */}
               {isPlaceholder && (
                 <Badge
@@ -931,7 +961,7 @@ export function ConceptCard({
                     </div>
                   ) : (
                     <select 
-                      className="text-xs border rounded py-1 px-2 bg-background min-w-[200px] max-w-[300px]" 
+                      className="text-xs border rounded py-1 px-2 bg-background min-w-[120px] max-w-[200px]" 
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       disabled={isSaving || isLoadingCategories}
