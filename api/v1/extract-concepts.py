@@ -261,12 +261,20 @@ class ConceptExtractor:
         current_segment = ""
         current_topic = "General Discussion"
         
+        # Enhanced LeetCode problem detection with more keywords
         problem_keywords = [
             'problem', 'algorithm', 'leetcode', 'solution', 'implement',
             'contains duplicate', 'two sum', 'valid anagram', 'reverse linked list',
             'array', 'string', 'hash table', 'dictionary', 'set', 'duplicate',
             'time complexity', 'space complexity', 'o(n)', 'o(1)', 'brute force',
-            'optimize', 'efficient', 'approach', 'method', 'technique'
+            'optimize', 'efficient', 'approach', 'method', 'technique',
+            # Add more specific LeetCode problem indicators
+            'find', 'search', 'sort', 'merge', 'rotate', 'maximum', 'minimum',
+            'longest', 'shortest', 'palindrome', 'substring', 'subarray',
+            'intersection', 'union', 'remove', 'delete', 'insert', 'binary search',
+            'tree traversal', 'graph', 'dfs', 'bfs', 'dynamic programming',
+            'sliding window', 'two pointer', 'frequency', 'count', 'sum',
+            'target', 'pairs', 'triplets', 'cycle', 'linked list'
         ]
         
         for i, part in enumerate(parts):
@@ -322,7 +330,20 @@ class ConceptExtractor:
         leetcode_indicators = [
             'contains duplicate', 'two sum', 'valid anagram', 'reverse linked list',
             'hash table', 'dictionary', 'duplicate', 'array problem', 'string problem',
-            'time complexity', 'space complexity', 'algorithm', 'solution'
+            'time complexity', 'space complexity', 'algorithm', 'solution',
+            # Add more comprehensive LeetCode problem patterns
+            'find duplicate', 'check duplicate', 'detect duplicate',
+            'target sum', 'pair sum', 'add two numbers', 'maximum subarray',
+            'longest substring', 'valid parentheses', 'merge intervals',
+            'binary search', 'search insert', 'first occurrence', 'last occurrence',
+            'palindrome check', 'anagram check', 'frequency count',
+            'sliding window', 'two pointer', 'fast slow pointer',
+            'cycle detection', 'intersection', 'path sum', 'level order',
+            'tree traversal', 'graph traversal', 'dfs', 'bfs',
+            'dynamic programming', 'dp', 'memoization', 'tabulation',
+            'climbing stairs', 'fibonacci', 'house robber', 'coin change',
+            'remove element', 'remove duplicates', 'rotate array',
+            'best time to buy', 'stock prices', 'maximum profit'
         ]
         
         segment_lower = segment_text.lower()
@@ -445,70 +466,87 @@ technical than the 'summary' field. If they are similar in length or content, yo
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION:
-When detecting LeetCode-style algorithm problems:
+🚨 CRITICAL - LEETCODE PROBLEM TITLE RULES 🚨
 
-1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
-   - ALWAYS use "Contains Duplicate" as the primary concept title, 
-     NOT "Hash Table for Duplicate Detection"
-   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
-   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
-   - Create separate concept entries for techniques (Hash Table, etc.) if needed
+WHEN YOU DETECT A LEETCODE/ALGORITHM PROBLEM, FOLLOW THESE RULES EXACTLY:
 
-2. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
-   - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
-     "LeetCode Problems"
-   - Common indicators: array manipulation problems, string problems with specific constraints, 
-     graph traversals, etc.
-   - If you recognize the problem as a standard algorithm challenge, ALWAYS categorize it as 
-     "LeetCode Problems"
+1. ✅ CORRECT TITLE EXAMPLES:
+   - "Contains Duplicate" ← CORRECT
+   - "Valid Anagram" ← CORRECT  
+   - "Two Sum" ← CORRECT
+   - "Reverse Linked List" ← CORRECT
+   - "Maximum Subarray" ← CORRECT
+   - "Longest Substring Without Repeating Characters" ← CORRECT
 
-3. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
-   - Explain the algorithm step-by-step
-   - Include time and space complexity analysis
-   - Discuss edge cases and optimizations
-   - Explain why the chosen approach (e.g., hash table) is optimal
+2. ❌ WRONG TITLE EXAMPLES (NEVER DO THIS):
+   - "Hash Table for Duplicate Detection" ← WRONG
+   - "Hash Table Technique" ← WRONG
+   - "Two Pointer Approach" ← WRONG
+   - "Sliding Window Method" ← WRONG
+   - "Frequency Counting Technique" ← WRONG
 
-4. PROVIDE WORKING CODE SOLUTIONS:
-   - Include a complete, executable solution
-   - Add clear comments explaining key steps
-   - Show both the naive and optimized approaches when relevant
+3. 🎯 TITLE GENERATION STRATEGY:
+   - FIRST: Look for standard LeetCode problem names mentioned in the conversation
+   - IF the conversation mentions "Contains Duplicate" → USE "Contains Duplicate" as title
+   - IF the conversation discusses finding duplicates in an array → USE "Contains Duplicate" as title
+   - IF the conversation mentions "Valid Anagram" → USE "Valid Anagram" as title
+   - IF the conversation discusses checking if two strings are anagrams → USE "Valid Anagram" as title
+   - ALWAYS use the PROBLEM NAME, never the technique name as the main concept title
 
-5. CATEGORIZE CORRECTLY:
-   - Use consistent category "LeetCode Problems" for the problem
-   - Use "Data Structure" for Hash Table and other data structures
-   - Include appropriate subcategories (e.g., "Hash Table", "Two Pointer")
-   - Link related data structures or techniques
+4. 🏗️ CONCEPT STRUCTURE:
+   - PRIMARY CONCEPT: The actual problem (e.g., "Contains Duplicate")
+   - SECONDARY CONCEPTS: The techniques used (e.g., "Hash Table", "Set Data Structure")
+   - NEVER put the technique in the main problem title
 
-Example for "Contains Duplicate":
+5. 📚 CATEGORIZATION:
+   - Main problem concept → Category: "LeetCode Problems"
+   - Technique concepts → Category: "Data Structures" or "Algorithm Technique"
+
+6. 🔍 PROBLEM IDENTIFICATION PATTERNS:
+   - If conversation discusses checking for duplicates → Problem is "Contains Duplicate"
+   - If conversation discusses anagram validation → Problem is "Valid Anagram"
+   - If conversation discusses finding two numbers that sum to target → Problem is "Two Sum"
+   - If conversation discusses reversing a linked list → Problem is "Reverse Linked List"
+   - If conversation discusses finding maximum sum subarray → Problem is "Maximum Subarray"
+
+EXAMPLE OF CORRECT EXTRACTION:
+Conversation: "Let's solve the contains duplicate problem using a hash table for O(1) lookups..."
+
+CORRECT RESPONSE:
 {
-  "title": "Contains Duplicate",
-  "category": "LeetCode Problems",
-  "summary": "A problem that involves finding if an array contains any duplicate elements.",
-  "details": "The Contains Duplicate problem asks us to determine if an array contains any 
-duplicate elements. The most efficient approach uses a hash table (dictionary) to track 
-elements we've seen.
-
-As we iterate through the array, we check if each element already exists in our hash table. 
-If it does, we've found a duplicate and return true. If we finish iterating without finding 
-any duplicates, we return false.
-
-This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, 
-trading some space efficiency for significant time optimization.",
-  "keyPoints": [
-    "Use a hash table to track previously seen elements",
-    "Time complexity is O(n) where n is the length of the array",
-    "Space complexity is also O(n) in the worst case",
-    "Early termination occurs as soon as the first duplicate is found"
-  ],
-  "codeSnippets": [
+  "concepts": [
     {
-      "language": "Python",
-      "description": "Hash table implementation",
-      "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
+      "title": "Contains Duplicate",  ← PROBLEM NAME (CORRECT)
+      "category": "LeetCode Problems",
+      "summary": "Problem asking to determine if an array contains any duplicate elements.",
+      "details": "Comprehensive explanation of the Contains Duplicate problem...",
+      "keyPoints": ["Hash table provides O(1) lookup", "Time complexity O(n)", "Space complexity O(n)"],
+      "codeSnippets": [...]
+    },
+    {
+      "title": "Hash Table",  ← TECHNIQUE AS SEPARATE CONCEPT
+      "category": "Data Structures",
+      "summary": "Data structure providing O(1) average lookup time.",
+      "details": "Detailed explanation of hash tables...",
+      "keyPoints": ["O(1) average lookup", "Uses hash function", "Handles collisions"],
+      "codeSnippets": [...]
     }
   ]
-}"""
+}
+
+WRONG RESPONSE (NEVER DO THIS):
+{
+  "concepts": [
+    {
+      "title": "Hash Table for Duplicate Detection",  ← WRONG! This mixes technique with problem
+      "category": "Algorithm Technique",  ← WRONG CATEGORY TOO
+      ...
+    }
+  ]
+}
+
+🔥 ABSOLUTELY CRITICAL: If you detect ANY algorithm/coding problem discussion, the PRIMARY concept title MUST be the actual problem name (like "Contains Duplicate"), NOT the technique name (like "Hash Table"). The technique should be a SEPARATE concept or mentioned in the details/keyPoints.
+"""
 
         if segment_type == "PROBLEM_SOLVING":
             # Build the problem-solving prompt with sophisticated analysis
@@ -518,9 +556,15 @@ trading some space efficiency for significant time optimization.",
 
 {detailsAndSnippets_examples}{category_instructions}
 
+🎯 TITLE GENERATION PRIORITY FOR PROBLEMS:
+1. ALWAYS identify the actual problem being discussed first
+2. Use the standard problem name as the PRIMARY concept title
+3. Create SEPARATE concepts for techniques/data structures used
+4. NEVER mix problem names with technique names in the same title
+
 ADVANCED ANALYSIS REQUIREMENTS:
-1. EXTRACT THE MAIN PROBLEM as the primary concept (e.g., "Contains Duplicate")
-2. IDENTIFY KEY TECHNIQUES used in the solution (e.g., "Hash Table", "Two Pointer")
+1. EXTRACT THE MAIN PROBLEM as the primary concept (e.g., "Contains Duplicate", "Valid Anagram", "Two Sum")
+2. IDENTIFY KEY TECHNIQUES used in the solution as SEPARATE concepts (e.g., "Hash Table", "Two Pointer")
 3. PROVIDE DETAILED COMPLEXITY ANALYSIS including time and space complexity
 4. INCLUDE MULTIPLE CODE EXAMPLES showing different approaches when possible
 5. EXPLAIN WHY the chosen approach is optimal compared to alternatives
@@ -533,9 +577,9 @@ Extract concepts from this conversation and return them in the following JSON fo
 {{
     "concepts": [
         {{
-            "title": "Exact Problem Name (e.g., Contains Duplicate)",
+            "title": "EXACT PROBLEM NAME (e.g., Contains Duplicate, Valid Anagram, Two Sum)",
             "category": "LeetCode Problems"{categoryPath_example},
-            "summary": "Brief 1-3 sentence description of the problem",
+            "summary": "Brief 1-3 sentence description of what the problem asks",
             "keyPoints": [
                 "Main technique used (e.g., Hash Table for O(1) lookups)",
                 "Time complexity: O(n) where n is array length",
@@ -547,41 +591,41 @@ Extract concepts from this conversation and return them in the following JSON fo
             "codeSnippets": [
                 {{
                     "language": "Python",
-                    "description": "Optimal hash table solution",
-                    "code": "def containsDuplicate(nums):\\n    seen = set()\\n    for num in nums:\\n        if num in seen:\\n            return True\\n        seen.add(num)\\n    return False"
+                    "description": "Optimal solution using the main technique",
+                    "code": "def problemSolution(input):\\n    # Clear, well-commented solution\\n    # showing the optimal approach"
                 }},
                 {{
                     "language": "Python", 
                     "description": "Alternative approach (if discussed)",
-                    "code": "# Alternative implementation or optimization"
+                    "code": "# Alternative implementation or brute force for comparison"
                 }}
             ],
-            "relatedConcepts": ["Hash Table", "Set Data Structure", "Time Complexity Analysis"],
+            "relatedConcepts": ["Primary Technique Used", "Alternative Technique", "Time Complexity Analysis"],
             "confidence_score": 0.95
         }},
-                 {{
-             "title": "Hash Table",
-             "category": "Data Structures"{categoryPath_example},
-             "summary": "Data structure providing O(1) average lookup time for duplicate detection",
+        {{
+            "title": "PRIMARY TECHNIQUE NAME (e.g., Hash Table, Two Pointer, Sliding Window)",
+            "category": "Data Structures OR Algorithm Technique"{categoryPath_example},
+            "summary": "Brief description of the technique and its general purpose",
             "keyPoints": [
-                "Provides O(1) average time for lookups, insertions, deletions",
-                "Uses hash function to map keys to array indices",
-                "Ideal for duplicate detection and frequency counting",
-                "Space complexity is O(n) for n unique elements"
+                "Core principle of how the technique works",
+                "Time/space complexity characteristics",
+                "Common use cases and applications",
+                "When to choose this technique over alternatives"
             ],
-            "details": "Detailed explanation of how hash tables work in this context...",
+            "details": "Detailed explanation of the technique in general context...",
             "codeSnippets": [
                 {{
                     "language": "Python",
-                    "description": "Basic hash table usage",
-                    "code": "seen = set()  # or dict()\\nif element in seen:\\n    # Found duplicate"
+                    "description": "General usage pattern of the technique",
+                    "code": "# General implementation pattern"
                 }}
             ],
-            "relatedConcepts": ["Contains Duplicate", "Hashing", "Collision Handling"],
+            "relatedConcepts": ["Main Problem Where Used", "Related Techniques", "Data Structure Concepts"],
             "confidence_score": 0.9
         }}
     ],
-    "conversation_summary": "Discussion of [Problem Name] using [Main Technique] with complexity analysis",
+    "conversation_summary": "Discussion of [EXACT PROBLEM NAME] using [MAIN TECHNIQUE] with detailed analysis and solution",
     "metadata": {{
         "extraction_time": "{datetime.now().isoformat()}",
         "segment_type": "{segment_type}",
@@ -589,8 +633,13 @@ Extract concepts from this conversation and return them in the following JSON fo
     }}
 }}
 
+🚨 FINAL REMINDER: 
+- PRIMARY concept title = PROBLEM NAME (e.g., "Contains Duplicate")
+- SECONDARY concept title = TECHNIQUE NAME (e.g., "Hash Table") 
+- NEVER combine them (e.g., "Hash Table for Duplicate Detection" is WRONG)
+
 CRITICAL REQUIREMENTS:
-1. ALWAYS extract the main problem as the primary concept with standard name
+1. ALWAYS extract the main problem as the primary concept with its standard name
 2. CREATE SEPARATE CONCEPTS for key techniques/data structures used
 3. Include comprehensive complexity analysis in keyPoints
 4. Make details section substantially longer and more technical than summary
@@ -602,19 +651,29 @@ CRITICAL REQUIREMENTS:
             # Exploratory learning prompt - but still check for LeetCode problems with sophisticated analysis
             prompt = f"""You are an expert technical knowledge extraction system. Analyze this programming conversation and extract meaningful concepts with deep technical insight.
 
-CRITICAL ALGORITHM DETECTION: If this conversation discusses ANY algorithm problem, coding challenge, or data structure problem (like Contains Duplicate, Two Sum, etc.), treat it as a LeetCode problem and use "LeetCode Problems" as the category with the standard problem name as the title.
+🚨 CRITICAL ALGORITHM DETECTION: If this conversation discusses ANY algorithm problem, coding challenge, or data structure problem (like Contains Duplicate, Two Sum, etc.), treat it as a LeetCode problem and:
+1. Use "LeetCode Problems" as the category
+2. Use the STANDARD PROBLEM NAME as the title (e.g., "Contains Duplicate", NOT "Hash Table for Duplicate Detection")
+3. Create separate concepts for techniques used
 
 {leetcode_specific_instructions}
 
 {detailsAndSnippets_examples}{category_instructions}
 
+🎯 TITLE GENERATION RULES (APPLIES TO ALL CONCEPTS):
+1. For algorithm problems: Use exact problem name (e.g., "Contains Duplicate", "Valid Anagram")
+2. For techniques: Use technique name only (e.g., "Hash Table", "Two Pointer")
+3. For general concepts: Use clear, specific names without mixing domains
+4. NEVER combine problem names with technique names in one title
+
 SOPHISTICATED ANALYSIS REQUIREMENTS:
 1. IDENTIFY all technical concepts discussed, no matter how briefly mentioned
-2. PROVIDE COMPREHENSIVE DETAILS that go far beyond the summary
-3. INCLUDE PRACTICAL CODE EXAMPLES with clear explanations
-4. ANALYZE RELATIONSHIPS between concepts
-5. ASSESS CONFIDENCE based on depth of discussion
-6. EXTRACT BOTH explicit and implicit technical knowledge
+2. DISTINGUISH between problems and techniques - extract them as separate concepts
+3. PROVIDE COMPREHENSIVE DETAILS that go far beyond the summary
+4. INCLUDE PRACTICAL CODE EXAMPLES with clear explanations
+5. ANALYZE RELATIONSHIPS between concepts
+6. ASSESS CONFIDENCE based on depth of discussion
+7. EXTRACT BOTH explicit and implicit technical knowledge
 
 CONVERSATION SEGMENT TO ANALYZE:
 {segment_text}
@@ -623,9 +682,9 @@ Extract concepts and return them in this JSON format:
 {{
     "concepts": [
         {{
-                         "title": "Precise Concept Name",
-             "category": "Most Specific Appropriate Category"{categoryPath_example},
-             "summary": "Concise 1-3 sentence overview",
+            "title": "PRECISE CONCEPT NAME (use exact problem name if it's an algorithm problem)",
+            "category": "Most Specific Appropriate Category (LeetCode Problems for algorithm problems)"{categoryPath_example},
+            "summary": "Concise 1-3 sentence overview",
             "keyPoints": [
                 "Key technical insight 1",
                 "Implementation detail or best practice",
@@ -653,13 +712,19 @@ Extract concepts and return them in this JSON format:
     }}
 }}
 
+🚨 FINAL TITLE CHECK:
+- If discussing algorithm problems → Primary concept = PROBLEM NAME (e.g., "Contains Duplicate")
+- If discussing techniques → Technique concept = TECHNIQUE NAME (e.g., "Hash Table")
+- NEVER mix these in one title (e.g., "Hash Table for Duplicate Detection" is WRONG)
+
 CRITICAL REQUIREMENTS:
-1. ALWAYS check for algorithm problems first - use LeetCode categorization if found
-2. Make details section substantially more comprehensive than summary
-3. Include practical, working code examples with good comments
-4. Use specific, technical concept names rather than generic ones
-5. Provide high-quality keyPoints that offer real technical value
-6. Return valid JSON only"""
+1. ALWAYS check for algorithm problems first - use exact problem names as titles
+2. CREATE SEPARATE CONCEPTS for problems vs techniques vs general concepts
+3. Make details section substantially more comprehensive than summary
+4. Include practical, working code examples with good comments
+5. Use specific, technical concept names rather than generic ones
+6. Provide high-quality keyPoints that offer real technical value
+7. Return valid JSON only"""
 
         try:
             print(f"=== SENDING TO GPT-4O ===")
