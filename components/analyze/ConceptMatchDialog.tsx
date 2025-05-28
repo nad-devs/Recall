@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -45,9 +45,20 @@ export function ConceptMatchDialog({
   onDecision 
 }: ConceptMatchDialogProps) {
 
-  if (matches.length === 0) return null
+  // Add debug logging to track when dialog is rendered with its state
+  useEffect(() => {
+    console.log('📋 ConceptMatchDialog - Render state:', { open, matchesCount: matches.length, isProcessing })
+  }, [open, matches, isProcessing])
 
+  // If we have no matches, don't render anything
+  if (!matches || matches.length === 0) {
+    console.log('📋 ConceptMatchDialog - No matches, not rendering')
+    return null
+  }
+
+  // Get the current match (the first one in the array)
   const currentMatch = matches[0]
+  console.log('📋 ConceptMatchDialog - Current match:', currentMatch.newConcept.title, '→', currentMatch.existingConcept.title)
 
   const formatDate = (dateString: string) => {
     try {
@@ -62,7 +73,11 @@ export function ConceptMatchDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={() => {
+      console.log('📋 ConceptMatchDialog - Dialog open state change attempted - this is forced open')
+      // We don't allow closing via ESC or clicking outside
+      // Only via the buttons
+    }}>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="pb-4">
           <DialogTitle className="flex items-center gap-2 text-foreground">

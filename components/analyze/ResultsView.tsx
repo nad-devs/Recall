@@ -510,7 +510,7 @@ export function ResultsView(props: ResultsViewProps) {
   }
 
   return (
-    <div className="lg:col-span-3 space-y-6">
+    <div className="flex flex-col space-y-4">
       {/* Save button at the top */}
       {analysisResult && (
         <div className="flex justify-end mb-4">
@@ -596,26 +596,6 @@ export function ResultsView(props: ResultsViewProps) {
             </button>
           </div>
         </div>
-      )}
-
-      {/* Dialog components */}
-      {showConceptMatchDialog && handleConceptMatchDecision && (
-        <ConceptMatchDialog
-          open={showConceptMatchDialog}
-          matches={conceptMatches}
-          isProcessing={isProcessingMatches}
-          onDecision={handleConceptMatchDecision}
-        />
-      )}
-      
-      {showConversationSaveDialog && handleSaveConversationDecision && handleSkipSavingDecision && (
-        <ConversationSaveDialog
-          open={showConversationSaveDialog}
-          updatedConceptsCount={updatedConceptsCount}
-          onSaveConversation={handleSaveConversationDecision}
-          onSkipSaving={handleSkipSavingDecision}
-          isProcessing={false}
-        />
       )}
 
       {/* Main content */}
@@ -1268,6 +1248,26 @@ export function ResultsView(props: ResultsViewProps) {
             Choose a concept from the list to view its details, or add a new concept.
           </p>
         </div>
+      )}
+      
+      {/* Dialog components - Move outside conditional rendering for better visibility */}
+      {handleConceptMatchDecision && (
+        <ConceptMatchDialog
+          open={showConceptMatchDialog}
+          matches={conceptMatches}
+          isProcessing={isProcessingMatches}
+          onDecision={handleConceptMatchDecision}
+        />
+      )}
+      
+      {handleSaveConversationDecision && handleSkipSavingDecision && (
+        <ConversationSaveDialog
+          open={showConversationSaveDialog}
+          updatedConceptsCount={updatedConceptsCount}
+          onSaveConversation={handleSaveConversationDecision}
+          onSkipSaving={handleSkipSavingDecision}
+          isProcessing={isSaving}
+        />
       )}
     </div>
   )
