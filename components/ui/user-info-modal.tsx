@@ -28,17 +28,45 @@ export function UserInfoModal({ isOpen, onClose, onSave }: UserInfoModalProps) {
 
     setIsSubmitting(true)
     try {
-      // Store user info in localStorage
-      localStorage.setItem('userName', name.trim())
-      localStorage.setItem('userEmail', email.trim().toLowerCase())
-      localStorage.setItem('userId', `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`)
+      // Create or get user via the email session API
+      const response = await fetch('/api/auth/email-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          timestamp: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create user')
+      }
+
+      const { user } = await response.json()
+
+      // Store proper user info in localStorage
+      localStorage.setItem('userName', user.name)
+      localStorage.setItem('userEmail', user.email)
+      localStorage.setItem('userId', user.id) // Use the real database ID
+
+      // Generate initials for display
+      const initials = user.name
+        .split(" ")
+        .map((word: string) => word.charAt(0).toUpperCase())
+        .join("")
+        .slice(0, 2)
+      localStorage.setItem('userInitials', initials)
 
       onSave({
-        name: name.trim(),
-        email: email.trim().toLowerCase()
+        name: user.name,
+        email: user.email
       })
     } catch (error) {
-      console.error('Error saving user info:', error)
+      console.error('Error creating user:', error)
+      // Show error to user
+      alert('Failed to save user information. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
