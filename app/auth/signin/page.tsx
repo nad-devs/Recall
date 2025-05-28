@@ -60,29 +60,26 @@ export default function SignIn() {
     try {
       console.log(`📡 Calling signIn("${providerId}", { callbackUrl: "/dashboard" })...`)
       
+      // Use the default NextAuth behavior with redirect - simpler and more reliable
       const result = await signIn(providerId, { 
-        callbackUrl: "/dashboard",
-        redirect: false // Don't redirect automatically so we can handle the response
+        callbackUrl: "/dashboard"
+        // Let NextAuth handle the redirect automatically
       })
       
       console.log(`📋 Sign-in result for ${providerId}:`, result)
       
+      // The sign-in should redirect automatically, but if we get here with an error
       if (result?.error) {
         console.error(`❌ Sign-in error for ${providerId}:`, result.error)
         setError(`Sign-in failed: ${result.error}`)
-      } else if (result?.ok) {
-        console.log(`✅ Sign-in successful for ${providerId}, redirecting to dashboard...`)
-        router.push('/dashboard')
-      } else if (result?.url) {
-        console.log(`🔄 Redirecting to: ${result.url}`)
-        window.location.href = result.url
-      } else {
-        console.warn(`⚠️ Unexpected sign-in result for ${providerId}:`, result)
+        setIsLoading(false)
+        setLoadingProvider(null)
       }
+      // If no error and we're still here, the redirect should happen automatically
+      
     } catch (error) {
       console.error(`❌ Exception during ${providerId} sign-in:`, error)
       setError(`Sign-in failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
       setIsLoading(false)
       setLoadingProvider(null)
     }

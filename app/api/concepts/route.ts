@@ -919,13 +919,17 @@ export async function POST(request: Request) {
     // Validate user session
     const user = await validateSession(request as NextRequest);
     if (!user) {
+      console.error('🔧 POST /api/concepts - Unauthorized: No valid user session')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
+    console.log('🔧 POST /api/concepts - Authenticated user:', user.id)
+
     const data = await request.json();
+    console.log('🔧 POST /api/concepts - Request data:', JSON.stringify(data, null, 2))
     
     // Extract the title from request, use "Untitled Concept" as fallback
     const title = data.title || "Untitled Concept";
@@ -939,59 +943,81 @@ export async function POST(request: Request) {
     // Check if this is a manual concept creation (not from conversation analysis)
     const isManualCreation = data.isManualCreation || false;
     
+    console.log('🔧 POST /api/concepts - Processing concept:', {
+      title,
+      isPlaceholder,
+      isManualCreation,
+      category: data.category,
+      hasContext: !!context
+    })
+    
     // If creating a real concept (not placeholder), remove any existing placeholder concepts in the same category
     if (!isPlaceholder && data.category) {
-      await removePlaceholderConcepts(data.category);
+      try {
+        await removePlaceholderConcepts(data.category);
+        console.log('🔧 POST /api/concepts - Removed placeholder concepts for category:', data.category)
+      } catch (placeholderError) {
+        console.error('🔧 POST /api/concepts - Error removing placeholder concepts:', placeholderError)
+        // Continue anyway - this shouldn't block concept creation
+      }
     }
     
     // Check for similar concepts (skip for placeholder concepts)
     if (!isPlaceholder) {
-      const similarConcepts = await findSimilarConcepts(title, user.id);
-      
-      // If we found similar concepts, return the most similar one instead of creating a new one
-      if (similarConcepts.length > 0) {
-        const mostSimilarConcept = await prisma.concept.findUnique({
-          where: { id: similarConcepts[0].id },
-          include: { 
-            codeSnippets: true,
-            occurrences: true 
-          }
-        });
+      try {
+        const similarConcepts = await findSimilarConcepts(title, user.id);
+        console.log('🔧 POST /api/concepts - Found similar concepts:', similarConcepts.length)
         
-        // If this is being added from a conversation, add the relationship
-        if (data.conversationId) {
-          // Check if the relationship already exists
-          const existingOccurrence = await prisma.occurrence.findFirst({
-            where: {
-              conceptId: mostSimilarConcept!.id,
-              conversationId: data.conversationId
+        // If we found similar concepts, return the most similar one instead of creating a new one
+        if (similarConcepts.length > 0) {
+          const mostSimilarConcept = await prisma.concept.findUnique({
+            where: { id: similarConcepts[0].id },
+            include: { 
+              codeSnippets: true,
+              occurrences: true 
             }
           });
           
-          // If there's no existing relationship, create one
-          if (!existingOccurrence) {
-            await prisma.occurrence.create({
-              data: {
+          console.log('🔧 POST /api/concepts - Returning existing similar concept:', mostSimilarConcept?.id)
+          
+          // If this is being added from a conversation, add the relationship
+          if (data.conversationId) {
+            // Check if the relationship already exists
+            const existingOccurrence = await prisma.occurrence.findFirst({
+              where: {
                 conceptId: mostSimilarConcept!.id,
-                conversationId: data.conversationId,
-                notes: data.notes || ""
+                conversationId: data.conversationId
               }
             });
+            
+            // If there's no existing relationship, create one
+            if (!existingOccurrence) {
+              await prisma.occurrence.create({
+                data: {
+                  conceptId: mostSimilarConcept!.id,
+                  conversationId: data.conversationId,
+                  notes: data.notes || ""
+                }
+              });
+            }
+            
+            // Check if we should establish relationships with technique concepts
+            if (context) {
+              // Extract techniques from the context
+              const contextWithTitle = `${title} ${context}`;
+              await establishConceptRelationships(mostSimilarConcept!.id, contextWithTitle);
+            }
           }
           
-          // Check if we should establish relationships with technique concepts
-          if (context) {
-            // Extract techniques from the context
-            const contextWithTitle = `${title} ${context}`;
-            await establishConceptRelationships(mostSimilarConcept!.id, contextWithTitle);
-          }
+          return NextResponse.json({ 
+            concept: mostSimilarConcept,
+            isExisting: true,
+            message: "Found existing similar concept" 
+          }, { status: 200 });
         }
-        
-        return NextResponse.json({ 
-          concept: mostSimilarConcept,
-          isExisting: true,
-          message: "Found existing similar concept" 
-        }, { status: 200 });
+      } catch (similarError) {
+        console.error('🔧 POST /api/concepts - Error checking similar concepts:', similarError)
+        // Continue anyway - this shouldn't block concept creation
       }
     }
 
@@ -999,16 +1025,23 @@ export async function POST(request: Request) {
     
     // Only create a dummy conversation if this is NOT a manual creation, NOT a placeholder, and no conversationId is provided
     if (!conversationId && !isManualCreation && !isPlaceholder) {
-      const dummyConversation = await prisma.conversation.create({
-        data: {
-          text: context 
-            ? `${context}\n\nPlease explain the concept of ${title} in detail.`
-            : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
-          summary: `Conversation for ${title} concept`,
-          userId: user.id
-        }
-      });
-      conversationId = dummyConversation.id;
+      try {
+        console.log('🔧 POST /api/concepts - Creating dummy conversation')
+        const dummyConversation = await prisma.conversation.create({
+          data: {
+            text: context 
+              ? `${context}\n\nPlease explain the concept of ${title} in detail.`
+              : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
+            summary: `Conversation for ${title} concept`,
+            userId: user.id
+          }
+        });
+        conversationId = dummyConversation.id;
+        console.log('🔧 POST /api/concepts - Created dummy conversation:', conversationId)
+      } catch (conversationError) {
+        console.error('🔧 POST /api/concepts - Error creating dummy conversation:', conversationError)
+        // This is not critical for placeholder or manual concepts, so continue
+      }
     }
 
     // Pre-determine the category using our improved function
@@ -1025,25 +1058,33 @@ export async function POST(request: Request) {
         ? `${initialCategory.category} > ${initialCategory.subcategory}`
         : initialCategory.category;
 
+    console.log('🔧 POST /api/concepts - Creating concept with category:', formattedInitialCategory)
+
     // Create the concept - conversationId is optional for manual creations
+    const conceptData = {
+      title,
+      category: formattedInitialCategory,
+      summary: data.summary || "",
+      details: data.details || "",
+      keyPoints: JSON.stringify(data.keyPoints || []),
+      examples: data.examples || "",
+      relatedConcepts: JSON.stringify([]),
+      relationships: "",
+      confidenceScore: isPlaceholder ? 0.1 : (isManualCreation ? 0.4 : 0.5), // Lower score for manual creations to ensure they need review
+      isPlaceholder: isPlaceholder,
+      lastUpdated: new Date(),
+      userId: user.id,
+      // Only set conversationId if we have one (for conversation-based concepts)
+      ...(conversationId && { conversationId })
+    };
+
+    console.log('🔧 POST /api/concepts - Concept data to create:', JSON.stringify(conceptData, null, 2))
+
     const concept = await prisma.concept.create({
-      data: {
-        title,
-        category: formattedInitialCategory,
-        summary: data.summary || "",
-        details: data.details || "",
-        keyPoints: JSON.stringify(data.keyPoints || []),
-        examples: data.examples || "",
-        relatedConcepts: JSON.stringify([]),
-        relationships: "",
-        confidenceScore: isPlaceholder ? 0.1 : (isManualCreation ? 0.4 : 0.5), // Lower score for manual creations to ensure they need review
-        isPlaceholder: isPlaceholder,
-        lastUpdated: new Date(),
-        userId: user.id,
-        // Only set conversationId if we have one (for conversation-based concepts)
-        ...(conversationId && { conversationId })
-      }
+      data: conceptData
     });
+
+    console.log('🔧 POST /api/concepts - Successfully created concept:', concept.id)
 
     // If this is a placeholder concept, return early without generating content
     if (isPlaceholder) {
@@ -1195,15 +1236,45 @@ export async function POST(request: Request) {
       
       return NextResponse.json({ concept }, { status: 201 });
     } catch (generationError) {
-      console.error('Error generating concept content:', generationError);
+      console.error('🔧 POST /api/concepts - Error generating concept content:', generationError);
       // Still return the basic concept even if generation fails
       return NextResponse.json({ concept }, { status: 201 });
     }
   } catch (error) {
-    console.error('Error creating concept:', error);
+    console.error('🔧 POST /api/concepts - Critical error creating concept:', error);
+    
+    // Provide more specific error information
+    let errorMessage = 'Failed to create concept';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      console.error('🔧 POST /api/concepts - Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Check for specific error types
+      if (error.message.includes('Unique constraint')) {
+        errorMessage = 'A concept with this title already exists';
+        statusCode = 409;
+      } else if (error.message.includes('Required field')) {
+        errorMessage = 'Missing required fields for concept creation';
+        statusCode = 400;
+      } else if (error.message.includes('Database')) {
+        errorMessage = 'Database error occurred while creating concept';
+        statusCode = 503;
+      } else {
+        errorMessage = `Failed to create concept: ${error.message}`;
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create concept' },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : String(error) : undefined
+      },
+      { status: statusCode }
     );
   }
 }

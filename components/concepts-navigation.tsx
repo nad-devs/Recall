@@ -416,6 +416,31 @@ export function ConceptsNavigation({
     })
   }, [toast])
 
+  // New: Proper dialog open change handler that always allows closing
+  const handleDialogOpenChange = useCallback((open: boolean, dialogType: string) => {
+    console.log(`🔧 ${dialogType} dialog open state changing to:`, open)
+    
+    if (!open) {
+      // Dialog is being closed - always allow this and reset states
+      console.log(`🔧 ${dialogType} dialog closing - resetting all states`)
+      resetDialogState()
+      return true
+    }
+    
+    // Dialog is being opened - check if we're already in a loading state
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+      console.log(`🔧 Preventing ${dialogType} dialog open - operation in progress`)
+      toast({
+        title: "Operation in Progress",
+        description: "Please wait for the current operation to complete.",
+        duration: 3000,
+      })
+      return false
+    }
+    
+    return true
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, resetDialogState, toast])
+
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
@@ -1631,10 +1656,13 @@ export function ConceptsNavigation({
 
       {/* Add Subcategory Dialog */}
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
+        console.log('🔧 Add Subcategory Dialog onOpenChange called with:', open)
         if (!open) {
-          // Always allow closing, force reset all states immediately
           console.log('🔧 Add Subcategory Dialog closing via onOpenChange...')
-          handleCancelCategoryCreation()
+          resetDialogState()
+        } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+          console.log('🔧 Preventing dialog open - operation in progress')
+          return false
         }
       }}>
         <DialogContent>
@@ -1691,10 +1719,13 @@ export function ConceptsNavigation({
 
       {/* Transfer Concepts Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
+        console.log('🔧 Transfer Dialog onOpenChange called with:', open)
         if (!open) {
-          // Always allow closing, force reset all states immediately
           console.log('🔧 Transfer Dialog closing via onOpenChange...')
-          handleCancelCategoryCreation()
+          resetDialogState()
+        } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+          console.log('🔧 Preventing dialog open - operation in progress')
+          return false
         }
       }}>
         <DialogContent className="max-w-2xl">
@@ -2000,10 +2031,13 @@ export function ConceptsNavigation({
 
       {/* Edit Category Dialog */}
       <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
+        console.log('🔧 Edit Category Dialog onOpenChange called with:', open)
         if (!open) {
-          // Always allow closing, force reset all states immediately
           console.log('🔧 Edit Dialog closing via onOpenChange...')
-          handleCancelCategoryCreation()
+          resetDialogState()
+        } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+          console.log('🔧 Preventing dialog open - operation in progress')
+          return false
         }
       }}>
         <DialogContent>
@@ -2059,10 +2093,13 @@ export function ConceptsNavigation({
 
       {/* Drag and Drop Confirmation Dialog */}
       <Dialog open={showDragDropDialog} onOpenChange={(open) => {
+        console.log('🔧 Drag Drop Dialog onOpenChange called with:', open)
         if (!open) {
-          // Always allow closing, force reset all states immediately
           console.log('🔧 Drag Drop Dialog closing via onOpenChange...')
-          handleCancelCategoryCreation()
+          resetDialogState()
+        } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+          console.log('🔧 Preventing dialog open - operation in progress')
+          return false
         }
       }}>
         <DialogContent>
