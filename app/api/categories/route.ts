@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       ? [...parentPath, name].join(' > ')
       : name;
     
-    // Check if category already exists for this user
+    // Check if a concept with this category already exists for this user
     const existingConcept = await prisma.concept.findFirst({
       where: { 
         category: newCategoryPath,
@@ -70,12 +70,12 @@ export async function POST(request: NextRequest) {
     if (existingConcept) {
       return NextResponse.json({ error: 'Category already exists' }, { status: 400 });
     }
-    
-    // Create a conversation first
+
+    // Create a minimal conversation for the placeholder concept (required by schema)
     const conversation = await prisma.conversation.create({
       data: {
-        text: `Auto-generated conversation for category: ${newCategoryPath}`,
-        summary: `Category: ${newCategoryPath}`,
+        text: `Placeholder conversation for category: ${newCategoryPath}`,
+        summary: `Placeholder for ${newCategoryPath} category`,
         userId: user.id,
       }
     });
@@ -92,9 +92,10 @@ export async function POST(request: NextRequest) {
         relatedConcepts: JSON.stringify([]),
         relationships: "",
         confidenceScore: 0.1,
+        isPlaceholder: true,
         lastUpdated: new Date(),
         userId: user.id, // Associate with the user
-        conversationId: conversation.id, // Link to the conversation
+        conversationId: conversation.id, // Link to the minimal conversation
       }
     });
     

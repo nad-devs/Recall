@@ -185,18 +185,6 @@ export default function SignIn() {
                     Google provider not configured. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.
                   </p>
                 )}
-
-                {/* GitHub Provider (if available) */}
-                {isGitHubAvailable && (
-                  <Button
-                    onClick={() => handleProviderSignIn("github")}
-                    disabled={isLoading}
-                    className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-50"
-                  >
-                    <Github className="w-5 h-5 mr-3" />
-                    {loadingProvider === 'github' ? 'Signing in...' : 'Continue with GitHub'}
-                  </Button>
-                )}
               </>
             )}
 
