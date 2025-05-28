@@ -98,7 +98,7 @@ export function useAutoAnalysis({
         setIsAnalyzing(false)
         setDiscoveredConcepts([])
         setAnalysisStage("Initializing...")
-      }, 1000)
+      }, 2500)
     } catch (error) {
       console.error('Error during auto-analysis:', error)
       toast({

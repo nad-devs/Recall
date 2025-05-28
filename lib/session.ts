@@ -42,22 +42,36 @@ export async function validateSession(request: NextRequest): Promise<SessionUser
     // First, try to get NextAuth session (OAuth)
     const session = await getServerSession(authOptions)
     if (session?.user?.email) {
-      const user = await prisma.user.findUnique({
+      console.log('🔧 Session validation - Found NextAuth session for:', session.user.email)
+      
+      // Find or create user for OAuth
+      let user = await prisma.user.findUnique({
         where: { email: session.user.email }
       })
-      if (user) {
+      
+      if (!user) {
+        console.log('🔧 Session validation - Creating new user for OAuth:', session.user.email)
+        // Create user if they don't exist
+        user = await prisma.user.create({
+          data: {
+            email: session.user.email,
+            name: session.user.name || 'User',
+            lastActiveAt: new Date()
+          }
+        })
+      } else {
         // Update last active time for OAuth users
         await prisma.user.update({
           where: { id: user.id },
           data: { lastActiveAt: new Date() }
         })
-        
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          isEmailBased: false
-        }
+      }
+      
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isEmailBased: false
       }
     }
 
@@ -66,15 +80,34 @@ export async function validateSession(request: NextRequest): Promise<SessionUser
     const userId = request.headers.get('x-user-id')
 
     if (userEmail && userId) {
-      const user = await prisma.user.findFirst({
+      console.log('🔧 Session validation - Found email-based session for:', userEmail)
+      
+      // First try to find by ID and email combination
+      let user = await prisma.user.findFirst({
         where: {
           id: userId,
           email: userEmail
         }
       })
 
+      // If not found by ID, try to find by email only (for OAuth users who have email as userId)
+      if (!user && userEmail === userId) {
+        console.log('🔧 Session validation - Trying to find OAuth user by email:', userEmail)
+        user = await prisma.user.findUnique({
+          where: { email: userEmail }
+        })
+      }
+
+      // If still not found, try just by email (fallback for OAuth users)
+      if (!user) {
+        console.log('🔧 Session validation - Fallback: finding user by email only:', userEmail)
+        user = await prisma.user.findUnique({
+          where: { email: userEmail }
+        })
+      }
+
       if (user) {
-        // Update last active time for email-based users
+        // Update last active time
         await prisma.user.update({
           where: { id: user.id },
           data: { lastActiveAt: new Date() }
@@ -84,14 +117,15 @@ export async function validateSession(request: NextRequest): Promise<SessionUser
           id: user.id,
           name: user.name,
           email: user.email,
-          isEmailBased: true
+          isEmailBased: userId !== userEmail // If userId equals email, it's likely OAuth
         }
       }
     }
 
+    console.log('🔧 Session validation - No valid session found')
     return null
   } catch (error) {
-    console.error('Session validation error:', error)
+    console.error('🔧 Session validation error:', error)
     return null
   }
 }

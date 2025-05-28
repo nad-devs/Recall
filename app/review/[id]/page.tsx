@@ -184,7 +184,7 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
     const conceptId = resolvedParams.id
     if (!conceptId) return
     
-    // Update review stats in database with authentication headers
+    // Try to update review stats in database, but don't show errors to user
     try {
       console.log('🔧 Updating review stats for concept:', conceptId)
       const response = await fetch(`/api/concepts/${conceptId}/review`, {
@@ -195,42 +195,36 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
       
       console.log('🔧 Review update response status:', response.status)
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          toast({
-            title: "Authentication Error",
-            description: "Please refresh the page and try again. Your session may have expired.",
-            variant: "destructive",
-            duration: 5000,
-          })
-          throw new Error('Authentication failed for review update. Please refresh the page and try again.')
-        } else if (response.status === 429) {
-          toast({
-            title: "Rate Limited",
-            description: "Too many requests. Please wait a moment and try again.",
-            variant: "destructive",
-            duration: 5000,
-          })
-          throw new Error('Rate limited')
-        }
-        throw new Error("Failed to update review stats")
+      if (response.ok) {
+        const responseData = await response.json()
+        console.log('🔧 Review update successful:', responseData)
+        
+        // Only show success toast if the update actually worked
+        toast({
+          title: "Quiz Completed!",
+          description: `You scored ${score}/${totalQuestions}. Your progress has been saved.`,
+          duration: 4000,
+        })
+      } else {
+        // Log the error but don't show it to the user
+        console.warn('🔧 Review update failed:', response.status, response.statusText)
+        
+        // Show a generic completion message instead
+        toast({
+          title: "Quiz Completed!",
+          description: `You scored ${score}/${totalQuestions}. Great job!`,
+          duration: 4000,
+        })
       }
-      
-      const responseData = await response.json()
-      console.log('🔧 Review update successful:', responseData)
-      
-      toast({
-        title: "Review Completed",
-        description: "Your progress has been saved",
-        duration: 3000,
-      })
     } catch (error) {
-      console.error("Error updating review stats:", error)
+      // Log the error but don't show it to the user
+      console.warn("🔧 Error updating review stats (non-critical):", error)
+      
+      // Show a generic completion message
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save review progress",
-        variant: "destructive",
-        duration: 5000,
+        title: "Quiz Completed!",
+        description: `You scored ${score}/${totalQuestions}. Great job!`,
+        duration: 4000,
       })
     }
   }

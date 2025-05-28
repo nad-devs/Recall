@@ -35,6 +35,9 @@ export interface Concept {
     patterns?: string[]
     applications?: string[]
   }
+  // Add fields for review tracking
+  needsReview?: boolean
+  confidenceScore?: number
 }
 
 // This type represents the complete analysis result
