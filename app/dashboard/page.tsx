@@ -386,16 +386,19 @@ export default function Dashboard() {
                 const title = conversation.title || 'Untitled Conversation';
                 const summary = conversation.summary || '';
                 
+                // Ensure concepts is always an array
+                const concepts = Array.isArray(conversation.concepts) ? conversation.concepts : [];
+                
                 // Format conversation data for ConversationCard
                 const conversationData = {
                   id: conversation.id,
                   title: title,
                   summary: summary,
                   date: conversation.createdAt,
-                  concepts: conversation.concepts?.map((concept: any) => ({
+                  concepts: concepts.map((concept: any) => ({
                     id: concept.id,
                     title: concept.title
-                  })) || []
+                  }))
                 };
                 
                 return (
