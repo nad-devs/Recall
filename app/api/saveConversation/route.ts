@@ -180,7 +180,8 @@ export async function POST(request: Request) {
       where: {
         text: {
           startsWith: textToCheck
-        }
+        },
+        userId: user.id // Only check for the current user's conversations
       },
       select: {
         id: true,
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
     });
     
     // If we found an existing conversation with similar content
-    if (existingConversation) {
+    if (existingConversation && !confirmUpdate) {
       console.log("Found existing conversation:", existingConversation.id);
       return NextResponse.json({ 
         success: true, 
@@ -260,6 +261,54 @@ export async function POST(request: Request) {
       });
       
       console.log("Created generic fallback concept:", title);
+    }
+
+    // Check for existing concepts if not in confirmation mode
+    if (!confirmUpdate) {
+      // Collect existing concepts to return to frontend
+      const existingConceptsFound = [];
+      
+      for (const concept of conceptsToProcess) {
+        // Skip empty concepts
+        if (!concept.title) continue;
+        
+        // Check if this concept already exists
+        const normalizedTitle = concept.title.toLowerCase().trim().replace(/\s+/g, ' ');
+        
+        const existingConcepts = await prisma.concept.findMany({
+          where: {
+            OR: [
+              { title: { equals: concept.title } },
+              { title: { equals: normalizedTitle } }
+            ],
+            userId: user.id // Only check the current user's concepts
+          },
+          select: {
+            id: true,
+            title: true,
+            summary: true,
+            category: true,
+            lastUpdated: true
+          }
+        });
+        
+        if (existingConcepts.length > 0) {
+          existingConceptsFound.push({
+            newConcept: concept,
+            existingConcept: existingConcepts[0]
+          });
+        }
+      }
+      
+      // If we found existing concepts and we're not in confirmation mode, return them to the frontend
+      if (existingConceptsFound.length > 0) {
+        console.log(`Found ${existingConceptsFound.length} existing concepts - returning to frontend for decision`);
+        return NextResponse.json({
+          requiresConfirmation: true,
+          existingConcepts: existingConceptsFound,
+          originalData: { conversation_text, analysis, customApiKey, userInfo }
+        });
+      }
     }
 
     console.log("🎯 FINAL CONCEPTS TO PROCESS:");
