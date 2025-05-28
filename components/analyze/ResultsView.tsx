@@ -130,6 +130,10 @@ export function ResultsView(props: ResultsViewProps) {
   const [editingTitleValue, setEditingTitleValue] = useState("")
   const [isSavingTitle, setIsSavingTitle] = useState(false)
 
+  // Add suggested related concepts state
+  const [suggestedRelatedConcepts, setSuggestedRelatedConcepts] = useState<Array<{id: string, title: string, category: string}>>([])
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+
   // Fetch categories for the picker and autocomplete
   useEffect(() => {
     const fetchCategories = async () => {
@@ -192,6 +196,127 @@ export function ResultsView(props: ResultsViewProps) {
     fetchCategories()
   }, [])
 
+  // Fetch suggested related concepts when selectedConcept changes
+  useEffect(() => {
+    const fetchSuggestedRelatedConcepts = async () => {
+      if (!selectedConcept) {
+        setSuggestedRelatedConcepts([])
+        return
+      }
+
+      setIsLoadingSuggestions(true)
+      try {
+        // Prepare authentication headers
+        const userEmail = localStorage.getItem('userEmail')
+        const userId = localStorage.getItem('userId')
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        }
+        
+        if (userEmail && userId) {
+          headers['x-user-email'] = userEmail
+          headers['x-user-id'] = userId
+        }
+
+        // Fetch all concepts to find suggestions
+        const response = await fetch('/api/concepts', { headers })
+        if (!response.ok) {
+          throw new Error('Failed to fetch concepts')
+        }
+
+        const data = await response.json()
+        const allConcepts = data.concepts || []
+
+        // Get existing related concept IDs to exclude them
+        const existingRelatedIds = new Set<string>()
+        if (selectedConcept.relatedConcepts) {
+          try {
+            const relatedConcepts = typeof selectedConcept.relatedConcepts === 'string' 
+              ? JSON.parse(selectedConcept.relatedConcepts)
+              : selectedConcept.relatedConcepts
+            
+            if (Array.isArray(relatedConcepts)) {
+              relatedConcepts.forEach((rel: any) => {
+                if (rel.id) existingRelatedIds.add(rel.id)
+              })
+            }
+          } catch (e) {
+            console.error('Error parsing related concepts:', e)
+          }
+        }
+
+        // Find suggested concepts based on:
+        // 1. Same category
+        // 2. Similar keywords in title/summary
+        // 3. Common techniques (for algorithm problems)
+        const suggestions = allConcepts
+          .filter((concept: any) => 
+            concept.id !== selectedConcept.id && // Not the same concept
+            !existingRelatedIds.has(concept.id) // Not already related
+          )
+          .map((concept: any) => {
+            let score = 0
+            
+            // Same category gets high score
+            if (concept.category === selectedConcept.category) {
+              score += 10
+            }
+            
+            // Similar category (same root) gets medium score
+            if (concept.category && selectedConcept.category) {
+              const conceptRoot = concept.category.split(' > ')[0]
+              const selectedRoot = selectedConcept.category.split(' > ')[0]
+              if (conceptRoot === selectedRoot && concept.category !== selectedConcept.category) {
+                score += 5
+              }
+            }
+            
+            // Common keywords in title
+            const conceptWords = concept.title.toLowerCase().split(/\s+/)
+            const selectedWords = selectedConcept.title.toLowerCase().split(/\s+/)
+            const commonWords = conceptWords.filter((word: string) => 
+              selectedWords.includes(word) && word.length > 3
+            )
+            score += commonWords.length * 2
+            
+            // Algorithm/technique relationships
+            const algorithmKeywords = ['hash', 'array', 'tree', 'graph', 'sort', 'search', 'dynamic', 'two pointer', 'sliding window']
+            const conceptHasAlgoKeywords = algorithmKeywords.some(keyword => 
+              concept.title.toLowerCase().includes(keyword) || 
+              (concept.summary && concept.summary.toLowerCase().includes(keyword))
+            )
+            const selectedHasAlgoKeywords = algorithmKeywords.some(keyword => 
+              selectedConcept.title.toLowerCase().includes(keyword) || 
+              (selectedConcept.summary && selectedConcept.summary.toLowerCase().includes(keyword))
+            )
+            
+            if (conceptHasAlgoKeywords && selectedHasAlgoKeywords) {
+              score += 3
+            }
+            
+            return { ...concept, score }
+          })
+          .filter((concept: any) => concept.score > 0)
+          .sort((a: any, b: any) => b.score - a.score)
+          .slice(0, 6) // Top 6 suggestions
+          .map((concept: any) => ({
+            id: concept.id,
+            title: concept.title,
+            category: concept.category || 'Uncategorized'
+          }))
+
+        setSuggestedRelatedConcepts(suggestions)
+      } catch (error) {
+        console.error('Error fetching suggested related concepts:', error)
+        setSuggestedRelatedConcepts([])
+      } finally {
+        setIsLoadingSuggestions(false)
+      }
+    }
+
+    fetchSuggestedRelatedConcepts()
+  }, [selectedConcept])
+
   // Handle title save
   const handleTitleSave = async () => {
     if (!selectedConcept || editingTitleValue.trim() === selectedConcept.title) {
@@ -210,10 +335,39 @@ export function ResultsView(props: ResultsViewProps) {
 
     setIsSavingTitle(true)
     try {
-      // Update the selected concept
+      // Prepare authentication headers
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      }
+      
+      // For email-based sessions
+      if (userEmail && userId) {
+        headers['x-user-email'] = userEmail
+        headers['x-user-id'] = userId
+      }
+
+      // Make API call to update the concept title
+      const response = await fetch(`/api/concepts/${selectedConcept.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          title: editingTitleValue.trim()
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update title')
+      }
+
+      const result = await response.json()
+      
+      // Update the selected concept with the response data
       const updatedConcept = {
         ...selectedConcept,
-        title: editingTitleValue.trim()
+        title: editingTitleValue.trim(),
+        lastUpdated: new Date().toISOString()
       }
       
       setSelectedConcept(updatedConcept)
@@ -234,6 +388,62 @@ export function ResultsView(props: ResultsViewProps) {
       setEditingTitleValue(selectedConcept.title || "")
     } finally {
       setIsSavingTitle(false)
+    }
+  }
+
+  // Handle adding a suggested related concept
+  const handleAddSuggestedConcept = async (suggestedConcept: {id: string, title: string, category: string}) => {
+    if (!selectedConcept) return
+
+    try {
+      // Get current related concepts
+      let currentRelated: any[] = []
+      if (selectedConcept.relatedConcepts) {
+        try {
+          currentRelated = typeof selectedConcept.relatedConcepts === 'string' 
+            ? JSON.parse(selectedConcept.relatedConcepts)
+            : selectedConcept.relatedConcepts
+          
+          if (!Array.isArray(currentRelated)) {
+            currentRelated = []
+          }
+        } catch (e) {
+          currentRelated = []
+        }
+      }
+
+      // Add the new related concept
+      const newRelatedConcept = {
+        id: suggestedConcept.id,
+        title: suggestedConcept.title
+      }
+
+      const updatedRelated = [...currentRelated, newRelatedConcept]
+
+      // Update the selected concept
+      const updatedConcept = {
+        ...selectedConcept,
+        relatedConcepts: updatedRelated
+      }
+
+      setSelectedConcept(updatedConcept)
+
+      // Remove from suggestions
+      setSuggestedRelatedConcepts(prev => 
+        prev.filter(concept => concept.id !== suggestedConcept.id)
+      )
+
+      toast({
+        title: "Related concept added",
+        description: `Added "${suggestedConcept.title}" as a related concept`,
+      })
+    } catch (error) {
+      console.error('Error adding suggested concept:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add related concept. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -488,7 +698,7 @@ export function ResultsView(props: ResultsViewProps) {
                 {/* Category editing */}
                 <div className="flex items-center text-xs text-muted-foreground mb-4">
                   {isEditingCategory ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-col space-y-3 w-full">
                       {isLoadingCategories ? (
                         <div className="flex items-center space-x-2">
                           <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
@@ -498,40 +708,121 @@ export function ResultsView(props: ResultsViewProps) {
                         </div>
                       ) : (
                         <>
-                          <Autocomplete
-                            options={categoryOptions}
-                            value={editCategoryValue}
-                            onChange={setEditCategoryValue}
-                            placeholder="Select or type category..."
-                            className="min-w-[200px]"
-                          />
-                          <button 
-                            onClick={() => handleCategoryUpdate(editCategoryValue)}
-                            disabled={isSaving || isLoadingCategories}
-                            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                          >
-                            {isSaving ? (
-                              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                                <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
-                              </svg>
-                            ) : (
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="20 6 9 17 4 12"/>
-                              </svg>
+                          {/* Hierarchical Category Builder */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-foreground">Category Structure:</label>
+                            
+                            {/* Root Category Selection */}
+                            <div className="flex items-center space-x-2">
+                              <label className="text-xs text-muted-foreground min-w-[80px]">Root Category:</label>
+                              <Autocomplete
+                                options={categoryOptions.filter(opt => !opt.value.includes(' > ')).map(opt => ({
+                                  ...opt,
+                                  label: opt.value,
+                                  description: 'Root category'
+                                }))}
+                                value={rootCategory}
+                                onChange={setRootCategory}
+                                placeholder="Select root category..."
+                                className="flex-1"
+                              />
+                            </div>
+                            
+                            {/* Subcategory Selection */}
+                            {rootCategory && (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-xs text-muted-foreground min-w-[80px]">Subcategory:</label>
+                                <Autocomplete
+                                  options={categoryOptions
+                                    .filter(opt => opt.value.startsWith(rootCategory + ' > '))
+                                    .map(opt => ({
+                                      ...opt,
+                                      label: opt.value.split(' > ')[1],
+                                      value: opt.value.split(' > ')[1],
+                                      description: 'Subcategory'
+                                    }))
+                                    .concat([
+                                      { value: '', label: 'No subcategory', description: 'Use root category only' }
+                                    ])}
+                                  value={subCategory}
+                                  onChange={setSubCategory}
+                                  placeholder="Select subcategory (optional)..."
+                                  className="flex-1"
+                                />
+                              </div>
                             )}
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setEditCategoryValue(selectedConcept.category || "Uncategorized")
-                              setIsEditingCategory(false)
-                            }}
-                            disabled={isSaving || isLoadingCategories}
-                            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
-                          >
-                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M18 6 6 18M6 6l12 12"/>
-                            </svg>
-                          </button>
+                            
+                            {/* Preview */}
+                            {rootCategory && (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-xs text-muted-foreground min-w-[80px]">Preview:</label>
+                                <span className="text-xs bg-muted px-2 py-1 rounded">
+                                  {subCategory ? `${rootCategory} > ${subCategory}` : rootCategory}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Alternative: Direct Input */}
+                            <div className="border-t pt-2">
+                              <label className="text-xs text-muted-foreground">Or enter custom category path:</label>
+                              <Autocomplete
+                                options={categoryOptions}
+                                value={editCategoryValue}
+                                onChange={(value) => {
+                                  setEditCategoryValue(value)
+                                  // Parse the value to update root and sub category
+                                  if (value.includes(' > ')) {
+                                    const parts = value.split(' > ')
+                                    setRootCategory(parts[0])
+                                    setSubCategory(parts[1] || '')
+                                  } else {
+                                    setRootCategory(value)
+                                    setSubCategory('')
+                                  }
+                                }}
+                                placeholder="e.g., Data Structures > Hash Tables"
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-2">
+                            <button 
+                              onClick={() => {
+                                const finalCategory = subCategory 
+                                  ? `${rootCategory} > ${subCategory}` 
+                                  : rootCategory || editCategoryValue
+                                handleCategoryUpdate(finalCategory)
+                              }}
+                              disabled={isSaving || isLoadingCategories || (!rootCategory && !editCategoryValue)}
+                              className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {isSaving ? (
+                                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                                  <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                              ) : (
+                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              )}
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setEditCategoryValue(selectedConcept.category || "Uncategorized")
+                                setRootCategory("")
+                                setSubCategory("")
+                                setIsEditingCategory(false)
+                              }}
+                              disabled={isSaving || isLoadingCategories}
+                              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6 6 18M6 6l12 12"/>
+                              </svg>
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
@@ -542,7 +833,19 @@ export function ResultsView(props: ResultsViewProps) {
                       </span>
                       <button
                         onClick={() => {
-                          setEditCategoryValue(selectedConcept.category || "Uncategorized")
+                          const currentCategory = selectedConcept.category || "Uncategorized"
+                          setEditCategoryValue(currentCategory)
+                          
+                          // Parse existing category for hierarchical editing
+                          if (currentCategory.includes(' > ')) {
+                            const parts = currentCategory.split(' > ')
+                            setRootCategory(parts[0])
+                            setSubCategory(parts[1] || '')
+                          } else {
+                            setRootCategory(currentCategory === "Uncategorized" ? "" : currentCategory)
+                            setSubCategory("")
+                          }
+                          
                           setIsEditingCategory(true)
                         }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md border border-input bg-background px-1 py-1 text-xs font-medium hover:bg-accent"
@@ -555,9 +858,6 @@ export function ResultsView(props: ResultsViewProps) {
                       </button>
                     </div>
                   )}
-                  <span className="ml-2">
-                    Last updated: {(selectedConcept as any).lastUpdated ? new Date((selectedConcept as any).lastUpdated).toLocaleDateString() : 'N/A'}
-                  </span>
                 </div>
                 <p className="text-base text-card-foreground mb-4">
                   {selectedConcept.summary}
@@ -732,6 +1032,42 @@ export function ResultsView(props: ResultsViewProps) {
                     Add Related Concept
                   </button>
                 </div>
+
+                {/* Suggested Related Concepts */}
+                {(suggestedRelatedConcepts.length > 0 || isLoadingSuggestions) && (
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-base text-muted-foreground">Suggested Related Concepts</h4>
+                    {isLoadingSuggestions ? (
+                      <div className="flex items-center space-x-2 text-muted-foreground">
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                        <span className="text-sm">Finding related concepts...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedRelatedConcepts.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            onClick={() => handleAddSuggestedConcept(suggestion)}
+                            className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 text-primary px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                            title={`Add "${suggestion.title}" as related concept`}
+                          >
+                            <svg className="h-3 w-3 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                            {suggestion.title}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              ({suggestion.category})
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Existing Related Concepts */}
                 {(() => {
                   const relatedConcepts = selectedConcept.relatedConcepts;
                   if (!relatedConcepts) return (
@@ -768,60 +1104,63 @@ export function ResultsView(props: ResultsViewProps) {
                   }
                   
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {formattedConcepts.map((concept: any, index: number) => (
-                        <div key={index} className="group relative rounded-md border p-3 hover:bg-accent cursor-pointer transition-colors">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm truncate">
-                                {concept.title || concept}
-                              </h4>
-                              {concept.id && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Click to view concept
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Handle removing related concept
-                                const updatedRelatedConcepts = formattedConcepts.filter((_, i) => i !== index);
-                                const updatedConcept = {
-                                  ...selectedConcept,
-                                  relatedConcepts: updatedRelatedConcepts
-                                };
-                                setSelectedConcept(updatedConcept);
-                                toast({
-                                  title: "Related concept removed",
-                                  description: `Removed "${concept.title || concept}" from related concepts`,
-                                });
-                              }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 p-1"
-                              title="Remove related concept"
-                            >
-                              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 6 6 18M6 6l12 12"/>
-                              </svg>
-                            </button>
-                          </div>
-                          {concept.id && (
-                            <div className="mt-2">
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-base">Current Related Concepts</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {formattedConcepts.map((concept: any, index: number) => (
+                          <div key={index} className="group relative rounded-md border p-3 hover:bg-accent cursor-pointer transition-colors">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm truncate">
+                                  {concept.title || concept}
+                                </h4>
+                                {concept.id && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Click to view concept
+                                  </p>
+                                )}
+                              </div>
                               <button
-                                onClick={() => {
-                                  // Navigate to the related concept (if it has an ID)
-                                  if (concept.id) {
-                                    window.open(`/concept/${concept.id}`, '_blank');
-                                  }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle removing related concept
+                                  const updatedRelatedConcepts = formattedConcepts.filter((_, i) => i !== index);
+                                  const updatedConcept = {
+                                    ...selectedConcept,
+                                    relatedConcepts: updatedRelatedConcepts
+                                  };
+                                  setSelectedConcept(updatedConcept);
+                                  toast({
+                                    title: "Related concept removed",
+                                    description: `Removed "${concept.title || concept}" from related concepts`,
+                                  });
                                 }}
-                                className="text-xs text-primary hover:text-primary/80 font-medium"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 p-1"
+                                title="Remove related concept"
                               >
-                                View concept →
+                                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M18 6 6 18M6 6l12 12"/>
+                                </svg>
                               </button>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {concept.id && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => {
+                                    // Navigate to the related concept (if it has an ID)
+                                    if (concept.id) {
+                                      window.open(`/concept/${concept.id}`, '_blank');
+                                    }
+                                  }}
+                                  className="text-xs text-primary hover:text-primary/80 font-medium"
+                                >
+                                  View concept →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 })()}
