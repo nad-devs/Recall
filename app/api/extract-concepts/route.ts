@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
         conversation_text,
         ...(customApiKey && { customApiKey }),
         context: null,
-        category_guidance: leetcodeGuidance
+        category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
       }),
       keepalive: false,
     });
@@ -375,7 +375,7 @@ export async function POST(request: NextRequest) {
               conversation_text,
               ...(customApiKey && { customApiKey }),
               context: null,
-              category_guidance: leetcodeGuidance
+              category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
             }),
           });
           console.log("✅ Basic HTTP connection successful");

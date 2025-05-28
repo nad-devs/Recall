@@ -909,7 +909,7 @@ export async function POST(request: Request) {
             conversation_text: generationPrompt +
             ` Include summary, key points, code examples if applicable, and any related concepts.`,
             context: null,
-            category_guidance: leetcodeGuidance
+            category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
           }),
         });
       } catch (sslError) {
@@ -923,7 +923,7 @@ export async function POST(request: Request) {
             conversation_text: generationPrompt +
             ` Include summary, key points, code examples if applicable, and any related concepts.`,
             context: null,
-            category_guidance: leetcodeGuidance
+            category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
           }),
         });
       }

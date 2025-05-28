@@ -86,7 +86,7 @@ export async function POST(request: Request) {
             ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
             `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`,
           context: null,
-          category_guidance: leetcodeGuidance
+          category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
         }),
       });
     } catch (sslError) {
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
             ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
             `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`,
           context: null,
-          category_guidance: leetcodeGuidance
+          category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
         }),
       });
     }
