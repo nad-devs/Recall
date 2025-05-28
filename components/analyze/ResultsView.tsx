@@ -192,6 +192,51 @@ export function ResultsView(props: ResultsViewProps) {
     fetchCategories()
   }, [])
 
+  // Handle title save
+  const handleTitleSave = async () => {
+    if (!selectedConcept || editingTitleValue.trim() === selectedConcept.title) {
+      setIsEditingTitle(false)
+      return
+    }
+
+    if (!editingTitleValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Title cannot be empty",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSavingTitle(true)
+    try {
+      // Update the selected concept
+      const updatedConcept = {
+        ...selectedConcept,
+        title: editingTitleValue.trim()
+      }
+      
+      setSelectedConcept(updatedConcept)
+
+      toast({
+        title: "Title updated",
+        description: `Concept title changed to "${editingTitleValue.trim()}"`,
+      })
+
+      setIsEditingTitle(false)
+    } catch (error) {
+      console.error('Error updating title:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update title. Please try again.",
+        variant: "destructive",
+      })
+      setEditingTitleValue(selectedConcept.title || "")
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
+
   return (
     <div className="lg:col-span-3 space-y-6">
       {/* Save button at the top */}
@@ -372,14 +417,145 @@ export function ResultsView(props: ResultsViewProps) {
           <div className="flex flex-col p-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="flex-1">
-                <h2 className="text-2xl font-bold tracking-tight mb-1">
-                  {selectedConcept.title}
-                </h2>
+                {/* Title editing */}
+                {isEditingTitle ? (
+                  <div className="flex items-center space-x-2 mb-1">
+                    <input
+                      type="text"
+                      value={editingTitleValue}
+                      onChange={(e) => setEditingTitleValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTitleSave()
+                        } else if (e.key === 'Escape') {
+                          setEditingTitleValue(selectedConcept.title)
+                          setIsEditingTitle(false)
+                        }
+                      }}
+                      className="text-2xl font-bold tracking-tight bg-background border rounded px-2 py-1 flex-1"
+                      autoFocus
+                      disabled={isSavingTitle}
+                    />
+                    <button 
+                      onClick={handleTitleSave}
+                      disabled={isSavingTitle}
+                      className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {isSavingTitle ? (
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setEditingTitleValue(selectedConcept.title)
+                        setIsEditingTitle(false)
+                      }}
+                      disabled={isSavingTitle}
+                      className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 mb-1 group">
+                    <h2 className="text-2xl font-bold tracking-tight">
+                      {selectedConcept.title}
+                    </h2>
+                    <button
+                      onClick={() => {
+                        setEditingTitleValue(selectedConcept.title)
+                        setIsEditingTitle(true)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                      title="Edit title"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                
+                {/* Category editing */}
                 <div className="flex items-center text-xs text-muted-foreground mb-4">
-                  <span className="inline-block px-2 py-1 rounded-full bg-muted mr-2">
-                    {selectedConcept.category || "Uncategorized"}
-                  </span>
-                  <span>
+                  {isEditingCategory ? (
+                    <div className="flex items-center space-x-2">
+                      {isLoadingCategories ? (
+                        <div className="flex items-center space-x-2">
+                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                          <span className="text-xs text-muted-foreground">Loading categories...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Autocomplete
+                            options={categoryOptions}
+                            value={editCategoryValue}
+                            onChange={setEditCategoryValue}
+                            placeholder="Select or type category..."
+                            className="min-w-[200px]"
+                          />
+                          <button 
+                            onClick={() => handleCategoryUpdate(editCategoryValue)}
+                            disabled={isSaving || isLoadingCategories}
+                            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {isSaving ? (
+                              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                              </svg>
+                            ) : (
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setEditCategoryValue(selectedConcept.category || "Uncategorized")
+                              setIsEditingCategory(false)
+                            }}
+                            disabled={isSaving || isLoadingCategories}
+                            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6 6 18M6 6l12 12"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2 group">
+                      <span className="inline-block px-2 py-1 rounded-full bg-muted">
+                        {selectedConcept.category || "Uncategorized"}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setEditCategoryValue(selectedConcept.category || "Uncategorized")
+                          setIsEditingCategory(true)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md border border-input bg-background px-1 py-1 text-xs font-medium hover:bg-accent"
+                        title="Edit category"
+                      >
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  <span className="ml-2">
                     Last updated: {(selectedConcept as any).lastUpdated ? new Date((selectedConcept as any).lastUpdated).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
@@ -387,11 +563,43 @@ export function ResultsView(props: ResultsViewProps) {
                   {selectedConcept.summary}
                 </p>
               </div>
+              
+              {/* Action buttons */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handleDeleteConcept(selectedConcept.id)}
+                  disabled={isDeleting}
+                  className="inline-flex items-center justify-center rounded-md border border-destructive text-destructive px-3 py-2 text-sm font-medium hover:bg-destructive/10 disabled:opacity-50"
+                  title="Delete concept"
+                >
+                  {isDeleting ? (
+                    <svg className="h-4 w-4 animate-spin mr-2" viewBox="0 0 24 24">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c0-1 1-2 2-2v2"/>
+                      <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                  )}
+                  Delete Concept
+                </button>
+              </div>
             </div>
 
             {/* Tabs for different concept content */}
             <div className="border-b mb-6">
               <div className="flex -mb-px space-x-8">
+                <button
+                  className={`pb-4 text-sm font-medium ${
+                    selectedTab === "summary"
+                      ? "border-b-2 border-primary text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setSelectedTab("summary")}
+                >
+                  Summary
+                </button>
                 <button
                   className={`pb-4 text-sm font-medium ${
                     selectedTab === "details"
@@ -426,6 +634,28 @@ export function ResultsView(props: ResultsViewProps) {
             </div>
 
             {/* Tab content */}
+            {selectedTab === "summary" && (
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Summary</h3>
+                <div className="prose max-w-none dark:prose-invert">
+                  <p className="text-base leading-relaxed">
+                    {selectedConcept.summary || "No summary available."}
+                  </p>
+                </div>
+                
+                {selectedConcept.keyPoints && selectedConcept.keyPoints.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="font-semibold text-base mb-3">Key Points</h4>
+                    <ul className="list-disc pl-5 space-y-2">
+                      {selectedConcept.keyPoints.map((point: string, index: number) => (
+                        <li key={index} className="text-foreground leading-relaxed">{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             {selectedTab === "details" && (
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Details</h3>
@@ -490,24 +720,109 @@ export function ResultsView(props: ResultsViewProps) {
 
             {selectedTab === "related" && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Related Concepts</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg">Related Concepts</h3>
+                  <button
+                    onClick={() => setShowAddConceptCard(true)}
+                    className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"
+                  >
+                    <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Add Related Concept
+                  </button>
+                </div>
                 {(() => {
                   const relatedConcepts = selectedConcept.relatedConcepts;
-                  if (!relatedConcepts) return <p className="text-muted-foreground">No related concepts found.</p>;
+                  if (!relatedConcepts) return (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground mb-4">No related concepts found.</p>
+                      <button
+                        onClick={() => setShowAddConceptCard(true)}
+                        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+                      >
+                        <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Add First Related Concept
+                      </button>
+                    </div>
+                  );
                   
                   const formattedConcepts = formatRelatedConcepts(relatedConcepts);
                   if (!Array.isArray(formattedConcepts) || formattedConcepts.length === 0) {
-                    return <p className="text-muted-foreground">No related concepts found.</p>;
+                    return (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground mb-4">No related concepts found.</p>
+                        <button
+                          onClick={() => setShowAddConceptCard(true)}
+                          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+                        >
+                          <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 5v14M5 12h14"/>
+                          </svg>
+                          Add First Related Concept
+                        </button>
+                      </div>
+                    );
                   }
                   
                   return (
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {formattedConcepts.map((concept: any, index: number) => (
-                        <li key={index} className="rounded-md border p-2 hover:bg-accent cursor-pointer">
-                          {concept.title || concept}
-                        </li>
+                        <div key={index} className="group relative rounded-md border p-3 hover:bg-accent cursor-pointer transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm truncate">
+                                {concept.title || concept}
+                              </h4>
+                              {concept.id && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Click to view concept
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Handle removing related concept
+                                const updatedRelatedConcepts = formattedConcepts.filter((_, i) => i !== index);
+                                const updatedConcept = {
+                                  ...selectedConcept,
+                                  relatedConcepts: updatedRelatedConcepts
+                                };
+                                setSelectedConcept(updatedConcept);
+                                toast({
+                                  title: "Related concept removed",
+                                  description: `Removed "${concept.title || concept}" from related concepts`,
+                                });
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10 p-1"
+                              title="Remove related concept"
+                            >
+                              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6 6 18M6 6l12 12"/>
+                              </svg>
+                            </button>
+                          </div>
+                          {concept.id && (
+                            <div className="mt-2">
+                              <button
+                                onClick={() => {
+                                  // Navigate to the related concept (if it has an ID)
+                                  if (concept.id) {
+                                    window.open(`/concept/${concept.id}`, '_blank');
+                                  }
+                                }}
+                                className="text-xs text-primary hover:text-primary/80 font-medium"
+                              >
+                                View concept →
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   );
                 })()}
               </div>
