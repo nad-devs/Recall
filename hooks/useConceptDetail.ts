@@ -67,13 +67,15 @@ export function useConceptDetail(id: string) {
           return headers
         }
         
-        // Check if the ID is a UUID format (typical database ID)
+        // Check if the ID is a database ID format (UUID or CUID)
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        const isCUID = /^c[a-z0-9]{24}$/i.test(id) // CUID format: starts with 'c' followed by 24 alphanumeric chars
+        const isDatabaseId = isUUID || isCUID
         
         let response: Response
         
-        if (isUUID) {
-          // ID looks like a UUID, fetch directly
+        if (isDatabaseId) {
+          // ID looks like a database ID (UUID or CUID), fetch directly
           response = await fetch(`/api/concepts/${id}`, { headers: getAuthHeaders() })
         } else {
           // ID is probably a concept title/name, try to look it up by title first
