@@ -117,20 +117,10 @@ const handler = NextAuth({
     async redirect({ url, baseUrl }) {
       console.log('🔄 Redirect callback:', { url, baseUrl })
       
-      // If the URL is the dashboard, allow it
-      if (url === `${baseUrl}/dashboard` || url === '/dashboard') {
-        console.log('✅ Redirecting to dashboard')
-        return `${baseUrl}/dashboard`
-      }
-      
-      // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url
-      
-      // Default redirect to dashboard after successful sign-in
-      console.log('✅ Default redirect to dashboard')
-      return `${baseUrl}/dashboard`
+      // Always redirect to dashboard after successful authentication
+      const dashboardUrl = `${baseUrl}/dashboard`
+      console.log('✅ Redirecting to dashboard:', dashboardUrl)
+      return dashboardUrl
     }
   },
   pages: {

@@ -38,23 +38,32 @@ export default function Dashboard() {
     
     if (userName && userEmail && userId) {
       // Email-based session
+      console.log('📋 Dashboard: Using email-based session for', userEmail)
       setUserName(userName)
       setEditedName(userName)
       fetchDashboardData()
       return
     }
     
-    if (status === "loading") return // Still loading NextAuth
+    if (status === "loading") {
+      console.log('📋 Dashboard: NextAuth session still loading...')
+      return // Still loading NextAuth - wait longer
+    }
     
-    if (status === "unauthenticated") {
-      // Not authenticated
-      router.push("/")
-      return
-    } else if (session?.user) {
-      // Authenticated user
+    if (status === "authenticated" && session?.user) {
+      // Authenticated user via NextAuth
+      console.log('📋 Dashboard: Using NextAuth session for', session.user.email)
       setUserName(session.user.name || session.user.email || "User")
       setEditedName(session.user.name || session.user.email || "User")
       fetchDashboardData()
+      return
+    }
+    
+    // Only redirect if we're sure there's no authentication
+    if (status === "unauthenticated") {
+      console.log('📋 Dashboard: No authentication found, redirecting to landing page')
+      router.push("/")
+      return
     }
   }, [status, session, router])
 
