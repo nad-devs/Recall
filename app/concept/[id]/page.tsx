@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { 
   ArrowLeft, 
   BookOpen, 
@@ -19,6 +20,7 @@ import {
   AlertTriangle,
   StickyNote,
   Edit,
+  Check,
   Link as LinkIcon
 } from "lucide-react"
 import { ConversationCard } from "@/components/conversation-card"
@@ -37,6 +39,8 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
   const id = unwrappedParams.id
   const { toast } = useToast()
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState("")
 
   const {
     concept,
@@ -148,6 +152,59 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  // Handle title update
+  const handleTitleUpdate = async () => {
+    if (!editedTitle.trim() || editedTitle.trim() === concept.title) {
+      setIsEditingTitle(false)
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/concepts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          title: editedTitle.trim()
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update title')
+      }
+
+      const result = await response.json()
+      setConcept(result.concept)
+      
+      toast({
+        title: "Title Updated",
+        description: "Concept title has been updated successfully.",
+        duration: 3000,
+      })
+      
+      setIsEditingTitle(false)
+    } catch (error) {
+      console.error('Error updating title:', error)
+      toast({
+        title: "Error", 
+        description: "Failed to update title. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    }
+  }
+
+  // Start editing title
+  const startEditingTitle = () => {
+    setEditedTitle(concept.title)
+    setIsEditingTitle(true)
+  }
+
+  // Cancel editing title
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setEditedTitle("")
+  }
+
   return (
     <PageTransition>
       <DndProvider backend={HTML5Backend}>
@@ -159,7 +216,52 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
               </Button>
-              <h1 className="text-3xl font-bold">{concept.title}</h1>
+              {isEditingTitle ? (
+                <div className="flex items-center space-x-2 flex-1">
+                  <Input
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    className="text-3xl font-bold h-auto py-2 px-3 border-2 border-primary"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleTitleUpdate()
+                      } else if (e.key === 'Escape') {
+                        cancelEditingTitle()
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleTitleUpdate}
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={cancelEditingTitle}
+                    className="text-gray-500 hover:text-gray-600 hover:bg-gray-50"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold">{concept.title}</h1>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={startEditingTitle}
+                    className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 ml-2"
+                    title="Edit title"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
               <Badge variant="outline" className="ml-2">
                 {concept.category}
               </Badge>

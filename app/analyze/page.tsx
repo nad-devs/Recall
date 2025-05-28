@@ -10,6 +10,7 @@ import { ConceptsList } from "@/components/analyze/ConceptsList"
 import { ResultsView } from "@/components/analyze/ResultsView"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { ApiKeyModal } from "@/components/api-key-modal"
+import { UserInfoModal } from "@/components/ui/user-info-modal"
 
 function AnalyzePage() {
   const {
@@ -46,6 +47,7 @@ function AnalyzePage() {
     updatedConceptsCount,
     showApiKeyModal,
     usageData,
+    showUserInfoModal,
 
     // Setters
     setConversationText,
@@ -84,6 +86,10 @@ function AnalyzePage() {
     handleApiKeySet,
     handleApiKeyModalClose,
     getRemainingConversations,
+    
+    // User info modal functions
+    handleUserInfoProvided,
+    handleUserInfoModalClose,
   } = useAnalyzePage()
 
   return (
@@ -232,6 +238,13 @@ function AnalyzePage() {
           onClose={handleApiKeyModalClose}
           onApiKeySet={handleApiKeySet}
           conversationCount={usageData.conversationCount}
+        />
+
+        {/* User Info Modal */}
+        <UserInfoModal
+          isOpen={showUserInfoModal}
+          onClose={handleUserInfoModalClose}
+          onSave={handleUserInfoProvided}
         />
       </div>
     </PageTransition>
