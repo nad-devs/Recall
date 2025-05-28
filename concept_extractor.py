@@ -45,6 +45,7 @@ class ConversationRequest(BaseModel):
     conversation_text: str
     context: Optional[Dict] = None  # Additional context for better extraction
     category_guidance: Optional[Dict] = None  # For hierarchical categories guidance
+    custom_api_key: Optional[str] = None  # User's custom OpenAI API key
 
 
 class Concept(BaseModel):
@@ -74,6 +75,15 @@ class ConceptExtractor:
         self.retry_delay = 1
         self.cache = {}
         logger.info(f"ConceptExtractor initialized with model: {self.model}")
+    
+    def _get_client(self, custom_api_key: Optional[str] = None) -> AsyncOpenAI:
+        """Get OpenAI client - either custom user's client or default server client."""
+        if custom_api_key:
+            logger.info(f"🔑 Using custom API key: {custom_api_key[:10]}...")
+            return AsyncOpenAI(api_key=custom_api_key)
+        else:
+            logger.info("🔑 Using server's API key")
+            return self.client
 
     def _generate_cache_key(self, text: str) -> str:
         """Generate a cache key for the conversation text."""
@@ -150,7 +160,7 @@ class ConceptExtractor:
         logger.info(f"Using default categories ({len(default_categories)} categories)")
         return default_categories
 
-    async def _suggest_category_llm(self, title: str, summary: str) -> Optional[str]:
+    async def _suggest_category_llm(self, title: str, summary: str, custom_api_key: Optional[str] = None) -> Optional[str]:
         """Ask the LLM to suggest the best category for a concept."""
         logger.debug(f"Requesting LLM category suggestion for: {title}")
         categories = await self._fetch_categories()
@@ -161,7 +171,8 @@ class ConceptExtractor:
             "Respond with only the category name. If none of the categories fit well, respond with 'UNCATEGORIZED'."
         )
         try:
-            response = await self.client.chat.completions.create(
+            client = self._get_client(custom_api_key)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
@@ -508,7 +519,7 @@ class ConceptExtractor:
             }
         }
 
-    async def _segment_conversation(self, conversation_text: str) -> List[Tuple[str, str]]:
+    async def _segment_conversation(self, conversation_text: str, custom_api_key: Optional[str] = None) -> List[Tuple[str, str]]:
         """
         Segment the conversation into topical sections with comprehensive logging.
         Returns a list of (topic, segment_text) tuples.
@@ -593,7 +604,8 @@ class ConceptExtractor:
             logger.debug(f"Segmentation prompt length: {len(segmentation_prompt)} characters")
             logger.debug("Sending segmentation request to LLM...")
 
-            response = await self.client.chat.completions.create(
+            client = self._get_client(custom_api_key)
+            response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": segmentation_prompt}],
                 temperature=0.3,
@@ -662,7 +674,7 @@ class ConceptExtractor:
             return [("Full Conversation", conversation_text)]
 
     async def _analyze_segment(
-        self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None
+        self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
     ) -> Dict:
         """
         Analyze a single conversation segment with comprehensive logging and analysis.
@@ -1045,7 +1057,8 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
         logger.info("📤 Sending request to LLM...")
         start_time = datetime.now()
         
-        response = await self.client.chat.completions.create(
+        client = self._get_client(custom_api_key)
+        response = await client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": structured_prompt}],
             temperature=0.3,
@@ -1102,7 +1115,7 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
 
             # Single-pass: analyze the whole conversation with the improved prompt
             single_pass_result = await self._analyze_segment(
-                "Full Conversation", req.conversation_text, req.context, req.category_guidance
+                "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
             )
 
             # If we get at least one concept, return it
@@ -1367,12 +1380,12 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 
             # Fallback: try multi-pass (segmentation + per-segment analysis)
             print("Single-pass yielded no concepts. Trying multi-pass fallback...")
-            segments = await self._segment_conversation(req.conversation_text)
+            segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
             all_concepts = []
             segment_summaries = []
             for topic, segment_text in segments:
                 segment_result = await self._analyze_segment(
-                    topic, segment_text, req.context, req.category_guidance
+                    topic, segment_text, req.context, req.category_guidance, req.custom_api_key
                 )
                 for concept in segment_result.get("concepts", []):
                     concept["source_topic"] = topic
@@ -1593,6 +1606,12 @@ async def extract_concepts(req: ConversationRequest):
     logger.info("🌟 === NEW EXTRACTION REQUEST ===")
     logger.info(f"📊 Request size: {len(req.conversation_text)} characters")
     
+    # Log API key usage
+    if req.custom_api_key:
+        logger.info(f"🔑 Using custom API key: {req.custom_api_key[:10]}...")
+    else:
+        logger.info("🔑 Using server's default API key")
+    
     try:
         # Pass along any category_guidance to the analyzer
         logger.info("🔄 Starting concept extraction analysis...")
@@ -1768,6 +1787,7 @@ async def health_check():
 
 class QuizRequest(BaseModel):
     concept: Dict
+    custom_api_key: Optional[str] = None  # User's custom OpenAI API key
 
 
 @app.post("/api/v1/generate-quiz")
@@ -1806,8 +1826,9 @@ async def generate_quiz(req: QuizRequest):
         }}
         """
         
-        # Use the same client as concept extraction
-        response = await concept_extractor.client.chat.completions.create(
+        # Use the appropriate client (custom or default)
+        client = concept_extractor._get_client(req.custom_api_key)
+        response = await client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {
