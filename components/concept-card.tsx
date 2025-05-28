@@ -790,13 +790,13 @@ export function ConceptCard({
 
   return (
     <>
-      <Card
+      <Card 
         ref={cardRef}
-        className={`group hover:shadow-md transition-shadow ${
-          needsReview ? "border-amber-300 dark:border-amber-700 border-l-4" : ""
-        } ${isDragging ? "opacity-50" : ""} ${isLoading ? "opacity-70 border-primary border-dashed" : ""} ${
+        className={`group cursor-pointer transition-all duration-200 hover:shadow-md relative overflow-hidden ${
           isSelected ? "ring-2 ring-primary" : ""
-        } ${isSourceForLinking ? "ring-2 ring-blue-500 shadow-lg" : ""} ${isLinkedToSource() ? "ring-2 ring-green-500 shadow-lg" : ""} ${
+        } ${
+          isDropTarget ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20" : ""
+        } ${
           isPlaceholder ? "border-dashed border-2 border-muted-foreground/30 bg-muted/20 opacity-75" : ""
         }`}
         style={{ cursor: isLoading ? 'wait' : (isDragging ? 'grabbing' : 'pointer') }}
@@ -848,7 +848,7 @@ export function ConceptCard({
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             {isEditingTitle ? (
-              <div className="flex items-center space-x-2 flex-1">
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
                   type="text"
                   value={editedTitle}
@@ -888,12 +888,12 @@ export function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2 flex-1">
-                <CardTitle className="text-lg">{title}</CardTitle>
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                <CardTitle className="text-lg truncate">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" 
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" 
                   onClick={() => setIsEditingTitle(true)}
                   title="Edit title"
                 >
@@ -1032,7 +1032,7 @@ export function ConceptCard({
             </div>
           </div>
           {showDescription && getDescriptionText() && (
-            <CardDescription className="line-clamp-2">{getDescriptionText()}</CardDescription>
+            <CardDescription className="line-clamp-2 break-words">{getDescriptionText()}</CardDescription>
           )}
         </CardHeader>
         <CardContent className="pb-2 space-y-2">
@@ -1061,8 +1061,9 @@ export function ConceptCard({
                             href={url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="block text-xs text-blue-600 hover:underline truncate"
+                            className="block text-xs text-blue-600 hover:underline truncate max-w-full"
                             onClick={(e) => e.stopPropagation()}
+                            title={url}
                           >
                             {url}
                           </a>
@@ -1092,7 +1093,7 @@ export function ConceptCard({
                       </div>
                       <div className="space-y-1">
                         {mistakes.slice(0, 2).map((mistake: string, index: number) => (
-                          <div key={index} className="text-xs text-amber-700 dark:text-amber-300">
+                          <div key={index} className="text-xs text-amber-700 dark:text-amber-300 break-words">
                             • {mistake}
                           </div>
                         ))}
@@ -1116,7 +1117,7 @@ export function ConceptCard({
                     <FileText className="mr-1 h-3 w-3" />
                     Additional Notes
                   </div>
-                  <div className="text-xs text-muted-foreground line-clamp-2">
+                  <div className="text-xs text-muted-foreground line-clamp-2 break-words">
                     {concept.personalNotes}
                   </div>
                 </div>
@@ -1136,18 +1137,18 @@ export function ConceptCard({
                   const relatedId = typeof related === 'object' && related ? related.id : null;
                   
                   return (
-                    <Badge key={i} variant="outline" className={`text-xs group relative pr-6 ${
+                    <Badge key={i} variant="outline" className={`text-xs group relative pr-6 max-w-full ${
                       // Style broken references differently
                       (typeof related === 'object' && related?.id && !related?.title) 
                         ? 'border-destructive/30 bg-destructive/5 text-destructive' 
                         : ''
                     }`}>
                       {linkPath !== '#' ? (
-                        <Link href={linkPath}>
+                        <Link href={linkPath} className="truncate block max-w-full">
                           {displayTitle}
                         </Link>
                       ) : (
-                        <span>{displayTitle}</span>
+                        <span className="truncate block max-w-full">{displayTitle}</span>
                       )}
                       
                       {/* Delete relationship button - show for all related concepts */}
