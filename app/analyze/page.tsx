@@ -133,6 +133,8 @@ function AnalyzePage() {
                 setConversationText={setConversationText}
                 handleAnalyze={handleAnalyze}
                 isAnalyzing={isAnalyzing}
+                usageData={usageData}
+                remainingConversations={getRemainingConversations()}
               />
             </div>
           ) : (
