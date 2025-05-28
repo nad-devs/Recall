@@ -294,16 +294,18 @@ export function ConceptCard({
           rawRelatedConcepts = concept.relatedConcepts;
         }
         
-        // Filter out broken references
+        // Filter out broken references - be more lenient with the filtering
         const validRelatedConcepts = rawRelatedConcepts.filter((related: string | {id?: string, title?: string}) => {
+          // Accept any non-empty string
           if (typeof related === 'string' && related.trim().length > 0) {
-            return true; // Valid string reference
+            return true;
           }
+          // Accept any object that has either an id OR a title (not both required)
           if (typeof related === 'object' && related !== null) {
-            // Must have either a valid title or a valid ID (but not broken references with ID but no title)
-            return related.title || (related.id && related.title !== undefined);
+            return !!(related.id || related.title);
           }
-          return false; // Invalid reference
+          // Reject null, undefined, empty strings, or invalid objects
+          return false;
         });
         
         setParsedRelatedConcepts(validRelatedConcepts);
