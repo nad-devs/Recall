@@ -72,75 +72,88 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
       try {
         setLoading(true)
         
-        // Fetch concept from database with authentication headers
-        console.log('🔧 Fetching concept with ID:', conceptId)
-        const conceptRes = await fetch(`/api/concepts/${conceptId}`, {
+        // Check for authentication first
+        const userEmail = localStorage.getItem('userEmail');
+        const userId = localStorage.getItem('userId');
+        
+        if (!userEmail || !userId) {
+          toast({
+            title: "Authentication Required",
+            description: "Please sign in to review concepts and generate quizzes.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Fetch the concept data
+        const conceptResponse = await fetch(`/api/concepts/${conceptId}`, {
           headers: getAuthHeaders()
-        })
-        
-        console.log('🔧 Concept fetch response status:', conceptRes.status)
-        
-        if (!conceptRes.ok) {
-          if (conceptRes.status === 401) {
+        });
+
+        if (!conceptResponse.ok) {
+          if (conceptResponse.status === 401) {
             toast({
               title: "Authentication Error",
-              description: "Please refresh the page and try again. Your session may have expired.",
+              description: "Please sign in to view concepts and generate quizzes.",
               variant: "destructive",
               duration: 5000,
-            })
-            throw new Error('Authentication failed. Please refresh the page and try again.')
+            });
+            setLoading(false);
+            return;
           }
-          throw new Error("Failed to fetch concept")
+          throw new Error("Failed to load concept data");
         }
-        
-        const conceptData = await conceptRes.json()
-        console.log('🔧 Concept data received:', conceptData)
-        
-        const conceptObj = conceptData.concept
-        setConcept(conceptObj)
-        
-        // Parse keyPoints if needed
-        let keyPoints: string[] = []
-        if (typeof conceptObj.keyPoints === 'string') {
-          try {
-            const parsed = JSON.parse(conceptObj.keyPoints)
-            keyPoints = Array.isArray(parsed) ? parsed : [conceptObj.keyPoints]
-          } catch {
-            keyPoints = [conceptObj.keyPoints]
+
+        const conceptObj = await conceptResponse.json();
+        setConcept(conceptObj.concept);
+
+        // Generate quiz based on the concept
+        console.log('🔧 Generating quiz for concept:', conceptObj.concept.title);
+        console.log('🔧 Auth headers:', getAuthHeaders());
+
+        // Parse key points if they're stored as a string
+        let keyPoints = [];
+        try {
+          if (conceptObj.concept.keyPoints) {
+            if (typeof conceptObj.concept.keyPoints === 'string') {
+              keyPoints = JSON.parse(conceptObj.concept.keyPoints);
+            } else if (Array.isArray(conceptObj.concept.keyPoints)) {
+              keyPoints = conceptObj.concept.keyPoints;
+            }
           }
-        } else if (Array.isArray(conceptObj.keyPoints)) {
-          keyPoints = conceptObj.keyPoints
+        } catch (e) {
+          console.error('Error parsing key points:', e);
         }
-        
-        // Generate quiz questions via API route with authentication headers
-        console.log('🔧 Generating quiz questions...')
+
         const quizResponse = await fetch('/api/generate-quiz', {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify({
             concept: {
-              title: conceptObj.title,
-              summary: conceptObj.summary,
-              details: conceptObj.details || "",
+              title: conceptObj.concept.title,
+              summary: conceptObj.concept.summary,
+              details: conceptObj.concept.details || "",
               keyPoints: JSON.stringify(keyPoints),
-              id: conceptObj.id
+              id: conceptObj.concept.id
             }
           })
         });
 
-        console.log('🔧 Quiz generation response status:', quizResponse.status)
+        console.log('🔧 Quiz generation response status:', quizResponse.status);
 
         if (!quizResponse.ok) {
           if (quizResponse.status === 401) {
             toast({
               title: "Authentication Error",
-              description: "Please refresh the page and try again. Your session may have expired.",
+              description: "Please sign in to generate quizzes. Your session may have expired.",
               variant: "destructive",
               duration: 5000,
-            })
-            throw new Error('Authentication failed for quiz generation. Please refresh the page and try again.')
+            });
+            throw new Error('Authentication failed for quiz generation. Please refresh and sign in again.');
           }
-          throw new Error("Failed to generate quiz questions")
+          throw new Error("Failed to generate quiz questions");
         }
 
         const generatedQuestionsObj = await quizResponse.json();

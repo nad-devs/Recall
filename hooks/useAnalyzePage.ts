@@ -17,6 +17,7 @@ import {
   normalizeCategory 
 } from '@/lib/utils/conversation'
 import { useAutoAnalysis } from '@/hooks/useAutoAnalysis'
+import { getAuthHeaders, makeAuthenticatedRequest } from '@/lib/auth-utils'
 
 // Add interface for concept matching
 interface ConceptMatch {
@@ -91,31 +92,8 @@ export function useAnalyzePage() {
   // Function to check for existing concepts
   const checkForExistingConcepts = async (concepts: Concept[]): Promise<ConceptMatch[]> => {
     try {
-      // Get authentication headers
-      const getAuthHeaders = () => {
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-        
-        // Check if we're in browser environment
-        if (typeof window !== 'undefined') {
-          const userEmail = localStorage.getItem('userEmail');
-          const userId = localStorage.getItem('userId');
-          
-          console.log('🔧 Check Existing Concepts - Auth headers:', { userEmail, userId });
-          
-          if (userEmail && userId) {
-            headers['x-user-email'] = userEmail;
-            headers['x-user-id'] = userId;
-          }
-        }
-        
-        return headers;
-      };
-
-      const response = await fetch('/api/concepts/check-existing', {
+      const response = await makeAuthenticatedRequest('/api/concepts/check-existing', {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({ 
           concepts: concepts.map(c => ({
             title: c.title,
@@ -154,11 +132,8 @@ export function useAnalyzePage() {
       
       if (shouldUpdate) {
         // Update the existing concept with new information
-        const updateResponse = await fetch(`/api/concepts/${match.existingConcept.id}`, {
+        const updateResponse = await makeAuthenticatedRequest(`/api/concepts/${match.existingConcept.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             ...match.newConcept,
             // Preserve existing enhancements and other fields
@@ -305,35 +280,131 @@ export function useAnalyzePage() {
     ) || []
 
   // Handle category updates
-  const handleCategoryUpdate = (rawValue: string) => {
+  const handleCategoryUpdate = async (rawValue: string) => {
     const newCategory = normalizeCategory(rawValue)
     
     if (!selectedConcept) return
     
-    const pathComponents = newCategory.split(/[>\/]/).map(c => c.trim()).filter(Boolean)
-    
-    const updatedConcept = {
-      ...selectedConcept,
-      category: pathComponents.length > 0 ? pathComponents[pathComponents.length - 1] : newCategory,
-      categoryPath: pathComponents.length > 0 ? pathComponents : [newCategory]
-    }
-    
-    setSelectedConcept(updatedConcept)
-    
-    if (analysisResult) {
-      const updatedConcepts = analysisResult.concepts.map(concept =>
-        concept.id === selectedConcept.id
-          ? updatedConcept
-          : concept
-      )
+    try {
+      setIsSaving(true)
       
-      setAnalysisResult({
-        ...analysisResult,
-        concepts: updatedConcepts
+      // Check authentication before proceeding
+      const userEmail = localStorage.getItem('userEmail');
+      const userId = localStorage.getItem('userId');
+      
+      if (!userEmail || !userId) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to update categories. Your information will be saved in the browser.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        
+        setShowUserInfoModal(true);
+        setIsSaving(false);
+        return;
+      }
+      
+      // Update local state immediately for UI responsiveness
+      const updatedConcept = {
+        ...selectedConcept,
+        category: newCategory
+      }
+      
+      setSelectedConcept(updatedConcept)
+      
+      if (analysisResult) {
+        const updatedConcepts = analysisResult.concepts.map(concept =>
+          concept.id === selectedConcept.id
+            ? updatedConcept
+            : concept
+        )
+        
+        setAnalysisResult({
+          ...analysisResult,
+          concepts: updatedConcepts
+        })
+      }
+      
+      // If this is a temporary concept (starts with 'temp-'), just update local state
+      if (selectedConcept.id.startsWith('temp-')) {
+        setIsEditingCategory(false)
+        toast({
+          title: "Category Updated",
+          description: `Category changed to "${newCategory}" (will be saved when conversation is saved)`,
+          duration: 2000,
+        })
+        setIsSaving(false);
+        return
+      }
+      
+      // For real concepts, save to database immediately
+      console.log(`Updating category for concept ${selectedConcept.id} to "${newCategory}"`);
+      
+      const response = await makeAuthenticatedRequest(`/api/concepts/${selectedConcept.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          category: newCategory
+        })
       })
+      
+      if (!response.ok) {
+        // Check for specific error types
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please sign in to update categories.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          
+          setShowUserInfoModal(true);
+          throw new Error('Authentication required');
+        }
+        
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update category');
+      }
+      
+      // Update was successful
+      setIsEditingCategory(false)
+      
+      // Show success toast
+      toast({
+        title: "Category Updated",
+        description: `Category changed to "${newCategory}" and saved to database`,
+        duration: 2000,
+      })
+    } catch (error) {
+      console.error('Error updating category:', error)
+      
+      // Revert local state on error
+      if (analysisResult) {
+        const revertedConcepts = analysisResult.concepts.map(concept =>
+          concept.id === selectedConcept.id
+            ? selectedConcept // Revert to original
+            : concept
+        )
+        
+        setAnalysisResult({
+          ...analysisResult,
+          concepts: revertedConcepts
+        })
+        
+        // Also revert selected concept
+        setSelectedConcept(selectedConcept);
+      }
+      
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update category. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsSaving(false)
+      setIsEditingCategory(false)
     }
-    
-    setIsEditingCategory(false)
   }
 
   // Handle analysis
@@ -353,11 +424,8 @@ export function useAnalyzePage() {
       // Get custom API key if user has one
       const currentUsageData = getUsageData()
       
-      const response = await fetch('/api/extract-concepts', {
+      const response = await makeAuthenticatedRequest('/api/extract-concepts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ 
           conversation_text: conversationText,
           customApiKey: currentUsageData.customApiKey
@@ -505,14 +573,8 @@ export function useAnalyzePage() {
       const userEmail = localStorage.getItem('userEmail')
       const userId = localStorage.getItem('userId')
       
-      const response = await fetch('/api/saveConversation', {
+      const response = await makeAuthenticatedRequest('/api/saveConversation', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Include user headers if available for session validation
-          ...(userEmail && { 'x-user-email': userEmail }),
-          ...(userId && { 'x-user-id': userId }),
-        },
         body: JSON.stringify({
           conversation_text: conversationText,
           analysis: {
@@ -576,18 +638,47 @@ export function useAnalyzePage() {
       setIsAddingConcept(true)
       setLoadingConcepts(prev => [...prev, title])
       
+      // Check authentication before proceeding
+      const userEmail = localStorage.getItem('userEmail');
+      const userId = localStorage.getItem('userId');
+      
+      if (!userEmail || !userId) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to add concepts. Your information will be saved in the browser.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        
+        setShowUserInfoModal(true);
+        setIsAddingConcept(false);
+        setLoadingConcepts(prev => prev.filter(t => t !== title));
+        throw new Error('Authentication required');
+      }
+      
+      console.log("Making authenticated request to extract concept:", title);
+      console.log("Auth headers:", getAuthHeaders());
+      
       // Generate AI content for the concept
-      const response = await fetch('/api/extract-concepts', {
+      const response = await makeAuthenticatedRequest('/api/extract-concepts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ 
           conversation_text: `Please explain and provide details about the concept: ${title}\n\nInclude:\n- What it is and how it works\n- Key principles and components\n- Implementation details and examples\n- Use cases and applications\n- Related concepts and technologies\n- Code examples if applicable`
         }),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please sign in to add concepts. Your information will be saved in the browser.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          
+          setShowUserInfoModal(true);
+          throw new Error('Authentication required');
+        }
         throw new Error('Failed to generate concept content')
       }
 
@@ -655,11 +746,23 @@ export function useAnalyzePage() {
           description: `"${newConcept.title}" has been added and linked to "${originalConcept.title}"`,
           duration: 4000,
         })
+      } else {
+        toast({
+          title: "Concept Added",
+          description: `"${newConcept.title}" has been added to your analysis`,
+          duration: 4000,
+        })
       }
       
       return newConcept
     } catch (error) {
       console.error('Error adding concept to analysis:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add concept. Please check your authentication and try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
       throw error
     } finally {
       setIsAddingConcept(false)
@@ -672,14 +775,27 @@ export function useAnalyzePage() {
     try {
       setIsAddingConcept(true)
       
+      // Check authentication
+      const userEmail = localStorage.getItem('userEmail');
+      const userId = localStorage.getItem('userId');
+      
+      if (!userEmail || !userId) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to add concepts. Your information will be saved in the browser.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        
+        setShowUserInfoModal(true);
+        return;
+      }
+      
       let conversationId = null
       
       if (analysisResult) {
-        const saveResponse = await fetch('/api/saveConversation', {
+        const saveResponse = await makeAuthenticatedRequest('/api/saveConversation', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify({
             conversation_text: conversationText,
             analysis: {
@@ -696,14 +812,25 @@ export function useAnalyzePage() {
             conversationId = saveData.conversationId
             console.log("Created/retrieved conversation ID:", conversationId)
           }
+        } else {
+          console.error("Failed to save conversation:", saveResponse.status, saveResponse.statusText);
+          if (saveResponse.status === 401) {
+            toast({
+              title: "Authentication Error",
+              description: "Please sign in to add concepts.",
+              variant: "destructive",
+              duration: 5000,
+            });
+            setShowUserInfoModal(true);
+            return;
+          }
         }
       }
       
-      const response = await fetch('/api/concepts', {
+      console.log("Making API call to create concept with auth headers:", getAuthHeaders());
+      
+      const response = await makeAuthenticatedRequest('/api/concepts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ 
           title,
           context: conversationText,
@@ -712,7 +839,19 @@ export function useAnalyzePage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create concept')
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please sign in to add concepts. Your information will be saved in the browser.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          
+          setShowUserInfoModal(true);
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to create concept')
       }
 
       const data = await response.json()
@@ -739,21 +878,16 @@ export function useAnalyzePage() {
         keyPoints: data.concept.keyPoints ? 
           (typeof data.concept.keyPoints === 'string' ? 
             JSON.parse(data.concept.keyPoints) : 
-            data.concept.keyPoints) : 
-          [],
-        examples: data.concept.examples ? 
-          (typeof data.concept.examples === 'string' ? 
-            JSON.parse(data.concept.examples) : 
-            data.concept.examples) : 
-          [],
+            data.concept.keyPoints) : [],
+        examples: data.concept.examples || [],
         codeSnippets: data.concept.codeSnippets || [],
         relatedConcepts: data.concept.relatedConcepts ? 
           (typeof data.concept.relatedConcepts === 'string' ? 
             JSON.parse(data.concept.relatedConcepts) : 
-            data.concept.relatedConcepts) : 
-          []
+            data.concept.relatedConcepts) : []
       }
       
+      // Add to current analysis
       if (analysisResult) {
         setAnalysisResult({
           ...analysisResult,
@@ -765,16 +899,21 @@ export function useAnalyzePage() {
       setShowAddConceptCard(false)
       
       toast({
-        title: "Concept created",
-        description: `Successfully created and linked "${title}" to the current conversation`,
+        title: "Concept Created",
+        description: `"${newConcept.title}" has been created and added to your knowledge base`,
+        duration: 4000,
       })
+      
+      return newConcept
     } catch (error) {
       console.error('Error adding concept:', error)
       toast({
         title: "Error",
-        description: "Failed to create concept. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create concept. Please check your authentication and try again.",
         variant: "destructive",
+        duration: 3000,
       })
+      throw error
     } finally {
       setIsAddingConcept(false)
     }
@@ -809,7 +948,7 @@ export function useAnalyzePage() {
     try {
       setIsDeleting(true)
       
-      const response = await fetch(`/api/concepts/${conceptId}`, {
+      const response = await makeAuthenticatedRequest(`/api/concepts/${conceptId}`, {
         method: 'DELETE',
       })
 
@@ -886,11 +1025,8 @@ export function useAnalyzePage() {
     setSaveError(null)
     
     try {
-      const response = await fetch('/api/saveConversation', {
+      const response = await makeAuthenticatedRequest('/api/saveConversation', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           ...originalSaveData,
           confirmUpdate: true,
