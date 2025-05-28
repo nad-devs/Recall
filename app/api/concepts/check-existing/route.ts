@@ -5,9 +5,12 @@ import { NextRequest } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    console.log('📋 CHECK-EXISTING API ROUTE CALLED');
     const { concepts } = await request.json();
+    console.log(`📋 Received ${concepts?.length || 0} concepts to check`);
 
     if (!concepts || !Array.isArray(concepts)) {
+      console.log('📋 Error: Concepts array is missing or invalid');
       return NextResponse.json(
         { error: 'Concepts array is required' },
         { status: 400 }
@@ -17,11 +20,13 @@ export async function POST(request: Request) {
     // Validate user session
     const user = await validateSession(request as NextRequest);
     if (!user) {
+      console.log('📋 Error: User not authenticated');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+    console.log(`📋 User authenticated: ${user.id}`);
 
     const matches = [];
 
@@ -30,6 +35,7 @@ export async function POST(request: Request) {
 
       // Normalize the concept title for comparison
       const normalizedTitle = concept.title.toLowerCase().trim().replace(/\s+/g, ' ');
+      console.log(`📋 Checking for existing concept: "${concept.title}" (normalized: "${normalizedTitle}")`);
 
       // Check for exact matches first - only within user's concepts
       let existingConcepts = await prisma.concept.findMany({
@@ -52,6 +58,8 @@ export async function POST(request: Request) {
           lastUpdated: true
         }
       });
+      
+      console.log(`📋 Found ${existingConcepts.length} exact matches for "${concept.title}"`);
 
       // If no exact matches, check for similar titles
       if (existingConcepts.length === 0) {
@@ -85,6 +93,7 @@ export async function POST(request: Request) {
               similarTitle.includes(normalizedTitle)
             ) {
               existingConcepts.push(similar);
+              console.log(`📋 Found similar match: "${similar.title}" for "${concept.title}"`);
               break;
             }
           }
@@ -124,6 +133,7 @@ export async function POST(request: Request) {
               });
               if (leetCodeMatch) {
                 existingConcepts.push(leetCodeMatch);
+                console.log(`📋 Found LeetCode match: "${leetCodeMatch.title}" for "${concept.title}"`);
                 break;
               }
             }
@@ -134,6 +144,7 @@ export async function POST(request: Request) {
         if (existingConcepts.length === 0) {
           const keywords = concept.title.toLowerCase().split(/\s+/).filter((word: string) => word.length > 3);
           if (keywords.length > 0) {
+            console.log(`📋 Checking fuzzy matches with keywords: ${keywords.join(', ')}`);
             const fuzzyMatches = await prisma.concept.findMany({
               where: {
                 AND: [
@@ -155,6 +166,8 @@ export async function POST(request: Request) {
                 lastUpdated: true
               }
             });
+            
+            console.log(`📋 Found ${fuzzyMatches.length} potential fuzzy matches`);
 
             // Filter for high similarity matches
             for (const fuzzyMatch of fuzzyMatches) {
@@ -164,6 +177,7 @@ export async function POST(request: Request) {
               // If more than half the keywords match, consider it a potential match
               if (matchingKeywords.length >= Math.ceil(keywords.length / 2)) {
                 existingConcepts.push(fuzzyMatch);
+                console.log(`📋 Accepted fuzzy match: "${fuzzyMatch.title}" with ${matchingKeywords.length}/${keywords.length} keywords matching`);
                 break; // Only take the first good match
               }
             }
@@ -186,9 +200,11 @@ export async function POST(request: Request) {
           },
           existingConcept: existingConcepts[0] // Take the first/best match
         });
+        console.log(`📋 Added match to results: "${concept.title}" -> "${existingConcepts[0].title}"`);
       }
     }
 
+    console.log(`📋 Returning ${matches.length} total matches`);
     return NextResponse.json({ matches });
   } catch (error) {
     console.error('Error checking existing concepts:', error);

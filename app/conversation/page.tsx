@@ -20,12 +20,16 @@ export default function ConversationsPage() {
   // Group conversations by month
   const conversationsByMonth: Record<string, any[]> = {}
 
-  const filteredConversations = conversations.filter(conv => {
+  // Ensure conversations is always an array before filtering
+  const conversationsArray = Array.isArray(conversations) ? conversations : [];
+  
+  const filteredConversations = conversationsArray.filter(conv => {
     const searchLower = searchQuery.toLowerCase();
     return (
-      conv.title.toLowerCase().includes(searchLower) ||
-      conv.summary.toLowerCase().includes(searchLower) ||
-      conv.concepts.some((c: any) => c.title.toLowerCase().includes(searchLower))
+      conv.title?.toLowerCase().includes(searchLower) ||
+      conv.summary?.toLowerCase().includes(searchLower) ||
+      (Array.isArray(conv.concepts) && conv.concepts.some((c: any) => c?.title?.toLowerCase().includes(searchLower))) ||
+      (Array.isArray(conv.conceptMap) && conv.conceptMap.some((title: string) => title?.toLowerCase().includes(searchLower)))
     );
   });
 
@@ -47,15 +51,19 @@ export default function ConversationsPage() {
 
   // Sort conversations within each month by date (newest first)
   Object.keys(conversationsByMonth).forEach((month) => {
-    conversationsByMonth[month].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    conversationsByMonth[month].sort((a, b) => {
+      const dateA = new Date(a.date || a.createdAt || 0);
+      const dateB = new Date(b.date || b.createdAt || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
   })
 
   // Get sorted months (newest first)
   const sortedMonths = Object.keys(conversationsByMonth).sort((a, b) => {
     if (conversationsByMonth[a].length === 0 || conversationsByMonth[b].length === 0) return 0;
-    const dateA = new Date(conversationsByMonth[a][0].date)
-    const dateB = new Date(conversationsByMonth[b][0].date)
-    return dateB.getTime() - dateA.getTime()
+    const dateA = new Date(conversationsByMonth[a][0].date || conversationsByMonth[a][0].createdAt || 0);
+    const dateB = new Date(conversationsByMonth[b][0].date || conversationsByMonth[b][0].createdAt || 0);
+    return dateB.getTime() - dateA.getTime();
   })
 
   // Fetch conversations on component mount
@@ -64,10 +72,18 @@ export default function ConversationsPage() {
       try {
         setIsLoading(true);
         const response = await fetch('/api/conversations');
-        const data = await response.json();
-        setConversations(data);
+        
+        // Make sure we always set an array, even if the response is not what we expect
+        if (response.ok) {
+          const data = await response.json();
+          setConversations(Array.isArray(data) ? data : []);
+        } else {
+          console.error('Failed to fetch conversations:', response.status);
+          setConversations([]);
+        }
       } catch (error) {
         console.error('Failed to fetch conversations:', error);
+        setConversations([]);
       } finally {
         setIsLoading(false);
       }
