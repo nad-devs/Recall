@@ -50,6 +50,23 @@ export function useConceptDetail(id: string) {
       try {
         setLoading(true)
         
+        // Get authentication headers
+        const getAuthHeaders = (): HeadersInit => {
+          const userEmail = localStorage.getItem('userEmail')
+          const userId = localStorage.getItem('userId')
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json'
+          }
+          
+          // For email-based sessions
+          if (userEmail && userId) {
+            headers['x-user-email'] = userEmail
+            headers['x-user-id'] = userId
+          }
+          
+          return headers
+        }
+        
         // Check if the ID is a UUID format (typical database ID)
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
         
@@ -57,15 +74,15 @@ export function useConceptDetail(id: string) {
         
         if (isUUID) {
           // ID looks like a UUID, fetch directly
-          response = await fetch(`/api/concepts/${id}`)
+          response = await fetch(`/api/concepts/${id}`, { headers: getAuthHeaders() })
         } else {
           // ID is probably a concept title/name, try to look it up by title first
-          const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(id)}`)
+          const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(id)}`, { headers: getAuthHeaders() })
           
           if (titleResponse.ok) {
             // Found existing concept by title, fetch the full concept data
             const titleData = await titleResponse.json()
-            response = await fetch(`/api/concepts/${titleData.id}`)
+            response = await fetch(`/api/concepts/${titleData.id}`, { headers: getAuthHeaders() })
           } else {
             // Concept doesn't exist, show creation dialog
             const shouldCreate = window.confirm(
@@ -161,8 +178,26 @@ export function useConceptDetail(id: string) {
         return;
       }
       
+      // Get authentication headers
+      const getAuthHeaders = (): HeadersInit => {
+        const userEmail = localStorage.getItem('userEmail')
+        const userId = localStorage.getItem('userId')
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        }
+        
+        // For email-based sessions
+        if (userEmail && userId) {
+          headers['x-user-email'] = userEmail
+          headers['x-user-id'] = userId
+        }
+        
+        return headers
+      }
+      
       const response = await fetch(`/api/codeSnippets?id=${snippetId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders()
       })
       
       if (!response.ok) {
@@ -200,7 +235,24 @@ export function useConceptDetail(id: string) {
     try {
       setLoading(true)
       
-      const response = await fetch(`/api/concepts/${id}`)
+      // Get authentication headers
+      const getAuthHeaders = (): HeadersInit => {
+        const userEmail = localStorage.getItem('userEmail')
+        const userId = localStorage.getItem('userId')
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json'
+        }
+        
+        // For email-based sessions
+        if (userEmail && userId) {
+          headers['x-user-email'] = userEmail
+          headers['x-user-id'] = userId
+        }
+        
+        return headers
+      }
+      
+      const response = await fetch(`/api/concepts/${id}`, { headers: getAuthHeaders() })
       if (!response.ok) {
         throw new Error('Failed to refresh concept')
       }
