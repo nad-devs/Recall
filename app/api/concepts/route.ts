@@ -760,6 +760,95 @@ Remember: The title should immediately tell someone what specific problem or con
   return guidance;
 }
 
+// Utility function to clean up broken related concept references
+async function cleanupBrokenReferencesForUser(userId: string): Promise<void> {
+  try {
+    // Get all concepts for this user
+    const allConcepts = await prisma.concept.findMany({
+      where: { userId },
+      select: { id: true, title: true, relatedConcepts: true }
+    });
+
+    // Create a map of valid concept IDs and titles
+    const validConceptIds = new Set(allConcepts.map(c => c.id));
+    const validConceptTitles = new Set(allConcepts.map(c => c.title.toLowerCase().trim()));
+    const titleToIdMap = new Map();
+    allConcepts.forEach(c => titleToIdMap.set(c.title.toLowerCase().trim(), c.id));
+
+    let totalCleaned = 0;
+
+    // Process each concept's related concepts
+    for (const concept of allConcepts) {
+      if (!concept.relatedConcepts) continue;
+
+      try {
+        const relatedConcepts = JSON.parse(concept.relatedConcepts);
+        if (!Array.isArray(relatedConcepts)) continue;
+
+        let hasChanges = false;
+        const cleanedRelatedConcepts = [];
+
+        for (const related of relatedConcepts) {
+          if (typeof related === 'string') {
+            // Check if this title still exists
+            const normalizedTitle = related.toLowerCase().trim();
+            if (validConceptTitles.has(normalizedTitle)) {
+              // Convert to object format with ID if we can find it
+              const conceptId = titleToIdMap.get(normalizedTitle);
+              if (conceptId) {
+                cleanedRelatedConcepts.push({ id: conceptId, title: related });
+              } else {
+                cleanedRelatedConcepts.push(related);
+              }
+            } else {
+              hasChanges = true; // This reference is broken, skip it
+            }
+          } else if (typeof related === 'object' && related !== null) {
+            // Check if ID exists
+            if (related.id && validConceptIds.has(related.id)) {
+              // Valid ID, keep it
+              cleanedRelatedConcepts.push(related);
+            } else if (related.title) {
+              // Check if title exists
+              const normalizedTitle = related.title.toLowerCase().trim();
+              if (validConceptTitles.has(normalizedTitle)) {
+                // Title exists, update with correct ID
+                const conceptId = titleToIdMap.get(normalizedTitle);
+                if (conceptId) {
+                  cleanedRelatedConcepts.push({ id: conceptId, title: related.title });
+                } else {
+                  cleanedRelatedConcepts.push(related);
+                }
+              } else {
+                hasChanges = true; // This reference is broken, skip it
+              }
+            } else {
+              hasChanges = true; // Invalid entry, skip it
+            }
+          }
+        }
+
+        // Update the concept if we found broken references
+        if (hasChanges) {
+          await prisma.concept.update({
+            where: { id: concept.id },
+            data: { relatedConcepts: JSON.stringify(cleanedRelatedConcepts) }
+          });
+          totalCleaned++;
+        }
+      } catch (error) {
+        console.error(`Error cleaning related concepts for ${concept.title}:`, error);
+      }
+    }
+
+    if (totalCleaned > 0) {
+      console.log(`Cleaned up broken references in ${totalCleaned} concepts for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('Error in cleanupBrokenReferencesForUser:', error);
+  }
+}
+
 export async function GET(request: Request) {
   console.log('📋📋📋 MAIN CONCEPTS API ROUTE CALLED 📋📋📋');
   try {
@@ -785,6 +874,18 @@ export async function GET(request: Request) {
           title: 'asc',
         },
       });
+      
+      // Occasionally clean up broken related concept references (every 20 requests approximately)
+      if (Math.random() < 0.05) { // 5% chance to run cleanup
+        console.log('Running periodic cleanup of broken related concept references...');
+        try {
+          // Import the cleanup function from the concepts/[id]/route.ts file
+          // For now, we'll implement a simplified version here
+          await cleanupBrokenReferencesForUser(user.id);
+        } catch (cleanupError) {
+          console.error('Cleanup error (non-critical):', cleanupError);
+        }
+      }
     } catch (dbError) {
       console.error('Database error when fetching concepts:', dbError);
       return NextResponse.json(

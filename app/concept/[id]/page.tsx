@@ -111,21 +111,40 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
   if (conceptRelatedConcepts && Array.isArray(conceptRelatedConcepts)) {
     for (const related of conceptRelatedConcepts) {
       let key = '';
+      let isValid = false;
+      
       if (typeof related === 'object' && related !== null) {
-        key = (related.id ? String(related.id).toLowerCase().trim() : '') ||
-              (related.title ? related.title.toLowerCase().trim() : '');
-      } else if (typeof related === 'string') {
+        // Check if this is a valid reference with either an ID or a title
+        if (related.id || related.title) {
+          key = (related.id ? String(related.id).toLowerCase().trim() : '') ||
+                (related.title ? related.title.toLowerCase().trim() : '');
+          isValid = true;
+        }
+      } else if (typeof related === 'string' && related.trim().length > 0) {
         key = related.toLowerCase().trim();
+        isValid = true;
       }
-      if (key && !seen.has(key)) {
+      
+      // Only add valid, unique references
+      if (key && isValid && !seen.has(key)) {
         seen.add(key);
         uniqueRelatedConcepts.push(related);
       }
     }
   }
   
-  // Check if there are any related concepts (using deduplicated list)
-  const hasRelatedConcepts = (uniqueRelatedConcepts && uniqueRelatedConcepts.length > 0) || 
+  // Filter out any references that might be broken (objects with no title and no valid ID)
+  const validRelatedConcepts = uniqueRelatedConcepts.filter(related => {
+    if (typeof related === 'string') return true;
+    if (typeof related === 'object' && related !== null) {
+      // Must have either a valid title or be in the relatedConcepts array (fetched from DB)
+      return related.title || (related.id && relatedConcepts && relatedConcepts.some(r => r.id === related.id));
+    }
+    return false;
+  });
+  
+  // Check if there are any related concepts (using cleaned and deduplicated list)
+  const hasRelatedConcepts = (validRelatedConcepts && validRelatedConcepts.length > 0) || 
                              (relatedConcepts && relatedConcepts.length > 0);
 
   // Handle concept connection
@@ -209,64 +228,68 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     <PageTransition>
       <DndProvider backend={HTML5Backend}>
         <div className="container mx-auto py-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="icon" asChild>
-                <Link href="/concepts">
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              {isEditingTitle ? (
-                <div className="flex items-center space-x-2 flex-1">
-                  <Input
-                    value={editedTitle}
-                    onChange={(e) => setEditedTitle(e.target.value)}
-                    className="text-3xl font-bold h-auto py-2 px-3 border-2 border-primary"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleTitleUpdate()
-                      } else if (e.key === 'Escape') {
-                        cancelEditingTitle()
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleTitleUpdate}
-                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={cancelEditingTitle}
-                    className="text-gray-500 hover:text-gray-600 hover:bg-gray-50"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <h1 className="text-3xl font-bold">{concept.title}</h1>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={startEditingTitle}
-                    className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 ml-2"
-                    title="Edit title"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </>
-              )}
-              <Badge variant="outline" className="ml-2">
-                {concept.category}
-              </Badge>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 mb-2">
+                <Button variant="ghost" size="icon" asChild>
+                  <Link href="/concepts">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Link>
+                </Button>
+                {isEditingTitle ? (
+                  <div className="flex items-center space-x-2 flex-1 min-w-0 relative z-10">
+                    <Input
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      className="text-3xl font-bold h-auto py-2 px-3 border-2 border-primary min-w-0 flex-1 bg-white shadow-lg"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTitleUpdate()
+                        } else if (e.key === 'Escape') {
+                          cancelEditingTitle()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleTitleUpdate}
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50 flex-shrink-0"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={cancelEditingTitle}
+                      className="text-gray-500 hover:text-gray-600 hover:bg-gray-50 flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2 min-w-0 flex-1">
+                    <h1 className="text-3xl font-bold truncate">{concept.title}</h1>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={startEditingTitle}
+                      className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex-shrink-0"
+                      title="Edit title"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline">
+                  {concept.category}
+                </Badge>
+              </div>
             </div>
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 flex-shrink-0">
               <Button 
                 variant="outline"
                 onClick={() => setIsConnectionDialogOpen(true)}
@@ -607,11 +630,11 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                     </Card>
                   ))}
                 </div>
-              ) : uniqueRelatedConcepts.length > 0 ? (
+              ) : validRelatedConcepts.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground mb-2">These concepts are related:</p>
                   <div className="flex flex-wrap gap-2">
-                    {uniqueRelatedConcepts.map((related, idx) => {
+                    {validRelatedConcepts.map((related, idx) => {
                       let displayTitle: string;
                       let conceptId: string | undefined;
                       

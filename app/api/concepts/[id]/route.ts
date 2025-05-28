@@ -37,6 +37,149 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
   }
 }
 
+// Utility function to clean up broken related concept references
+async function cleanupBrokenRelatedConcepts(userId: string): Promise<void> {
+  try {
+    // Get all concepts for this user
+    const allConcepts = await prisma.concept.findMany({
+      where: { userId },
+      select: { id: true, title: true, relatedConcepts: true }
+    });
+
+    // Create a map of valid concept IDs and titles
+    const validConceptIds = new Set(allConcepts.map(c => c.id));
+    const validConceptTitles = new Set(allConcepts.map(c => c.title.toLowerCase().trim()));
+    const titleToIdMap = new Map();
+    allConcepts.forEach(c => titleToIdMap.set(c.title.toLowerCase().trim(), c.id));
+
+    // Process each concept's related concepts
+    for (const concept of allConcepts) {
+      if (!concept.relatedConcepts) continue;
+
+      try {
+        const relatedConcepts = JSON.parse(concept.relatedConcepts);
+        if (!Array.isArray(relatedConcepts)) continue;
+
+        let hasChanges = false;
+        const cleanedRelatedConcepts = [];
+
+        for (const related of relatedConcepts) {
+          if (typeof related === 'string') {
+            // Check if this title still exists
+            const normalizedTitle = related.toLowerCase().trim();
+            if (validConceptTitles.has(normalizedTitle)) {
+              // Convert to object format with ID if we can find it
+              const conceptId = titleToIdMap.get(normalizedTitle);
+              if (conceptId) {
+                cleanedRelatedConcepts.push({ id: conceptId, title: related });
+              } else {
+                cleanedRelatedConcepts.push(related);
+              }
+            } else {
+              hasChanges = true; // This reference is broken, skip it
+            }
+          } else if (typeof related === 'object' && related !== null) {
+            // Check if ID exists
+            if (related.id && validConceptIds.has(related.id)) {
+              // Valid ID, keep it
+              cleanedRelatedConcepts.push(related);
+            } else if (related.title) {
+              // Check if title exists
+              const normalizedTitle = related.title.toLowerCase().trim();
+              if (validConceptTitles.has(normalizedTitle)) {
+                // Title exists, update with correct ID
+                const conceptId = titleToIdMap.get(normalizedTitle);
+                if (conceptId) {
+                  cleanedRelatedConcepts.push({ id: conceptId, title: related.title });
+                } else {
+                  cleanedRelatedConcepts.push(related);
+                }
+              } else {
+                hasChanges = true; // This reference is broken, skip it
+              }
+            } else {
+              hasChanges = true; // Invalid entry, skip it
+            }
+          }
+        }
+
+        // Update the concept if we found broken references
+        if (hasChanges) {
+          await prisma.concept.update({
+            where: { id: concept.id },
+            data: { relatedConcepts: JSON.stringify(cleanedRelatedConcepts) }
+          });
+          console.log(`Cleaned up broken references for concept: ${concept.title}`);
+        }
+      } catch (error) {
+        console.error(`Error cleaning related concepts for ${concept.title}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error in cleanupBrokenRelatedConcepts:', error);
+  }
+}
+
+// Function to update related concept references when a concept title changes
+async function updateRelatedConceptReferences(conceptId: string, oldTitle: string, newTitle: string, userId: string): Promise<void> {
+  try {
+    // Find all concepts that reference this concept by title or ID
+    const conceptsWithReferences = await prisma.concept.findMany({
+      where: {
+        userId,
+        relatedConcepts: {
+          contains: oldTitle // This is a simple search, we'll parse and check properly below
+        }
+      },
+      select: { id: true, title: true, relatedConcepts: true }
+    });
+
+    for (const concept of conceptsWithReferences) {
+      if (!concept.relatedConcepts) continue;
+
+      try {
+        const relatedConcepts = JSON.parse(concept.relatedConcepts);
+        if (!Array.isArray(relatedConcepts)) continue;
+
+        let hasChanges = false;
+        const updatedRelatedConcepts = relatedConcepts.map(related => {
+          if (typeof related === 'string') {
+            if (related.toLowerCase().trim() === oldTitle.toLowerCase().trim()) {
+              hasChanges = true;
+              return { id: conceptId, title: newTitle };
+            }
+            return related;
+          } else if (typeof related === 'object' && related !== null) {
+            if (related.id === conceptId) {
+              // Update the title
+              hasChanges = true;
+              return { ...related, title: newTitle };
+            } else if (related.title && related.title.toLowerCase().trim() === oldTitle.toLowerCase().trim()) {
+              // Update title-based reference
+              hasChanges = true;
+              return { id: conceptId, title: newTitle };
+            }
+            return related;
+          }
+          return related;
+        });
+
+        if (hasChanges) {
+          await prisma.concept.update({
+            where: { id: concept.id },
+            data: { relatedConcepts: JSON.stringify(updatedRelatedConcepts) }
+          });
+          console.log(`Updated references in concept: ${concept.title}`);
+        }
+      } catch (error) {
+        console.error(`Error updating references in ${concept.title}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error in updateRelatedConceptReferences:', error);
+  }
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -483,6 +626,17 @@ export async function PUT(
       );
     }
     
+    // Check if title is being changed and handle related concept references
+    const oldTitle = existingConcept.title;
+    const newTitle = data.title;
+    const titleChanged = newTitle && newTitle !== oldTitle;
+    
+    // If title is changing, update all related concept references
+    if (titleChanged) {
+      console.log(`Title changing from "${oldTitle}" to "${newTitle}" - updating related concept references`);
+      await updateRelatedConceptReferences(id, oldTitle, newTitle, user.id);
+    }
+    
     // Handle related concepts bidirectional relationships
     if (data.relatedConcepts !== undefined) {
       let newRelatedConcepts: RelatedConceptData[] = [];
@@ -674,6 +828,9 @@ export async function PUT(
           data: updateData,
         });
 
+        // Clean up any broken related concept references for this user
+        await cleanupBrokenRelatedConcepts(user.id);
+
         return NextResponse.json({
           success: true,
           concept: {
@@ -740,6 +897,9 @@ export async function PUT(
       where: { id },
       data: updateData,
     });
+
+    // Clean up any broken related concept references for this user
+    await cleanupBrokenRelatedConcepts(user.id);
 
     return NextResponse.json({
       success: true,
