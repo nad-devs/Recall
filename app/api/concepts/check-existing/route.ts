@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
+import { NextRequest } from 'next/server';
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +14,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const matches = [];
 
     for (const concept of concepts) {
@@ -20,12 +31,17 @@ export async function POST(request: Request) {
       // Normalize the concept title for comparison
       const normalizedTitle = concept.title.toLowerCase().trim().replace(/\s+/g, ' ');
 
-      // Check for exact matches first
+      // Check for exact matches first - only within user's concepts
       let existingConcepts = await prisma.concept.findMany({
         where: {
-          OR: [
-            { title: { equals: concept.title } },
-            { title: { equals: normalizedTitle } }
+          AND: [
+            {
+              OR: [
+                { title: { equals: concept.title } },
+                { title: { equals: normalizedTitle } }
+              ]
+            },
+            { userId: user.id }  // Ensure user can only see their own concepts
           ]
         },
         select: {
@@ -43,9 +59,14 @@ export async function POST(request: Request) {
         if (concept.title.includes("Contains Duplicate") || normalizedTitle.includes("contains duplicate")) {
           const similarConcepts = await prisma.concept.findMany({
             where: {
-              title: {
-                contains: "Duplicate"
-              }
+              AND: [
+                {
+                  title: {
+                    contains: "Duplicate"
+                  }
+                },
+                { userId: user.id }  // User filtering
+              ]
             },
             select: {
               id: true,
@@ -84,9 +105,14 @@ export async function POST(request: Request) {
             if (titleLower.includes(stdName.toLowerCase()) && titleLower !== stdName.toLowerCase()) {
               const leetCodeMatch = await prisma.concept.findFirst({
                 where: {
-                  title: {
-                    equals: stdName
-                  }
+                  AND: [
+                    {
+                      title: {
+                        equals: stdName
+                      }
+                    },
+                    { userId: user.id }  // User filtering
+                  ]
                 },
                 select: {
                   id: true,
@@ -110,11 +136,16 @@ export async function POST(request: Request) {
           if (keywords.length > 0) {
             const fuzzyMatches = await prisma.concept.findMany({
               where: {
-                OR: keywords.map((keyword: string) => ({
-                  title: {
-                    contains: keyword
-                  }
-                }))
+                AND: [
+                  {
+                    OR: keywords.map((keyword: string) => ({
+                      title: {
+                        contains: keyword
+                      }
+                    }))
+                  },
+                  { userId: user.id }  // User filtering
+                ]
               },
               select: {
                 id: true,
