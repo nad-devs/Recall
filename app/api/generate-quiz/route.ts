@@ -68,18 +68,33 @@ export async function POST(request: NextRequest) {
           return null;
         }
         
-        // Ensure answer field is set correctly
-        if (!question.answer || !question.options.includes(question.answer)) {
-          console.warn(`🔧 Question ${index + 1} has invalid answer field. Fixing...`);
-          // If answer is missing or invalid, use the first option as default
-          question.answer = question.options[0];
+        // Validate the answer field more carefully
+        let validAnswer = question.answer;
+        
+        // Check if the answer exists in the options
+        if (!validAnswer || !question.options.includes(validAnswer)) {
+          console.warn(`🔧 Question ${index + 1} has invalid answer field: "${validAnswer}"`);
+          console.warn(`🔧 Available options:`, question.options);
+          
+          // Try to find a reasonable answer from the options instead of defaulting to first
+          // Look for the option that seems most correct based on content length or specificity
+          if (question.options.length > 0) {
+            // Find the longest option as it's likely to be the correct detailed answer
+            validAnswer = question.options.reduce((prev: string, current: string) => 
+              current.length > prev.length ? current : prev
+            );
+            console.log(`🔧 Selected best answer candidate: "${validAnswer}"`);
+          } else {
+            console.error(`🔧 No options available for question ${index + 1}`);
+            return null;
+          }
         }
         
-        console.log(`🔧 Question ${index + 1} validated - Answer: "${question.answer}"`);
+        console.log(`🔧 Question ${index + 1} validated - Answer: "${validAnswer}"`);
         
         return {
           question: question.question,
-          answer: question.answer,
+          answer: validAnswer,
           options: question.options,
           explanation: question.explanation || `This relates to the concept: ${concept.title}`
         };
