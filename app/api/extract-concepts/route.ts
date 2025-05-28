@@ -305,14 +305,11 @@ export async function POST(request: NextRequest) {
       console.log("⚠️ Service warmup failed, proceeding anyway:", warmupError instanceof Error ? warmupError.message : 'Unknown error');
     }
 
-    // Force disable SSL verification and use aggressive connection settings
-    const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-    
+    // TLS settings are configured in vercel.json for deployment
     const httpsUrl = backendUrl;
     const httpUrl = backendUrl.replace('https://', 'http://');
     
-    // Enhanced fetch options with forced SSL settings
+    // Enhanced fetch options
     const createFetchOptions = (url: string) => ({
       method: 'POST',
       headers: {
@@ -328,10 +325,6 @@ export async function POST(request: NextRequest) {
         category_guidance: leetcodeGuidance
       }),
       keepalive: false,
-      // Force disable certificate validation
-      ...(url.startsWith('https') && {
-        rejectUnauthorized: false,
-      }),
     });
     
     let response;
@@ -395,11 +388,6 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Restore original TLS setting
-    if (originalRejectUnauthorized !== undefined) {
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
-    }
-
     // If backend failed completely, return a proper error (NO FALLBACK)
     if (!backendSuccess || !response) {
       console.log("❌ Backend completely failed - no fallback, returning error");
