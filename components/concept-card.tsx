@@ -855,7 +855,7 @@ export function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group transition-all duration-200 overflow-hidden h-full flex flex-col ${
+        className={`group transition-all duration-200 overflow-hidden min-h-[320px] flex flex-col ${
           isSelected ? "ring-2 ring-primary" : ""
         } ${
           selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
@@ -916,8 +916,8 @@ export function ConceptCard({
             </span>
           </div>
         )}
-        <CardHeader className="pb-3">
-          <div className="flex justify-between items-start gap-3">
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-start gap-4 mb-3">
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
@@ -939,7 +939,7 @@ export function ConceptCard({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-6 w-6" 
+                  className="h-7 w-7" 
                   onClick={handleTitleUpdate}
                   disabled={isSaving}
                 >
@@ -948,7 +948,7 @@ export function ConceptCard({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-6 w-6" 
+                  className="h-7 w-7" 
                   onClick={() => {
                     setEditedTitle(title || "")
                     setIsEditingTitle(false)
@@ -964,7 +964,7 @@ export function ConceptCard({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" 
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" 
                   onClick={() => setIsEditingTitle(true)}
                   title="Edit title"
                 >
@@ -972,157 +972,161 @@ export function ConceptCard({
                 </Button>
               </div>
             )}
-            <div className="flex flex-wrap gap-2 items-start flex-shrink-0">
-              {/* Placeholder badge */}
-              {isPlaceholder && (
-                <Badge
-                  variant="outline"
-                  className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 border-blue-300 dark:border-blue-700"
-                >
-                  📌 Placeholder
-                </Badge>
-              )}
-              
-              {/* Needs Review badge */}
-              {needsReview && (
-                <Badge
-                  variant="outline"
-                  className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 border-amber-300 dark:border-amber-700"
-                >
-                  Needs Review
-                </Badge>
-              )}
-              
-              {isEditingCategory ? (
-                <div className="flex items-center space-x-1">
-                  {isLoadingCategories ? (
-                    <div className="flex items-center space-x-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="text-xs text-muted-foreground">Loading categories...</span>
-                    </div>
-                  ) : (
-                    <select 
-                      className="text-xs border rounded py-1 px-2 bg-background min-w-[120px] max-w-[200px]" 
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      disabled={isSaving || isLoadingCategories}
-                    >
-                      {availableCategories.map((cat) => (
-                        <option 
-                          key={cat.value} 
-                          value={cat.value}
-                          style={{ 
-                            paddingLeft: `${cat.depth * 12 + 4}px`,
-                            fontWeight: cat.isHierarchical ? 'normal' : 'bold'
-                          }}
-                        >
-                          {cat.depth > 0 ? '└ ' : ''}{cat.label}
-                          {cat.isLearned ? ' 🧠' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6" 
-                    onClick={handleCategoryUpdate}
-                    disabled={isSaving || isLoadingCategories}
-                  >
-                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6" 
-                    onClick={() => {
-                      setSelectedCategory(category || "General")
-                      setIsEditingCategory(false)
-                    }}
-                    disabled={isSaving || isLoadingCategories}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center">
-                  <Badge 
-                    onClick={async () => {
-                      // Fetch categories when starting to edit
-                      await fetchCategories();
-                      
-                      // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
-                      if (category === "Algorithms") {
-                        setSelectedCategory("Data Structures and Algorithms");
-                      } else {
-                        setSelectedCategory(category || "General");
-                      }
-                      setIsEditingCategory(true);
-                    }} 
-                    className="cursor-pointer hover:bg-primary/20 transition-colors"
-                    title="Click to edit category (🧠 = learned from your patterns)"
-                  >
-                    {category || "General"}
-                    {/* Show learning indicator if this category was learned */}
-                    {availableCategories.some(cat => cat.value === category && cat.isLearned) && (
-                      <span className="ml-1" title="This category was learned from your usage patterns">🧠</span>
-                    )}
-                  </Badge>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 ml-1" 
-                    onClick={async () => {
-                      // Fetch categories when starting to edit
-                      await fetchCategories();
-                      
-                      // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
-                      if (category === "Algorithms") {
-                        setSelectedCategory("Data Structures and Algorithms");
-                      } else {
-                        setSelectedCategory(category || "General");
-                      }
-                      setIsEditingCategory(true);
-                    }}
-                    title="Edit category"
-                  >
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    className="h-6 w-6 text-destructive hover:text-destructive/90"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    title="Delete concept"
-                  >
-                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                  </Button>
-                </div>
-              )}
+            
+            {/* Action buttons in top right */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                title="Delete concept"
+              >
+                {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              </Button>
             </div>
           </div>
-          {showDescription && getDescriptionText() && (
-            <CardDescription className="line-clamp-2 break-words">{getDescriptionText()}</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="pb-3 space-y-3 flex-1">
-          <div className="flex items-center text-sm text-muted-foreground">
-            <ExternalLink className="mr-1 h-3 w-3" />
-            Related concepts: {parsedRelatedConcepts?.length || 0}
+          
+          {/* Badges and category section */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Status badges */}
+            {isPlaceholder && (
+              <Badge
+                variant="outline"
+                className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 border-blue-300 dark:border-blue-700"
+              >
+                📌 Placeholder
+              </Badge>
+            )}
+            
+            {needsReview && (
+              <Badge
+                variant="outline"
+                className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 border-amber-300 dark:border-amber-700"
+              >
+                Needs Review
+              </Badge>
+            )}
+            
+            {/* Category section */}
+            {isEditingCategory ? (
+              <div className="flex items-center space-x-1">
+                {isLoadingCategories ? (
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="text-xs text-muted-foreground">Loading categories...</span>
+                  </div>
+                ) : (
+                  <select 
+                    className="text-xs border rounded py-1 px-2 bg-background min-w-[120px] max-w-[200px]" 
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    disabled={isSaving || isLoadingCategories}
+                  >
+                    {availableCategories.map((cat) => (
+                      <option 
+                        key={cat.value} 
+                        value={cat.value}
+                        style={{ 
+                          paddingLeft: `${cat.depth * 12 + 4}px`,
+                          fontWeight: cat.isHierarchical ? 'normal' : 'bold'
+                        }}
+                      >
+                        {cat.depth > 0 ? '└ ' : ''}{cat.label}
+                        {cat.isLearned ? ' 🧠' : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6" 
+                  onClick={handleCategoryUpdate}
+                  disabled={isSaving || isLoadingCategories}
+                >
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6" 
+                  onClick={() => {
+                    setSelectedCategory(category || "General")
+                    setIsEditingCategory(false)
+                  }}
+                  disabled={isSaving || isLoadingCategories}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center">
+                <Badge 
+                  onClick={async () => {
+                    // Fetch categories when starting to edit
+                    await fetchCategories();
+                    
+                    // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
+                    if (category === "Algorithms") {
+                      setSelectedCategory("Data Structures and Algorithms");
+                    } else {
+                      setSelectedCategory(category || "General");
+                    }
+                    setIsEditingCategory(true);
+                  }} 
+                  className="cursor-pointer hover:bg-primary/20 transition-colors"
+                  title="Click to edit category (🧠 = learned from your patterns)"
+                >
+                  {category || "General"}
+                  {/* Show learning indicator if this category was learned */}
+                  {availableCategories.some(cat => cat.value === category && cat.isLearned) && (
+                    <span className="ml-1" title="This category was learned from your usage patterns">🧠</span>
+                  )}
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 ml-1" 
+                  onClick={async () => {
+                    // Fetch categories when starting to edit
+                    await fetchCategories();
+                    
+                    // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
+                    if (category === "Algorithms") {
+                      setSelectedCategory("Data Structures and Algorithms");
+                    } else {
+                      setSelectedCategory(category || "General");
+                    }
+                    setIsEditingCategory(true);
+                  }}
+                  title="Edit category"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
           
+          {showDescription && getDescriptionText() && (
+            <CardDescription className="line-clamp-3 break-words mt-3 text-sm leading-relaxed">
+              {getDescriptionText()}
+            </CardDescription>
+          )}
+        </CardHeader>
+        <CardContent className="pb-4 space-y-4 flex-1">
           {/* Show enhancements if they exist */}
           {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
-            <div className="space-y-2 pt-2 border-t">
+            <div className="space-y-3 pt-3 border-t">
               {/* Video Resources */}
               {concept.videoResources && (() => {
                 try {
                   const videos = JSON.parse(concept.videoResources);
                   return videos.length > 0 && (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="flex items-center text-xs font-medium text-muted-foreground">
-                        <Video className="mr-1 h-3 w-3" />
+                        <Video className="mr-2 h-4 w-4" />
                         Video Resources ({videos.length})
                       </div>
                       <div className="space-y-1">
@@ -1157,9 +1161,9 @@ export function ConceptCard({
                 try {
                   const mistakes = JSON.parse(concept.commonMistakes);
                   return mistakes.length > 0 && (
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="flex items-center text-xs font-medium text-muted-foreground">
-                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        <AlertTriangle className="mr-2 h-4 w-4" />
                         Common Mistakes ({mistakes.length})
                       </div>
                       <div className="space-y-1">
@@ -1183,9 +1187,9 @@ export function ConceptCard({
               
               {/* Additional Notes */}
               {concept.personalNotes && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex items-center text-xs font-medium text-muted-foreground">
-                    <FileText className="mr-1 h-3 w-3" />
+                    <FileText className="mr-2 h-4 w-4" />
                     Additional Notes
                   </div>
                   <div className="text-xs text-muted-foreground line-clamp-2 break-words">
@@ -1197,9 +1201,9 @@ export function ConceptCard({
           )}
           
           {showRelatedConcepts && parsedRelatedConcepts.length > 0 && (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="flex items-center text-sm font-medium">
-                <ExternalLink className="mr-1 h-3 w-3 text-primary" />
+                <ExternalLink className="mr-2 h-4 w-4 text-primary" />
                 Related Concepts
               </div>
               <div className="flex flex-wrap gap-1">
@@ -1302,26 +1306,26 @@ export function ConceptCard({
             </div>
           )}
         </CardContent>
-        <CardFooter className="pt-2 flex justify-between">
+        <CardFooter className="pt-3 flex justify-between border-t bg-muted/20">
           {isPlaceholder ? (
-            <div className="flex space-x-1">
+            <div className="flex space-x-2">
               <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
-                <Plus className="mr-1 h-3 w-3" />
+                <Plus className="mr-2 h-4 w-4" />
                 Add Real Concept
               </Button>
             </div>
           ) : (
-            <div className="flex space-x-1">
-              <Button variant="outline" size="sm" asChild>
+            <div className="flex space-x-2 w-full">
+              <Button variant="outline" size="sm" asChild className="flex-1">
                 <Link href={`/review/${id}`}>
-                  <BookOpen className="mr-1 h-3 w-3" />
+                  <BookOpen className="mr-2 h-4 w-4" />
                   Review
                 </Link>
               </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="flex items-center"
+                className="flex items-center flex-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -1329,13 +1333,13 @@ export function ConceptCard({
                 }}
                 title="Connect to another concept"
               >
-                <LinkIcon className="mr-1 h-3 w-3" />
+                <LinkIcon className="mr-2 h-4 w-4" />
                 Connect
               </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="flex items-center"
+                className="flex items-center flex-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -1343,7 +1347,7 @@ export function ConceptCard({
                 }}
                 title="Add more details to this concept"
               >
-                <Plus className="mr-1 h-3 w-3" />
+                <Plus className="mr-2 h-4 w-4" />
                 Enhance
               </Button>
             </div>

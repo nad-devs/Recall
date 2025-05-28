@@ -303,6 +303,53 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   Review & Practice
                 </Link>
               </Button>
+              <Button 
+                variant="outline"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={async () => {
+                  if (!window.confirm(`Are you sure you want to delete "${concept.title}"? This action cannot be undone.`)) {
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch(`/api/concepts/${concept.id}`, {
+                      method: 'DELETE',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-email': localStorage.getItem('userEmail') || '',
+                        'x-user-id': localStorage.getItem('userId') || '',
+                      },
+                    });
+
+                    if (!response.ok) {
+                      throw new Error('Failed to delete concept');
+                    }
+                    
+                    const result = await response.json();
+
+                    toast({
+                      title: "Concept Deleted",
+                      description: `"${concept.title}" has been deleted`,
+                      duration: 3000,
+                    });
+
+                    // Navigate back to concepts page
+                    window.location.href = '/concepts';
+                  } catch (error) {
+                    console.error('Error deleting concept:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to delete concept. Please try again.",
+                      variant: "destructive",
+                      duration: 3000,
+                    });
+                  }
+                }}
+                title="Delete this concept"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
             </div>
           </div>
 
