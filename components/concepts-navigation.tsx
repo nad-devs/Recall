@@ -316,10 +316,15 @@ export function ConceptsNavigation({
 
   // Centralized function to reset all dialog-related state
   const resetDialogState = useCallback(() => {
+    console.log('🔧 Resetting dialog state...')
+    
+    // Reset all dialog visibility states
     setShowAddSubcategoryDialog(false)
     setShowTransferDialog(false)
     setShowEditCategoryDialog(false)
     setShowDragDropDialog(false)
+    
+    // Reset all form states
     setSelectedParentCategory('')
     setNewSubcategoryName('')
     setEditingCategoryPath('')
@@ -327,11 +332,58 @@ export function ConceptsNavigation({
     setTransferConcepts([])
     setSelectedConceptsForTransfer(new Set())
     setDragDropData(null)
-    // Reset loading states
+    
+    // Reset loading states - this is crucial to prevent freezing
     setIsCreatingCategory(false)
     setIsMovingConcepts(false)
     setIsRenamingCategory(false)
+    
+    // Reset inline editing state
+    setInlineEditingCategory('')
+    setInlineEditValue('')
+    
+    console.log('🔧 Dialog state reset complete')
   }, [])
+
+  // Enhanced dialog close handler with proper cleanup
+  const handleDialogClose = useCallback((dialogType: string) => {
+    console.log(`🔧 Closing ${dialogType} dialog...`)
+    
+    // Prevent closing if operations are in progress
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+      console.log('🔧 Cannot close dialog - operation in progress')
+      toast({
+        title: "Operation in Progress",
+        description: "Please wait for the current operation to complete before closing.",
+        variant: "default",
+        duration: 3000,
+      })
+      return false
+    }
+    
+    // Safe to close - reset all state
+    resetDialogState()
+    return true
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, resetDialogState, toast])
+
+  // Enhanced cancel handler for category creation
+  const handleCancelCategoryCreation = useCallback(() => {
+    console.log('🔧 Canceling category creation...')
+    
+    // Force reset all states even if operations are in progress
+    setIsCreatingCategory(false)
+    setIsMovingConcepts(false)
+    setIsRenamingCategory(false)
+    
+    // Then reset dialog state
+    resetDialogState()
+    
+    toast({
+      title: "Cancelled",
+      description: "Category creation has been cancelled.",
+      duration: 2000,
+    })
+  }, [resetDialogState, toast])
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -1438,8 +1490,8 @@ export function ConceptsNavigation({
 
       {/* Add Subcategory Dialog */}
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
-        if (!open && !isCreatingCategory) {
-          resetDialogState()
+        if (!open) {
+          handleDialogClose('Add Subcategory')
         }
       }}>
         <DialogContent>
@@ -1469,8 +1521,8 @@ export function ConceptsNavigation({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
-              disabled={isCreatingCategory}
+              onClick={handleCancelCategoryCreation}
+              disabled={false} // Always allow cancellation
             >
               Cancel
             </Button>
@@ -1482,7 +1534,7 @@ export function ConceptsNavigation({
                 <>
                   <svg className="animate-spin -ml-1 mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Creating...
                 </>
@@ -1496,8 +1548,8 @@ export function ConceptsNavigation({
 
       {/* Transfer Concepts Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
-        if (!open && !isMovingConcepts) {
-          resetDialogState()
+        if (!open) {
+          handleDialogClose('Transfer Concepts')
         }
       }}>
         <DialogContent className="max-w-2xl">

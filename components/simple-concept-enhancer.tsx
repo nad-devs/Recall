@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { getAuthHeaders } from '@/lib/auth-utils'
 import { 
   Plus, 
   X, 
@@ -83,9 +84,7 @@ export function SimpleConceptEnhancer({ concept, onSave, onCancel }: SimpleConce
 
       const response = await fetch(`/api/concepts/${concept.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updatedData),
       })
 
