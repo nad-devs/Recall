@@ -286,12 +286,27 @@ export function ConceptCard({
     if (concept.relatedConcepts) {
       try {
         // Handle both array and JSON string formats
+        let rawRelatedConcepts = [];
         if (typeof concept.relatedConcepts === 'string') {
           const parsed = JSON.parse(concept.relatedConcepts);
-          setParsedRelatedConcepts(Array.isArray(parsed) ? parsed : []);
+          rawRelatedConcepts = Array.isArray(parsed) ? parsed : [];
         } else if (Array.isArray(concept.relatedConcepts)) {
-          setParsedRelatedConcepts(concept.relatedConcepts);
+          rawRelatedConcepts = concept.relatedConcepts;
         }
+        
+        // Filter out broken references
+        const validRelatedConcepts = rawRelatedConcepts.filter((related: string | {id?: string, title?: string}) => {
+          if (typeof related === 'string' && related.trim().length > 0) {
+            return true; // Valid string reference
+          }
+          if (typeof related === 'object' && related !== null) {
+            // Must have either a valid title or a valid ID (but not broken references with ID but no title)
+            return related.title || (related.id && related.title !== undefined);
+          }
+          return false; // Invalid reference
+        });
+        
+        setParsedRelatedConcepts(validRelatedConcepts);
       } catch (e) {
         console.error("Error parsing related concepts:", e);
         setParsedRelatedConcepts([]);

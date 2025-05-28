@@ -347,6 +347,7 @@ export function ConceptsNavigation({
     setIsCreatingCategory(false)
     setIsMovingConcepts(false)
     setIsRenamingCategory(false)
+    setIsDraggingCategory(false)
     
     // Reset inline editing state
     setInlineEditingCategory('')
@@ -359,22 +360,11 @@ export function ConceptsNavigation({
   const handleDialogClose = useCallback((dialogType: string) => {
     console.log(`🔧 Closing ${dialogType} dialog...`)
     
-    // Prevent closing if operations are in progress
-    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
-      console.log('🔧 Cannot close dialog - operation in progress')
-      toast({
-        title: "Operation in Progress",
-        description: "Please wait for the current operation to complete before closing.",
-        variant: "default",
-        duration: 3000,
-      })
-      return false
-    }
-    
-    // Safe to close - reset all state
+    // Always allow closing from the Cancel button or X button
+    // Just reset all states to ensure clean closure
     resetDialogState()
     return true
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, resetDialogState, toast])
+  }, [resetDialogState])
 
   // Enhanced cancel handler for category creation
   const handleCancelCategoryCreation = useCallback(() => {
@@ -385,12 +375,19 @@ export function ConceptsNavigation({
     setIsMovingConcepts(false)
     setIsRenamingCategory(false)
     
+    // Force clear any pending timeouts by setting a small timeout to ensure state change
+    setTimeout(() => {
+      setIsCreatingCategory(false)
+      setIsMovingConcepts(false)
+      setIsRenamingCategory(false)
+    }, 100)
+    
     // Then reset dialog state
     resetDialogState()
     
     toast({
       title: "Cancelled",
-      description: "Category creation has been cancelled.",
+      description: "Operation has been cancelled and all states have been reset.",
       duration: 2000,
     })
   }, [resetDialogState, toast])
@@ -499,9 +496,25 @@ export function ConceptsNavigation({
     }
   }, [])
 
-  // Enhanced createPlaceholderConcept with connectivity test
+  // Enhanced createPlaceholderConcept with timeout protection
   const createPlaceholderConcept = useCallback(async (category: string) => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
+      // Set a timeout to prevent indefinite loading states
+      timeoutId = setTimeout(() => {
+        console.warn('🔧 CreatePlaceholderConcept timeout - resetting states');
+        setIsCreatingCategory(false);
+        setIsMovingConcepts(false);
+        setIsRenamingCategory(false);
+        toast({
+          title: "Operation Timeout",
+          description: "The operation took too long and was cancelled. Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }, 15000); // 15 second timeout
+      
       // First test API connectivity
       const isConnected = await testApiConnectivity()
       if (!isConnected) {
@@ -555,17 +568,50 @@ export function ConceptsNavigation({
       }
       
       const data = await response.json()
-      console.log('🔧 Success response:', data)
+      console.log('🔧 Successfully created placeholder concept:', data.concept?.id)
       
-      // Refresh the data to show the new placeholder concept
+      // Trigger data refresh to show the new category
       if (onDataRefresh) {
+        console.log('🔧 Triggering data refresh...')
         await onDataRefresh()
+        console.log('🔧 Data refresh completed')
       }
-    } catch (error) {
-      console.error('Error creating placeholder concept:', error)
-      throw error // Re-throw to be handled by calling function
+      
+      return data.concept
+    } catch (error: any) {
+      console.error('🔧 Error creating placeholder concept:', error)
+      
+      // Ensure we don't leave loading states active
+      setIsCreatingCategory(false);
+      setIsMovingConcepts(false);
+      setIsRenamingCategory(false);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to create category. Please try again.'
+      
+      if (error.message?.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (error.message?.includes('Authentication')) {
+        errorMessage = 'Session expired. Please refresh the page and try again.'
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Operation timed out. Please try again.'
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      })
+      
+      throw error
+    } finally {
+      // Clear the timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
-  }, [onDataRefresh, makeApiCall, testApiConnectivity])
+  }, [testApiConnectivity, getAuthHeaders, makeApiCall, toast, onDataRefresh])
 
   const handleCreateSubcategory = useCallback(async () => {
     // Prevent multiple concurrent operations
@@ -669,8 +715,24 @@ export function ConceptsNavigation({
       return
     }
     
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     try {
       setIsMovingConcepts(true)
+      
+      // Set a timeout to prevent indefinite loading states
+      timeoutId = setTimeout(() => {
+        console.warn('🔧 TransferConcepts timeout - resetting states');
+        setIsCreatingCategory(false);
+        setIsMovingConcepts(false);
+        setIsRenamingCategory(false);
+        toast({
+          title: "Operation Timeout",
+          description: "The concept move operation took too long and was cancelled. Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }, 20000); // 20 second timeout for moves
       
       toast({
         title: "Moving Concepts",
@@ -694,16 +756,35 @@ export function ConceptsNavigation({
       
       resetDialogState()
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error moving concepts:', error)
+      
+      // Ensure we don't leave loading states active
+      setIsCreatingCategory(false);
+      setIsMovingConcepts(false);
+      setIsRenamingCategory(false);
+      
+      let errorMessage = 'Failed to move concepts. Please try again.'
+      
+      if (error.message?.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Operation timed out. Please try again.'
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to move concepts. Please try again.",
+        description: errorMessage,
         variant: "destructive",
         duration: 3000,
       })
     } finally {
       setIsMovingConcepts(false)
+      
+      // Clear the timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }, [isMovingConcepts, toast, onConceptsMove, onCategorySelect, resetDialogState])
 
@@ -1240,14 +1321,17 @@ export function ConceptsNavigation({
             >
               <Icon className="mr-2 h-4 w-4" />
               <span className="truncate">{node.name}</span>
-              <Badge variant={isSelected ? "default" : "secondary"} className="ml-auto text-xs">
-                {node.concepts.length}
-              </Badge>
+              {/* Show total count when collapsed, hide when expanded (since subcategories will show individual counts) */}
+              {!isExpanded && node.conceptCount > 0 && (
+                <Badge variant={isSelected ? "default" : "secondary"} className="ml-auto text-xs">
+                  {node.conceptCount}
+                </Badge>
+              )}
             </Button>
           </div>
         )
       } else {
-        // No subcategories - clickable category (same as before)
+        // No subcategories - clickable category (same as before but hide 0 counts)
         return (
           <Button
             variant={isSelected ? "secondary" : "ghost"}
@@ -1260,9 +1344,12 @@ export function ConceptsNavigation({
             <GripVertical className="mr-1 h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
             <Icon className="mr-2 h-4 w-4" />
             <span className="truncate">{node.name}</span>
-            <Badge variant="secondary" className="ml-auto text-xs">
-              {node.conceptCount}
-            </Badge>
+            {/* Only show count if greater than 0 */}
+            {node.conceptCount > 0 && (
+              <Badge variant="secondary" className="ml-auto text-xs">
+                {node.conceptCount}
+              </Badge>
+            )}
           </Button>
         )
       }
@@ -1394,6 +1481,26 @@ export function ConceptsNavigation({
     )
   }, [expandedCategories, selectedCategory, inlineEditingCategory, inlineEditValue, toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit, saveInlineEdit, cancelInlineEdit, setTransferConcepts, setShowTransferDialog, setInlineEditValue, isCreatingCategory, isMovingConcepts, isRenamingCategory, handleCategoryDrop, handleDragStart, handleDragEnd, isDraggingAny])
 
+  // Add keyboard escape handler to force close dialogs
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        console.log('🔧 Escape key pressed - forcing dialog closure')
+        handleCancelCategoryCreation()
+      }
+    }
+
+    // Add event listener when any dialog is open
+    if (showAddSubcategoryDialog || showTransferDialog || showEditCategoryDialog || showDragDropDialog) {
+      document.addEventListener('keydown', handleEscapeKey)
+    }
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey)
+    }
+  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, handleCancelCategoryCreation])
+
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
@@ -1501,7 +1608,12 @@ export function ConceptsNavigation({
       {/* Add Subcategory Dialog */}
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
         if (!open) {
-          handleDialogClose('Add Subcategory')
+          // Always allow closing, force reset all states
+          console.log('🔧 Dialog closing via onOpenChange...')
+          setIsCreatingCategory(false)
+          setIsMovingConcepts(false)
+          setIsRenamingCategory(false)
+          resetDialogState()
         }
       }}>
         <DialogContent>
@@ -1559,7 +1671,12 @@ export function ConceptsNavigation({
       {/* Transfer Concepts Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
         if (!open) {
-          handleDialogClose('Transfer Concepts')
+          // Always allow closing, force reset all states
+          console.log('🔧 Transfer Dialog closing via onOpenChange...')
+          setIsCreatingCategory(false)
+          setIsMovingConcepts(false)
+          setIsRenamingCategory(false)
+          resetDialogState()
         }
       }}>
         <DialogContent className="max-w-2xl">
@@ -1865,7 +1982,12 @@ export function ConceptsNavigation({
 
       {/* Edit Category Dialog */}
       <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
-        if (!open && !isRenamingCategory) {
+        if (!open) {
+          // Always allow closing, force reset all states
+          console.log('🔧 Edit Dialog closing via onOpenChange...')
+          setIsCreatingCategory(false)
+          setIsMovingConcepts(false)
+          setIsRenamingCategory(false)
           resetDialogState()
         }
       }}>
@@ -1922,7 +2044,13 @@ export function ConceptsNavigation({
 
       {/* Drag and Drop Confirmation Dialog */}
       <Dialog open={showDragDropDialog} onOpenChange={(open) => {
-        if (!open && !isDraggingCategory) {
+        if (!open) {
+          // Always allow closing, force reset all states
+          console.log('🔧 Drag Drop Dialog closing via onOpenChange...')
+          setIsCreatingCategory(false)
+          setIsMovingConcepts(false)
+          setIsRenamingCategory(false)
+          setIsDraggingCategory(false)
           resetDialogState()
         }
       }}>
