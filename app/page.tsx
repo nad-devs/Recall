@@ -499,21 +499,12 @@ export default function LandingPage() {
                         </p>
                         <div className="flex flex-col sm:flex-row gap-2 items-center justify-center">
                           <p className="text-sm text-gray-600">Already have an account?</p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setShowSignIn(true)}
-                              className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
-                            >
-                              Sign in here
-                            </button>
-                            <span className="text-gray-400">|</span>
-                            <button
-                              onClick={() => router.push('/auth/signin')}
-                              className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
-                            >
-                              Google Sign In
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => router.push('/auth/signin')}
+                            className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
+                          >
+                            Google Sign In
+                          </button>
                         </div>
                       </div>
                   </div>

@@ -60,10 +60,17 @@ export default function SignIn() {
     try {
       console.log(`📡 Calling signIn("${providerId}", { callbackUrl: "/dashboard" })...`)
       
+      // Add some pre-checks
+      if (!providers || !providers[providerId]) {
+        throw new Error(`Provider ${providerId} not available`)
+      }
+      
+      console.log(`🔧 Provider ${providerId} is available, proceeding with sign-in...`)
+      
       // Use the default NextAuth behavior with redirect - simpler and more reliable
       const result = await signIn(providerId, { 
-        callbackUrl: "/dashboard"
-        // Let NextAuth handle the redirect automatically
+        callbackUrl: "/dashboard",
+        redirect: true  // Explicitly set redirect to true
       })
       
       console.log(`📋 Sign-in result for ${providerId}:`, result)
@@ -72,6 +79,11 @@ export default function SignIn() {
       if (result?.error) {
         console.error(`❌ Sign-in error for ${providerId}:`, result.error)
         setError(`Sign-in failed: ${result.error}`)
+        setIsLoading(false)
+        setLoadingProvider(null)
+      } else if (result?.ok === false) {
+        console.error(`❌ Sign-in failed for ${providerId}:`, result)
+        setError(`Sign-in failed. Please try again.`)
         setIsLoading(false)
         setLoadingProvider(null)
       }
@@ -83,9 +95,17 @@ export default function SignIn() {
       setIsLoading(false)
       setLoadingProvider(null)
     }
+    
+    // Add a timeout as a fallback
+    setTimeout(() => {
+      if (isLoading) {
+        console.warn(`⚠️ Sign-in timeout for ${providerId} - resetting states`)
+        setIsLoading(false)
+        setLoadingProvider(null)
+        setError('Sign-in timed out. Please try again.')
+      }
+    }, 15000) // 15 second timeout
   }
-
-
 
   // Check if Google provider is available
   const isGoogleAvailable = providers?.google
