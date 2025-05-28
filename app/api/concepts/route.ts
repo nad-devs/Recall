@@ -40,7 +40,7 @@ interface CategoryKeywords {
 const categorySystem: CategoryKeywords[] = [
   {
     category: "Algorithms",
-    subcategories: ["Sorting Algorithms", "Search Algorithms", "Graph Algorithms", "String Algorithms", "Dynamic Programming"],
+    subcategories: ["Sorting Algorithms", "Search Algorithms", "Graph Algorithms", "String Manipulation", "Dynamic Programming"],
     keywords: ["algorithm", "sort", "search", "path", "traverse", "dynamic programming", "greedy", "backtracking"]
   },
   {
@@ -225,8 +225,9 @@ function determineCategory(concept: any): { category: string, subcategory?: stri
     
     // String problems
     if (conceptText.includes("anagram") || conceptText.includes("palindrome") || 
-        conceptText.includes("substring") || conceptText.includes("string")) {
-      return { category: "Algorithms", subcategory: "String Algorithms" };
+        conceptText.includes("substring") || conceptText.includes("string") ||
+        conceptText.includes("character") || conceptText.includes("frequency")) {
+      return { category: "Algorithms", subcategory: "String Manipulation" };
     }
     
     // Graph problems
@@ -618,6 +619,97 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
   }
 }
 
+// Enhanced LeetCode problem detection and title extraction (shared with extract-concepts)
+function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean, problemName?: string, approach?: string } {
+  const text = conversationText.toLowerCase();
+  
+  // Common LeetCode problem patterns
+  const leetcodePatterns = [
+    { pattern: /contains?\s+duplicate/i, name: "Contains Duplicate" },
+    { pattern: /valid\s+anagram/i, name: "Valid Anagram" },
+    { pattern: /two\s+sum/i, name: "Two Sum" },
+    { pattern: /three\s+sum/i, name: "Three Sum" },
+    { pattern: /reverse\s+linked\s+list/i, name: "Reverse Linked List" },
+    { pattern: /merge\s+(?:two\s+)?sorted\s+(?:arrays?|lists?)/i, name: "Merge Two Sorted Lists" },
+    { pattern: /palindrome\s+(?:string|number|linked\s+list)/i, name: "Valid Palindrome" },
+    { pattern: /maximum\s+subarray/i, name: "Maximum Subarray" },
+    { pattern: /climbing\s+stairs/i, name: "Climbing Stairs" },
+    { pattern: /best\s+time\s+to\s+buy\s+and\s+sell/i, name: "Best Time to Buy and Sell Stock" },
+    // Add more patterns as needed for common problems
+  ];
+  
+  // Check for exact LeetCode problem matches
+  for (const { pattern, name } of leetcodePatterns) {
+    if (pattern.test(text)) {
+      // Try to detect solution approach
+      let approach = "";
+      if (text.includes("hash") && (text.includes("table") || text.includes("map") || text.includes("set"))) {
+        approach = "Hash Table Solution";
+      } else if (text.includes("two pointer") || text.includes("two-pointer")) {
+        approach = "Two Pointers Approach";
+      } else if (text.includes("sliding window")) {
+        approach = "Sliding Window Technique";
+      } else if (text.includes("dynamic programming") || text.includes("dp")) {
+        approach = "Dynamic Programming Solution";
+      }
+      
+      return { 
+        isLeetCode: true, 
+        problemName: name,
+        approach: approach
+      };
+    }
+  }
+  
+  // Check for general problem indicators
+  const problemIndicators = [
+    "leetcode", "algorithm problem", "coding problem", "interview question",
+    "find", "return", "given an array", "given a string", "implement"
+  ];
+  
+  const isLeetCodeStyle = problemIndicators.some(indicator => text.includes(indicator)) &&
+    (text.includes("time complexity") || text.includes("space complexity") || 
+     text.includes("optimal") || text.includes("solution") || text.includes("approach"));
+  
+  return { isLeetCode: isLeetCodeStyle };
+}
+
+// Generate enhanced guidance for the backend based on conversation analysis
+function generateLeetCodeGuidance(conversationText: string) {
+  const detection = detectLeetCodeProblem(conversationText);
+  
+  if (!detection.isLeetCode) {
+    return null;
+  }
+  
+  let guidance = `This conversation is about a LeetCode-style algorithm problem. When generating the concept title:
+
+1. Use the EXACT problem name if it's a known LeetCode problem (e.g., "Contains Duplicate", "Valid Anagram", "Two Sum", etc.)
+2. If discussing a solution approach, format the title as: "[Problem Name]" or "[Problem Name] - [Approach]"
+3. Focus on the core problem being solved, not just the technique being used
+4. Avoid generic titles like "Algorithm" or "Hash Table" - be specific about the problem
+
+`;
+
+  if (detection.problemName) {
+    guidance += `Detected Problem: "${detection.problemName}"
+`;
+    if (detection.approach) {
+      guidance += `Detected Approach: "${detection.approach}"
+Suggested Title Format: "${detection.problemName}" or "${detection.problemName} - ${detection.approach}"
+`;
+    } else {
+      guidance += `Suggested Title: "${detection.problemName}"
+`;
+    }
+  }
+  
+  guidance += `
+Remember: The title should immediately tell someone what specific problem or concept is being discussed, not just the general technique or data structure used.`;
+
+  return guidance;
+}
+
 export async function GET(request: Request) {
   console.log('📋📋📋 MAIN CONCEPTS API ROUTE CALLED 📋📋📋');
   try {
@@ -659,50 +751,9 @@ export async function GET(request: Request) {
       );
     }
     
-    // Fix any inconsistent categories in the returned results
-    // This doesn't update the database but ensures consistent UI display
-    const fixedConcepts = concepts.map(concept => {
-      // Check for LeetCode-style problems first
-      if (concept.title.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
-          (concept.title.toLowerCase().includes("problem") && concept.category !== "LeetCode Problems")) {
-        return {
-          ...concept,
-          category: "LeetCode Problems"
-        };
-      }
-      
-      // Check for inconsistent categories that need fixing
-      if (concept.title.toLowerCase().includes("frequency count") || 
-          concept.title.toLowerCase().includes("two pointer") ||
-          concept.title.toLowerCase().includes("sliding window")) {
-        return {
-          ...concept,
-          category: "Algorithm Technique"
-        };
-      }
-      
-      if (concept.title.toLowerCase().includes("problem") && concept.category !== "LeetCode Problems") {
-        return {
-          ...concept,
-          category: "Algorithms"
-        };
-      }
-      
-      if ((concept.title.toLowerCase().includes("hash table") || 
-           concept.title.toLowerCase().includes("tree") ||
-           concept.title.toLowerCase().includes("graph") ||
-           concept.title.toLowerCase().includes("array")) && 
-          !concept.title.toLowerCase().includes("problem")) {
-        return {
-          ...concept,
-          category: "Data Structures"
-        };
-      }
-      
-      return concept;
-    });
-    
-    return NextResponse.json({ concepts: fixedConcepts });
+    // Return concepts as they are from the database - no override logic
+    // The backend categorization system is intelligent and improves over time
+    return NextResponse.json({ concepts });
   } catch (error) {
     console.error('Error fetching concepts:', error);
     return NextResponse.json(
@@ -838,6 +889,10 @@ export async function POST(request: Request) {
         ? `Based on this conversation:\n\n${context}\n\nPlease provide a detailed explanation of the concept: ${title}.` 
         : `Please provide a detailed explanation of the concept: ${title}.`;
       
+      // Detect LeetCode problems and generate guidance
+      const fullContext = context ? `${context} ${title}` : title;
+      const leetcodeGuidance = generateLeetCodeGuidance(fullContext);
+      
       // Use consistent backend URL logic with fallback
       const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
       const httpUrl = httpsUrl.replace('https://', 'http://');
@@ -852,7 +907,9 @@ export async function POST(request: Request) {
           },
           body: JSON.stringify({ 
             conversation_text: generationPrompt +
-            ` Include summary, key points, code examples if applicable, and any related concepts.` 
+            ` Include summary, key points, code examples if applicable, and any related concepts.`,
+            context: null,
+            category_guidance: leetcodeGuidance
           }),
         });
       } catch (sslError) {
@@ -864,7 +921,9 @@ export async function POST(request: Request) {
           },
           body: JSON.stringify({ 
             conversation_text: generationPrompt +
-            ` Include summary, key points, code examples if applicable, and any related concepts.` 
+            ` Include summary, key points, code examples if applicable, and any related concepts.`,
+            context: null,
+            category_guidance: leetcodeGuidance
           }),
         });
       }

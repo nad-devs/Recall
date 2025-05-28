@@ -1,5 +1,54 @@
 import { NextResponse } from 'next/server';
 
+// Enhanced LeetCode problem detection (shared with other routes)
+function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean, problemName?: string, approach?: string } {
+  const text = conversationText.toLowerCase();
+  
+  // Common LeetCode problem patterns
+  const leetcodePatterns = [
+    { pattern: /contains?\s+duplicate/i, name: "Contains Duplicate" },
+    { pattern: /valid\s+anagram/i, name: "Valid Anagram" },
+    { pattern: /two\s+sum/i, name: "Two Sum" },
+    { pattern: /three\s+sum/i, name: "Three Sum" },
+    { pattern: /reverse\s+linked\s+list/i, name: "Reverse Linked List" },
+    { pattern: /merge\s+(?:two\s+)?sorted\s+(?:arrays?|lists?)/i, name: "Merge Two Sorted Lists" },
+    { pattern: /palindrome\s+(?:string|number|linked\s+list)/i, name: "Valid Palindrome" },
+    // Add more patterns as needed
+  ];
+  
+  // Check for exact LeetCode problem matches
+  for (const { pattern, name } of leetcodePatterns) {
+    if (pattern.test(text)) {
+      return { isLeetCode: true, problemName: name };
+    }
+  }
+  
+  // Check for general problem indicators
+  const problemIndicators = [
+    "leetcode", "algorithm problem", "coding problem", "interview question"
+  ];
+  
+  const isLeetCodeStyle = problemIndicators.some(indicator => text.includes(indicator));
+  return { isLeetCode: isLeetCodeStyle };
+}
+
+// Generate enhanced guidance for the backend
+function generateLeetCodeGuidance(conversationText: string) {
+  const detection = detectLeetCodeProblem(conversationText);
+  
+  if (!detection.isLeetCode) {
+    return null;
+  }
+  
+  let guidance = `This is about a LeetCode-style algorithm problem. When generating the concept title, use the EXACT problem name if known (e.g., "Contains Duplicate", "Valid Anagram", "Two Sum", etc.). Focus on the specific problem, not just the technique used.`;
+
+  if (detection.problemName) {
+    guidance += ` Detected Problem: "${detection.problemName}" - use this as the title.`;
+  }
+  
+  return guidance;
+}
+
 export async function POST(request: Request) {
   try {
     const { conceptName, context } = await request.json();
@@ -16,6 +65,10 @@ export async function POST(request: Request) {
       ? `Based on this conversation context:\n\n${context}\n\nPlease provide a comprehensive technical explanation of the concept: "${conceptName}".`
       : `Please provide a comprehensive technical explanation of the concept: "${conceptName}".`;
 
+    // Detect LeetCode problems and generate guidance
+    const fullContext = context ? `${context} ${conceptName}` : conceptName;
+    const leetcodeGuidance = generateLeetCodeGuidance(fullContext);
+
     // Use the existing Python backend service to generate the concept
     const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
     const httpUrl = httpsUrl.replace('https://', 'http://');
@@ -31,7 +84,9 @@ export async function POST(request: Request) {
         body: JSON.stringify({ 
           conversation_text: generationPrompt + 
             ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
-            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`
+            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`,
+          context: null,
+          category_guidance: leetcodeGuidance
         }),
       });
     } catch (sslError) {
@@ -44,7 +99,9 @@ export async function POST(request: Request) {
         body: JSON.stringify({ 
           conversation_text: generationPrompt + 
             ` Include a detailed summary, key points, implementation details, code examples if applicable, ` +
-            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`
+            `related concepts, and appropriate categorization. Focus specifically on "${conceptName}" as the main concept.`,
+          context: null,
+          category_guidance: leetcodeGuidance
         }),
       });
     }
