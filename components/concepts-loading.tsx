@@ -28,13 +28,13 @@ export function ConceptsLoading({ onComplete }: ConceptsLoadingProps) {
           setTimeout(() => onComplete?.(), 500)
           return 100
         }
-        return prev + 3.33
+        return prev + 5
       })
-    }, 100)
+    }, 80)
 
     const stepTimer = setInterval(() => {
       setCurrentStep((prev) => (prev + 1) % steps.length)
-    }, 500)
+    }, 300)
 
     return () => {
       clearInterval(timer)

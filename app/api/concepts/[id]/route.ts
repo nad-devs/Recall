@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
+import { NextRequest } from 'next/server';
 
 // Add these type definitions at the top of the file, after the imports
 type RelatedConcept = {
@@ -44,9 +46,21 @@ export async function GET(
     const params = await context.params;
     const id = params.id;
 
-    // Fetch the concept with its code snippets
-    const concept = await prisma.concept.findUnique({
-      where: { id },
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Fetch the concept with its code snippets - now with user validation
+    const concept = await prisma.concept.findFirst({
+      where: { 
+        id,
+        userId: user.id  // Ensure user can only access their own concepts
+      },
       include: {
         codeSnippets: true,
         conversation: true,
@@ -417,6 +431,15 @@ export async function PUT(
     const params = await context.params;
     const id = params.id;
     
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     // Get the request body
     const data = await request.json();
     
@@ -426,8 +449,11 @@ export async function PUT(
     // If updating category, remove any placeholder concepts from the target category
     if (data.category) {
       // First check if the concept being updated is not a placeholder itself
-      const conceptBeingUpdated = await prisma.concept.findUnique({
-        where: { id },
+      const conceptBeingUpdated = await prisma.concept.findFirst({
+        where: { 
+          id,
+          userId: user.id  // Ensure user owns the concept
+        },
         select: { isPlaceholder: true }
       });
       
@@ -437,9 +463,12 @@ export async function PUT(
       }
     }
     
-    // Check if the concept exists
-    const existingConcept = await prisma.concept.findUnique({
-      where: { id },
+    // Check if the concept exists and belongs to the user
+    const existingConcept = await prisma.concept.findFirst({
+      where: { 
+        id,
+        userId: user.id  // Ensure user owns the concept
+      },
       select: {
         id: true,
         title: true,
@@ -741,9 +770,21 @@ export async function DELETE(
     const params = await context.params;
     const id = params.id;
     
-    // Check if the concept exists
-    const existingConcept = await prisma.concept.findUnique({
-      where: { id },
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    // Check if the concept exists and belongs to the user
+    const existingConcept = await prisma.concept.findFirst({
+      where: { 
+        id,
+        userId: user.id  // Ensure user owns the concept
+      },
       select: {
         id: true,
         conversationId: true

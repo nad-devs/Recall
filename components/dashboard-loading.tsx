@@ -34,13 +34,13 @@ export function DashboardLoading({ onComplete }: DashboardLoadingProps) {
           setTimeout(() => onComplete?.(), 500)
           return 100
         }
-        return prev + 1.2
+        return prev + 2
       })
-    }, 45)
+    }, 30)
 
     const stepTimer = setInterval(() => {
       setCurrentStep((prev) => (prev + 1) % steps.length)
-    }, 1100)
+    }, 700)
 
     // Simulate data loading steps
     const dataTimer = setInterval(() => {
@@ -53,7 +53,7 @@ export function DashboardLoading({ onComplete }: DashboardLoadingProps) {
         }
         return prev
       })
-    }, 800)
+    }, 500)
 
     return () => {
       clearInterval(timer)

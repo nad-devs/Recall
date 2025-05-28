@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateSession } from '@/lib/session';
+import { NextRequest } from 'next/server';
 
 export async function GET(
   request: Request,
@@ -16,12 +18,22 @@ export async function GET(
       );
     }
 
-    // Try to find a concept with this exact title
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Try to find a concept with this exact title that belongs to the user
     const concept = await prisma.concept.findFirst({
       where: {
         title: {
           equals: title
-        }
+        },
+        userId: user.id  // Ensure user can only find their own concepts
       },
       select: {
         id: true,

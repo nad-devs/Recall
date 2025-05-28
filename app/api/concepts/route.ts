@@ -574,8 +574,11 @@ async function establishConceptRelationships(
 }
 
 // Find similar concepts
-async function findSimilarConcepts(title: string, similarityThreshold: number = 0.7) {
+async function findSimilarConcepts(title: string, userId: string, similarityThreshold: number = 0.7) {
   const allConcepts = await prisma.concept.findMany({
+    where: {
+      userId: userId  // Filter by user
+    },
     select: {
       id: true,
       title: true,
@@ -711,6 +714,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Validate user session
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const data = await request.json();
     
     // Extract the title from request, use "Untitled Concept" as fallback
@@ -729,7 +741,7 @@ export async function POST(request: Request) {
     
     // Check for similar concepts (skip for placeholder concepts)
     if (!isPlaceholder) {
-      const similarConcepts = await findSimilarConcepts(title);
+      const similarConcepts = await findSimilarConcepts(title, user.id);
       
       // If we found similar concepts, return the most similar one instead of creating a new one
       if (similarConcepts.length > 0) {
@@ -785,6 +797,7 @@ export async function POST(request: Request) {
           ? `${context}\n\nPlease explain the concept of ${title} in detail.`
           : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
         summary: `Conversation for ${title} concept`,
+        userId: user.id  // Add user relationship
       }
     });
 
@@ -809,11 +822,8 @@ export async function POST(request: Request) {
         confidenceScore: isPlaceholder ? 0.1 : 0.5, // Lower confidence for placeholders
         isPlaceholder: isPlaceholder,
         lastUpdated: new Date(),
-        conversation: {
-          connect: {
-            id: dummyConversation.id
-          }
-        }
+        userId: user.id,  // Add user relationship
+        conversationId: dummyConversation.id  // Use conversationId instead of relation
       }
     });
 
