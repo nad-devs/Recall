@@ -138,7 +138,10 @@ export function ConceptConnectionDialog({
       const response = await fetch('/api/concepts', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ 
+          title,
+          isManualCreation: true // Mark as manual creation so it gets lower confidence score
+        }),
       })
 
       if (!response.ok) {

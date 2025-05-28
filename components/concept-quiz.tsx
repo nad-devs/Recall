@@ -19,16 +19,52 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [score, setScore] = useState(0)
 
-  const currentQuestion = questions[currentIndex]
-  const isLastQuestion = currentIndex === questions.length - 1
+  // Validate questions before rendering
+  const validQuestions = questions.filter(q => 
+    q.question && 
+    q.answer && 
+    q.options && 
+    Array.isArray(q.options) && 
+    q.options.length > 0 &&
+    q.options.includes(q.answer)
+  )
+
+  if (validQuestions.length === 0) {
+    return (
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center">
+            <BookOpen className="mr-2 h-5 w-5 text-primary" />
+            Quiz: {concept.title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            Unable to generate valid quiz questions for this concept. Please try again later.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const currentQuestion = validQuestions[currentIndex]
+  const isLastQuestion = currentIndex === validQuestions.length - 1
 
   const handleAnswerSelect = (answer: string) => {
+    if (selectedAnswer !== null) return // Prevent multiple selections
+    
     setSelectedAnswer(answer)
     const correct = answer === currentQuestion.answer
     setIsCorrect(correct)
+    
     if (correct) {
       setScore(score + 1)
     }
+    
+    console.log(`🔧 Quiz - Question: "${currentQuestion.question}"`)
+    console.log(`🔧 Quiz - Selected: "${answer}"`)
+    console.log(`🔧 Quiz - Correct Answer: "${currentQuestion.answer}"`)
+    console.log(`🔧 Quiz - Is Correct: ${correct}`)
   }
 
   const handleNext = () => {
@@ -50,7 +86,7 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
             Quiz: {concept.title}
           </CardTitle>
           <Badge variant="outline">
-            Question {currentIndex + 1} of {questions.length}
+            Question {currentIndex + 1} of {validQuestions.length}
           </Badge>
         </div>
         <CardDescription>Test your knowledge of this concept</CardDescription>

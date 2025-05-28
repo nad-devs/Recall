@@ -370,27 +370,47 @@ export function ConceptsNavigation({
   const handleCancelCategoryCreation = useCallback(() => {
     console.log('🔧 Canceling category creation...')
     
-    // Force reset all states even if operations are in progress
+    // Immediately reset all dialog states
+    setShowAddSubcategoryDialog(false)
+    setShowTransferDialog(false)
+    setShowEditCategoryDialog(false)
+    setShowDragDropDialog(false)
+    
+    // Reset all form states
+    setNewSubcategoryName("")
+    setSelectedParentCategory("")
+    setNewCategoryName("")
+    setEditingCategoryPath("")
+    
+    // Force reset all operation states
     setIsCreatingCategory(false)
     setIsMovingConcepts(false)
     setIsRenamingCategory(false)
+    setIsDraggingCategory(false)
     
-    // Force clear any pending timeouts by setting a small timeout to ensure state change
+    // Clear any transfer-related states
+    setTransferConcepts([])
+    setSelectedConceptsForTransfer(new Set())
+    setDragDropData(null)
+    
+    // Force a state update with a timeout to ensure everything is cleared
     setTimeout(() => {
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
-    }, 100)
-    
-    // Then reset dialog state
-    resetDialogState()
+      setIsDraggingCategory(false)
+      setShowAddSubcategoryDialog(false)
+      setShowTransferDialog(false)
+      setShowEditCategoryDialog(false)
+      setShowDragDropDialog(false)
+    }, 50)
     
     toast({
       title: "Cancelled",
-      description: "Operation has been cancelled and all states have been reset.",
+      description: "Category creation has been cancelled.",
       duration: 2000,
     })
-  }, [resetDialogState, toast])
+  }, [toast])
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {

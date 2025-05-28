@@ -1036,7 +1036,7 @@ export async function POST(request: Request) {
         examples: data.examples || "",
         relatedConcepts: JSON.stringify([]),
         relationships: "",
-        confidenceScore: isPlaceholder ? 0.1 : 0.5,
+        confidenceScore: isPlaceholder ? 0.1 : (isManualCreation ? 0.4 : 0.5), // Lower score for manual creations to ensure they need review
         isPlaceholder: isPlaceholder,
         lastUpdated: new Date(),
         userId: user.id,

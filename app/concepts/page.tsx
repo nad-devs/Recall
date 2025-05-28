@@ -283,7 +283,10 @@ export default function ConceptsPage() {
       const response = await fetch('/api/concepts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ 
+          title,
+          isManualCreation: true // Mark as manual creation so it gets lower confidence score
+        }),
       })
 
       console.log('🔧 Response status:', response.status)

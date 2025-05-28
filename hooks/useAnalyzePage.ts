@@ -507,6 +507,44 @@ export function useAnalyzePage() {
           return
         }
         
+        // Check for authentication errors
+        if (response.status === 401) {
+          console.log("🚫 Authentication failed during analysis")
+          
+          // Check if user has OAuth session but localStorage might not be ready
+          const userEmail = localStorage.getItem('userEmail')
+          const userId = localStorage.getItem('userId')
+          
+          if (userEmail && userId) {
+            // User has auth data, this might be a temporary server-side issue
+            toast({
+              title: "Authentication Issue",
+              description: "There was a temporary authentication issue. Please try again in a moment.",
+              variant: "destructive",
+              duration: 5000,
+            })
+          } else {
+            // No auth data, user needs to sign in
+            toast({
+              title: "Authentication Required",
+              description: "Please sign in to analyze conversations. Redirecting to sign in page...",
+              variant: "destructive",
+              duration: 5000,
+            })
+            
+            // Only redirect if there's truly no auth data
+            setTimeout(() => {
+              window.location.href = '/'
+            }, 3000)
+          }
+          
+          setIsAnalyzing(false)
+          setShowAnimation(false)
+          setDiscoveredConcepts([])
+          setAnalysisStage("Initializing...")
+          return
+        }
+        
         const errorMessage = data.error || 'Something went wrong during analysis'
         toast({
           title: "Analysis failed",
@@ -548,12 +586,13 @@ export function useAnalyzePage() {
       }
 
       console.log("Analysis completed successfully")
+      // Keep the loading screen visible for longer to show completion
       setTimeout(() => {
         setShowAnimation(false)
         setIsAnalyzing(false)
         setDiscoveredConcepts([])
         setAnalysisStage("Initializing...")
-      }, 1000)
+      }, 2500) // Increased from 1000ms to 2500ms for better UX
     } catch (error) {
       console.error('Error during analysis:', error)
       toast({
@@ -812,7 +851,10 @@ export function useAnalyzePage() {
         keyPoints: generatedConcept.keyPoints || [`Key concepts related to ${title}`],
         examples: generatedConcept.examples || [],
         codeSnippets: generatedConcept.codeSnippets || [],
-        relatedConcepts: generatedConcept.relatedConcepts || []
+        relatedConcepts: generatedConcept.relatedConcepts || [],
+        // Add needsReview field for concepts created via Connect feature
+        needsReview: true,
+        confidenceScore: 0.5 // Low confidence score to indicate it needs review
       }
       
       // If we have an original concept, create bidirectional relationship
@@ -995,7 +1037,10 @@ export function useAnalyzePage() {
         relatedConcepts: data.concept.relatedConcepts ? 
           (typeof data.concept.relatedConcepts === 'string' ? 
             JSON.parse(data.concept.relatedConcepts) : 
-            data.concept.relatedConcepts) : []
+            data.concept.relatedConcepts) : [],
+        // Add needsReview field for concepts created via Connect feature
+        needsReview: true,
+        confidenceScore: 0.5 // Low confidence score to indicate it needs review
       }
       
       // Add to current analysis
