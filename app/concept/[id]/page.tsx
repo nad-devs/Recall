@@ -468,28 +468,45 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* Personal Notes */}
                     {concept.personalNotes && (() => {
-                      try {
-                        const notes = JSON.parse(concept.personalNotes);
-                        if (Array.isArray(notes) && notes.length > 0) {
-                          return (
-                            <div>
-                              <div className="flex items-center mb-3">
-                                <StickyNote className="mr-2 h-4 w-4 text-green-600" />
-                                <h4 className="text-sm font-semibold">Additional Notes</h4>
-                              </div>
-                              <ul className="space-y-2">
-                                {notes.map((note, index) => (
-                                  <li key={index} className="flex items-start text-sm">
-                                    <span className="text-green-600 mr-2 mt-1">•</span>
-                                    <span className="break-words">{note}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
+                      // Handle both string and JSON array formats
+                      let notesToDisplay = [];
+                      
+                      if (typeof concept.personalNotes === 'string') {
+                        try {
+                          // Try to parse as JSON first
+                          const parsed = JSON.parse(concept.personalNotes);
+                          if (Array.isArray(parsed)) {
+                            notesToDisplay = parsed;
+                          } else {
+                            // If it's not an array, treat the whole string as a single note
+                            notesToDisplay = [concept.personalNotes];
+                          }
+                        } catch (e) {
+                          // If JSON parsing fails, treat as plain string
+                          notesToDisplay = [concept.personalNotes];
                         }
-                      } catch (e) {
-                        return null;
+                      }
+                      
+                      if (notesToDisplay.length > 0 && notesToDisplay.some(note => note && note.trim())) {
+                        return (
+                          <div>
+                            <div className="flex items-center mb-3">
+                              <StickyNote className="mr-2 h-4 w-4 text-green-600" />
+                              <h4 className="text-sm font-semibold">Additional Notes</h4>
+                            </div>
+                            <div className="space-y-2">
+                              {notesToDisplay.map((note, index) => {
+                                if (!note || !note.trim()) return null;
+                                return (
+                                  <div key={index} className="flex items-start text-sm">
+                                    <span className="text-green-600 mr-2 mt-1">•</span>
+                                    <div className="break-words whitespace-pre-wrap">{note.trim()}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
                       }
                       return null;
                     })()}

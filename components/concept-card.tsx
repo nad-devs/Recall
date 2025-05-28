@@ -1091,8 +1091,8 @@ export function ConceptCard({
         </CardHeader>
         <CardContent className="pb-3 space-y-3 flex-1">
           <div className="flex items-center text-sm text-muted-foreground">
-            <MessageSquare className="mr-1 h-3 w-3" />
-            Discussed in {discussedInConversations?.length || 0} conversation{discussedInConversations?.length !== 1 ? "s" : ""}
+            <ExternalLink className="mr-1 h-3 w-3" />
+            Related concepts: {parsedRelatedConcepts?.length || 0}
           </div>
           
           {/* Show enhancements if they exist */}
@@ -1331,12 +1331,6 @@ export function ConceptCard({
               </Button>
             </div>
           )}
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/concept/${id}`}>
-              View concept
-              <ArrowRight className="ml-1 h-3 w-3" />
-            </Link>
-          </Button>
         </CardFooter>
       </Card>
       

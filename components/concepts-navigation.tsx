@@ -133,10 +133,20 @@ const buildCategoryHierarchy = (conceptsByCategory: Record<string, Concept[]>) =
     })
   })
 
-  // Calculate concept counts - only direct concepts, not subcategories
-  const calculateDirectCounts = (node: CategoryNode): void => {
-    node.conceptCount = node.concepts.length
-    Object.values(node.subcategories).forEach(calculateDirectCounts)
+  // Calculate concept counts - include both direct concepts and subcategory concepts
+  const calculateDirectCounts = (node: CategoryNode): number => {
+    // Count direct concepts
+    let totalCount = node.concepts.length
+    
+    // Add counts from all subcategories
+    Object.values(node.subcategories).forEach(subNode => {
+      totalCount += calculateDirectCounts(subNode)
+    })
+    
+    // Set the total count for this node
+    node.conceptCount = totalCount
+    
+    return totalCount
   }
 
   Object.values(root.subcategories).forEach(calculateDirectCounts)
