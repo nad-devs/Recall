@@ -7,6 +7,7 @@ import { SimpleConceptEnhancer } from '@/components/simple-concept-enhancer'
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { getAuthHeaders } from '@/lib/auth-utils'
 
 interface ConceptEnhancePageProps {
   params: Promise<{ id: string }>
@@ -22,7 +23,9 @@ export default function ConceptEnhancePage({ params }: ConceptEnhancePageProps) 
   useEffect(() => {
     const fetchConcept = async () => {
       try {
-        const response = await fetch(`/api/concepts/${id}`)
+        const response = await fetch(`/api/concepts/${id}`, {
+          headers: getAuthHeaders()
+        })
         if (!response.ok) {
           throw new Error('Failed to fetch concept')
         }

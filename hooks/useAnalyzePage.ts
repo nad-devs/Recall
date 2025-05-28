@@ -232,6 +232,12 @@ export function useAnalyzePage() {
   const handleSaveConversationDecision = async () => {
     setShowConversationSaveDialog(false)
     await performSaveConversation()
+    
+    // Auto-refresh concepts after saving
+    setTimeout(() => {
+      console.log('🔄 Auto-refreshing concepts after save...')
+      window.dispatchEvent(new CustomEvent('refreshConcepts'))
+    }, 1000)
   }
 
   // Handle skip saving decision
@@ -244,8 +250,14 @@ export function useAnalyzePage() {
       duration: 4000,
     })
 
-    // Redirect to concepts page instead of saving conversation
-    window.location.href = '/concepts'
+    // Auto-refresh concepts before redirecting
+    console.log('🔄 Auto-refreshing concepts before redirect...')
+    window.dispatchEvent(new CustomEvent('refreshConcepts'))
+    
+    // Redirect to concepts page after a short delay to allow refresh
+    setTimeout(() => {
+      window.location.href = '/concepts'
+    }, 500)
   }
 
   // Use auto-analysis hook
@@ -754,6 +766,12 @@ export function useAnalyzePage() {
         })
       }
       
+      // Auto-refresh concepts after creation
+      setTimeout(() => {
+        console.log('🔄 Auto-refreshing concepts after concept creation...')
+        window.dispatchEvent(new CustomEvent('refreshConcepts'))
+      }, 500)
+      
       return newConcept
     } catch (error) {
       console.error('Error adding concept to analysis:', error)
@@ -903,6 +921,12 @@ export function useAnalyzePage() {
         description: `"${newConcept.title}" has been created and added to your knowledge base`,
         duration: 4000,
       })
+      
+      // Auto-refresh concepts after creation
+      setTimeout(() => {
+        console.log('🔄 Auto-refreshing concepts after concept creation...')
+        window.dispatchEvent(new CustomEvent('refreshConcepts'))
+      }, 500)
       
       return newConcept
     } catch (error) {

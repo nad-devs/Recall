@@ -220,6 +220,56 @@ function determineCategory(concept: any): { category: string, subcategory?: stri
     // First check if it's a LeetCode-style problem
     if (conceptText.includes("leetcode") || 
         title.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i)) {
+      
+      // Determine LeetCode subcategory based on problem type
+      if (title.match(/(valid anagram|anagram)/i) || 
+          title.match(/(contains duplicate|duplicate)/i) ||
+          title.match(/(two sum|pair sum)/i) ||
+          title.match(/(three sum)/i) ||
+          conceptText.includes("hash table") || 
+          conceptText.includes("hash map") ||
+          conceptText.includes("array") ||
+          conceptText.includes("frequency")) {
+        return { category: "LeetCode Problems", subcategory: "Arrays and Hashing" };
+      }
+      
+      if (title.match(/(palindrome|string)/i) ||
+          conceptText.includes("string") ||
+          conceptText.includes("character")) {
+        return { category: "LeetCode Problems", subcategory: "Strings" };
+      }
+      
+      if (title.match(/(reverse linked|linked list)/i) ||
+          conceptText.includes("linked list") ||
+          conceptText.includes("node")) {
+        return { category: "LeetCode Problems", subcategory: "Linked Lists" };
+      }
+      
+      if (title.match(/(merge sorted|sort)/i) ||
+          conceptText.includes("sort") ||
+          conceptText.includes("order")) {
+        return { category: "LeetCode Problems", subcategory: "Sorting" };
+      }
+      
+      if (conceptText.includes("tree") ||
+          conceptText.includes("binary tree") ||
+          conceptText.includes("bst")) {
+        return { category: "LeetCode Problems", subcategory: "Trees" };
+      }
+      
+      if (conceptText.includes("graph") ||
+          conceptText.includes("dfs") ||
+          conceptText.includes("bfs")) {
+        return { category: "LeetCode Problems", subcategory: "Graphs" };
+      }
+      
+      if (conceptText.includes("dynamic programming") ||
+          conceptText.includes("dp") ||
+          conceptText.includes("memoization")) {
+        return { category: "LeetCode Problems", subcategory: "Dynamic Programming" };
+      }
+      
+      // Default LeetCode category if no specific subcategory matches
       return { category: "LeetCode Problems" };
     }
     
@@ -859,11 +909,18 @@ export async function POST(request: Request) {
       keyPoints: []
     });
 
+    // Format the initial category with subcategory if available
+    const formattedInitialCategory = typeof initialCategory === 'string' 
+      ? initialCategory 
+      : initialCategory.subcategory 
+        ? `${initialCategory.category} > ${initialCategory.subcategory}`
+        : initialCategory.category;
+
     // Create a basic placeholder concept first
     const concept = await prisma.concept.create({
       data: {
         title,
-        category: typeof initialCategory === 'string' ? initialCategory : initialCategory.category,
+        category: formattedInitialCategory,
         summary: data.summary || "",
         details: data.details || "",
         keyPoints: JSON.stringify(data.keyPoints || []),

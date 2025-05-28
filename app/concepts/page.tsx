@@ -148,55 +148,31 @@ export default function ConceptsPage() {
   // Create filtered sorted categories list
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
 
-  // Fetch concepts data
-  useEffect(() => {
-    fetchConcepts()
-  }, [])
-
-  // Fetch concepts function - extracted so it can be reused for refreshing
-  const fetchConcepts = async () => {
-    try {
-      setLoading(true)
-      
-      const headers = getAuthHeaders()
-      
-      console.log('Concepts page: Using headers:', headers)
-      
-      const response = await fetch('/api/concepts', { headers })
-      if (!response.ok) {
-        throw new Error('Failed to fetch concepts')
-      }
-      const data = await response.json()
-      
-      console.log('Concepts page: Fetched concepts raw response:', data)
-      
-      // Check if we have concepts data in the response
-      if (data.concepts && Array.isArray(data.concepts)) {
-        formatAndOrganizeConcepts(data.concepts)
-      } else if (data.error) {
-        // Handle error case
-        setError(data.error || 'Failed to load concepts')
-        console.error('Error in concepts response:', data.error)
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-      } else {
-        // Fallback for unexpected response format
-        setError('Invalid response format')
-        console.error('Unexpected concepts response format:', data)
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-      }
-    } catch (error) {
-      setError('Failed to load concepts')
-      console.error('Error fetching concepts:', error)
-      formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Refresh data function to be used after mutations
   const refreshData = async () => {
     await fetchConcepts()
   }
+
+  // Auto-refresh event listener
+  useEffect(() => {
+    const handleRefreshConcepts = () => {
+      console.log('🔄 Received refresh concepts event, refreshing data...')
+      refreshData()
+    }
+
+    // Listen for custom refresh events from other pages
+    window.addEventListener('refreshConcepts', handleRefreshConcepts)
+    
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('refreshConcepts', handleRefreshConcepts)
+    }
+  }, [refreshData])
+
+  // Initial data fetch
+  useEffect(() => {
+    refreshData()
+  }, [])
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
@@ -253,6 +229,46 @@ export default function ConceptsPage() {
 
     setConceptsByCategory(byCategory)
     setSortedCategories(Object.keys(byCategory).sort())
+  }
+
+  // Fetch concepts function - extracted so it can be reused for refreshing
+  const fetchConcepts = async () => {
+    try {
+      setLoading(true)
+      
+      const headers = getAuthHeaders()
+      
+      console.log('Concepts page: Using headers:', headers)
+      
+      const response = await fetch('/api/concepts', { headers })
+      if (!response.ok) {
+        throw new Error('Failed to fetch concepts')
+      }
+      const data = await response.json()
+      
+      console.log('Concepts page: Fetched concepts raw response:', data)
+      
+      // Check if we have concepts data in the response
+      if (data.concepts && Array.isArray(data.concepts)) {
+        formatAndOrganizeConcepts(data.concepts)
+      } else if (data.error) {
+        // Handle error case
+        setError(data.error || 'Failed to load concepts')
+        console.error('Error in concepts response:', data.error)
+        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      } else {
+        // Fallback for unexpected response format
+        setError('Invalid response format')
+        console.error('Unexpected concepts response format:', data)
+        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      }
+    } catch (error) {
+      setError('Failed to load concepts')
+      console.error('Error fetching concepts:', error)
+      formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Handle creating a new concept
@@ -640,17 +656,17 @@ export default function ConceptsPage() {
 
                 {/* Show selected filters */}
                 {(selectedCategory || showNeedsReview) && (
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-sm text-muted-foreground">Filtered by:</span>
-                    <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-muted/30 rounded-lg border">
+                    <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+                    <div className="flex flex-wrap gap-2">
                       {selectedCategory && (
-                        <div className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">
-                          <Tag className="h-3 w-3" />
-                          {selectedCategory}
+                        <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium border border-primary/20">
+                          <Tag className="h-4 w-4" />
+                          <span>{selectedCategory}</span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-4 w-4 p-0 ml-1 hover:bg-primary/20"
+                            className="h-5 w-5 p-0 ml-1 hover:bg-primary/20 rounded-full"
                             onClick={() => setSelectedCategory(null)}
                           >
                             <X className="h-3 w-3" />
@@ -658,13 +674,13 @@ export default function ConceptsPage() {
                         </div>
                       )}
                       {showNeedsReview && (
-                        <div className="flex items-center gap-1 bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-sm">
-                          <AlertTriangle className="h-3 w-3" />
-                          Needs Review
+                        <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300 px-3 py-2 rounded-lg text-sm font-medium border border-orange-200 dark:border-orange-800">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>Needs Review</span>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-4 w-4 p-0 ml-1 hover:bg-orange-200"
+                            className="h-5 w-5 p-0 ml-1 hover:bg-orange-200 dark:hover:bg-orange-800 rounded-full"
                             onClick={() => setShowNeedsReview(false)}
                           >
                             <X className="h-3 w-3" />
@@ -672,11 +688,14 @@ export default function ConceptsPage() {
                         </div>
                       )}
                     </div>
+                    <div className="text-xs text-muted-foreground ml-auto">
+                      {filteredConcepts.length} concept{filteredConcepts.length !== 1 ? 's' : ''} shown
+                    </div>
                   </div>
                 )}
 
                 <Tabs defaultValue="byCategory" className="w-full flex-1 flex flex-col min-h-0">
-                  <TabsList>
+                  <TabsList className="mb-6">
                     <TabsTrigger value="byCategory" className="flex items-center">
                       <Tag className="mr-2 h-4 w-4" />
                       By Category
@@ -688,24 +707,24 @@ export default function ConceptsPage() {
                   </TabsList>
 
                   {searchQuery && (
-                    <div className="mt-4 text-sm">
-                      <p>
+                    <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
                         {filteredConcepts.length === 0 
                           ? "No results found" 
                           : filteredConcepts.length === 1 
                             ? "1 concept found" 
                             : `${filteredConcepts.length} concepts found`} 
-                        for "{searchQuery}"
-                        {selectedCategory && ` in ${selectedCategory}`}
-                        {showNeedsReview && ` needing review`}
+                        for <span className="font-medium">"{searchQuery}"</span>
+                        {selectedCategory && <span> in <span className="font-medium">{selectedCategory}</span></span>}
+                        {showNeedsReview && <span> needing review</span>}
                       </p>
                     </div>
                   )}
 
-                  <TabsContent value="byCategory" className="flex-1 overflow-y-auto mt-6">
-                    <div className="space-y-6 pb-6">
+                  <TabsContent value="byCategory" className="flex-1 overflow-y-auto">
+                    <div className="space-y-8 pb-8">
                       {loading ? (
-                        <div className="flex items-center justify-center py-12">
+                        <div className="flex items-center justify-center py-16">
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             width="24"
@@ -722,42 +741,58 @@ export default function ConceptsPage() {
                           </svg>
                         </div>
                       ) : error ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-                          <div className="bg-red-50 dark:bg-red-950/20 rounded-full p-4">
-                            <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6">
+                          <div className="bg-red-50 dark:bg-red-950/20 rounded-full p-6">
+                            <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-400" />
                           </div>
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                          <div className="space-y-3 max-w-md">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                               Unable to load concepts
                             </h3>
-                            <p className="text-muted-foreground max-w-md">
+                            <p className="text-muted-foreground">
                               {error === 'Failed to fetch concepts' 
                                 ? "It looks like you haven't analyzed any conversations yet. Start by analyzing a conversation to create your first concepts!"
                                 : error
                               }
                             </p>
                           </div>
-                          <div className="flex gap-3">
-                            <Button asChild>
+                          <div className="flex gap-4">
+                            <Button asChild size="lg">
                               <Link href="/analyze">
                                 <Plus className="h-4 w-4 mr-2" />
                                 Analyze a Conversation
                               </Link>
                             </Button>
-                            <Button variant="outline" onClick={refreshData}>
+                            <Button variant="outline" onClick={refreshData} size="lg">
                               Try Again
                             </Button>
                           </div>
                         </div>
                       ) : filteredSortedCategories.length > 0 ? (
                         filteredSortedCategories.map((category) => (
-                          <div key={category} className="space-y-4">
-                            <h2 className="text-xl font-semibold flex items-center">
-                              <Tag className="mr-2 h-5 w-5 text-primary" />
-                              {category}
+                          <div key={category} className="space-y-6">
+                            <h2 className="text-2xl font-semibold flex items-center pb-2 border-b border-border">
+                              <Tag className="mr-3 h-6 w-6 text-primary" />
+                              {/* Parse and display hierarchical categories */}
+                              {category.includes(' > ') ? (
+                                <span className="flex items-center">
+                                  {category.split(' > ').map((part, index, array) => (
+                                    <span key={index} className="flex items-center">
+                                      <span className={index === 0 ? 'font-semibold text-foreground' : 'font-normal text-muted-foreground'}>
+                                        {part}
+                                      </span>
+                                      {index < array.length - 1 && (
+                                        <span className="mx-3 text-muted-foreground text-lg">›</span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                category
+                              )}
                             </h2>
                             <CategoryDropZone category={category} onDrop={handleConceptDrop}>
-                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                                 {filteredConceptsByCategory[category].map((concept) => (
                                   <div key={concept.id} className="h-full">
                                     <ConceptCard 
@@ -777,42 +812,50 @@ export default function ConceptsPage() {
                           </div>
                         ))
                       ) : searchQuery && concepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                          <div className="md:col-span-2 xl:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
-                            No concepts found matching "{searchQuery}"{selectedCategory && ` in ${selectedCategory}`}. Try a different search term.
+                        <div className="flex items-center justify-center py-16 text-center">
+                          <div className="space-y-4 max-w-md">
+                            <div className="bg-gray-50 dark:bg-gray-950/20 rounded-full p-6 mx-auto w-fit">
+                              <Search className="h-8 w-8 text-gray-400" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold">No matching concepts</h3>
+                              <p className="text-muted-foreground">
+                                No concepts found matching <span className="font-medium">"{searchQuery}"</span>
+                                {selectedCategory && <span> in <span className="font-medium">{selectedCategory}</span></span>}. 
+                                Try a different search term.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                          <div className="md:col-span-2 xl:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
-                            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
-                              <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                No concepts yet
-                              </h3>
-                              <p className="text-muted-foreground max-w-md">
-                                Start by analyzing a conversation to extract concepts automatically. 
-                                Your learning journey begins with your first analysis!
-                              </p>
-                            </div>
-                            <Button asChild className="mt-4">
-                              <Link href="/analyze">
-                                <Plus className="h-4 w-4 mr-2" />
-                                Analyze Your First Conversation
-                              </Link>
-                            </Button>
+                        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6">
+                          <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-6">
+                            <BookOpen className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                           </div>
+                          <div className="space-y-3 max-w-md">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                              No concepts yet
+                            </h3>
+                            <p className="text-muted-foreground">
+                              Start by analyzing a conversation to extract concepts automatically. 
+                              Your learning journey begins with your first analysis!
+                            </p>
+                          </div>
+                          <Button asChild className="mt-4" size="lg">
+                            <Link href="/analyze">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Analyze Your First Conversation
+                            </Link>
+                          </Button>
                         </div>
                       )}
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="alphabetical" className="flex-1 overflow-y-auto mt-6">
-                    <div className="pb-6">
+                  <TabsContent value="alphabetical" className="flex-1 overflow-y-auto">
+                    <div className="pb-8">
                       {loading ? (
-                        <div className="flex items-center justify-center py-12">
+                        <div className="flex items-center justify-center py-16">
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             width="24"
@@ -829,11 +872,11 @@ export default function ConceptsPage() {
                           </svg>
                         </div>
                       ) : error ? (
-                        <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-md text-sm">
+                        <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm">
                           {error}
                         </div>
                       ) : filteredConcepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                           {filteredConcepts
                             .sort((a, b) => a.title.localeCompare(b.title))
                             .map((concept) => (
@@ -853,33 +896,41 @@ export default function ConceptsPage() {
                             ))}
                         </div>
                       ) : searchQuery && concepts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                          <div className="md:col-span-2 xl:col-span-3 flex items-center justify-center py-8 text-muted-foreground">
-                            No concepts found matching "{searchQuery}"{selectedCategory && ` in ${selectedCategory}`}. Try a different search term.
+                        <div className="flex items-center justify-center py-16 text-center">
+                          <div className="space-y-4 max-w-md">
+                            <div className="bg-gray-50 dark:bg-gray-950/20 rounded-full p-6 mx-auto w-fit">
+                              <Search className="h-8 w-8 text-gray-400" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-semibold">No matching concepts</h3>
+                              <p className="text-muted-foreground">
+                                No concepts found matching <span className="font-medium">"{searchQuery}"</span>
+                                {selectedCategory && <span> in <span className="font-medium">{selectedCategory}</span></span>}. 
+                                Try a different search term.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                          <div className="md:col-span-2 xl:col-span-3 flex flex-col items-center justify-center py-12 text-center space-y-4">
-                            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-4">
-                              <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                No concepts yet
-                              </h3>
-                              <p className="text-muted-foreground max-w-md">
-                                Start by analyzing a conversation to extract concepts automatically. 
-                                Your learning journey begins with your first analysis!
-                              </p>
-                            </div>
-                            <Button asChild className="mt-4">
-                              <Link href="/analyze">
-                                <Plus className="h-4 w-4 mr-2" />
-                                Analyze Your First Conversation
-                              </Link>
-                            </Button>
+                        <div className="flex flex-col items-center justify-center py-16 text-center space-y-6">
+                          <div className="bg-blue-50 dark:bg-blue-950/20 rounded-full p-6">
+                            <BookOpen className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                           </div>
+                          <div className="space-y-3 max-w-md">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                              No concepts yet
+                            </h3>
+                            <p className="text-muted-foreground">
+                              Start by analyzing a conversation to extract concepts automatically. 
+                              Your learning journey begins with your first analysis!
+                            </p>
+                          </div>
+                          <Button asChild className="mt-4" size="lg">
+                            <Link href="/analyze">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Analyze Your First Conversation
+                            </Link>
+                          </Button>
                         </div>
                       )}
                     </div>
