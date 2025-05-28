@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
+import { validateSession } from '@/lib/session';
 
 // Using the most straightforward Next.js API route pattern
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -13,11 +14,20 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
+    
+    // Validate session - but make it optional
+    const user = await validateSession(request);
+    if (!user) {
+      // Return a not found response for unauthenticated users instead of 401
+      console.log('No authenticated user - returning not found for conversation');
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
 
     // Fetch the conversation with its concepts and code snippets
     const conversation = await prisma.conversation.findUnique({
       where: {
         id: id,
+        userId: user.id // Ensure the user can only access their own conversations
       },
       include: {
         concepts: {
@@ -135,7 +145,7 @@ function tryParseJson(jsonString: any) {
 
 // Add DELETE method to remove a conversation and its associated concepts
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -144,10 +154,19 @@ export async function DELETE(
     if (!id) {
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
+    
+    // Validate session - require authentication for DELETE
+    const user = await validateSession(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Check if the conversation exists
+    // Check if the conversation exists and belongs to the user
     const conversation = await prisma.conversation.findUnique({
-      where: { id },
+      where: { 
+        id,
+        userId: user.id // Ensure the user can only delete their own conversations
+      },
       include: {
         concepts: true,
         occurrences: true

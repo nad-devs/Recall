@@ -64,13 +64,23 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       try {
         setIsLoading(true);
         const response = await fetch(`/api/conversations/${conversationId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch conversation');
+        
+        if (response.status === 401) {
+          // Authentication error
+          setError('You need to be logged in to view this conversation');
+        } else if (response.status === 404) {
+          // Not found error
+          setError('Conversation not found or you do not have access to it');
+        } else if (!response.ok) {
+          // Generic error
+          setError('Failed to fetch conversation');
+        } else {
+          // Success
+          const data = await response.json();
+          setConversation(data);
         }
-        const data = await response.json();
-        setConversation(data);
       } catch (error) {
-        setError('Failed to load conversation');
+        setError('An error occurred while loading the conversation');
         console.error('Error fetching conversation:', error);
       } finally {
         setIsLoading(false);

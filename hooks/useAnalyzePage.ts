@@ -92,6 +92,13 @@ export function useAnalyzePage() {
   // Function to check for existing concepts
   const checkForExistingConcepts = async (concepts: Concept[]): Promise<ConceptMatch[]> => {
     try {
+      console.log('🔍 checkForExistingConcepts - Starting check')
+      console.log(`🔍 Number of concepts to check: ${concepts.length}`)
+      
+      // Log auth headers (without revealing sensitive info)
+      const headers = getAuthHeaders()
+      console.log('🔍 Using auth headers:', Object.keys(headers).join(', '))
+      
       const response = await makeAuthenticatedRequest('/api/concepts/check-existing', {
         method: 'POST',
         body: JSON.stringify({ 
@@ -101,22 +108,32 @@ export function useAnalyzePage() {
             category: c.category
           }))
         }),
-      })
+      }, false) // Set enforceAuth to false to prevent redirects for auth failures
 
+      console.log(`🔍 API response status: ${response.status} ${response.statusText}`)
+      
       if (!response.ok) {
         if (response.status === 401) {
-          console.error('Authentication failed for concept checking - user may not be logged in')
+          console.error('🔍 Authentication failed for concept checking - user may not be logged in')
           return []
         }
-        console.error('Failed to check existing concepts:', response.status, response.statusText)
+        console.error('🔍 Failed to check existing concepts:', response.status, response.statusText)
+        // Try to get error details from response
+        try {
+          const errorData = await response.text()
+          console.error('🔍 Error details:', errorData)
+        } catch (e) {
+          console.error('🔍 Could not read error details')
+        }
         return []
       }
 
       const data = await response.json()
-      console.log('🔧 Check Existing Concepts - Found matches:', data.matches?.length || 0)
+      console.log('🔍 Check Existing Concepts - API response:', data)
+      console.log('🔍 Found matches:', data.matches?.length || 0)
       return data.matches || []
     } catch (error) {
-      console.error('Error checking existing concepts:', error)
+      console.error('🔍 Error checking existing concepts:', error)
       return []
     }
   }
@@ -516,8 +533,12 @@ export function useAnalyzePage() {
     const userName = localStorage.getItem('userName')
     const userEmail = localStorage.getItem('userEmail')
     
+    console.log("💾 handleSaveConversation - Starting save process")
+    console.log(`💾 User info check - userName: ${userName ? 'present' : 'missing'}, userEmail: ${userEmail ? 'present' : 'missing'}`)
+    
     // If no user info, show the user info modal first
     if (!userName || !userEmail) {
+      console.log("💾 User info missing - showing modal")
       setShowUserInfoModal(true)
       return
     }
@@ -534,12 +555,21 @@ export function useAnalyzePage() {
 
     try {
       // First, check for existing concepts before saving
-      console.log("Checking for existing concepts before saving...")
+      console.log("💾 Checking for existing concepts before saving...")
+      console.log(`💾 Number of concepts to check: ${analysisResult.concepts.length}`)
+      
+      // Log concept titles we're checking
+      const conceptTitles = analysisResult.concepts.map(c => c.title).join(', ')
+      console.log(`💾 Concepts being checked: ${conceptTitles}`)
+      
       const matches = await checkForExistingConcepts(analysisResult.concepts)
+      
+      console.log(`💾 Check complete - Found ${matches.length} concept matches`)
       
       if (matches.length > 0) {
         // Found matches - show confirmation dialog
-        console.log(`Found ${matches.length} concept matches, showing dialog`)
+        console.log(`💾 Found ${matches.length} concept matches, showing dialog`)
+        console.log(`💾 Match details: ${matches.map(m => `${m.newConcept.title} → ${m.existingConcept.title}`).join(', ')}`)
         setConceptMatches(matches)
         setShowConceptMatchDialog(true)
         setIsSaving(false)
@@ -547,11 +577,11 @@ export function useAnalyzePage() {
       }
 
       // No matches found, proceed with normal save
-      console.log("No concept matches found, proceeding with save")
+      console.log("💾 No concept matches found, proceeding with save")
       await performSaveConversation()
     } catch (error) {
+      console.error('💾 Error during save process:', error)
       setSaveError('Failed to save conversation. Please try again.')
-      console.error('Error saving conversation:', error)
       setIsSaving(false)
     }
   }

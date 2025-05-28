@@ -67,11 +67,20 @@ export function requireAuthentication(): boolean {
  */
 export async function makeAuthenticatedRequest(
   endpoint: string, 
-  options: RequestInit = {}
+  options: RequestInit = {},
+  enforceAuth: boolean = true
 ): Promise<Response> {
-  // Check authentication before making request
-  if (!requireAuthentication()) {
-    throw new Error('Authentication required');
+  // Check if the endpoint is a special case where we want to try even without authentication
+  const isSpecialEndpoint = 
+    endpoint.includes('/api/concepts/check-existing') || 
+    endpoint.includes('/api/saveConversation');
+  
+  // If this is not a special endpoint and we're enforcing auth, check auth
+  if (enforceAuth && !isSpecialEndpoint) {
+    // Check authentication before making request
+    if (!requireAuthentication()) {
+      throw new Error('Authentication required');
+    }
   }
   
   const headers = getAuthHeaders();
@@ -87,26 +96,30 @@ export async function makeAuthenticatedRequest(
     headers: mergedHeaders,
   };
   
-  console.log('🔧 Auth Utils - Making request to:', endpoint);
-  console.log('🔧 Auth Utils - Request options:', requestOptions);
+  console.log(`🔧 Auth Utils - Making request to: ${endpoint} (enforceAuth=${enforceAuth}, isSpecial=${isSpecialEndpoint})`);
   
   try {
     const response = await fetch(endpoint, requestOptions);
     
     console.log('🔧 Auth Utils - Response status:', response.status);
     
-    // Handle common authentication errors
+    // Handle common authentication errors - but don't redirect for special endpoints
     if (response.status === 401) {
-      console.error('🔧 Auth Utils - Authentication failed, clearing localStorage and redirecting');
+      console.error('🔧 Auth Utils - Authentication failed');
       
-      // Clear authentication data
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('userName');
-      localStorage.removeItem('userInitials');
-      
-      // Redirect to landing page
-      window.location.href = '/';
+      // Only redirect and clear data if enforcing auth and not a special endpoint
+      if (enforceAuth && !isSpecialEndpoint) {
+        console.error('🔧 Auth Utils - Clearing localStorage and redirecting');
+        
+        // Clear authentication data
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userName');
+        localStorage.removeItem('userInitials');
+        
+        // Redirect to landing page
+        window.location.href = '/';
+      }
       
       throw new Error('Authentication failed. Please sign in again.');
     }
