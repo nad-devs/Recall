@@ -28,6 +28,28 @@ interface ConceptConnectionDialogProps {
   onConnect: (targetConceptId: string) => Promise<void>
 }
 
+// Get authentication headers
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Check if we're in browser environment
+  if (typeof window !== 'undefined') {
+    const userEmail = localStorage.getItem('userEmail');
+    const userId = localStorage.getItem('userId');
+    
+    console.log('🔧 Concept Connection Dialog - Auth headers:', { userEmail, userId });
+    
+    if (userEmail && userId) {
+      headers['x-user-email'] = userEmail;
+      headers['x-user-id'] = userId;
+    }
+  }
+  
+  return headers;
+}
+
 export function ConceptConnectionDialog({
   isOpen,
   onOpenChange,
@@ -81,8 +103,14 @@ export function ConceptConnectionDialog({
   const fetchAvailableConcepts = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/concepts')
+      const response = await fetch('/api/concepts', {
+        headers: getAuthHeaders()
+      })
+      
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed - please make sure you are logged in')
+        }
         throw new Error('Failed to fetch concepts')
       }
       
@@ -97,7 +125,7 @@ export function ConceptConnectionDialog({
       console.error('Error fetching concepts:', error)
       toast({
         title: "Error",
-        description: "Failed to load available concepts",
+        description: error instanceof Error ? error.message : "Failed to load available concepts",
         variant: "destructive",
       })
     } finally {
@@ -109,13 +137,14 @@ export function ConceptConnectionDialog({
     try {
       const response = await fetch('/api/concepts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ title }),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed - please make sure you are logged in')
+        }
         throw new Error('Failed to create concept')
       }
 
@@ -153,7 +182,7 @@ export function ConceptConnectionDialog({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create new concept",
+        description: error instanceof Error ? error.message : "Failed to create new concept",
         variant: "destructive",
       })
     } finally {
@@ -186,7 +215,7 @@ export function ConceptConnectionDialog({
       console.error('Error connecting concepts:', error)
       toast({
         title: "Error",
-        description: "Failed to connect concepts",
+        description: error instanceof Error ? error.message : "Failed to connect concepts",
         variant: "destructive",
       })
     } finally {

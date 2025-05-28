@@ -2,6 +2,28 @@
  * Helper functions to work with concept relationships
  */
 
+// Get authentication headers
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Check if we're in browser environment
+  if (typeof window !== 'undefined') {
+    const userEmail = localStorage.getItem('userEmail');
+    const userId = localStorage.getItem('userId');
+    
+    console.log('🔧 Concept Utils - Auth headers:', { userEmail, userId });
+    
+    if (userEmail && userId) {
+      headers['x-user-email'] = userEmail;
+      headers['x-user-id'] = userId;
+    }
+  }
+  
+  return headers;
+}
+
 /**
  * Helper function to parse related concepts from various formats
  * @param relatedConcepts The related concepts data to parse
@@ -56,13 +78,19 @@ export async function connectConcepts(sourceConceptId: string, targetConceptId: 
   try {
     console.log(`🔗 Starting connection between concepts ${sourceConceptId} and ${targetConceptId}`);
     
+    // Get authentication headers
+    const authHeaders = getAuthHeaders();
+    
     // Get both concepts
     const [sourceResponse, targetResponse] = await Promise.all([
-      fetch(`/api/concepts/${sourceConceptId}`),
-      fetch(`/api/concepts/${targetConceptId}`)
+      fetch(`/api/concepts/${sourceConceptId}`, { headers: authHeaders }),
+      fetch(`/api/concepts/${targetConceptId}`, { headers: authHeaders })
     ]);
     
     if (!sourceResponse.ok || !targetResponse.ok) {
+      if (sourceResponse.status === 401 || targetResponse.status === 401) {
+        throw new Error('Authentication failed - please make sure you are logged in');
+      }
       throw new Error('Failed to fetch one or both concepts');
     }
     
@@ -114,22 +142,18 @@ export async function connectConcepts(sourceConceptId: string, targetConceptId: 
     console.log("📝 Final source relationships to save:", sourceRelatedConcepts);
     console.log("📝 Final target relationships to save:", targetRelatedConcepts);
     
-    // Update both concepts
+    // Update both concepts with authentication headers
     const [sourceUpdateResponse, targetUpdateResponse] = await Promise.all([
       fetch(`/api/concepts/${sourceConceptId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           relatedConcepts: sourceRelatedConcepts // Send as array, not JSON string
         })
       }),
       fetch(`/api/concepts/${targetConceptId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           relatedConcepts: targetRelatedConcepts // Send as array, not JSON string
         })
@@ -140,6 +164,9 @@ export async function connectConcepts(sourceConceptId: string, targetConceptId: 
     console.log("📡 Target update response status:", targetUpdateResponse.status);
     
     if (!sourceUpdateResponse.ok || !targetUpdateResponse.ok) {
+      if (sourceUpdateResponse.status === 401 || targetUpdateResponse.status === 401) {
+        throw new Error('Authentication failed during update - please make sure you are logged in');
+      }
       const sourceError = sourceUpdateResponse.ok ? null : await sourceUpdateResponse.text();
       const targetError = targetUpdateResponse.ok ? null : await targetUpdateResponse.text();
       console.error("❌ Update errors:", { sourceError, targetError });
@@ -169,13 +196,19 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
   try {
     console.log(`Starting disconnection between concepts ${sourceConceptId} and ${targetConceptId}`);
     
+    // Get authentication headers
+    const authHeaders = getAuthHeaders();
+    
     // Get both concepts
     const [sourceResponse, targetResponse] = await Promise.all([
-      fetch(`/api/concepts/${sourceConceptId}`),
-      fetch(`/api/concepts/${targetConceptId}`)
+      fetch(`/api/concepts/${sourceConceptId}`, { headers: authHeaders }),
+      fetch(`/api/concepts/${targetConceptId}`, { headers: authHeaders })
     ]);
     
     if (!sourceResponse.ok || !targetResponse.ok) {
+      if (sourceResponse.status === 401 || targetResponse.status === 401) {
+        throw new Error('Authentication failed - please make sure you are logged in');
+      }
       throw new Error('Failed to fetch one or both concepts');
     }
     
@@ -254,12 +287,10 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
     console.log("Final source related concepts to save:", newSourceRelatedConcepts);
     console.log("Final target related concepts to save:", newTargetRelatedConcepts);
     
-    // Update source concept
+    // Update source concept with authentication headers
     const sourceUpdateResponse = await fetch(`/api/concepts/${sourceConceptId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         relatedConcepts: newSourceRelatedConcepts
       })
@@ -268,6 +299,9 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
     console.log("Source update response status:", sourceUpdateResponse.status);
     
     if (!sourceUpdateResponse.ok) {
+      if (sourceUpdateResponse.status === 401) {
+        throw new Error('Authentication failed during source update - please make sure you are logged in');
+      }
       const errorText = await sourceUpdateResponse.text();
       console.error("Source update error:", errorText);
       throw new Error(`Failed to update source concept: ${errorText}`);
@@ -276,12 +310,10 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
     const sourceUpdateResult = await sourceUpdateResponse.json();
     console.log("Source update result:", sourceUpdateResult);
     
-    // Update target concept
+    // Update target concept with authentication headers
     const targetUpdateResponse = await fetch(`/api/concepts/${targetConceptId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         relatedConcepts: newTargetRelatedConcepts
       })
@@ -290,6 +322,9 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
     console.log("Target update response status:", targetUpdateResponse.status);
     
     if (!targetUpdateResponse.ok) {
+      if (targetUpdateResponse.status === 401) {
+        throw new Error('Authentication failed during target update - please make sure you are logged in');
+      }
       const errorText = await targetUpdateResponse.text();
       console.error("Target update error:", errorText);
       throw new Error(`Failed to update target concept: ${errorText}`);
@@ -298,10 +333,10 @@ export async function disconnectConcepts(sourceConceptId: string, targetConceptI
     const targetUpdateResult = await targetUpdateResponse.json();
     console.log("Target update result:", targetUpdateResult);
     
-    // Verify the updates by fetching fresh data
+    // Verify the updates by fetching fresh data with authentication headers
     const [verifySourceResponse, verifyTargetResponse] = await Promise.all([
-      fetch(`/api/concepts/${sourceConceptId}`),
-      fetch(`/api/concepts/${targetConceptId}`)
+      fetch(`/api/concepts/${sourceConceptId}`, { headers: authHeaders }),
+      fetch(`/api/concepts/${targetConceptId}`, { headers: authHeaders })
     ]);
     
     if (verifySourceResponse.ok && verifyTargetResponse.ok) {
