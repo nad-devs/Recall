@@ -173,12 +173,71 @@ export async function POST(request: Request) {
               const matchTitle = fuzzyMatch.title.toLowerCase();
               const matchingKeywords = keywords.filter((keyword: string) => matchTitle.includes(keyword));
               
-              // If more than half the keywords match, consider it a potential match
-              if (matchingKeywords.length >= Math.ceil(keywords.length / 2)) {
+              // If more than 1/3 the keywords match, consider it a potential match (reduced from 1/2)
+              if (matchingKeywords.length >= Math.ceil(keywords.length / 3)) {
                 existingConcepts.push(fuzzyMatch);
                 console.log(`📋 Accepted fuzzy match: "${fuzzyMatch.title}" with ${matchingKeywords.length}/${keywords.length} keywords matching`);
                 break; // Only take the first good match
               }
+            }
+          }
+        }
+        
+        // Special case for Algorithm variants (e.g. "Anagram Check" vs "Anagram Validation")
+        if (existingConcepts.length === 0 && 
+            (concept.category === "Algorithms" || 
+             concept.category === "Algorithm Technique" || 
+             concept.category === "Data Structures and Algorithms" ||
+             concept.category === "LeetCode Problems")) {
+             
+          // Common algorithm problems and their variations
+          const algorithmVariants = [
+            {base: "anagram", variations: ["anagram", "valid anagram", "anagram check", "anagram validation"]},
+            {base: "two sum", variations: ["two sum", "2sum", "two sum problem", "find two sum"]},
+            {base: "linked list", variations: ["linked list", "singly linked list", "doubly linked list", "reverse linked list"]},
+            {base: "binary search", variations: ["binary search", "binary search algorithm", "binary search implementation"]},
+            {base: "hash table", variations: ["hash table", "hash map", "hash set", "hashtable"]},
+          ];
+          
+          const lowerTitle = concept.title.toLowerCase();
+          
+          // Check if this concept matches any of our known algorithm variants
+          for (const variantGroup of algorithmVariants) {
+            // If this concept contains the base algorithm name
+            if (lowerTitle.includes(variantGroup.base)) {
+              console.log(`📋 Checking algorithm variants for "${variantGroup.base}"`);
+              
+              // Look for existing concepts with any of the variations
+              for (const variation of variantGroup.variations) {
+                const variantMatches = await prisma.concept.findMany({
+                  where: {
+                    AND: [
+                      {
+                        title: {
+                          contains: variation
+                        }
+                      },
+                      { userId: user.id }  // User filtering
+                    ]
+                  },
+                  select: {
+                    id: true,
+                    title: true,
+                    summary: true,
+                    category: true,
+                    lastUpdated: true
+                  }
+                });
+                
+                if (variantMatches.length > 0) {
+                  existingConcepts.push(variantMatches[0]);
+                  console.log(`📋 Found algorithm variant match: "${variantMatches[0].title}" for "${concept.title}"`);
+                  break;
+                }
+              }
+              
+              // If we found a match, break out of the outer loop
+              if (existingConcepts.length > 0) break;
             }
           }
         }

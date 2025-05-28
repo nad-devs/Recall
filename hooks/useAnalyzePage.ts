@@ -99,6 +99,11 @@ export function useAnalyzePage() {
       const headers = getAuthHeaders()
       console.log('🔍 Using auth headers:', Object.keys(headers).join(', '))
       
+      // Log the concepts we're checking
+      concepts.forEach((concept, index) => {
+        console.log(`🔍 Concept ${index+1}: "${concept.title}" (category: ${concept.category || 'unknown'})`)
+      })
+      
       const response = await makeAuthenticatedRequest('/api/concepts/check-existing', {
         method: 'POST',
         body: JSON.stringify({ 
@@ -131,6 +136,16 @@ export function useAnalyzePage() {
       const data = await response.json()
       console.log('🔍 Check Existing Concepts - API response:', data)
       console.log('🔍 Found matches:', data.matches?.length || 0)
+      
+      if (data.matches && data.matches.length > 0) {
+        // Print details about each match
+        data.matches.forEach((match: ConceptMatch, index: number) => {
+          console.log(`🔍 Match ${index+1}: "${match.newConcept.title}" → "${match.existingConcept.title}" (${match.existingConcept.id})`)
+        })
+      } else {
+        console.log('🔍 No matches found in API response')
+      }
+      
       return data.matches || []
     } catch (error) {
       console.error('🔍 Error checking existing concepts:', error)
@@ -562,6 +577,15 @@ export function useAnalyzePage() {
       const conceptTitles = analysisResult.concepts.map(c => c.title).join(', ')
       console.log(`💾 Concepts being checked: ${conceptTitles}`)
       
+      // If concept contains "anagram", force a test match check
+      const hasAnagramConcept = analysisResult.concepts.some(c => 
+        c.title.toLowerCase().includes('anagram')
+      )
+      
+      if (hasAnagramConcept) {
+        console.log("💾 DEBUG: Found anagram concept, will check for potential matches")
+      }
+      
       const matches = await checkForExistingConcepts(analysisResult.concepts)
       
       console.log(`💾 Check complete - Found ${matches.length} concept matches`)
@@ -574,13 +598,14 @@ export function useAnalyzePage() {
         setShowConceptMatchDialog(true)
         setIsSaving(false)
         return
+      } else {
+        console.log(`💾 No concept matches found, proceeding to save`)
       }
-
-      // No matches found, proceed with normal save
-      console.log("💾 No concept matches found, proceeding with save")
+      
+      // If no matches, proceed with saving
       await performSaveConversation()
     } catch (error) {
-      console.error('💾 Error during save process:', error)
+      console.error('Error saving conversation:', error)
       setSaveError('Failed to save conversation. Please try again.')
       setIsSaving(false)
     }
@@ -610,6 +635,8 @@ export function useAnalyzePage() {
     if (!analysisResult) return
     
     try {
+      console.log("💾 performSaveConversation - Starting API call")
+      
       // Get user info from localStorage if available (for non-authenticated users)
       const userName = localStorage.getItem('userName')
       const userEmail = localStorage.getItem('userEmail')
@@ -635,16 +662,23 @@ export function useAnalyzePage() {
       })
 
       const data = await response.json()
+      console.log("💾 saveConversation API response:", data)
       
       if (data.requiresConfirmation) {
-        setExistingConcepts(data.existingConcepts)
-        setOriginalSaveData(data.originalData)
-        setShowConceptConfirmation(true)
-        setIsSaving(false)
-        return
+        console.log("💾 API found duplicate concepts, showing confirmation dialog")
+        console.log(`💾 Found ${data.existingConcepts?.length || 0} existing concepts from API`)
+        
+        if (data.existingConcepts && data.existingConcepts.length > 0) {
+          setConceptMatches(data.existingConcepts)
+          setShowConceptMatchDialog(true)
+          setOriginalSaveData(data.originalData)
+          setIsSaving(false)
+          return
+        }
       }
       
       if (data.success) {
+        console.log("💾 Save successful")
         // Only increment conversation count if user has usage tracking
         if (canMakeConversation() || getUsageData().hasCustomApiKey) {
           const updatedUsageData = incrementConversationCount()
