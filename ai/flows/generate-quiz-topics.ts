@@ -39,11 +39,11 @@ export async function generateQuestionsForConcept(
   const questions: QuizQuestion[] = [];
   
   // Helper function to randomize the correct answer position
-  const randomizeOptions = (correctAnswer: string, wrongOptions: string[]): {options: string[], answerIndex: number} => {
+  const randomizeOptions = (correctAnswer: string, wrongOptions: string[]): {options: string[], correctAnswer: string} => {
     const allOptions = [...wrongOptions.slice(0, 3)]; // Get first 3 wrong options
     const answerIndex = Math.floor(Math.random() * 4); // Random position (0-3)
     allOptions.splice(answerIndex, 0, correctAnswer);
-    return { options: allOptions, answerIndex };
+    return { options: allOptions, correctAnswer: correctAnswer }; // Return the original correct answer, not the index
   };
   
   // Title-based question (always include if we have a title)
@@ -55,11 +55,11 @@ export async function generateQuestionsForConcept(
       'To manage network connections'
     ];
     
-    const { options, answerIndex } = randomizeOptions(correctAnswer, wrongOptions);
+    const { options, correctAnswer: finalAnswer } = randomizeOptions(correctAnswer, wrongOptions);
     
     questions.push({
       question: `What is the main purpose of ${conceptTitle}?`,
-      answer: options[answerIndex],
+      answer: finalAnswer,
       options,
       explanation: 'This is the core purpose as described in the concept summary.'
     });
@@ -79,11 +79,11 @@ export async function generateQuestionsForConcept(
           `Must be implemented using recursion`
         ];
         
-        const { options, answerIndex } = randomizeOptions(correctAnswer, plausibleWrongOptions);
+        const { options, correctAnswer: finalAnswer } = randomizeOptions(correctAnswer, plausibleWrongOptions);
         
         questions.push({
           question: `Which of the following is a key characteristic of ${conceptTitle}?`,
-          answer: options[answerIndex],
+          answer: finalAnswer,
           options,
           explanation: `This is directly stated in the key points of the concept.`
         });
@@ -100,11 +100,11 @@ export async function generateQuestionsForConcept(
       `An algorithm for efficiently searching and sorting large datasets`
     ];
     
-    const { options, answerIndex } = randomizeOptions(correctAnswer, wrongOptions);
+    const { options, correctAnswer: finalAnswer } = randomizeOptions(correctAnswer, wrongOptions);
     
     questions.push({
       question: `Which definition best describes ${conceptTitle}?`,
-      answer: options[answerIndex],
+      answer: finalAnswer,
       options,
       explanation: 'This is based on the summary provided for the concept.'
     });
@@ -143,11 +143,11 @@ export async function generateQuestionsForConcept(
   
   for (let i = 0; i < additionalQuestions.length && questions.length < numberOfQuestions; i++) {
     const q = additionalQuestions[i];
-    const { options, answerIndex } = randomizeOptions(q.correctAnswer, q.wrongOptions);
+    const { options, correctAnswer: finalAnswer } = randomizeOptions(q.correctAnswer, q.wrongOptions);
     
     questions.push({
       question: q.question,
-      answer: options[answerIndex],
+      answer: finalAnswer,
       options,
       explanation: 'This relates to practical applications of the concept.'
     });

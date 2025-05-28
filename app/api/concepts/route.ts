@@ -997,8 +997,8 @@ export async function POST(request: Request) {
 
     let conversationId = data.conversationId;
     
-    // Only create a dummy conversation if this is NOT a manual creation and no conversationId is provided
-    if (!conversationId && !isManualCreation) {
+    // Only create a dummy conversation if this is NOT a manual creation, NOT a placeholder, and no conversationId is provided
+    if (!conversationId && !isManualCreation && !isPlaceholder) {
       const dummyConversation = await prisma.conversation.create({
         data: {
           text: context 

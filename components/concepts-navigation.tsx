@@ -366,11 +366,17 @@ export function ConceptsNavigation({
     return true
   }, [resetDialogState])
 
-  // Enhanced cancel handler for category creation
+  // Enhanced cancel handler for category creation with immediate state reset
   const handleCancelCategoryCreation = useCallback(() => {
     console.log('🔧 Canceling category creation...')
     
-    // Immediately reset all dialog states
+    // Immediately reset all states to prevent any freezing
+    setIsCreatingCategory(false)
+    setIsMovingConcepts(false)
+    setIsRenamingCategory(false)
+    setIsDraggingCategory(false)
+    
+    // Reset all dialog states
     setShowAddSubcategoryDialog(false)
     setShowTransferDialog(false)
     setShowEditCategoryDialog(false)
@@ -382,18 +388,16 @@ export function ConceptsNavigation({
     setNewCategoryName("")
     setEditingCategoryPath("")
     
-    // Force reset all operation states
-    setIsCreatingCategory(false)
-    setIsMovingConcepts(false)
-    setIsRenamingCategory(false)
-    setIsDraggingCategory(false)
-    
     // Clear any transfer-related states
     setTransferConcepts([])
     setSelectedConceptsForTransfer(new Set())
     setDragDropData(null)
     
-    // Force a state update with a timeout to ensure everything is cleared
+    // Reset inline editing state
+    setInlineEditingCategory('')
+    setInlineEditValue('')
+    
+    // Force a complete state reset with a small delay to ensure everything is cleared
     setTimeout(() => {
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
@@ -403,11 +407,11 @@ export function ConceptsNavigation({
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
-    }, 50)
+    }, 10)
     
     toast({
       title: "Cancelled",
-      description: "Category creation has been cancelled.",
+      description: "Operation has been cancelled.",
       duration: 2000,
     })
   }, [toast])
@@ -1628,12 +1632,9 @@ export function ConceptsNavigation({
       {/* Add Subcategory Dialog */}
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
         if (!open) {
-          // Always allow closing, force reset all states
-          console.log('🔧 Dialog closing via onOpenChange...')
-          setIsCreatingCategory(false)
-          setIsMovingConcepts(false)
-          setIsRenamingCategory(false)
-          resetDialogState()
+          // Always allow closing, force reset all states immediately
+          console.log('🔧 Add Subcategory Dialog closing via onOpenChange...')
+          handleCancelCategoryCreation()
         }
       }}>
         <DialogContent>
@@ -1691,12 +1692,9 @@ export function ConceptsNavigation({
       {/* Transfer Concepts Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
         if (!open) {
-          // Always allow closing, force reset all states
+          // Always allow closing, force reset all states immediately
           console.log('🔧 Transfer Dialog closing via onOpenChange...')
-          setIsCreatingCategory(false)
-          setIsMovingConcepts(false)
-          setIsRenamingCategory(false)
-          resetDialogState()
+          handleCancelCategoryCreation()
         }
       }}>
         <DialogContent className="max-w-2xl">
@@ -1991,8 +1989,8 @@ export function ConceptsNavigation({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
-              disabled={isCreatingCategory || isMovingConcepts}
+              onClick={handleCancelCategoryCreation}
+              disabled={false} // Always allow cancellation
             >
               Cancel
             </Button>
@@ -2003,12 +2001,9 @@ export function ConceptsNavigation({
       {/* Edit Category Dialog */}
       <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
         if (!open) {
-          // Always allow closing, force reset all states
+          // Always allow closing, force reset all states immediately
           console.log('🔧 Edit Dialog closing via onOpenChange...')
-          setIsCreatingCategory(false)
-          setIsMovingConcepts(false)
-          setIsRenamingCategory(false)
-          resetDialogState()
+          handleCancelCategoryCreation()
         }
       }}>
         <DialogContent>
@@ -2037,8 +2032,8 @@ export function ConceptsNavigation({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
-              disabled={isRenamingCategory}
+              onClick={handleCancelCategoryCreation}
+              disabled={false} // Always allow cancellation
             >
               Cancel
             </Button>
@@ -2065,13 +2060,9 @@ export function ConceptsNavigation({
       {/* Drag and Drop Confirmation Dialog */}
       <Dialog open={showDragDropDialog} onOpenChange={(open) => {
         if (!open) {
-          // Always allow closing, force reset all states
+          // Always allow closing, force reset all states immediately
           console.log('🔧 Drag Drop Dialog closing via onOpenChange...')
-          setIsCreatingCategory(false)
-          setIsMovingConcepts(false)
-          setIsRenamingCategory(false)
-          setIsDraggingCategory(false)
-          resetDialogState()
+          handleCancelCategoryCreation()
         }
       }}>
         <DialogContent>
@@ -2210,7 +2201,7 @@ export function ConceptsNavigation({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
+              onClick={handleCancelCategoryCreation}
               disabled={isDraggingCategory}
             >
               Cancel
