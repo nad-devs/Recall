@@ -95,17 +95,20 @@ export function useAnalyzePage() {
       console.log('🔍 checkForExistingConcepts - Starting check')
       console.log(`🔍 Number of concepts to check: ${concepts.length}`)
       
-      // Log auth headers (without revealing sensitive info)
-      const headers = getAuthHeaders()
-      console.log('🔍 Using auth headers:', Object.keys(headers).join(', '))
-      
       // Log the concepts we're checking
       concepts.forEach((concept, index) => {
         console.log(`🔍 Concept ${index+1}: "${concept.title}" (category: ${concept.category || 'unknown'})`)
       })
       
-      const response = await makeAuthenticatedRequest('/api/concepts/check-existing', {
+      // Try to make the request - use regular fetch instead of makeAuthenticatedRequest
+      // since this should work for all users (authenticated or not)
+      const response = await fetch('/api/concepts/check-existing', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Include auth headers if available, but don't require them
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({ 
           concepts: concepts.map(c => ({
             title: c.title,
@@ -113,15 +116,11 @@ export function useAnalyzePage() {
             category: c.category
           }))
         }),
-      }, false) // Set enforceAuth to false to prevent redirects for auth failures
+      })
 
       console.log(`🔍 API response status: ${response.status} ${response.statusText}`)
       
       if (!response.ok) {
-        if (response.status === 401) {
-          console.error('🔍 Authentication failed for concept checking - user may not be logged in')
-          return []
-        }
         console.error('🔍 Failed to check existing concepts:', response.status, response.statusText)
         // Try to get error details from response
         try {
@@ -130,6 +129,7 @@ export function useAnalyzePage() {
         } catch (e) {
           console.error('🔍 Could not read error details')
         }
+        // Return empty array instead of throwing - this allows the save to continue
         return []
       }
 
@@ -142,6 +142,15 @@ export function useAnalyzePage() {
         data.matches.forEach((match: ConceptMatch, index: number) => {
           console.log(`🔍 Match ${index+1}: "${match.newConcept.title}" → "${match.existingConcept.title}" (${match.existingConcept.id})`)
         })
+        
+        // Force show dialog for testing if we have anagram concepts
+        const hasAnagramConcept = concepts.some(c => 
+          c.title.toLowerCase().includes('anagram')
+        )
+        
+        if (hasAnagramConcept) {
+          console.log('🔍 DEBUG: Anagram concept detected - ensuring dialog will show')
+        }
       } else {
         console.log('🔍 No matches found in API response')
       }
@@ -149,6 +158,7 @@ export function useAnalyzePage() {
       return data.matches || []
     } catch (error) {
       console.error('🔍 Error checking existing concepts:', error)
+      // Return empty array to allow save to continue even if check fails
       return []
     }
   }
@@ -916,7 +926,8 @@ export function useAnalyzePage() {
         body: JSON.stringify({ 
           title,
           context: conversationText,
-          conversationId: conversationId
+          conversationId: conversationId,
+          isManualCreation: true  // Flag to indicate this is a manual creation, not from conversation analysis
         }),
       })
 

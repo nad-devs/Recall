@@ -936,6 +936,9 @@ export async function POST(request: Request) {
     // Check if this is a placeholder concept creation
     const isPlaceholder = data.isPlaceholder || false;
     
+    // Check if this is a manual concept creation (not from conversation analysis)
+    const isManualCreation = data.isManualCreation || false;
+    
     // If creating a real concept (not placeholder), remove any existing placeholder concepts in the same category
     if (!isPlaceholder && data.category) {
       await removePlaceholderConcepts(data.category);
@@ -992,16 +995,21 @@ export async function POST(request: Request) {
       }
     }
 
-    // We need to create a dummy conversation first since concept requires a conversation relation
-    const dummyConversation = await prisma.conversation.create({
-      data: {
-        text: context 
-          ? `${context}\n\nPlease explain the concept of ${title} in detail.`
-          : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
-        summary: `Conversation for ${title} concept`,
-        userId: user.id  // Add user relationship
-      }
-    });
+    let conversationId = data.conversationId;
+    
+    // Only create a dummy conversation if this is NOT a manual creation and no conversationId is provided
+    if (!conversationId && !isManualCreation) {
+      const dummyConversation = await prisma.conversation.create({
+        data: {
+          text: context 
+            ? `${context}\n\nPlease explain the concept of ${title} in detail.`
+            : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
+          summary: `Conversation for ${title} concept`,
+          userId: user.id
+        }
+      });
+      conversationId = dummyConversation.id;
+    }
 
     // Pre-determine the category using our improved function
     const initialCategory = data.category || determineCategory({ 
@@ -1017,7 +1025,7 @@ export async function POST(request: Request) {
         ? `${initialCategory.category} > ${initialCategory.subcategory}`
         : initialCategory.category;
 
-    // Create a basic placeholder concept first
+    // Create the concept - conversationId is optional for manual creations
     const concept = await prisma.concept.create({
       data: {
         title,
@@ -1028,11 +1036,12 @@ export async function POST(request: Request) {
         examples: data.examples || "",
         relatedConcepts: JSON.stringify([]),
         relationships: "",
-        confidenceScore: isPlaceholder ? 0.1 : 0.5, // Lower confidence for placeholders
+        confidenceScore: isPlaceholder ? 0.1 : 0.5,
         isPlaceholder: isPlaceholder,
         lastUpdated: new Date(),
-        userId: user.id,  // Add user relationship
-        conversationId: dummyConversation.id  // Use conversationId instead of relation
+        userId: user.id,
+        // Only set conversationId if we have one (for conversation-based concepts)
+        ...(conversationId && { conversationId })
       }
     });
 
@@ -1041,7 +1050,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ concept }, { status: 201 });
     }
 
+    // For manual creations, don't generate content via backend - just return the basic concept
+    if (isManualCreation) {
+      console.log(`📝 Manual concept creation: "${title}" - skipping AI generation`);
+      return NextResponse.json({ concept }, { status: 201 });
+    }
+
     // Use the same backend service that analyzes conversations to generate concept content
+    // (Only for conversation-based concepts)
     try {
       const generationPrompt = context 
         ? `Based on this conversation:\n\n${context}\n\nPlease provide a detailed explanation of the concept: ${title}.` 
