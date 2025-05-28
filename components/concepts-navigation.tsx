@@ -368,15 +368,15 @@ export function ConceptsNavigation({
 
   // Enhanced cancel handler for category creation with immediate state reset
   const handleCancelCategoryCreation = useCallback(() => {
-    console.log('🔧 Canceling category creation...')
+    console.log('🔧 Force canceling all operations...')
     
-    // Immediately reset all states to prevent any freezing
+    // Immediately and forcefully reset ALL states to prevent freezing
     setIsCreatingCategory(false)
     setIsMovingConcepts(false)
     setIsRenamingCategory(false)
     setIsDraggingCategory(false)
     
-    // Reset all dialog states
+    // Reset all dialog states immediately
     setShowAddSubcategoryDialog(false)
     setShowTransferDialog(false)
     setShowEditCategoryDialog(false)
@@ -388,32 +388,28 @@ export function ConceptsNavigation({
     setNewCategoryName("")
     setEditingCategoryPath("")
     
-    // Clear any transfer-related states
+    // Clear transfer-related states
     setTransferConcepts([])
     setSelectedConceptsForTransfer(new Set())
     setDragDropData(null)
     
     // Reset inline editing state
-    setInlineEditingCategory('')
+    setInlineEditingCategory(null)
     setInlineEditValue('')
     
-    // Force a complete state reset with a small delay to ensure everything is cleared
-    setTimeout(() => {
-      setIsCreatingCategory(false)
-      setIsMovingConcepts(false)
-      setIsRenamingCategory(false)
-      setIsDraggingCategory(false)
-      setShowAddSubcategoryDialog(false)
-      setShowTransferDialog(false)
-      setShowEditCategoryDialog(false)
-      setShowDragDropDialog(false)
-    }, 10)
+    console.log('🔧 All states forcefully reset - operation cancelled')
     
+    // Show immediate feedback
     toast({
       title: "Cancelled",
-      description: "Operation has been cancelled.",
+      description: "All operations have been cancelled.",
       duration: 2000,
     })
+    
+    // Use a timeout to ensure state changes are processed
+    setTimeout(() => {
+      console.log('🔧 Secondary state cleanup completed')
+    }, 50)
   }, [toast])
 
   // New: Proper dialog open change handler that always allows closing
@@ -1732,10 +1728,27 @@ export function ConceptsNavigation({
           <DialogHeader>
             <DialogTitle>Create Subcategory</DialogTitle>
             <DialogDescription>
-              You're creating "{selectedParentCategory} {newSubcategoryName ? `> ${newSubcategoryName}` : ''}". What would you like to do with the {transferConcepts.length} existing concept(s) in "{transferConcepts[0]?.category}"?
+              You're creating "{selectedParentCategory} {newSubcategoryName ? `> ${newSubcategoryName}` : '> [Enter name below]'}". What would you like to do with the {transferConcepts.length} existing concept(s) in "{transferConcepts[0]?.category}"?
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
+            {/* Add the missing subcategory name input */}
+            <div className="mb-4">
+              <label className="text-sm font-medium">Subcategory Name:</label>
+              <Input
+                placeholder="Enter subcategory name..."
+                value={newSubcategoryName}
+                onChange={(e) => setNewSubcategoryName(e.target.value)}
+                disabled={isCreatingCategory || isMovingConcepts}
+                className="mt-1"
+              />
+              {newSubcategoryName && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Will create: "{selectedParentCategory} {'>'}  {newSubcategoryName}"
+                </p>
+              )}
+            </div>
+            
             <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium">Existing concepts in {transferConcepts[0]?.category}:</h4>
