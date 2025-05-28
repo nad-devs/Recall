@@ -8,6 +8,7 @@ import React from "react"
 import { Autocomplete } from "@/components/ui/autocomplete"
 import { ConceptMatchDialog } from "./ConceptMatchDialog"
 import { ConversationSaveDialog } from "./ConversationSaveDialog"
+import { getAuthHeaders, makeAuthenticatedRequest } from '@/lib/auth-utils'
 
 // Define proper props interfaces for the dialog components
 interface ConceptMatchDialogProps {
@@ -139,55 +140,135 @@ export function ResultsView(props: ResultsViewProps) {
     const fetchCategories = async () => {
       setIsLoadingCategories(true)
       try {
-        const [categoriesRes, conceptsRes] = await Promise.all([
-          fetch("/api/categories"),
-          fetch("/api/concepts")
-        ])
+        // Check authentication first
+        const userEmail = localStorage.getItem('userEmail')
+        const userId = localStorage.getItem('userId')
         
-        const categoriesData = await categoriesRes.json()
-        const conceptsData = await conceptsRes.json()
+        // Get authentication headers
+        const headers = getAuthHeaders()
         
-        setCategories(categoriesData.categories || [])
+        console.log('🔧 ResultsView - Fetching categories with auth headers')
         
-        // Build autocomplete options from existing categories
-        const categorySet = new Set<string>()
-        const options: Array<{value: string, label: string, description?: string}> = []
-        
-        // Add hierarchical categories from database
-        if (categoriesData.categories) {
-          categoriesData.categories.forEach((path: string[]) => {
-            const fullPath = path.join(' > ')
-            if (!categorySet.has(fullPath)) {
-              categorySet.add(fullPath)
-              options.push({
-                value: fullPath,
-                label: fullPath,
-                description: path.length > 1 ? `${path.length}-level category` : 'Root category'
+        // Try to fetch categories - handle potential auth errors gracefully
+        try {
+          const categoriesRes = await fetch("/api/categories", { headers })
+          
+          if (!categoriesRes.ok) {
+            console.error('🔧 ResultsView - Categories API failed:', categoriesRes.status, categoriesRes.statusText)
+            if (categoriesRes.status === 401) {
+              console.warn('🔧 ResultsView - Authentication error when fetching categories')
+              
+              // Provide default categories
+              setCategoryOptions([
+                { value: "Algorithms", label: "Algorithms", description: "Default category" },
+                { value: "Data Structures", label: "Data Structures", description: "Default category" },
+                { value: "System Design", label: "System Design", description: "Default category" },
+                { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
+                { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
+                { value: "Algorithm Technique", label: "Algorithm Technique", description: "Default category" }
+              ])
+              
+              // Don't show toast for auth errors - handled elsewhere
+              return
+            }
+            throw new Error(`Categories API failed: ${categoriesRes.status}`)
+          }
+          
+          const categoriesData = await categoriesRes.json()
+          setCategories(categoriesData.categories || [])
+          
+          // Now try to fetch concepts for additional categories
+          const conceptsRes = await fetch("/api/concepts", { headers })
+          
+          if (!conceptsRes.ok) {
+            console.error('🔧 ResultsView - Concepts API failed:', conceptsRes.status, conceptsRes.statusText)
+            // Continue with just categories data
+          } else {
+            const conceptsData = await conceptsRes.json()
+            
+            // Build autocomplete options from existing categories
+            const categorySet = new Set<string>()
+            const options: Array<{value: string, label: string, description?: string}> = []
+            
+            // Add hierarchical categories from database
+            if (categoriesData.categories) {
+              categoriesData.categories.forEach((path: string[]) => {
+                const fullPath = path.join(' > ')
+                if (!categorySet.has(fullPath)) {
+                  categorySet.add(fullPath)
+                  options.push({
+                    value: fullPath,
+                    label: fullPath,
+                    description: path.length > 1 ? `${path.length}-level category` : 'Root category'
+                  })
+                }
               })
             }
-          })
-        }
-        
-        // Add categories from existing concepts
-        if (conceptsData.concepts) {
-          conceptsData.concepts.forEach((concept: any) => {
-            if (concept.category && !categorySet.has(concept.category)) {
-              categorySet.add(concept.category)
-              options.push({
-                value: concept.category,
-                label: concept.category,
-                description: 'Used in existing concepts'
+            
+            // Add categories from existing concepts
+            if (conceptsData.concepts) {
+              conceptsData.concepts.forEach((concept: any) => {
+                if (concept.category && !categorySet.has(concept.category)) {
+                  categorySet.add(concept.category)
+                  options.push({
+                    value: concept.category,
+                    label: concept.category,
+                    description: 'Used in existing concepts'
+                  })
+                }
               })
             }
-          })
+            
+            // Add default categories if none exist
+            if (options.length === 0) {
+              const defaultCategories = [
+                "Algorithms",
+                "Data Structures", 
+                "System Design",
+                "Backend Engineering",
+                "Frontend Engineering",
+                "Algorithm Technique"
+              ]
+              
+              defaultCategories.forEach(cat => {
+                options.push({
+                  value: cat,
+                  label: cat,
+                  description: 'Default category'
+                })
+              })
+            }
+            
+            // Sort options
+            options.sort((a, b) => a.label.localeCompare(b.label))
+            
+            setCategoryOptions(options)
+          }
+        } catch (error) {
+          console.error('🔧 ResultsView - Error in API calls:', error)
+          
+          // Provide fallback categories
+          setCategoryOptions([
+            { value: "Algorithms", label: "Algorithms", description: "Default category" },
+            { value: "Data Structures", label: "Data Structures", description: "Default category" },
+            { value: "System Design", label: "System Design", description: "Default category" },
+            { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
+            { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
+            { value: "Algorithm Technique", label: "Algorithm Technique", description: "Default category" }
+          ])
         }
-        
-        // Sort options
-        options.sort((a, b) => a.label.localeCompare(b.label))
-        
-        setCategoryOptions(options)
       } catch (error) {
-        console.error('Error fetching categories:', error)
+        console.error('🔧 ResultsView - Error fetching categories:', error)
+        
+        // Provide fallback categories
+        setCategoryOptions([
+          { value: "Algorithms", label: "Algorithms", description: "Default category" },
+          { value: "Data Structures", label: "Data Structures", description: "Default category" },
+          { value: "System Design", label: "System Design", description: "Default category" },
+          { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
+          { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
+          { value: "Algorithm Technique", label: "Algorithm Technique", description: "Default category" }
+        ])
       } finally {
         setIsLoadingCategories(false)
       }
@@ -207,16 +288,7 @@ export function ResultsView(props: ResultsViewProps) {
       setIsLoadingSuggestions(true)
       try {
         // Prepare authentication headers
-        const userEmail = localStorage.getItem('userEmail')
-        const userId = localStorage.getItem('userId')
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json'
-        }
-        
-        if (userEmail && userId) {
-          headers['x-user-email'] = userEmail
-          headers['x-user-id'] = userId
-        }
+        const headers = getAuthHeaders()
 
         // Fetch all concepts to find suggestions
         const response = await fetch('/api/concepts', { headers })
@@ -336,17 +408,7 @@ export function ResultsView(props: ResultsViewProps) {
     setIsSavingTitle(true)
     try {
       // Prepare authentication headers
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      }
-      
-      // For email-based sessions
-      if (userEmail && userId) {
-        headers['x-user-email'] = userEmail
-        headers['x-user-id'] = userId
-      }
+      const headers = getAuthHeaders()
 
       // Make API call to update the concept title
       const response = await fetch(`/api/concepts/${selectedConcept.id}`, {
