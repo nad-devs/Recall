@@ -465,6 +465,13 @@ export function useAnalyzePage() {
   const handleAnalyze = async () => {
     if (!conversationText.trim()) return
 
+    // Check if user can make a conversation before starting analysis
+    if (!canMakeConversation()) {
+      console.log("🚫 User has reached free conversation limit, showing API key modal")
+      setShowApiKeyModal(true)
+      return
+    }
+
     setIsAnalyzing(true)
     setShowAnimation(true)
     
@@ -489,6 +496,17 @@ export function useAnalyzePage() {
       const data = await response.json()
 
       if (!response.ok) {
+        // Check if this is a usage limit error
+        if (response.status === 403 && data.requiresApiKey) {
+          console.log("🚫 Server-side usage limit reached, showing API key modal")
+          setShowApiKeyModal(true)
+          setIsAnalyzing(false)
+          setShowAnimation(false)
+          setDiscoveredConcepts([])
+          setAnalysisStage("Initializing...")
+          return
+        }
+        
         const errorMessage = data.error || 'Something went wrong during analysis'
         toast({
           title: "Analysis failed",
@@ -568,12 +586,12 @@ export function useAnalyzePage() {
       return
     }
 
-    // Remove the authentication requirement - allow saving without sign-in
-    // Users can now save conversations with just their name and email
-    // if (!canMakeConversation()) {
-    //   setShowApiKeyModal(true)
-    //   return
-    // }
+    // Check if user can make a conversation before saving
+    if (!canMakeConversation()) {
+      console.log("🚫 User has reached free conversation limit, showing API key modal")
+      setShowApiKeyModal(true)
+      return
+    }
 
     setIsSaving(true)
     setSaveError(null)

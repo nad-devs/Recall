@@ -9,13 +9,17 @@ interface InputViewProps {
   setConversationText: (text: string) => void
   handleAnalyze: () => void
   isAnalyzing: boolean
+  usageData?: { conversationCount: number, hasCustomApiKey: boolean, lastReset: string }
+  remainingConversations?: number
 }
 
 export function InputView({ 
   conversationText, 
   setConversationText, 
   handleAnalyze, 
-  isAnalyzing 
+  isAnalyzing,
+  usageData: propUsageData,
+  remainingConversations: propRemainingConversations
 }: InputViewProps) {
   const [mounted, setMounted] = useState(false)
   const [usageData, setUsageData] = useState({ conversationCount: 0, hasCustomApiKey: false, lastReset: '' })
@@ -23,9 +27,29 @@ export function InputView({
 
   useEffect(() => {
     setMounted(true)
-    setUsageData(getUsageData())
-    setRemainingConversations(getRemainingConversations())
-  }, [])
+    // Use prop data if provided, otherwise get from storage
+    if (propUsageData) {
+      setUsageData(propUsageData)
+    } else {
+      setUsageData(getUsageData())
+    }
+    
+    if (propRemainingConversations !== undefined) {
+      setRemainingConversations(propRemainingConversations)
+    } else {
+      setRemainingConversations(getRemainingConversations())
+    }
+  }, [propUsageData, propRemainingConversations])
+
+  // Update local state when props change
+  useEffect(() => {
+    if (propUsageData) {
+      setUsageData(propUsageData)
+    }
+    if (propRemainingConversations !== undefined) {
+      setRemainingConversations(propRemainingConversations)
+    }
+  }, [propUsageData, propRemainingConversations])
 
   // Don't render usage info until mounted (prevents hydration mismatch)
   if (!mounted) {

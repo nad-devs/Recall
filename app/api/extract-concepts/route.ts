@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { canMakeServerConversation } from '@/lib/usage-tracker-server';
 
 // Enhanced LeetCode problem detection and title extraction
 function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean, problemName?: string, approach?: string } {
@@ -273,6 +274,24 @@ export async function POST(request: NextRequest) {
         { error: 'Missing conversation text' },
         { status: 400 }
       );
+    }
+
+    // Server-side usage validation - check if user can make a conversation
+    const clientIP = request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     '127.0.0.1';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    // Check if user can make a conversation (server-side validation)
+    if (!customApiKey) {
+      const canMake = await canMakeServerConversation(clientIP, userAgent, customApiKey);
+      if (!canMake) {
+        return NextResponse.json({ 
+          success: false, 
+          error: 'You have reached the 25 free conversation limit. Please add your OpenAI API key to continue.',
+          requiresApiKey: true
+        }, { status: 403 });
+      }
     }
 
     console.log("🔄 Proxying request to Render backend...");
