@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server';
 export async function POST(request: Request) {
   try {
     console.log('📋 CHECK-EXISTING API ROUTE CALLED');
+    console.log('📋 DEBUG: New version of the API route with empty array response');
     const { concepts } = await request.json();
     console.log(`📋 Received ${concepts?.length || 0} concepts to check`);
 
@@ -20,11 +21,9 @@ export async function POST(request: Request) {
     // Validate user session
     const user = await validateSession(request as NextRequest);
     if (!user) {
-      console.log('📋 Error: User not authenticated');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      console.log('📋 Error: User not authenticated - returning empty matches array');
+      // Return empty matches instead of 401 error to match behavior of other APIs
+      return NextResponse.json({ matches: [] });
     }
     console.log(`📋 User authenticated: ${user.id}`);
 
