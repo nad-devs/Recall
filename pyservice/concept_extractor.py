@@ -1077,6 +1077,285 @@ trading some space efficiency for significant time optimization.",
         logger.info("=== SEGMENT ANALYSIS COMPLETED ===")
         return parsed_result
 
+    def _validate_and_fix_leetcode_title(self, concept: Dict, conversation_text: str) -> None:
+        """Validate and fix LeetCode problem titles to ensure they follow naming conventions."""
+        title = concept.get("title", "").lower()
+        conversation_lower = conversation_text.lower()
+        
+        # Define exact mappings for common LeetCode problems
+        leetcode_mappings = {
+            # If conversation mentions these, use the exact title
+            "contains duplicate": "Contains Duplicate",
+            "two sum": "Two Sum",
+            "valid anagram": "Valid Anagram",
+            "reverse linked list": "Reverse Linked List",
+            "valid parentheses": "Valid Parentheses",
+            "maximum subarray": "Maximum Subarray",
+            "merge two sorted lists": "Merge Two Sorted Lists",
+            "climbing stairs": "Climbing Stairs",
+            "best time to buy and sell stock": "Best Time to Buy and Sell Stock"
+        }
+        
+        # Check if conversation mentions any of these problems
+        for problem_phrase, correct_title in leetcode_mappings.items():
+            if problem_phrase in conversation_lower:
+                # Check if current title is wrong (descriptive instead of problem name)
+                wrong_patterns = [
+                    "efficient", "detection", "using", "implementation", "algorithm",
+                    "technique", "approach", "method", "solution"
+                ]
+                
+                # If title contains wrong patterns or doesn't match the correct title
+                if (any(pattern in title for pattern in wrong_patterns) or 
+                    title != correct_title.lower()):
+                    
+                    print(f"🔧 Fixing LeetCode title: '{concept['title']}' → '{correct_title}'")
+                    concept["title"] = correct_title
+                    
+                    # Ensure it's categorized as LeetCode Problems
+                    if concept.get("category") != "LeetCode Problems":
+                        concept["category"] = "LeetCode Problems"
+                    
+                    # Update summary to be problem-focused
+                    if "contains duplicate" in problem_phrase:
+                        concept["summary"] = "A problem that involves finding if an array contains any duplicate elements using hash table for O(n) time complexity."
+                    elif "two sum" in problem_phrase:
+                        concept["summary"] = "A problem that asks to find two numbers in an array that add up to a specific target."
+                    elif "valid anagram" in problem_phrase:
+                        concept["summary"] = "A problem that determines if two strings are anagrams of each other."
+                    
+                break  # Only fix the first match
+
+    def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
+        """Get rich description and key points for a technique."""
+        tech_lower = technique.lower()
+        
+        # Default description
+        description = f"A key technique used in {problem_title}."
+        key_points = [f"Used to solve {problem_title} efficiently"]
+        implementation = f"This technique is commonly implemented in problems like {problem_title}."
+        
+        # Technique-specific content
+        if "hash table" in tech_lower or "dictionary" in tech_lower:
+            description = f"A data structure that maps keys to values using a hash function, allowing for efficient lookups with average O(1) time complexity."
+            key_points = [
+                "Provides O(1) average time complexity for lookups, insertions, and deletions",
+                "Maps keys to values using a hash function",
+                "Handles collisions through techniques like chaining or open addressing",
+                "Essential for problems requiring fast element lookup or counting",
+                "Implemented as Dictionary in Python, HashMap in Java, and similar constructs in other languages"
+            ]
+            implementation = (
+                "Hash tables work by transforming a key into an array index using a hash function. "
+                "This allows for direct access to values without needing to search through the entire data structure. "
+                f"In problems like {problem_title}, hash tables enable efficient element tracking and duplicate detection."
+            )
+            
+        elif "frequency count" in tech_lower:
+            description = f"A technique that counts occurrences of elements in a collection, typically implemented using hash tables."
+            key_points = [
+                "Tracks the number of occurrences of each element",
+                "Typically implemented using a hash table/dictionary",
+                "Enables verification of character or element distribution",
+                "Common in string manipulation, anagram detection, and duplicate finding",
+                "Usually achieves O(n) time complexity where n is the input size"
+            ]
+            implementation = (
+                "Frequency counting creates a map where keys are elements and values are their counts. "
+                "By iterating through the collection once, we build this frequency map, which can then "
+                "be used to solve various problems efficiently. "
+                f"For {problem_title}, it helps track which elements have been seen before."
+            )
+            
+        elif "two pointer" in tech_lower:
+            description = f"An algorithm technique using two pointers to traverse a data structure, often reducing time complexity from O(n²) to O(n)."
+            key_points = [
+                "Uses two pointers that move through the data structure",
+                "Often reduces time complexity from O(n²) to O(n)",
+                "Commonly used for array, linked list, and string problems",
+                "Effective for search, comparison, and subarray problems",
+                "Can operate with pointers moving in the same or opposite directions"
+            ]
+            implementation = (
+                "The two-pointer technique involves maintaining two reference points within a data structure. "
+                "These pointers can move toward each other (for problems like finding pairs with a target sum), "
+                "away from each other (for expanding around a center), or in the same direction (for sliding window problems). "
+                f"While not typically used for {problem_title}, it's essential for many other algorithm challenges."
+            )
+            
+        elif "sliding window" in tech_lower:
+            description = f"A technique for processing sequential data elements using a window that slides through the data."
+            key_points = [
+                "Maintains a 'window' of elements that expands or contracts",
+                "Avoids recomputation by tracking window state incrementally",
+                "Typically reduces O(n²) or worse solutions to O(n)",
+                "Ideal for subarray or substring problems with constraints",
+                "Used for finding subarrays with specific properties"
+            ]
+            implementation = (
+                "The sliding window approach works by maintaining a range of elements (the window) "
+                "that meets certain criteria. As the window slides through the data, we incrementally "
+                "update the state based on elements entering and leaving the window, avoiding redundant calculations. "
+                "This achieves linear time complexity for problems that would otherwise require nested loops."
+            )
+            
+        elif "binary search" in tech_lower:
+            description = f"A divide-and-conquer search algorithm that finds elements in a sorted array in logarithmic time."
+            key_points = [
+                "Works on sorted data structures",
+                "Achieves O(log n) time complexity",
+                "Repeatedly divides the search space in half",
+                "Can be applied to answer Yes/No questions on monotonic functions",
+                "Effective for finding elements or boundaries in sorted collections"
+            ]
+            implementation = (
+                "Binary search divides the search space in half at each step. "
+                "Starting with the entire range, we compare the middle element with our target, then eliminate "
+                "half of the remaining elements based on that comparison. This continues until the target is found "
+                "or the search space is empty, resulting in O(log n) time complexity."
+            )
+            
+        elif "dynamic programming" in tech_lower:
+            description = f"An algorithmic technique that breaks down problems into overlapping subproblems and builds up solutions."
+            key_points = [
+                "Breaks problems into overlapping subproblems",
+                "Stores previously computed results to avoid redundant calculation",
+                "Can be implemented with memoization (top-down) or tabulation (bottom-up)",
+                "Optimizes exponential solutions to polynomial time",
+                "Effective for optimization problems and counting problems"
+            ]
+            implementation = (
+                "Dynamic programming works by breaking complex problems into smaller, overlapping subproblems. "
+                "By storing the solutions to these subproblems (using memoization or tabulation), we avoid redundant calculations "
+                "and build up to the final solution. This transforms exponential time solutions into polynomial time, "
+                "particularly for problems with optimal substructure and overlapping subproblems."
+            )
+            
+        elif "hashing" in tech_lower:
+            description = f"A technique that converts data of arbitrary size to fixed-size values, fundamental to hash table implementation."
+            key_points = [
+                "Converts data to a fixed-size value (hash)",
+                "Enables O(1) average lookup time in hash tables",
+                "Used for data integrity verification and indexing",
+                "Common in duplicate detection and data validation",
+                "Balance between computation speed and collision avoidance"
+            ]
+            implementation = (
+                "Hashing involves applying a function to input data to produce a fixed-size output value. "
+                "This hash value serves as an index in a hash table, enabling fast lookups, insertions, and deletions. "
+                "Good hash functions distribute elements evenly across the hash table, minimizing collisions. "
+                f"In {problem_title}, hashing helps quickly determine if an element has been seen before."
+            )
+        
+        return description, key_points, implementation
+        
+    def _get_technique_complexity(self, technique: str, complexity_type: str) -> str:
+        """Get time or space complexity information for a technique."""
+        tech_lower = technique.lower()
+        
+        if complexity_type == "time":
+            if "hash table" in tech_lower or "dictionary" in tech_lower or "hashing" in tech_lower:
+                return "Average: O(1) for lookups, insertions, and deletions. Worst case: O(n) if many collisions occur."
+            elif "frequency count" in tech_lower:
+                return "O(n) where n is the number of elements being counted."
+            elif "two pointer" in tech_lower or "sliding window" in tech_lower:
+                return "O(n) where n is the size of the input array or string."
+            elif "binary search" in tech_lower:
+                return "O(log n) where n is the size of the sorted input array."
+            elif "dynamic programming" in tech_lower:
+                return "Typically O(n²) or O(n*m) depending on the specific problem, but varies widely."
+            else:
+                return "Varies depending on implementation and specific problem constraints."
+        else:  # space complexity
+            if "hash table" in tech_lower or "dictionary" in tech_lower or "frequency count" in tech_lower:
+                return "O(n) where n is the number of unique elements or characters being tracked."
+            elif "two pointer" in tech_lower:
+                return "O(1) as only a constant amount of extra space is needed."
+            elif "sliding window" in tech_lower:
+                return "O(1) to O(k) where k is the window size, depending on what needs to be tracked."
+            elif "binary search" in tech_lower:
+                return "O(1) for iterative implementation, O(log n) for recursive implementation due to call stack."
+            elif "dynamic programming" in tech_lower:
+                return "O(n) to O(n²) typically, depending on the dimensions of the DP table."
+            elif "hashing" in tech_lower:
+                return "O(n) where n is the number of elements being hashed and stored."
+            else:
+                return "Varies depending on implementation and specific problem constraints."
+
+    def _auto_relate_same_problem_concepts(self, concepts: List[Dict]) -> List[Dict]:
+        """Automatically detect and relate concepts that solve the same problem using different approaches."""
+        
+        # Define problem patterns and their variations
+        problem_patterns = {
+            "group anagrams": [
+                "group anagrams using sorted keys",
+                "group anagrams using character count tuples", 
+                "group anagrams using frequency count",
+                "group anagrams using hash table",
+                "group anagrams"
+            ],
+            "two sum": [
+                "two sum using hash table",
+                "two sum using two pointers", 
+                "two sum brute force",
+                "two sum"
+            ],
+            "contains duplicate": [
+                "contains duplicate using hash table",
+                "contains duplicate using set",
+                "contains duplicate using sorting",
+                "contains duplicate"
+            ],
+            "valid anagram": [
+                "valid anagram using frequency count",
+                "valid anagram using sorting",
+                "valid anagram using hash table",
+                "valid anagram"
+            ],
+            "reverse linked list": [
+                "reverse linked list iterative",
+                "reverse linked list recursive",
+                "reverse linked list"
+            ]
+        }
+        
+        # Create a mapping of concepts to their base problem
+        concept_to_problem = {}
+        problem_groups = {}
+        
+        for concept in concepts:
+            title_lower = concept["title"].lower()
+            
+            # Find which problem this concept belongs to
+            for base_problem, variations in problem_patterns.items():
+                for variation in variations:
+                    if variation in title_lower:
+                        concept_to_problem[concept["title"]] = base_problem
+                        if base_problem not in problem_groups:
+                            problem_groups[base_problem] = []
+                        problem_groups[base_problem].append(concept)
+                        break
+                if concept["title"] in concept_to_problem:
+                    break
+        
+        # Auto-relate concepts that solve the same problem
+        for base_problem, related_concepts in problem_groups.items():
+            if len(related_concepts) > 1:  # Only if there are multiple approaches
+                print(f"🔗 Auto-relating {len(related_concepts)} concepts for '{base_problem}' problem")
+                
+                for concept in related_concepts:
+                    if "relatedConcepts" not in concept:
+                        concept["relatedConcepts"] = []
+                    
+                    # Add other approaches as related concepts
+                    for other_concept in related_concepts:
+                        if (other_concept["title"] != concept["title"] and 
+                            other_concept["title"] not in concept["relatedConcepts"]):
+                            concept["relatedConcepts"].append(other_concept["title"])
+                            print(f"  ✅ Linked '{concept['title']}' → '{other_concept['title']}'")
+        
+        return concepts
+
     async def analyze_conversation(self, req: ConversationRequest) -> Dict:
         """Analyze a conversation using comprehensive analysis with detailed logging and fallback strategies."""
         logger.info("🚀 === STARTING CONVERSATION ANALYSIS ===")
@@ -1117,6 +1396,9 @@ trading some space efficiency for significant time optimization.",
                 
                 # Use the deduplicated list
                 concepts = list(unique_concepts.values())
+                
+                # AUTO-RELATE concepts that solve the same problem using different approaches
+                concepts = self._auto_relate_same_problem_concepts(concepts)
                 
                 # Check if we need to create technique mini-concepts for related concepts
                 # This helps techniques appear in the Related Concepts UI without too much granularity
@@ -1394,6 +1676,10 @@ trading some space efficiency for significant time optimization.",
                 else:
                     unique_concepts[title_key] = concept
             deduplicated_concepts = list(unique_concepts.values())
+            
+            # AUTO-RELATE concepts that solve the same problem using different approaches
+            deduplicated_concepts = self._auto_relate_same_problem_concepts(deduplicated_concepts)
+            
             result = {
                 "concepts": deduplicated_concepts,
                 "summary": " | ".join(segment_summaries),
@@ -1409,211 +1695,6 @@ trading some space efficiency for significant time optimization.",
         except Exception as e:
             print(f"Error analyzing conversation: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
-
-    def _validate_and_fix_leetcode_title(self, concept: Dict, conversation_text: str) -> None:
-        """Validate and fix LeetCode problem titles to ensure they follow naming conventions."""
-        title = concept.get("title", "").lower()
-        conversation_lower = conversation_text.lower()
-        
-        # Define exact mappings for common LeetCode problems
-        leetcode_mappings = {
-            # If conversation mentions these, use the exact title
-            "contains duplicate": "Contains Duplicate",
-            "two sum": "Two Sum",
-            "valid anagram": "Valid Anagram",
-            "reverse linked list": "Reverse Linked List",
-            "valid parentheses": "Valid Parentheses",
-            "maximum subarray": "Maximum Subarray",
-            "merge two sorted lists": "Merge Two Sorted Lists",
-            "climbing stairs": "Climbing Stairs",
-            "best time to buy and sell stock": "Best Time to Buy and Sell Stock"
-        }
-        
-        # Check if conversation mentions any of these problems
-        for problem_phrase, correct_title in leetcode_mappings.items():
-            if problem_phrase in conversation_lower:
-                # Check if current title is wrong (descriptive instead of problem name)
-                wrong_patterns = [
-                    "efficient", "detection", "using", "implementation", "algorithm",
-                    "technique", "approach", "method", "solution"
-                ]
-                
-                # If title contains wrong patterns or doesn't match the correct title
-                if (any(pattern in title for pattern in wrong_patterns) or 
-                    title != correct_title.lower()):
-                    
-                    print(f"🔧 Fixing LeetCode title: '{concept['title']}' → '{correct_title}'")
-                    concept["title"] = correct_title
-                    
-                    # Ensure it's categorized as LeetCode Problems
-                    if concept.get("category") != "LeetCode Problems":
-                        concept["category"] = "LeetCode Problems"
-                    
-                    # Update summary to be problem-focused
-                    if "contains duplicate" in problem_phrase:
-                        concept["summary"] = "A problem that involves finding if an array contains any duplicate elements using hash table for O(n) time complexity."
-                    elif "two sum" in problem_phrase:
-                        concept["summary"] = "A problem that asks to find two numbers in an array that add up to a specific target."
-                    elif "valid anagram" in problem_phrase:
-                        concept["summary"] = "A problem that determines if two strings are anagrams of each other."
-                    
-                break  # Only fix the first match
-
-    def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
-        """Get rich description and key points for a technique."""
-        tech_lower = technique.lower()
-        
-        # Default description
-        description = f"A key technique used in {problem_title}."
-        key_points = [f"Used to solve {problem_title} efficiently"]
-        implementation = f"This technique is commonly implemented in problems like {problem_title}."
-        
-        # Technique-specific content
-        if "hash table" in tech_lower or "dictionary" in tech_lower:
-            description = f"A data structure that maps keys to values using a hash function, allowing for efficient lookups with average O(1) time complexity."
-            key_points = [
-                "Provides O(1) average time complexity for lookups, insertions, and deletions",
-                "Maps keys to values using a hash function",
-                "Handles collisions through techniques like chaining or open addressing",
-                "Essential for problems requiring fast element lookup or counting",
-                "Implemented as Dictionary in Python, HashMap in Java, and similar constructs in other languages"
-            ]
-            implementation = (
-                "Hash tables work by transforming a key into an array index using a hash function. "
-                "This allows for direct access to values without needing to search through the entire data structure. "
-                f"In problems like {problem_title}, hash tables enable efficient element tracking and duplicate detection."
-            )
-            
-        elif "frequency count" in tech_lower:
-            description = f"A technique that counts occurrences of elements in a collection, typically implemented using hash tables."
-            key_points = [
-                "Tracks the number of occurrences of each element",
-                "Typically implemented using a hash table/dictionary",
-                "Enables verification of character or element distribution",
-                "Common in string manipulation, anagram detection, and duplicate finding",
-                "Usually achieves O(n) time complexity where n is the input size"
-            ]
-            implementation = (
-                "Frequency counting creates a map where keys are elements and values are their counts. "
-                "By iterating through the collection once, we build this frequency map, which can then "
-                "be used to solve various problems efficiently. "
-                f"For {problem_title}, it helps track which elements have been seen before."
-            )
-            
-        elif "two pointer" in tech_lower:
-            description = f"An algorithm technique using two pointers to traverse a data structure, often reducing time complexity from O(n²) to O(n)."
-            key_points = [
-                "Uses two pointers that move through the data structure",
-                "Often reduces time complexity from O(n²) to O(n)",
-                "Commonly used for array, linked list, and string problems",
-                "Effective for search, comparison, and subarray problems",
-                "Can operate with pointers moving in the same or opposite directions"
-            ]
-            implementation = (
-                "The two-pointer technique involves maintaining two reference points within a data structure. "
-                "These pointers can move toward each other (for problems like finding pairs with a target sum), "
-                "away from each other (for expanding around a center), or in the same direction (for sliding window problems). "
-                f"While not typically used for {problem_title}, it's essential for many other algorithm challenges."
-            )
-            
-        elif "sliding window" in tech_lower:
-            description = f"A technique for processing sequential data elements using a window that slides through the data."
-            key_points = [
-                "Maintains a 'window' of elements that expands or contracts",
-                "Avoids recomputation by tracking window state incrementally",
-                "Typically reduces O(n²) or worse solutions to O(n)",
-                "Ideal for subarray or substring problems with constraints",
-                "Used for finding subarrays with specific properties"
-            ]
-            implementation = (
-                "The sliding window approach works by maintaining a range of elements (the window) "
-                "that meets certain criteria. As the window slides through the data, we incrementally "
-                "update the state based on elements entering and leaving the window, avoiding redundant calculations. "
-                "This achieves linear time complexity for problems that would otherwise require nested loops."
-            )
-            
-        elif "binary search" in tech_lower:
-            description = f"A divide-and-conquer search algorithm that finds elements in a sorted array in logarithmic time."
-            key_points = [
-                "Works on sorted data structures",
-                "Achieves O(log n) time complexity",
-                "Repeatedly divides the search space in half",
-                "Can be applied to answer Yes/No questions on monotonic functions",
-                "Effective for finding elements or boundaries in sorted collections"
-            ]
-            implementation = (
-                "Binary search divides the search space in half at each step. "
-                "Starting with the entire range, we compare the middle element with our target, then eliminate "
-                "half of the remaining elements based on that comparison. This continues until the target is found "
-                "or the search space is empty, resulting in O(log n) time complexity."
-            )
-            
-        elif "dynamic programming" in tech_lower:
-            description = f"An algorithmic technique that breaks down problems into overlapping subproblems and builds up solutions."
-            key_points = [
-                "Breaks problems into overlapping subproblems",
-                "Stores previously computed results to avoid redundant calculation",
-                "Can be implemented with memoization (top-down) or tabulation (bottom-up)",
-                "Optimizes exponential solutions to polynomial time",
-                "Effective for optimization problems and counting problems"
-            ]
-            implementation = (
-                "Dynamic programming works by breaking complex problems into smaller, overlapping subproblems. "
-                "By storing the solutions to these subproblems (using memoization or tabulation), we avoid redundant calculations "
-                "and build up to the final solution. This transforms exponential time solutions into polynomial time, "
-                "particularly for problems with optimal substructure and overlapping subproblems."
-            )
-            
-        elif "hashing" in tech_lower:
-            description = f"A technique that converts data of arbitrary size to fixed-size values, fundamental to hash table implementation."
-            key_points = [
-                "Converts data to a fixed-size value (hash)",
-                "Enables O(1) average lookup time in hash tables",
-                "Used for data integrity verification and indexing",
-                "Common in duplicate detection and data validation",
-                "Balance between computation speed and collision avoidance"
-            ]
-            implementation = (
-                "Hashing involves applying a function to input data to produce a fixed-size output value. "
-                "This hash value serves as an index in a hash table, enabling fast lookups, insertions, and deletions. "
-                "Good hash functions distribute elements evenly across the hash table, minimizing collisions. "
-                f"In {problem_title}, hashing helps quickly determine if an element has been seen before."
-            )
-        
-        return description, key_points, implementation
-        
-    def _get_technique_complexity(self, technique: str, complexity_type: str) -> str:
-        """Get time or space complexity information for a technique."""
-        tech_lower = technique.lower()
-        
-        if complexity_type == "time":
-            if "hash table" in tech_lower or "dictionary" in tech_lower or "hashing" in tech_lower:
-                return "Average: O(1) for lookups, insertions, and deletions. Worst case: O(n) if many collisions occur."
-            elif "frequency count" in tech_lower:
-                return "O(n) where n is the number of elements being counted."
-            elif "two pointer" in tech_lower or "sliding window" in tech_lower:
-                return "O(n) where n is the size of the input array or string."
-            elif "binary search" in tech_lower:
-                return "O(log n) where n is the size of the sorted input array."
-            elif "dynamic programming" in tech_lower:
-                return "Typically O(n²) or O(n*m) depending on the specific problem, but varies widely."
-            else:
-                return "Varies depending on implementation and specific problem constraints."
-        else:  # space complexity
-            if "hash table" in tech_lower or "dictionary" in tech_lower or "frequency count" in tech_lower:
-                return "O(n) where n is the number of unique elements or characters being tracked."
-            elif "two pointer" in tech_lower:
-                return "O(1) as only a constant amount of extra space is needed."
-            elif "sliding window" in tech_lower:
-                return "O(1) to O(k) where k is the window size, depending on what needs to be tracked."
-            elif "binary search" in tech_lower:
-                return "O(1) for iterative implementation, O(log n) for recursive implementation due to call stack."
-            elif "dynamic programming" in tech_lower:
-                return "O(n) to O(n²) typically, depending on the dimensions of the DP table."
-            elif "hashing" in tech_lower:
-                return "O(n) where n is the number of elements being hashed and stored."
-            else:
-                return "Varies depending on implementation and specific problem constraints."
 
 
 # Initialize the concept extractor
