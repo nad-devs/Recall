@@ -254,6 +254,12 @@ export const useCategoryOperations = ({
       })
       
       await createPlaceholderConcept(newCategoryPath)
+      
+      // Refresh data after creating category
+      if (onDataRefresh) {
+        await onDataRefresh()
+      }
+      
       onCategorySelect(newCategoryPath)
       
       toast({
@@ -272,11 +278,12 @@ export const useCategoryOperations = ({
         variant: "destructive",
         duration: 3000,
       })
+      resetDialogState()
     } finally {
       setOperationStarting(false)
       setIsCreatingCategory(false)
     }
-  }, [isCreatingCategory, isMovingConcepts, operationStarting, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, resetDialogState])
+  }, [isCreatingCategory, isMovingConcepts, operationStarting, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onDataRefresh, onCategorySelect, resetDialogState])
 
   // Handle concept transfer - IMPROVED to prevent freezing
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
@@ -298,6 +305,11 @@ export const useCategoryOperations = ({
         await onConceptsMove(conceptIds, targetCategory)
       }
       
+      // Refresh data immediately after moving
+      if (onDataRefresh) {
+        await onDataRefresh()
+      }
+      
       toast({
         title: "Concepts Moved",
         description: `Successfully moved ${conceptsToMove.length} concept(s) to "${targetCategory}"`,
@@ -306,10 +318,8 @@ export const useCategoryOperations = ({
       
       onCategorySelect(targetCategory)
       
-      // Use timeout to prevent race conditions
-      setTimeout(() => {
-        resetDialogState()
-      }, 100)
+      // Reset dialog state immediately
+      resetDialogState()
       
     } catch (error: any) {
       console.error('Error moving concepts:', error)
@@ -328,14 +338,12 @@ export const useCategoryOperations = ({
         duration: 3000,
       })
       
-      // Reset state even on error
-      setTimeout(() => {
-        resetDialogState()
-      }, 100)
+      // Reset state immediately on error too
+      resetDialogState()
     } finally {
       setIsMovingConcepts(false)
     }
-  }, [isMovingConcepts, toast, onConceptsMove, onCategorySelect, resetDialogState])
+  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, resetDialogState])
 
   return {
     // States

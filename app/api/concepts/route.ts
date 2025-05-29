@@ -1046,16 +1046,37 @@ export async function POST(request: Request) {
 
     let conversationId = data.conversationId;
     
-    // Only create a dummy conversation if this is NOT a manual creation, NOT a placeholder, and no conversationId is provided
-    if (!conversationId && !isManualCreation && !isPlaceholder) {
+    // Create a dummy conversation for ALL concept types if no conversationId is provided
+    if (!conversationId) {
       try {
-        console.log('🔧 POST /api/concepts - Creating dummy conversation')
+        console.log('🔧 POST /api/concepts - Creating dummy conversation for concept type:', {
+          isManualCreation,
+          isPlaceholder,
+          title
+        })
+        
+        let conversationText = '';
+        let conversationSummary = '';
+        
+        if (isPlaceholder) {
+          conversationText = `Placeholder conversation for category: ${data.category || title}. This category was created to organize concepts.`;
+          conversationSummary = `Category placeholder: ${data.category || title}`;
+        } else if (isManualCreation) {
+          conversationText = context 
+            ? `${context}\n\nManual concept creation for: ${title}`
+            : `Manual concept creation for: ${title}. Please explain this concept in detail.`;
+          conversationSummary = `Manual concept: ${title}`;
+        } else {
+          conversationText = context 
+            ? `${context}\n\nPlease explain the concept of ${title} in detail.`
+            : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`;
+          conversationSummary = `Conversation for ${title} concept`;
+        }
+        
         const dummyConversation = await prisma.conversation.create({
           data: {
-            text: context 
-              ? `${context}\n\nPlease explain the concept of ${title} in detail.`
-              : `Auto-generated conversation for concept: ${title}. Please explain the concept of ${title} in detail.`,
-            summary: `Conversation for ${title} concept`,
+            text: conversationText,
+            summary: conversationSummary,
             userId: user.id
           }
         });
@@ -1063,7 +1084,7 @@ export async function POST(request: Request) {
         console.log('🔧 POST /api/concepts - Created dummy conversation:', conversationId)
       } catch (conversationError) {
         console.error('🔧 POST /api/concepts - Error creating dummy conversation:', conversationError)
-        // This is not critical for placeholder or manual concepts, so continue
+        throw new Error('Failed to create required conversation for concept')
       }
     }
 
@@ -1083,7 +1104,7 @@ export async function POST(request: Request) {
 
     console.log('🔧 POST /api/concepts - Creating concept with category:', formattedInitialCategory)
 
-    // Create the concept - conversationId is optional for manual creations
+    // Create the concept - conversationId is now always available
     const conceptData = {
       title,
       category: formattedInitialCategory,
@@ -1097,8 +1118,7 @@ export async function POST(request: Request) {
       isPlaceholder: isPlaceholder,
       lastUpdated: new Date(),
       userId: user.id,
-      // Only set conversationId if we have one (for conversation-based concepts)
-      ...(conversationId && { conversationId })
+      conversationId: conversationId // Always include conversationId
     };
 
     console.log('🔧 POST /api/concepts - Concept data to create:', JSON.stringify(conceptData, null, 2))
