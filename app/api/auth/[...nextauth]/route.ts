@@ -43,10 +43,10 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 console.log(`📋 Total providers configured: ${providers.length}`)
 
 const handler = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // adapter: PrismaAdapter(prisma), // Temporarily disabled
   providers,
   session: {
-    strategy: "jwt", // Temporarily switch to JWT to test
+    strategy: "jwt", // Pure JWT, no database
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
@@ -60,13 +60,46 @@ const handler = NextAuth({
         userId: user?.id || token?.sub
       })
       
-      // Include user ID in the token
-      if (user) {
+      // If this is a new sign-in with Google OAuth
+      if (user && account?.provider === 'google') {
+        console.log('🔍 New Google OAuth sign-in - checking for existing user')
+        
+        try {
+          // Check if there's an existing user with this email
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email!.toLowerCase() }
+          })
+          
+          if (existingUser) {
+            console.log('✅ Found existing user - using existing user data:', {
+              existingId: existingUser.id,
+              existingName: existingUser.name,
+              oauthId: user.id
+            })
+            
+            // Use the existing user's database ID instead of the OAuth ID
+            token.userId = existingUser.id
+            token.email = existingUser.email
+            token.name = existingUser.name || user.name
+            token.picture = user.image // Use OAuth profile picture
+            
+            console.log('🔄 Set token to use existing user ID:', existingUser.id)
+          } else {
+            console.log('ℹ️ No existing user found, using OAuth user data')
+            token.userId = user.id
+          }
+        } catch (error) {
+          console.error('❌ Error checking for existing user:', error)
+          // Fallback to OAuth user data
+          token.userId = user.id
+        }
+      } else if (user) {
+        // First-time token creation
         token.userId = user.id
         console.log('🔄 Setting token.userId to:', user.id)
       }
       
-      console.log('✅ JWT callback completed')
+      console.log('✅ JWT callback completed with userId:', token.userId)
       return token
     },
     async session({ session, token }) {
@@ -107,7 +140,7 @@ const handler = NextAuth({
       }
     },
     async signIn({ user, account, profile }) {
-      console.log('🔄 Sign-in callback triggered:', {
+      console.log('🔄 Sign-in callback triggered (Pure JWT mode):', {
         userId: user?.id,
         email: user?.email,
         provider: account?.provider,
@@ -130,55 +163,14 @@ const handler = NextAuth({
         profile: profile ? 'Present' : 'None'
       })
       
-      try {
-        // Special handling for arjunnadar2003@gmail.com to debug the issue
-        if (user.email === 'arjunnadar2003@gmail.com') {
-          console.log('🎯 SPECIAL DEBUG - Processing arjunnadar2003@gmail.com login')
-        }
-        
-        // For Google OAuth, check if user already exists
-        if (user.email && account?.provider === 'google') {
-          console.log('🔍 Checking for existing user with email:', user.email)
-          
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email.toLowerCase() },
-            include: {
-              accounts: true
-            }
-          })
-          
-          if (existingUser) {
-            console.log('✅ Found existing user - will use existing account:', {
-              id: existingUser.id,
-              name: existingUser.name,
-              email: existingUser.email,
-              accountCount: existingUser.accounts.length
-            })
-            
-            // Just allow sign-in - let NextAuth handle the OAuth account linkage
-            console.log('✅ Allowing sign-in to use existing user account')
-            return true
-          } else {
-            console.log('ℹ️ No existing user found, will create new OAuth user')
-          }
-        }
-        
-        console.log('✅ Sign-in approved for user:', user?.email)
-        return true
-        
-      } catch (error) {
-        console.error('❌ Error in sign-in callback:', error)
-        console.error('❌ Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          userEmail: user?.email,
-          provider: account?.provider,
-          timestamp: new Date().toISOString()
-        })
-        
-        // Don't block sign-in
-        console.log('⚠️ Allowing sign-in despite error (to prevent blocking)')
+      // For pure JWT mode, just allow all valid OAuth sign-ins
+      if (user.email && account?.provider === 'google') {
+        console.log('✅ Pure JWT mode - allowing Google OAuth sign-in for:', user.email)
         return true
       }
+      
+      console.log('✅ Sign-in approved for user:', user?.email)
+      return true
     },
     async redirect({ url, baseUrl }) {
       console.log('🔄 Redirect callback:', { url, baseUrl })
