@@ -359,26 +359,47 @@ export function ConceptsNavigation({
 
   // Enhanced emergency reset function that forces all dialogs closed and resets all states
   const forceResetAllStates = useCallback(() => {
-    console.log('🔧 FORCE RESET - Emergency state cleanup...')
+    const resetStartTime = Date.now()
+    console.log('🔧 CLIENT: FORCE RESET - Emergency state cleanup started...', new Date().toISOString())
+    
+    // Log current state before reset
+    console.log('🔧 CLIENT: Current state before reset:', {
+      isCreatingCategory,
+      isMovingConcepts,
+      isRenamingCategory,
+      isDraggingCategory,
+      showAddSubcategoryDialog,
+      showTransferDialog,
+      showEditCategoryDialog,
+      showDragDropDialog,
+      selectedParentCategory,
+      newSubcategoryName,
+      transferConceptsCount: transferConcepts.length
+    })
     
     // Cancel any ongoing operations immediately
     if (abortControllerRef.current) {
       try {
+        console.log('🔧 CLIENT: Aborting network requests...')
         abortControllerRef.current.abort()
       } catch (e) {
-        console.warn('🔧 Error aborting controller:', e)
+        console.warn('🔧 CLIENT: Error aborting controller:', e)
       }
       abortControllerRef.current = null
+      console.log('🔧 CLIENT: ✅ Abort controller cleared')
     }
     
     // Force reset all dialog states using React's flushSync to ensure immediate updates
     try {
+      console.log('🔧 CLIENT: Resetting dialog visibility states...')
       // Reset all dialog visibility states
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
+      console.log('🔧 CLIENT: ✅ Dialog visibility states reset')
       
+      console.log('🔧 CLIENT: Resetting form states...')
       // Reset all form states
       setSelectedParentCategory('')
       setNewSubcategoryName('')
@@ -387,29 +408,44 @@ export function ConceptsNavigation({
       setTransferConcepts([])
       setSelectedConceptsForTransfer(new Set())
       setDragDropData(null)
+      console.log('🔧 CLIENT: ✅ Form states reset')
       
+      console.log('🔧 CLIENT: Resetting loading states...')
       // Reset all loading states - this is crucial to prevent freezing
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
       setIsDraggingCategory(false)
+      console.log('🔧 CLIENT: ✅ Loading states reset')
       
+      console.log('🔧 CLIENT: Resetting drag and drop states...')
       // Reset drag and drop states
       setIsDraggingAny(false)
       setExpandedBeforeDrag(new Set())
+      console.log('🔧 CLIENT: ✅ Drag and drop states reset')
       
+      console.log('🔧 CLIENT: Resetting inline editing states...')
       // Reset inline editing state
       setInlineEditingCategory(null)
       setInlineEditValue('')
+      console.log('🔧 CLIENT: ✅ Inline editing states reset')
       
       // Force re-render to ensure all state changes take effect
       setTimeout(() => {
-        console.log('🔧 FORCE RESET complete - all states cleared')
+        const totalTime = Date.now() - resetStartTime
+        console.log('🔧 CLIENT: ✅ FORCE RESET complete - all states cleared', `(${totalTime}ms)`)
+        
+        // Log final state after reset
+        console.log('🔧 CLIENT: Final state after reset verification (async):', {
+          timestamp: new Date().toISOString(),
+          resetDuration: `${totalTime}ms`
+        })
       }, 0)
       
     } catch (error) {
-      console.error('🔧 Error during force reset:', error)
+      console.error('🔧 CLIENT: ❌ Error during force reset:', error)
       // If there's an error during reset, at minimum clear the loading states
+      console.log('🔧 CLIENT: Emergency fallback - clearing critical states...')
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
@@ -418,8 +454,9 @@ export function ConceptsNavigation({
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
+      console.log('🔧 CLIENT: ✅ Emergency fallback complete')
     }
-  }, [])
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, selectedParentCategory, newSubcategoryName, transferConcepts])
 
   // Enhanced dialog close handler with proper cleanup
   const handleDialogClose = useCallback((dialogType: string, force = false) => {
@@ -625,58 +662,88 @@ export function ConceptsNavigation({
 
   // Enhanced createPlaceholderConcept with abort controller
   const createPlaceholderConcept = useCallback(async (category: string) => {
+    const operationStartTime = Date.now()
+    let currentStep = 'starting'
+    
+    console.log('🔧 CLIENT: createPlaceholderConcept started for category:', category, new Date().toISOString())
+    
     // Cancel any previous operation
     if (abortControllerRef.current) {
-      console.log('🔧 Cancelling previous operation before creating placeholder...')
+      console.log('🔧 CLIENT: Cancelling previous operation before creating placeholder...')
       abortControllerRef.current.abort()
+      console.log('🔧 CLIENT: ✅ Previous operation cancelled')
     }
     
     // Create new abort controller
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    console.log('🔧 CLIENT: ✅ New abort controller created')
     
     let timeoutId: NodeJS.Timeout | null = null
     
     try {
-      console.log(`🔧 Creating placeholder concept for category: ${category}`)
+      currentStep = 'setting timeout'
+      console.log(`🔧 CLIENT: Step 1 - Setting operation timeout... (${Date.now() - operationStartTime}ms)`)
       
       // Set a timeout for this operation
       timeoutId = setTimeout(() => {
-        console.warn('🔧 CreatePlaceholder timeout - aborting operation');
-        if (abortController) {
+        console.warn('🔧 CLIENT: ❌ CreatePlaceholder timeout - aborting operation after 15s');
+        if (abortController && !abortController.signal.aborted) {
+          console.log('🔧 CLIENT: Triggering abort due to timeout...')
           abortController.abort()
         }
       }, 15000); // 15 second timeout for creation
       
+      currentStep = 'testing connectivity'
+      console.log(`🔧 CLIENT: Step 2 - Testing API connectivity... (${Date.now() - operationStartTime}ms)`)
+      
       // Test connectivity first
-      await testApiConnectivity()
+      const connectivityOk = await testApiConnectivity()
+      console.log(`🔧 CLIENT: ✅ API connectivity test result:`, connectivityOk, `(${Date.now() - operationStartTime}ms)`)
+      
+      currentStep = 'making API call'
+      console.log(`🔧 CLIENT: Step 3 - Making API call to create placeholder... (${Date.now() - operationStartTime}ms)`)
+      
+      const requestBody = {
+        title: `[Category: ${category}]`,
+        category: category,
+        summary: 'This is a placeholder concept created to organize your knowledge. You can delete this once you have real concepts in this category.',
+        notes: '',
+        isPlaceholder: true
+      }
+      
+      console.log('🔧 CLIENT: Request body:', requestBody)
       
       // Use the new makeApiCall wrapper
       const data = await makeApiCall('/api/concepts', {
         method: 'POST',
-        body: JSON.stringify({
-          title: `[Category: ${category}]`,
-          category: category,
-          summary: 'This is a placeholder concept created to organize your knowledge. You can delete this once you have real concepts in this category.',
-          notes: '',
-          isPlaceholder: true
-        }),
+        body: JSON.stringify(requestBody),
       })
       
-      console.log(`🔧 Successfully created placeholder concept in category: ${category}`)
+      currentStep = 'processing response'
+      console.log(`🔧 CLIENT: ✅ API call successful, processing response... (${Date.now() - operationStartTime}ms)`)
+      console.log('🔧 CLIENT: Response data:', data)
+      
+      currentStep = 'refreshing data'
+      console.log(`🔧 CLIENT: Step 4 - Refreshing component data... (${Date.now() - operationStartTime}ms)`)
       
       // Refresh data to show the new category
       if (onDataRefresh) {
         await onDataRefresh()
+        console.log(`🔧 CLIENT: ✅ Data refresh complete (${Date.now() - operationStartTime}ms)`)
       }
+      
+      const totalTime = Date.now() - operationStartTime
+      console.log(`🔧 CLIENT: ✅ createPlaceholderConcept COMPLETE for "${category}" (TOTAL: ${totalTime}ms)`)
       
       return data
       
     } catch (error: any) {
-      console.error('🔧 Error creating placeholder concept:', error)
+      const totalTime = Date.now() - operationStartTime
+      console.error(`🔧 CLIENT: ❌ Error in createPlaceholderConcept at step "${currentStep}":`, error, `(${totalTime}ms)`)
       
       if (error.message === 'Operation was cancelled') {
-        console.log('🔧 Placeholder creation was cancelled')
+        console.log('🔧 CLIENT: Placeholder creation was cancelled')
         throw error
       }
       
@@ -691,18 +758,26 @@ export function ConceptsNavigation({
         errorMessage = 'Authentication error. Please refresh the page and try again.'
       }
       
+      console.error('🔧 CLIENT: Final error message:', errorMessage)
       throw new Error(errorMessage)
       
     } finally {
+      const totalTime = Date.now() - operationStartTime
+      console.log(`🔧 CLIENT: createPlaceholderConcept finally block - cleaning up... (${totalTime}ms)`)
+      
       // Clear the timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
+        console.log('🔧 CLIENT: ✅ Timeout cleared')
       }
       
       // Clear the abort controller
       if (abortControllerRef.current === abortController) {
         abortControllerRef.current = null
+        console.log('🔧 CLIENT: ✅ Abort controller cleared')
       }
+      
+      console.log(`🔧 CLIENT: createPlaceholderConcept cleanup complete (${totalTime}ms)`)
     }
   }, [testApiConnectivity, makeApiCall, onDataRefresh])
 
@@ -1700,6 +1775,73 @@ export function ConceptsNavigation({
       }
     }
   }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, forceResetAllStates, toast])
+
+  // Add a state monitoring effect to track when loading states get stuck
+  useEffect(() => {
+    let monitoringInterval: NodeJS.Timeout | null = null
+    
+    // If any loading state is active, start monitoring
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory || isDraggingCategory) {
+      console.log('🔧 CLIENT: STATE MONITOR - Loading state detected, starting monitoring...', {
+        isCreatingCategory,
+        isMovingConcepts,
+        isRenamingCategory,
+        isDraggingCategory,
+        timestamp: new Date().toISOString()
+      })
+      
+      let monitorStartTime = Date.now()
+      let lastLogTime = Date.now()
+      
+      monitoringInterval = setInterval(() => {
+        const currentTime = Date.now()
+        const totalElapsed = currentTime - monitorStartTime
+        const sinceLastLog = currentTime - lastLogTime
+        
+        console.log('🔧 CLIENT: STATE MONITOR - Loading state still active', {
+          totalElapsed: `${totalElapsed}ms`,
+          sinceLastLog: `${sinceLastLog}ms`,
+          currentStates: {
+            isCreatingCategory,
+            isMovingConcepts,
+            isRenamingCategory,
+            isDraggingCategory,
+            showAddSubcategoryDialog,
+            showTransferDialog,
+            showEditCategoryDialog,
+            showDragDropDialog
+          },
+          hasAbortController: !!abortControllerRef.current,
+          timestamp: new Date().toISOString()
+        })
+        
+        // If stuck for more than 10 seconds, warn
+        if (totalElapsed > 10000) {
+          console.warn('🔧 CLIENT: STATE MONITOR - WARNING: Loading state stuck for >10s', {
+            totalElapsed: `${totalElapsed}ms`,
+            suggestAction: 'Consider force reset if no progress'
+          })
+        }
+        
+        // If stuck for more than 20 seconds, suggest force reset
+        if (totalElapsed > 20000) {
+          console.error('🔧 CLIENT: STATE MONITOR - CRITICAL: Loading state stuck for >20s', {
+            totalElapsed: `${totalElapsed}ms`,
+            recommendation: 'Force reset recommended - possible infinite loop or network hang'
+          })
+        }
+        
+        lastLogTime = currentTime
+      }, 2000) // Log every 2 seconds when loading states are active
+    }
+    
+    return () => {
+      if (monitoringInterval) {
+        console.log('🔧 CLIENT: STATE MONITOR - Clearing monitoring interval (loading states cleared)')
+        clearInterval(monitoringInterval)
+      }
+    }
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
