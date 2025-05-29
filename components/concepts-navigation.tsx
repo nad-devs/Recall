@@ -223,11 +223,9 @@ export function ConceptsNavigation({
   }, [categoryOps])
 
   const handleCancelCategoryCreation = useCallback(() => {
-    // Use a timeout to prevent race conditions
-    setTimeout(() => {
-      categoryOps.resetDialogState()
-    }, 0)
-  }, [categoryOps])
+    // Simple solution: just reload the page to reset everything
+    window.location.reload()
+  }, [])
 
   // Category drop handler
   const handleCategoryDrop = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
