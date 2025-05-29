@@ -405,33 +405,6 @@ export function ConceptsNavigation({
     handleDragStart, handleDragEnd, isDraggingAny
   ])
 
-  // Quick page reload function - simplest solution
-  const quickReload = useCallback(() => {
-    window.location.reload()
-  }, [])
-
-  // Force reset function for emergency cases
-  const forceResetAllStates = useCallback(() => {
-    try {
-      // Reset local states first
-      setInlineEditingCategory(null)
-      setInlineEditValue('')
-      setIsDraggingAny(false)
-      setExpandedBeforeDrag(new Set())
-      
-      // Then reset category operations - use a timeout to prevent race conditions
-      setTimeout(() => {
-        try {
-          categoryOps.resetDialogState()
-        } catch (error) {
-          console.error('Error in category operations reset:', error)
-        }
-      }, 0)
-    } catch (error) {
-      console.error('Error in force reset:', error)
-    }
-  }, []) // Removed categoryOps dependency to prevent infinite loops
-
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
@@ -470,18 +443,6 @@ export function ConceptsNavigation({
       <div className="p-4 border-b border-border">
         <h3 className="text-sm font-medium mb-2 text-muted-foreground">Quick Filters</h3>
         <div className="space-y-1">
-          {/* Emergency Reset Button - only show when operations are running */}
-          {(categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory) && (
-            <Button
-              variant="destructive"
-              className="w-full justify-start text-sm h-8 mb-2"
-              onClick={forceResetAllStates}
-            >
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              Emergency Reset
-            </Button>
-          )}
-          
           <Button
             variant={selectedCategory === null && !showNeedsReview ? "secondary" : "ghost"}
             className="w-full justify-start text-sm h-8"

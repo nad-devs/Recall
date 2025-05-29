@@ -650,11 +650,21 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
       where: {
         category: category,
         isPlaceholder: true
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        title: true
       }
     });
 
     if (placeholderConcepts.length > 0) {
-      // Delete all placeholder concepts in this category
+      // Collect conversation IDs to delete
+      const conversationIds = placeholderConcepts
+        .map(concept => concept.conversationId)
+        .filter(id => id !== null);
+      
+      // Delete all placeholder concepts in this category first
       await prisma.concept.deleteMany({
         where: {
           category: category,
@@ -662,10 +672,28 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
         }
       });
       
-      console.log(`Removed ${placeholderConcepts.length} placeholder concept(s) from category: ${category}`);
+      // Then delete the associated dummy conversations
+      if (conversationIds.length > 0) {
+        try {
+          await prisma.conversation.deleteMany({
+            where: {
+              id: {
+                in: conversationIds
+              }
+            }
+          });
+          console.log(`Removed ${conversationIds.length} dummy conversation(s) associated with placeholder concepts`);
+        } catch (conversationError) {
+          console.error('Error removing dummy conversations (non-critical):', conversationError);
+          // Don't throw here as the main goal (removing placeholders) is already done
+        }
+      }
+      
+      console.log(`Removed ${placeholderConcepts.length} placeholder concept(s) and their associated conversations from category: ${category}`);
     }
   } catch (error) {
-    console.error('Error removing placeholder concepts:', error);
+    console.error('Error removing placeholder concepts and conversations:', error);
+    throw error; // Re-throw to maintain original error handling behavior
   }
 }
 
@@ -758,6 +786,43 @@ Suggested Title Format: "${detection.problemName}" or "${detection.problemName} 
 Remember: The title should immediately tell someone what specific problem or concept is being discussed, not just the general technique or data structure used.`;
 
   return guidance;
+}
+
+// Utility function to clean up orphaned conversations that don't have any associated concepts
+async function cleanupOrphanedConversations(userId: string): Promise<void> {
+  try {
+    // Find conversations that don't have any associated concepts
+    const orphanedConversations = await prisma.conversation.findMany({
+      where: {
+        userId: userId,
+        concepts: {
+          none: {} // No associated concepts
+        }
+      },
+      select: {
+        id: true,
+        summary: true
+      }
+    });
+
+    if (orphanedConversations.length > 0) {
+      console.log(`Found ${orphanedConversations.length} orphaned conversations for cleanup`);
+      
+      // Delete orphaned conversations
+      await prisma.conversation.deleteMany({
+        where: {
+          id: {
+            in: orphanedConversations.map(conv => conv.id)
+          }
+        }
+      });
+      
+      console.log(`Cleaned up ${orphanedConversations.length} orphaned conversation(s) for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up orphaned conversations (non-critical):', error);
+    // Don't throw - this is a maintenance operation that shouldn't break main functionality
+  }
 }
 
 // Utility function to clean up broken related concept references
@@ -877,11 +942,11 @@ export async function GET(request: Request) {
       
       // Occasionally clean up broken related concept references (every 20 requests approximately)
       if (Math.random() < 0.05) { // 5% chance to run cleanup
-        console.log('Running periodic cleanup of broken related concept references...');
+        console.log('Running periodic cleanup of broken related concept references and orphaned conversations...');
         try {
-          // Import the cleanup function from the concepts/[id]/route.ts file
-          // For now, we'll implement a simplified version here
+          // Run both cleanup functions
           await cleanupBrokenReferencesForUser(user.id);
+          await cleanupOrphanedConversations(user.id);
         } catch (cleanupError) {
           console.error('Cleanup error (non-critical):', cleanupError);
         }

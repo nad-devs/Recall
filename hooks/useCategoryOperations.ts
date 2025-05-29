@@ -140,15 +140,8 @@ export const useCategoryOperations = ({
     }
   }, [])
 
-  // Create placeholder concept
+  // Create placeholder concept - FIXED to prevent freezing
   const createPlaceholderConcept = useCallback(async (category: string) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-    
-    const abortController = new AbortController()
-    abortControllerRef.current = abortController
-    
     try {
       const requestBody = {
         title: `📌 Add Concepts Here`,
@@ -157,50 +150,39 @@ export const useCategoryOperations = ({
         details: 'Click "Add Concept" or move concepts from other categories to get started. This placeholder will disappear once you have real content.',
         notes: '',
         isPlaceholder: true,
-        isManualCreation: true // This is important to prevent requiring conversationId
+        isManualCreation: true
       }
       
-      console.log('Creating placeholder concept with body:', requestBody)
+      console.log('Creating placeholder concept for category:', category)
       
-      const data = await makeApiCall('/api/concepts', {
+      const response = await makeApiCall('/api/concepts', {
         method: 'POST',
         body: JSON.stringify(requestBody),
       })
       
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
+      // Immediate soft refresh without waiting
+      setTimeout(async () => {
+        try {
+          if (onDataRefresh) {
+            await onDataRefresh()
+          }
+        } catch (refreshError) {
+          console.error('Non-critical refresh error:', refreshError)
+          // Fallback: simple page reload if refresh fails
+          window.location.reload()
+        }
+      }, 0)
       
-      return data
+      return response
     } catch (error: any) {
       console.error('Error creating placeholder concept:', error)
-      
-      if (error.message === 'Operation was cancelled') {
-        throw error
-      }
-      
-      let errorMessage = 'Failed to create category. Please try again.'
-      if (error.message?.includes('fetch')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (error.message?.includes('timeout')) {
-        errorMessage = 'Operation timed out. Please try again.'
-      } else if (error.message?.includes('401')) {
-        errorMessage = 'Authentication error. Please refresh the page and try again.'
-      } else if (error.message?.includes('500')) {
-        errorMessage = 'Server error. Please try refreshing the page and try again.'
-      }
-      
-      throw new Error(errorMessage)
-    } finally {
-      if (abortControllerRef.current === abortController) {
-        abortControllerRef.current = null
-      }
+      throw new Error('Failed to create category. Please try again.')
     }
   }, [makeApiCall, onDataRefresh])
 
-  // Handle category creation
+  // Handle category creation - FIXED to prevent freezing
   const handleCreateSubcategory = useCallback(async () => {
-    if (isCreatingCategory || isMovingConcepts || operationStarting) {
+    if (isCreatingCategory || isMovingConcepts) {
       return
     }
     
@@ -217,10 +199,8 @@ export const useCategoryOperations = ({
     const trimmedName = newSubcategoryName.trim()
     
     try {
-      setOperationStarting(true)
-      await new Promise(resolve => setTimeout(resolve, 10))
+      // Set loading state but don't wait for animations
       setIsCreatingCategory(true)
-      setOperationStarting(false)
       
       const newCategoryPath = selectedParentCategory 
         ? `${selectedParentCategory} > ${trimmedName}`
@@ -233,6 +213,7 @@ export const useCategoryOperations = ({
           variant: "destructive",
           duration: 3000,
         })
+        setIsCreatingCategory(false)
         return
       }
       
@@ -240,34 +221,40 @@ export const useCategoryOperations = ({
         const parentConcepts = conceptsByCategory[selectedParentCategory] || []
         
         if (parentConcepts.length > 0) {
+          // Immediately show transfer dialog without waiting
           setTransferConcepts(parentConcepts)
           setShowTransferDialog(true)
           setShowAddSubcategoryDialog(false)
+          setIsCreatingCategory(false)
           return
         }
       }
       
-      toast({
-        title: "Creating Category",
-        description: `Creating "${newCategoryPath}"...`,
-        duration: 2000,
-      })
+      // Create the category immediately and don't wait for responses
+      setTimeout(async () => {
+        try {
+          await createPlaceholderConcept(newCategoryPath)
+          
+          // Select the new category after creation
+          onCategorySelect(newCategoryPath)
+          
+          toast({
+            title: "Category Created",
+            description: `Successfully created "${newCategoryPath}"`,
+            duration: 2000,
+          })
+        } catch (error: any) {
+          console.error('Error creating category:', error)
+          toast({
+            title: "Error",
+            description: "Failed to create category. Please try again.",
+            variant: "destructive",
+            duration: 3000,
+          })
+        }
+      }, 0)
       
-      await createPlaceholderConcept(newCategoryPath)
-      
-      // Refresh data after creating category
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
-      
-      onCategorySelect(newCategoryPath)
-      
-      toast({
-        title: "Category Created",
-        description: `Successfully created "${newCategoryPath}"`,
-        duration: 3000,
-      })
-      
+      // Don't wait - immediately reset to prevent freezing
       resetDialogState()
       
     } catch (error) {
@@ -279,13 +266,10 @@ export const useCategoryOperations = ({
         duration: 3000,
       })
       resetDialogState()
-    } finally {
-      setOperationStarting(false)
-      setIsCreatingCategory(false)
     }
-  }, [isCreatingCategory, isMovingConcepts, operationStarting, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onDataRefresh, onCategorySelect, resetDialogState])
+  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, resetDialogState])
 
-  // Handle concept transfer - IMPROVED to prevent freezing
+  // Handle concept transfer - FIXED to prevent freezing
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
     if (isMovingConcepts || conceptsToMove.length === 0) {
       return
@@ -294,53 +278,64 @@ export const useCategoryOperations = ({
     try {
       setIsMovingConcepts(true)
       
-      toast({
-        title: "Moving Concepts",
-        description: `Moving ${conceptsToMove.length} concept(s) to "${targetCategory}"...`,
-        duration: 2000,
-      })
+      console.log(`Moving ${conceptsToMove.length} concept(s) to "${targetCategory}"`)
       
       if (onConceptsMove) {
         const conceptIds = conceptsToMove.map(c => c.id)
-        await onConceptsMove(conceptIds, targetCategory)
+        
+        // Execute move without waiting for completion
+        setTimeout(async () => {
+          try {
+            await onConceptsMove(conceptIds, targetCategory)
+            
+            // Soft refresh after move
+            setTimeout(async () => {
+              try {
+                if (onDataRefresh) {
+                  await onDataRefresh()
+                }
+                onCategorySelect(targetCategory)
+              } catch (refreshError: any) {
+                console.error('Non-critical refresh error:', refreshError)
+                // Fallback: simple page reload if refresh fails
+                window.location.reload()
+              }
+            }, 100) // Small delay to allow UI to update
+            
+            toast({
+              title: "Concepts Moved",
+              description: `Successfully moved ${conceptsToMove.length} concept(s) to "${targetCategory}"`,
+              duration: 2000,
+            })
+          } catch (error: any) {
+            console.error('Error moving concepts:', error)
+            toast({
+              title: "Error",
+              description: "Failed to move concepts. Please try again.",
+              variant: "destructive",
+              duration: 3000,
+            })
+          } finally {
+            // Always reset state to prevent hanging
+            setIsMovingConcepts(false)
+          }
+        }, 0)
       }
       
-      // Refresh data immediately after moving
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
-      
-      toast({
-        title: "Concepts Moved",
-        description: `Successfully moved ${conceptsToMove.length} concept(s) to "${targetCategory}"`,
-        duration: 3000,
-      })
-      
-      onCategorySelect(targetCategory)
-      
-      // Reset dialog state immediately
+      // Reset dialog immediately to prevent freezing
       resetDialogState()
       
     } catch (error: any) {
       console.error('Error moving concepts:', error)
       
-      let errorMessage = 'Failed to move concepts. Please try again.'
-      if (error.message?.includes('fetch')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (error.message?.includes('timeout')) {
-        errorMessage = 'Operation timed out. Please try again.'
-      }
-      
       toast({
         title: "Error",
-        description: errorMessage,
+        description: "Failed to move concepts. Please try again.",
         variant: "destructive",
         duration: 3000,
       })
       
-      // Reset state immediately on error too
       resetDialogState()
-    } finally {
       setIsMovingConcepts(false)
     }
   }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, resetDialogState])
