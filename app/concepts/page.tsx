@@ -81,6 +81,11 @@ export default function ConceptsPage() {
   const [showNavigation, setShowNavigation] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showNeedsReview, setShowNeedsReview] = useState(false)
+  
+  // Add rate limiting protection
+  const lastFetchTime = useRef<number>(0)
+  const FETCH_RATE_LIMIT = 1000 // 1 second between requests
+  
   const { toast } = useToast()
 
   // Helper function to get authentication headers
@@ -154,6 +159,19 @@ export default function ConceptsPage() {
 
   // Fetch concepts function - extracted so it can be reused for refreshing - WRAP IN useCallback
   const fetchConcepts = useCallback(async () => {
+    // Rate limiting protection to prevent 429 errors
+    const now = Date.now()
+    const timeSinceLastFetch = now - lastFetchTime.current
+    if (timeSinceLastFetch < FETCH_RATE_LIMIT) {
+      debug.logUserAction('Rate limiting: Skipping fetch request', { 
+        timeSinceLastFetch, 
+        rateLimitMs: FETCH_RATE_LIMIT 
+      })
+      console.log(`🚫 Rate limiting: Skipping fetch (${timeSinceLastFetch}ms since last fetch)`)
+      return
+    }
+    lastFetchTime.current = now
+    
     const operationId = 'fetch-concepts'
     debug.startOperation(operationId)
     debug.logUserAction('Starting concepts fetch')
@@ -225,14 +243,14 @@ export default function ConceptsPage() {
       debug.logUserAction('Setting loading state to false', { currentLoading: loading })
       setLoading(false)
     }
-  }, [debug, loading]) // Add proper dependencies
+  }, [debug]) // ONLY depend on debug, remove loading dependency
 
   // Refresh data function to be used after mutations - FIX DEPENDENCIES
   const refreshData = useCallback(async () => {
     debug.logUserAction('refreshData called - starting data refresh')
     await fetchConcepts()
     debug.logUserAction('refreshData completed')
-  }, [fetchConcepts, debug]) // Now properly depend on fetchConcepts
+  }, [fetchConcepts]) // REMOVE debug dependency
 
   // Auto-refresh event listener
   useEffect(() => {
@@ -251,13 +269,13 @@ export default function ConceptsPage() {
       debug.logUserAction('Cleaning up auto-refresh event listener')
       window.removeEventListener('refreshConcepts', handleRefreshConcepts)
     }
-  }, [refreshData, debug])
+  }, []) // REMOVE refreshData and debug dependencies to prevent infinite loop
 
   // Initial data fetch
   useEffect(() => {
     debug.logUserAction('Initial data fetch effect triggered')
     refreshData()
-  }, [debug]) // Remove refreshData from dependencies to prevent infinite loop
+  }, []) // REMOVE debug dependency to prevent infinite loop
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
@@ -275,7 +293,7 @@ export default function ConceptsPage() {
     }
   }
 
-  // Effect to hide loading screen once data is loaded - ADD ENHANCED DEBUG
+  // Effect to hide loading screen once data is loaded - REMOVE debug dependency
   useEffect(() => {
     debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
     
@@ -295,9 +313,9 @@ export default function ConceptsPage() {
     } else {
       debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
     }
-  }, [dataLoaded, loading, debug]) // Add debug to dependencies
+  }, [dataLoaded, loading]) // REMOVE debug dependency
 
-  // Clean up empty categories after state updates - ADD DEBUG
+  // Clean up empty categories after state updates - REMOVE debug dependency
   useEffect(() => {
     debug.logUserAction('Category cleanup effect triggered', { 
       conceptsByCategoryKeys: Object.keys(conceptsByCategory).length,
@@ -324,7 +342,7 @@ export default function ConceptsPage() {
       debug.logUserAction('No category update needed', { categories: prevSorted })
       return prevSorted;
     });
-  }, [conceptsByCategory, debug]) // Add debug to dependencies
+  }, [conceptsByCategory]) // REMOVE debug dependency
 
   // Process and organize the concepts by category
   const formatAndOrganizeConcepts = (conceptsData: any[]) => {
