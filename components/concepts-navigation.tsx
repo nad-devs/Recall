@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -360,32 +361,47 @@ export function ConceptsNavigation({
   const forceResetAllStates = useCallback(() => {
     console.log('🔧 FORCE RESET - Emergency state cleanup...')
     
-    // Immediately reset ALL states with no delays
-    setShowAddSubcategoryDialog(false)
-    setShowTransferDialog(false)
-    setShowEditCategoryDialog(false)
-    setShowDragDropDialog(false)
-    setSelectedParentCategory('')
-    setNewSubcategoryName('')
-    setEditingCategoryPath('')
-    setNewCategoryName('')
-    setTransferConcepts([])
-    setSelectedConceptsForTransfer(new Set())
-    setDragDropData(null)
-    setIsCreatingCategory(false)
-    setIsMovingConcepts(false)
-    setIsRenamingCategory(false)
-    setIsDraggingCategory(false)
-    setInlineEditingCategory(null)
-    setInlineEditValue('')
-    setIsDraggingAny(false)
+    // Use flushSync to force immediate synchronous state updates
+    flushSync(() => {
+      // Immediately reset ALL states with no delays
+      setShowAddSubcategoryDialog(false)
+      setShowTransferDialog(false)
+      setShowEditCategoryDialog(false)
+      setShowDragDropDialog(false)
+      setSelectedParentCategory('')
+      setNewSubcategoryName('')
+      setEditingCategoryPath('')
+      setNewCategoryName('')
+      setTransferConcepts([])
+      setSelectedConceptsForTransfer(new Set())
+      setDragDropData(null)
+      setIsCreatingCategory(false)
+      setIsMovingConcepts(false)
+      setIsRenamingCategory(false)
+      setIsDraggingCategory(false)
+      setInlineEditingCategory(null)
+      setInlineEditValue('')
+      setIsDraggingAny(false)
+    })
+    
+    // Force garbage collection if available
+    if (typeof window !== 'undefined' && 'gc' in window) {
+      try {
+        (window as any).gc()
+      } catch (e) {
+        // Ignore if not available
+      }
+    }
     
     console.log('🔧 FORCE RESET complete')
     
-    toast({
-      title: "States Reset",
-      description: "All UI states have been forcefully reset.",
-      duration: 2000,
+    // Use a micro-task to show toast after state updates
+    Promise.resolve().then(() => {
+      toast({
+        title: "States Reset",
+        description: "All UI states have been forcefully reset.",
+        duration: 2000,
+      })
     })
   }, [toast])
 
@@ -393,8 +409,15 @@ export function ConceptsNavigation({
   const handleDialogClose = useCallback((dialogType: string, force = false) => {
     console.log(`🔧 Closing ${dialogType} dialog...`, force ? '(FORCED)' : '')
     
+    // Always cancel ongoing operations first
+    if (abortControllerRef.current) {
+      console.log('🔧 Cancelling ongoing operations during dialog close...')
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
     if (force) {
-      // Force close - immediately reset everything
+      // Force close - immediately reset everything with flushSync
       forceResetAllStates()
       return true
     }
@@ -1599,12 +1622,21 @@ export function ConceptsNavigation({
 
   // Add keyboard escape handler to force close dialogs
   useEffect(() => {
+    let escapeCount = 0
+    let escapeTimer: NodeJS.Timeout | null = null
+    
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        console.log('🔧 Escape key pressed - forcing dialog closure and cancelling operations')
+        escapeCount++
         
-        // Cancel any ongoing async operations
-        cancelOngoingOperations()
+        console.log(`🔧 Escape key pressed (${escapeCount}) - forcing dialog closure and cancelling operations`)
+        
+        // Cancel any ongoing operations
+        if (abortControllerRef.current) {
+          console.log('🔧 Cancelling ongoing operations...')
+          abortControllerRef.current.abort()
+          abortControllerRef.current = null
+        }
         
         // Force reset all states
         forceResetAllStates()
@@ -1612,6 +1644,31 @@ export function ConceptsNavigation({
         // Prevent the escape from bubbling up
         event.preventDefault()
         event.stopPropagation()
+        
+        // If double escape within 1 second, do extra aggressive reset
+        if (escapeCount >= 2) {
+          console.log('🔧 Double escape detected - performing ultra reset')
+          
+          // Force reload the page as last resort
+          setTimeout(() => {
+            if (escapeCount >= 3) {
+              console.warn('🔧 Triple escape - reloading page as emergency measure')
+              toast({
+                title: "Emergency Reload",
+                description: "Page will reload to recover from stuck state...",
+                variant: "destructive",
+                duration: 3000,
+              })
+              setTimeout(() => window.location.reload(), 2000)
+            }
+          }, 1000)
+        }
+        
+        // Reset escape count after 2 seconds
+        if (escapeTimer) clearTimeout(escapeTimer)
+        escapeTimer = setTimeout(() => {
+          escapeCount = 0
+        }, 2000)
       }
     }
 
@@ -1623,16 +1680,69 @@ export function ConceptsNavigation({
     // Cleanup
     return () => {
       document.removeEventListener('keydown', handleEscapeKey, true)
+      if (escapeTimer) clearTimeout(escapeTimer)
     }
-  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, cancelOngoingOperations, forceResetAllStates])
+  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, forceResetAllStates, toast])
 
   // Add cleanup effect when component unmounts
   useEffect(() => {
     return () => {
       console.log('🔧 Component unmounting - cleaning up...')
-      cancelOngoingOperations()
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
     }
-  }, [cancelOngoingOperations])
+  }, [])
+
+  // Add global error handler to catch freezing issues
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('🔧 Global error caught:', event.error)
+      if (event.error?.message?.includes('freeze') || event.error?.message?.includes('hang')) {
+        console.log('🔧 Potential freeze detected - force resetting states')
+        forceResetAllStates()
+      }
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('🔧 Unhandled promise rejection:', event.reason)
+      if (event.reason?.message?.includes('freeze') || event.reason?.name === 'AbortError') {
+        console.log('🔧 Potential freeze from promise rejection - force resetting states')
+        forceResetAllStates()
+      }
+    }
+
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
+  }, [forceResetAllStates])
+
+  // Add a watchdog timer to detect UI freezing
+  useEffect(() => {
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+      console.log('🔧 Starting watchdog timer for operation...')
+      
+      const watchdogTimer = setTimeout(() => {
+        console.warn('🔧 WATCHDOG: Operation taking too long, force resetting...')
+        forceResetAllStates()
+        toast({
+          title: "Operation Timeout",
+          description: "Operation was taking too long and has been cancelled.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      }, 30000) // 30 second watchdog
+      
+      return () => {
+        clearTimeout(watchdogTimer)
+      }
+    }
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, forceResetAllStates, toast])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
@@ -1673,6 +1783,21 @@ export function ConceptsNavigation({
       <div className="p-4 border-b border-border">
         <h3 className="text-sm font-medium mb-2 text-muted-foreground">Quick Filters</h3>
         <div className="space-y-1">
+          {/* Emergency Reset Button - Show when operations are taking too long */}
+          {(isCreatingCategory || isMovingConcepts || isRenamingCategory) && (
+            <Button
+              variant="destructive"
+              className="w-full justify-start text-sm h-8 mb-2"
+              onClick={() => {
+                console.log('🔧 Emergency reset button clicked')
+                forceResetAllStates()
+              }}
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Emergency Reset
+            </Button>
+          )}
+          
           <Button
             variant={selectedCategory === null && !showNeedsReview ? "secondary" : "ghost"}
             className="w-full justify-start text-sm h-8"
