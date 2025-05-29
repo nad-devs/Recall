@@ -134,7 +134,20 @@ export function ConceptsNavigation({
   const cancelInlineEdit = useCallback(() => {
     setInlineEditingCategory(null)
     setInlineEditValue('')
-  }, [])
+    
+    // Apply same refresh logic as other cancel operations
+    setTimeout(async () => {
+      try {
+        if (onDataRefresh) {
+          await onDataRefresh()
+        }
+      } catch (refreshError: any) {
+        console.error('Non-critical refresh error:', refreshError)
+        // Fallback: simple page reload if refresh fails
+        window.location.reload()
+      }
+    }, 100) // Small delay to allow UI to update
+  }, [onDataRefresh])
 
   const saveInlineEdit = useCallback(async () => {
     if (!inlineEditingCategory || !inlineEditValue.trim()) {
