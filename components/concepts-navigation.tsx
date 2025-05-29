@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -350,67 +350,67 @@ export function ConceptsNavigation({
     setIsDraggingCategory(false)
     
     // Reset inline editing state
-    setInlineEditingCategory('')
+    setInlineEditingCategory(null)
     setInlineEditValue('')
     
     console.log('🔧 Dialog state reset complete')
   }, [])
 
-  // Enhanced dialog close handler with proper cleanup
-  const handleDialogClose = useCallback((dialogType: string) => {
-    console.log(`🔧 Closing ${dialogType} dialog...`)
+  // Force reset function for emergency state cleanup
+  const forceResetAllStates = useCallback(() => {
+    console.log('🔧 FORCE RESET - Emergency state cleanup...')
     
-    // Always allow closing from the Cancel button or X button
-    // Just reset all states to ensure clean closure
+    // Immediately reset ALL states with no delays
+    setShowAddSubcategoryDialog(false)
+    setShowTransferDialog(false)
+    setShowEditCategoryDialog(false)
+    setShowDragDropDialog(false)
+    setSelectedParentCategory('')
+    setNewSubcategoryName('')
+    setEditingCategoryPath('')
+    setNewCategoryName('')
+    setTransferConcepts([])
+    setSelectedConceptsForTransfer(new Set())
+    setDragDropData(null)
+    setIsCreatingCategory(false)
+    setIsMovingConcepts(false)
+    setIsRenamingCategory(false)
+    setIsDraggingCategory(false)
+    setInlineEditingCategory(null)
+    setInlineEditValue('')
+    setIsDraggingAny(false)
+    
+    console.log('🔧 FORCE RESET complete')
+    
+    toast({
+      title: "States Reset",
+      description: "All UI states have been forcefully reset.",
+      duration: 2000,
+    })
+  }, [toast])
+
+  // Enhanced dialog close handler with proper cleanup
+  const handleDialogClose = useCallback((dialogType: string, force = false) => {
+    console.log(`🔧 Closing ${dialogType} dialog...`, force ? '(FORCED)' : '')
+    
+    if (force) {
+      // Force close - immediately reset everything
+      forceResetAllStates()
+      return true
+    }
+    
+    // Normal close - reset states properly
     resetDialogState()
     return true
-  }, [resetDialogState])
+  }, [resetDialogState, forceResetAllStates])
 
   // Enhanced cancel handler for category creation with immediate state reset
   const handleCancelCategoryCreation = useCallback(() => {
     console.log('🔧 Force canceling all operations...')
     
-    // Immediately and forcefully reset ALL states to prevent freezing
-    setIsCreatingCategory(false)
-    setIsMovingConcepts(false)
-    setIsRenamingCategory(false)
-    setIsDraggingCategory(false)
-    
-    // Reset all dialog states immediately
-    setShowAddSubcategoryDialog(false)
-    setShowTransferDialog(false)
-    setShowEditCategoryDialog(false)
-    setShowDragDropDialog(false)
-    
-    // Reset all form states
-    setNewSubcategoryName("")
-    setSelectedParentCategory("")
-    setNewCategoryName("")
-    setEditingCategoryPath("")
-    
-    // Clear transfer-related states
-    setTransferConcepts([])
-    setSelectedConceptsForTransfer(new Set())
-    setDragDropData(null)
-    
-    // Reset inline editing state
-    setInlineEditingCategory(null)
-    setInlineEditValue('')
-    
-    console.log('🔧 All states forcefully reset - operation cancelled')
-    
-    // Show immediate feedback
-    toast({
-      title: "Cancelled",
-      description: "All operations have been cancelled.",
-      duration: 2000,
-    })
-    
-    // Use a timeout to ensure state changes are processed
-    setTimeout(() => {
-      console.log('🔧 Secondary state cleanup completed')
-    }, 50)
-  }, [toast])
+    // Use the force reset to ensure everything is cleared
+    forceResetAllStates()
+  }, [forceResetAllStates])
 
   // New: Proper dialog open change handler that always allows closing
   const handleDialogOpenChange = useCallback((open: boolean, dialogType: string) => {
@@ -486,7 +486,7 @@ export function ConceptsNavigation({
     console.log('🔧 Full URL:', fullUrl)
     console.log('🔧 Options:', options)
     
-    // Ensure headers include cache control
+    // Ensure headers include cache control and merge with existing headers
     const enhancedOptions = {
       ...options,
       headers: {
@@ -495,6 +495,11 @@ export function ConceptsNavigation({
         'Expires': '0',
         ...options.headers
       }
+    }
+    
+    // Check if we have an abort signal and if it's already aborted
+    if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
+      throw new Error('Operation was cancelled before request started')
     }
     
     try {
@@ -510,15 +515,30 @@ export function ConceptsNavigation({
       // If relative path fails and we get a redirect or error, try with full URL
       if (response.status === 401 || response.status === 404) {
         console.log('🔧 Relative path failed, trying full URL...')
+        
+        // Check abort signal again before retry
+        if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
+          throw new Error('Operation was cancelled during retry')
+        }
+        
         const fullResponse = await fetch(cacheBustFullUrl, enhancedOptions)
         console.log('🔧 Full URL response status:', fullResponse.status)
         return fullResponse
       }
       
       return response
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError' || error.message?.includes('cancelled')) {
+        console.log('🔧 API call was cancelled')
+        throw error
+      }
+      
       console.error('🔧 API call error:', error)
-      // If fetch fails completely, try with full URL as fallback
+      // If fetch fails completely, try with full URL as fallback (only if not cancelled)
+      if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
+        throw new Error('Operation was cancelled during error handling')
+      }
+      
       console.log('🔧 Fetch failed, trying full URL as fallback...')
       return await fetch(cacheBustFullUrl, enhancedOptions)
     }
@@ -541,8 +561,27 @@ export function ConceptsNavigation({
     }
   }, [])
 
-  // Enhanced createPlaceholderConcept with timeout protection
+  // Add refs to track ongoing operations and cancel them if needed
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
+  // Cancel any ongoing async operations
+  const cancelOngoingOperations = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log('🔧 Cancelling ongoing async operations...')
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
+
+  // Enhanced createPlaceholderConcept with abort controller
   const createPlaceholderConcept = useCallback(async (category: string) => {
+    // Cancel any previous operation
+    cancelOngoingOperations()
+    
+    // Create new abort controller for this operation
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+    
     let timeoutId: NodeJS.Timeout | null = null;
     
     try {
@@ -552,6 +591,7 @@ export function ConceptsNavigation({
         setIsCreatingCategory(false);
         setIsMovingConcepts(false);
         setIsRenamingCategory(false);
+        abortController.abort()
         toast({
           title: "Operation Timeout",
           description: "The operation took too long and was cancelled. Please try again.",
@@ -560,10 +600,20 @@ export function ConceptsNavigation({
         });
       }, 15000); // 15 second timeout
       
+      // Check if operation was cancelled
+      if (abortController.signal.aborted) {
+        throw new Error('Operation was cancelled')
+      }
+      
       // First test API connectivity
       const isConnected = await testApiConnectivity()
       if (!isConnected) {
         console.warn('🔧 API connectivity test failed, but proceeding anyway...')
+      }
+      
+      // Check if operation was cancelled
+      if (abortController.signal.aborted) {
+        throw new Error('Operation was cancelled')
       }
       
       const headers = getAuthHeaders()
@@ -580,8 +630,14 @@ export function ConceptsNavigation({
           summary: "This is a placeholder concept. It will be automatically removed when you add your first real concept to this category.",
           details: "Click 'Add Concept' or move concepts from other categories to get started. This placeholder will disappear once you have real content.",
           isPlaceholder: true
-        })
+        }),
+        signal: abortController.signal
       })
+      
+      // Check if operation was cancelled
+      if (abortController.signal.aborted) {
+        throw new Error('Operation was cancelled')
+      }
       
       console.log('🔧 Response status:', response.status)
       console.log('🔧 Response URL:', response.url)
@@ -615,6 +671,11 @@ export function ConceptsNavigation({
       const data = await response.json()
       console.log('🔧 Successfully created placeholder concept:', data.concept?.id)
       
+      // Check if operation was cancelled before proceeding with refresh
+      if (abortController.signal.aborted) {
+        throw new Error('Operation was cancelled')
+      }
+      
       // Trigger data refresh to show the new category
       if (onDataRefresh) {
         console.log('🔧 Triggering data refresh...')
@@ -624,6 +685,11 @@ export function ConceptsNavigation({
       
       return data.concept
     } catch (error: any) {
+      if (error.name === 'AbortError' || error.message?.includes('cancelled')) {
+        console.log('🔧 Operation was cancelled by user')
+        return null
+      }
+      
       console.error('🔧 Error creating placeholder concept:', error)
       
       // Ensure we don't leave loading states active
@@ -655,8 +721,13 @@ export function ConceptsNavigation({
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+      
+      // Clear the abort controller
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
+      }
     }
-  }, [testApiConnectivity, getAuthHeaders, makeApiCall, toast, onDataRefresh])
+  }, [testApiConnectivity, getAuthHeaders, makeApiCall, toast, onDataRefresh, cancelOngoingOperations])
 
   const handleCreateSubcategory = useCallback(async () => {
     // Prevent multiple concurrent operations
@@ -1530,21 +1601,38 @@ export function ConceptsNavigation({
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        console.log('🔧 Escape key pressed - forcing dialog closure')
-        handleCancelCategoryCreation()
+        console.log('🔧 Escape key pressed - forcing dialog closure and cancelling operations')
+        
+        // Cancel any ongoing async operations
+        cancelOngoingOperations()
+        
+        // Force reset all states
+        forceResetAllStates()
+        
+        // Prevent the escape from bubbling up
+        event.preventDefault()
+        event.stopPropagation()
       }
     }
 
     // Add event listener when any dialog is open
     if (showAddSubcategoryDialog || showTransferDialog || showEditCategoryDialog || showDragDropDialog) {
-      document.addEventListener('keydown', handleEscapeKey)
+      document.addEventListener('keydown', handleEscapeKey, true) // Use capture phase
     }
 
     // Cleanup
     return () => {
-      document.removeEventListener('keydown', handleEscapeKey)
+      document.removeEventListener('keydown', handleEscapeKey, true)
     }
-  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, handleCancelCategoryCreation])
+  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, cancelOngoingOperations, forceResetAllStates])
+
+  // Add cleanup effect when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('🔧 Component unmounting - cleaning up...')
+      cancelOngoingOperations()
+    }
+  }, [cancelOngoingOperations])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
@@ -1655,7 +1743,8 @@ export function ConceptsNavigation({
         console.log('🔧 Add Subcategory Dialog onOpenChange called with:', open)
         if (!open) {
           console.log('🔧 Add Subcategory Dialog closing via onOpenChange...')
-          resetDialogState()
+          // Force close to ensure no stuck states
+          handleDialogClose('Add Subcategory', true)
         } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
           console.log('🔧 Preventing dialog open - operation in progress')
           return false
@@ -1718,7 +1807,8 @@ export function ConceptsNavigation({
         console.log('🔧 Transfer Dialog onOpenChange called with:', open)
         if (!open) {
           console.log('🔧 Transfer Dialog closing via onOpenChange...')
-          resetDialogState()
+          // Force close to ensure no stuck states
+          handleDialogClose('Transfer', true)
         } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
           console.log('🔧 Preventing dialog open - operation in progress')
           return false
@@ -2047,7 +2137,8 @@ export function ConceptsNavigation({
         console.log('🔧 Edit Category Dialog onOpenChange called with:', open)
         if (!open) {
           console.log('🔧 Edit Dialog closing via onOpenChange...')
-          resetDialogState()
+          // Force close to ensure no stuck states
+          handleDialogClose('Edit Category', true)
         } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
           console.log('🔧 Preventing dialog open - operation in progress')
           return false
@@ -2109,7 +2200,8 @@ export function ConceptsNavigation({
         console.log('🔧 Drag Drop Dialog onOpenChange called with:', open)
         if (!open) {
           console.log('🔧 Drag Drop Dialog closing via onOpenChange...')
-          resetDialogState()
+          // Force close to ensure no stuck states
+          handleDialogClose('Drag Drop', true)
         } else if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
           console.log('🔧 Preventing dialog open - operation in progress')
           return false
