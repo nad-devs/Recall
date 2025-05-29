@@ -85,6 +85,7 @@ export default function ConceptsPage() {
   // Add rate limiting protection
   const lastFetchTime = useRef<number>(0)
   const FETCH_RATE_LIMIT = 1000 // 1 second between requests
+  const refreshDataRef = useRef<(() => Promise<void>) | null>(null)
   
   const { toast } = useToast()
 
@@ -157,7 +158,57 @@ export default function ConceptsPage() {
   // Create filtered sorted categories list
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
 
-  // Fetch concepts function - extracted so it can be reused for refreshing - WRAP IN useCallback
+  // Process and organize the concepts by category - MINIMIZE dependencies to prevent loops
+  const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
+    debug.logUserAction('Starting formatAndOrganizeConcepts', { 
+      conceptsDataLength: conceptsData.length,
+      currentConceptsLength: concepts.length,
+      currentCategoriesCount: Object.keys(conceptsByCategory).length
+    })
+    
+    const formattedConcepts = conceptsData.map(concept => ({
+      id: concept.id,
+      title: concept.title,
+      category: concept.category,
+      notes: concept.summary,
+      discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
+      needsReview: concept.confidenceScore < 0.7
+    }))
+
+    debug.logUserAction('Setting formatted concepts', { count: formattedConcepts.length })
+    setConcepts(formattedConcepts)
+
+    // Group concepts by category
+    const byCategory: Record<string, Concept[]> = {}
+
+    formattedConcepts.forEach((concept) => {
+      if (!byCategory[concept.category]) {
+        byCategory[concept.category] = []
+      }
+
+      byCategory[concept.category].push(concept)
+    })
+
+    // Sort concepts within each category alphabetically
+    Object.keys(byCategory).forEach((category) => {
+      byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
+    })
+
+    debug.logUserAction('Setting concepts by category', { 
+      categoriesCount: Object.keys(byCategory).length,
+      categories: Object.keys(byCategory)
+    })
+    setConceptsByCategory(byCategory)
+    
+    debug.logUserAction('Setting sorted categories', { 
+      categories: Object.keys(byCategory).sort()
+    })
+    setSortedCategories(Object.keys(byCategory).sort())
+    
+    debug.logUserAction('formatAndOrganizeConcepts completed')
+  }, [debug]) // ONLY depend on debug to prevent circular dependencies
+
+  // Fetch concepts function - extracted so it can be reused for refreshing - UPDATE dependencies
   const fetchConcepts = useCallback(async () => {
     // Rate limiting protection to prevent 429 errors
     const now = Date.now()
@@ -243,22 +294,28 @@ export default function ConceptsPage() {
       debug.logUserAction('Setting loading state to false', { currentLoading: loading })
       setLoading(false)
     }
-  }, [debug]) // ONLY depend on debug, remove loading dependency
+  }, [debug, formatAndOrganizeConcepts]) // Add formatAndOrganizeConcepts dependency
 
-  // Refresh data function to be used after mutations - FIX DEPENDENCIES
+  // Refresh data function to be used after mutations - USE REF PATTERN to break loops
   const refreshData = useCallback(async () => {
     debug.logUserAction('refreshData called - starting data refresh')
     await fetchConcepts()
     debug.logUserAction('refreshData completed')
-  }, [fetchConcepts]) // REMOVE debug dependency
+  }, [fetchConcepts, debug])
+  
+  // Store refreshData in ref to break dependency chain
+  refreshDataRef.current = refreshData
 
-  // Auto-refresh event listener
+  // Auto-refresh event listener - USE REF to break dependency loop
   useEffect(() => {
     debug.logUserAction('Auto-refresh event listener effect triggered')
     const handleRefreshConcepts = () => {
       debug.logUserAction('Received refresh concepts event, refreshing data...')
       console.log('🔄 Received refresh concepts event, refreshing data...')
-      refreshData()
+      // Use ref to avoid stale closure
+      if (refreshDataRef.current) {
+        refreshDataRef.current()
+      }
     }
 
     // Listen for custom refresh events from other pages
@@ -269,13 +326,16 @@ export default function ConceptsPage() {
       debug.logUserAction('Cleaning up auto-refresh event listener')
       window.removeEventListener('refreshConcepts', handleRefreshConcepts)
     }
-  }, []) // REMOVE refreshData and debug dependencies to prevent infinite loop
+  }, [debug]) // Only depend on debug
 
-  // Initial data fetch
+  // Initial data fetch - USE REF to break dependency loop
   useEffect(() => {
     debug.logUserAction('Initial data fetch effect triggered')
-    refreshData()
-  }, []) // REMOVE debug dependency to prevent infinite loop
+    // Use ref to avoid stale closure
+    if (refreshDataRef.current) {
+      refreshDataRef.current()
+    }
+  }, [debug]) // Only depend on debug
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
@@ -343,56 +403,6 @@ export default function ConceptsPage() {
       return prevSorted;
     });
   }, [conceptsByCategory]) // REMOVE debug dependency
-
-  // Process and organize the concepts by category
-  const formatAndOrganizeConcepts = (conceptsData: any[]) => {
-    debug.logUserAction('Starting formatAndOrganizeConcepts', { 
-      conceptsDataLength: conceptsData.length,
-      currentConceptsLength: concepts.length,
-      currentCategoriesCount: Object.keys(conceptsByCategory).length
-    })
-    
-    const formattedConcepts = conceptsData.map(concept => ({
-      id: concept.id,
-      title: concept.title,
-      category: concept.category,
-      notes: concept.summary,
-      discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
-      needsReview: concept.confidenceScore < 0.7
-    }))
-
-    debug.logUserAction('Setting formatted concepts', { count: formattedConcepts.length })
-    setConcepts(formattedConcepts)
-
-    // Group concepts by category
-    const byCategory: Record<string, Concept[]> = {}
-
-    formattedConcepts.forEach((concept) => {
-      if (!byCategory[concept.category]) {
-        byCategory[concept.category] = []
-      }
-
-      byCategory[concept.category].push(concept)
-    })
-
-    // Sort concepts within each category alphabetically
-    Object.keys(byCategory).forEach((category) => {
-      byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
-    })
-
-    debug.logUserAction('Setting concepts by category', { 
-      categoriesCount: Object.keys(byCategory).length,
-      categories: Object.keys(byCategory)
-    })
-    setConceptsByCategory(byCategory)
-    
-    debug.logUserAction('Setting sorted categories', { 
-      categories: Object.keys(byCategory).sort()
-    })
-    setSortedCategories(Object.keys(byCategory).sort())
-    
-    debug.logUserAction('formatAndOrganizeConcepts completed')
-  }
 
   // Handle creating a new concept
   const handleAddConcept = async (title: string) => {
