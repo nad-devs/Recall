@@ -32,14 +32,18 @@ export default function Dashboard() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
   const [authChecked, setAuthChecked] = useState(false)
   
-  // Check for email-based session or authentication
+  // Simplified authentication check - trust the server
   useEffect(() => {
+    console.log('📋 Dashboard: Checking authentication...')
+    console.log('📋 Dashboard: NextAuth status:', status)
+    console.log('📋 Dashboard: Session exists:', !!session)
+    
+    // Check localStorage first (for email-based sessions)
     const userName = localStorage.getItem('userName')
     const userEmail = localStorage.getItem('userEmail')
     const userId = localStorage.getItem('userId')
     
     if (userName && userEmail && userId) {
-      // Email-based session
       console.log('📋 Dashboard: Using email-based session for', userEmail)
       setUserName(userName)
       setEditedName(userName)
@@ -48,41 +52,48 @@ export default function Dashboard() {
       return
     }
     
-    if (status === "loading") {
-      console.log('📋 Dashboard: NextAuth session still loading...')
-      return // Still loading NextAuth - wait longer
-    }
-    
+    // For OAuth sessions - if we're on this page, server already authenticated us
     if (status === "authenticated" && session?.user) {
-      // Authenticated user via NextAuth
       console.log('📋 Dashboard: Using NextAuth session for', session.user.email)
       setUserName(session.user.name || session.user.email || "User")
       setEditedName(session.user.name || session.user.email || "User")
       setAuthChecked(true)
+      
+      // Store session data in localStorage for API calls
+      if (session.user.email) {
+        localStorage.setItem('userEmail', session.user.email)
+        localStorage.setItem('userName', session.user.name || session.user.email || "User")
+        localStorage.setItem('userId', session.user.id || session.user.email)
+        
+        const initials = (session.user.name || session.user.email || "User")
+          .split(" ")
+          .map((word) => word.charAt(0).toUpperCase())
+          .join("")
+          .slice(0, 2)
+        localStorage.setItem('userInitials', initials)
+      }
+      
       fetchDashboardData()
       return
     }
     
-    // Give more time for authentication to settle
-    if (status === "unauthenticated" && !authChecked) {
-      console.log('📋 Dashboard: Auth status is unauthenticated, waiting a bit longer...')
-      
-      // Wait a bit longer for auth to settle, especially after redirects
-      setTimeout(() => {
-        setAuthChecked(true)
-        console.log('📋 Dashboard: Auth check timeout - redirecting to landing page')
-        router.push("/")
-      }, 2000) // Wait 2 seconds before redirecting
+    // If NextAuth is still loading, wait
+    if (status === "loading") {
+      console.log('📋 Dashboard: NextAuth session still loading, waiting...')
       return
     }
     
-    // Only redirect if we've checked auth and are definitely unauthenticated
-    if (status === "unauthenticated" && authChecked) {
-      console.log('📋 Dashboard: Confirmed unauthenticated after check, redirecting to landing page')
+    // Only redirect if we're definitely unauthenticated AND no localStorage data
+    if (status === "unauthenticated" && !userName && !userEmail) {
+      console.log('📋 Dashboard: No authentication found, redirecting to landing page')
       router.push("/")
       return
     }
-  }, [status, session, router, authChecked])
+    
+    // If we reach here, we're probably authenticated but session is still loading
+    console.log('📋 Dashboard: Authentication state unclear, staying on dashboard')
+    setAuthChecked(true)
+  }, [status, session, router])
 
   const handleEditName = () => {
     setIsEditingName(true)
