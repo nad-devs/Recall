@@ -400,21 +400,42 @@ export function ConceptsNavigation({
 
   // Force reset function for emergency cases
   const forceResetAllStates = useCallback(() => {
-    categoryOps.resetDialogState()
-    setInlineEditingCategory(null)
-    setInlineEditValue('')
-    setIsDraggingAny(false)
-    setExpandedBeforeDrag(new Set())
-  }, [categoryOps])
+    try {
+      // Reset local states first
+      setInlineEditingCategory(null)
+      setInlineEditValue('')
+      setIsDraggingAny(false)
+      setExpandedBeforeDrag(new Set())
+      
+      // Then reset category operations - use a timeout to prevent race conditions
+      setTimeout(() => {
+        try {
+          categoryOps.resetDialogState()
+        } catch (error) {
+          console.error('Error in category operations reset:', error)
+        }
+      }, 0)
+    } catch (error) {
+      console.error('Error in force reset:', error)
+    }
+  }, []) // Removed categoryOps dependency to prevent infinite loops
 
-  // Escape key handler - FIXED to prevent freezing
+  // Escape key handler - COMPLETELY FIXED to prevent freezing
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        // Directly call the category operations reset instead of going through the wrapper
-        categoryOps.resetDialogState()
+        // Prevent default behavior and stop propagation
         event.preventDefault()
         event.stopPropagation()
+        
+        // Force reset all states immediately
+        try {
+          categoryOps.resetDialogState()
+        } catch (error) {
+          console.error('Error in escape handler:', error)
+          // Emergency fallback
+          forceResetAllStates()
+        }
       }
     }
 
@@ -425,14 +446,14 @@ export function ConceptsNavigation({
                          categoryOps.showDragDropDialog
 
     if (anyDialogOpen) {
-      document.addEventListener('keydown', handleEscapeKey, { capture: true, once: false })
+      document.addEventListener('keydown', handleEscapeKey, { passive: false })
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscapeKey, { capture: true })
+      document.removeEventListener('keydown', handleEscapeKey)
     }
   }, [categoryOps.showAddSubcategoryDialog, categoryOps.showTransferDialog, 
-      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, categoryOps])
+      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, forceResetAllStates])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>

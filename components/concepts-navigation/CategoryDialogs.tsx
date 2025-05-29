@@ -177,15 +177,32 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Transfer Concepts Dialog - FIXED to prevent freezing */}
+      {/* Transfer Concepts Dialog - COMPLETELY FIXED to prevent freezing */}
       <Dialog 
         open={showTransferDialog} 
         onOpenChange={(open) => {
-          if (!open && !isMovingConcepts && !isCreatingCategory) {
-            // Use setTimeout to prevent race conditions
+          if (!open) {
+            // Prevent any interaction during operations
+            if (isMovingConcepts || isCreatingCategory) {
+              return
+            }
+            
+            // Use multiple timeouts to ensure proper cleanup
             setTimeout(() => {
-              resetDialogState()
+              try {
+                setShowTransferDialog(false)
+              } catch (error) {
+                console.error('Error closing transfer dialog:', error)
+              }
             }, 0)
+            
+            setTimeout(() => {
+              try {
+                resetDialogState()
+              } catch (error) {
+                console.error('Error resetting dialog state:', error)
+              }
+            }, 10)
           }
         }}
       >
@@ -226,14 +243,23 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                     if (isMovingConcepts || isCreatingCategory) return
                     
                     try {
-                      const allSelected = selectedConceptsForTransfer.size === transferConcepts.length
-                      if (allSelected) {
-                        setSelectedConceptsForTransfer(new Set())
-                      } else {
-                        setSelectedConceptsForTransfer(new Set(transferConcepts.map(c => c.id)))
-                      }
+                      // Prevent rapid clicking
+                      setTimeout(() => {
+                        try {
+                          const allSelected = selectedConceptsForTransfer.size === transferConcepts.length
+                          if (allSelected) {
+                            setSelectedConceptsForTransfer(new Set())
+                          } else {
+                            setSelectedConceptsForTransfer(new Set(transferConcepts.map(c => c.id)))
+                          }
+                        } catch (innerError) {
+                          console.error('Inner error updating concept selection:', innerError)
+                          setSelectedConceptsForTransfer(new Set())
+                        }
+                      }, 0)
                     } catch (error) {
                       console.error('Error updating concept selection:', error)
+                      setSelectedConceptsForTransfer(new Set())
                     }
                   }}
                 >
@@ -252,15 +278,24 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                     if (isMovingConcepts || isCreatingCategory) return
                     
                     try {
-                      const newSelected = new Set(selectedConceptsForTransfer)
-                      if (newSelected.has(concept.id)) {
-                        newSelected.delete(concept.id)
-                      } else {
-                        newSelected.add(concept.id)
-                      }
-                      setSelectedConceptsForTransfer(newSelected)
+                      // Prevent rapid clicking and state corruption
+                      setTimeout(() => {
+                        try {
+                          const newSelected = new Set(selectedConceptsForTransfer)
+                          if (newSelected.has(concept.id)) {
+                            newSelected.delete(concept.id)
+                          } else {
+                            newSelected.add(concept.id)
+                          }
+                          setSelectedConceptsForTransfer(newSelected)
+                        } catch (innerError) {
+                          console.error('Inner error updating individual concept selection:', innerError)
+                          setSelectedConceptsForTransfer(new Set())
+                        }
+                      }, 0)
                     } catch (error) {
                       console.error('Error updating concept selection:', error)
+                      setSelectedConceptsForTransfer(new Set())
                     }
                   }}
                 >
