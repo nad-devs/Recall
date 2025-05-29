@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast"
 import { PageTransition } from "@/components/page-transition"
 import { LinkingProvider } from "@/components/concept-card"
 import { ConceptsLoading } from "@/components/concepts-loading"
+import { DebugDashboard } from "@/components/debug-dashboard"
+import { useDebugLogger } from '@/utils/debug-logger'
 
 interface Concept {
   id: string
@@ -62,6 +64,7 @@ function CategoryDropZone({ category, onDrop, children }: CategoryDropZoneProps)
 
 export default function ConceptsPage() {
   const router = useRouter()
+  const debug = useDebugLogger('ConceptsPage')
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
@@ -149,14 +152,93 @@ export default function ConceptsPage() {
   // Create filtered sorted categories list
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
 
-  // Refresh data function to be used after mutations
-  const refreshData = async () => {
+  // Fetch concepts function - extracted so it can be reused for refreshing - WRAP IN useCallback
+  const fetchConcepts = useCallback(async () => {
+    const operationId = 'fetch-concepts'
+    debug.startOperation(operationId)
+    debug.logUserAction('Starting concepts fetch')
+    
+    try {
+      console.log('🔧 Starting concepts fetch...')
+      debug.logUserAction('Setting loading state', { currentLoading: loading, newLoading: true })
+      setLoading(true)
+      setDataLoaded(false) // Reset data loaded state
+      
+      const headers = getAuthHeaders()
+      
+      console.log('Concepts page: Using headers:', headers)
+      debug.logUserAction('Making API call to /api/concepts', { headers })
+      
+      // Add timestamp to track loading duration
+      const startTime = Date.now()
+      
+      const response = await fetch('/api/concepts', { headers })
+      const fetchDuration = Date.now() - startTime
+      
+      console.log(`Concepts page: Fetch completed in ${fetchDuration}ms, status:`, response.status)
+      debug.logUserAction('API call completed', { duration: fetchDuration, status: response.status })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch concepts')
+      }
+      const data = await response.json()
+      
+      console.log('Concepts page: Fetched concepts raw response:', data)
+      
+      // Check if we have concepts data in the response
+      if (data.concepts && Array.isArray(data.concepts)) {
+        console.log(`🔧 Processing ${data.concepts.length} concepts...`)
+        debug.logUserAction('Processing concepts data', { count: data.concepts.length })
+        formatAndOrganizeConcepts(data.concepts)
+        console.log('🔧 Concepts formatting complete')
+      } else if (data.error) {
+        // Handle error case
+        setError(data.error || 'Failed to load concepts')
+        console.error('Error in concepts response:', data.error)
+        debug.logError('Error in concepts response', { error: data.error })
+        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      } else {
+        // Fallback for unexpected response format
+        setError('Invalid response format')
+        console.error('Unexpected concepts response format:', data)
+        debug.logError('Unexpected response format', { data })
+        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      }
+      
+      // Mark data as loaded AFTER processing concepts
+      debug.logUserAction('Setting dataLoaded to true')
+      setDataLoaded(true)
+      console.log('🔧 Concepts data successfully loaded and processed')
+      debug.completeOperation(operationId)
+      debug.logUserAction('Concepts fetch completed successfully')
+      
+    } catch (error) {
+      debug.failOperation(operationId, error)
+      debug.logError('Failed to fetch concepts', { error })
+      console.error('Failed to fetch concepts:', error)
+      setError('Failed to load concepts')
+      // Still mark as loaded to prevent infinite loading
+      setDataLoaded(true)
+      formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+    } finally {
+      console.log('🔧 Setting loading to false')
+      debug.logUserAction('Setting loading state to false', { currentLoading: loading })
+      setLoading(false)
+    }
+  }, [debug, loading]) // Add proper dependencies
+
+  // Refresh data function to be used after mutations - FIX DEPENDENCIES
+  const refreshData = useCallback(async () => {
+    debug.logUserAction('refreshData called - starting data refresh')
     await fetchConcepts()
-  }
+    debug.logUserAction('refreshData completed')
+  }, [fetchConcepts, debug]) // Now properly depend on fetchConcepts
 
   // Auto-refresh event listener
   useEffect(() => {
+    debug.logUserAction('Auto-refresh event listener effect triggered')
     const handleRefreshConcepts = () => {
+      debug.logUserAction('Received refresh concepts event, refreshing data...')
       console.log('🔄 Received refresh concepts event, refreshing data...')
       refreshData()
     }
@@ -166,14 +248,16 @@ export default function ConceptsPage() {
     
     // Cleanup listener on unmount
     return () => {
+      debug.logUserAction('Cleaning up auto-refresh event listener')
       window.removeEventListener('refreshConcepts', handleRefreshConcepts)
     }
-  }, [refreshData])
+  }, [refreshData, debug])
 
   // Initial data fetch
   useEffect(() => {
+    debug.logUserAction('Initial data fetch effect triggered')
     refreshData()
-  }, [])
+  }, [debug]) // Remove refreshData from dependencies to prevent infinite loop
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
@@ -191,21 +275,35 @@ export default function ConceptsPage() {
     }
   }
 
-  // Effect to hide loading screen once data is loaded
+  // Effect to hide loading screen once data is loaded - ADD ENHANCED DEBUG
   useEffect(() => {
+    debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
+    
     if (dataLoaded && !loading) {
-      console.log('🔧 Concepts: Data loaded and not loading anymore, checking if can hide loading screen')
+      debug.logUserAction('Conditions met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
+      
       // Add a small delay to ensure smooth transition
       const timer = setTimeout(() => {
+        debug.logUserAction('Setting showLoadingScreen to false via timeout')
         setShowLoadingScreen(false)
       }, 500)
       
-      return () => clearTimeout(timer)
+      return () => {
+        debug.logUserAction('Cleaning up loading screen timeout')
+        clearTimeout(timer)
+      }
+    } else {
+      debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
     }
-  }, [dataLoaded, loading])
+  }, [dataLoaded, loading, debug]) // Add debug to dependencies
 
-  // Clean up empty categories after state updates
+  // Clean up empty categories after state updates - ADD DEBUG
   useEffect(() => {
+    debug.logUserAction('Category cleanup effect triggered', { 
+      conceptsByCategoryKeys: Object.keys(conceptsByCategory).length,
+      sortedCategoriesLength: sortedCategories.length
+    })
+    
     setSortedCategories(prevSorted => {
       const categoriesWithConcepts = Object.keys(conceptsByCategory).filter(
         category => conceptsByCategory[category] && conceptsByCategory[category].length > 0
@@ -216,15 +314,26 @@ export default function ConceptsPage() {
                           categoriesWithConcepts.some(cat => !prevSorted.includes(cat));
       
       if (shouldUpdate) {
+        debug.logUserAction('Updating sorted categories', { 
+          oldCategories: prevSorted, 
+          newCategories: categoriesWithConcepts 
+        })
         return categoriesWithConcepts.sort();
       }
       
+      debug.logUserAction('No category update needed', { categories: prevSorted })
       return prevSorted;
     });
-  }, [conceptsByCategory])
+  }, [conceptsByCategory, debug]) // Add debug to dependencies
 
   // Process and organize the concepts by category
   const formatAndOrganizeConcepts = (conceptsData: any[]) => {
+    debug.logUserAction('Starting formatAndOrganizeConcepts', { 
+      conceptsDataLength: conceptsData.length,
+      currentConceptsLength: concepts.length,
+      currentCategoriesCount: Object.keys(conceptsByCategory).length
+    })
+    
     const formattedConcepts = conceptsData.map(concept => ({
       id: concept.id,
       title: concept.title,
@@ -234,6 +343,7 @@ export default function ConceptsPage() {
       needsReview: concept.confidenceScore < 0.7
     }))
 
+    debug.logUserAction('Setting formatted concepts', { count: formattedConcepts.length })
     setConcepts(formattedConcepts)
 
     // Group concepts by category
@@ -252,67 +362,18 @@ export default function ConceptsPage() {
       byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
     })
 
+    debug.logUserAction('Setting concepts by category', { 
+      categoriesCount: Object.keys(byCategory).length,
+      categories: Object.keys(byCategory)
+    })
     setConceptsByCategory(byCategory)
+    
+    debug.logUserAction('Setting sorted categories', { 
+      categories: Object.keys(byCategory).sort()
+    })
     setSortedCategories(Object.keys(byCategory).sort())
-  }
-
-  // Fetch concepts function - extracted so it can be reused for refreshing
-  const fetchConcepts = async () => {
-    try {
-      console.log('🔧 Starting concepts fetch...')
-      setLoading(true)
-      setDataLoaded(false) // Reset data loaded state
-      
-      const headers = getAuthHeaders()
-      
-      console.log('Concepts page: Using headers:', headers)
-      
-      // Add timestamp to track loading duration
-      const startTime = Date.now()
-      
-      const response = await fetch('/api/concepts', { headers })
-      const fetchDuration = Date.now() - startTime
-      
-      console.log(`Concepts page: Fetch completed in ${fetchDuration}ms, status:`, response.status)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch concepts')
-      }
-      const data = await response.json()
-      
-      console.log('Concepts page: Fetched concepts raw response:', data)
-      
-      // Check if we have concepts data in the response
-      if (data.concepts && Array.isArray(data.concepts)) {
-        console.log(`🔧 Processing ${data.concepts.length} concepts...`)
-        formatAndOrganizeConcepts(data.concepts)
-        console.log('🔧 Concepts formatting complete')
-      } else if (data.error) {
-        // Handle error case
-        setError(data.error || 'Failed to load concepts')
-        console.error('Error in concepts response:', data.error)
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-      } else {
-        // Fallback for unexpected response format
-        setError('Invalid response format')
-        console.error('Unexpected concepts response format:', data)
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-      }
-      
-      // Mark data as loaded AFTER processing concepts
-      setDataLoaded(true)
-      console.log('🔧 Concepts data successfully loaded and processed')
-      
-    } catch (error) {
-      setError('Failed to load concepts')
-      console.error('Error fetching concepts:', error)
-      formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
-      // Even on error, mark as loaded to prevent infinite loading
-      setDataLoaded(true)
-    } finally {
-      console.log('🔧 Setting loading to false')
-      setLoading(false)
-    }
+    
+    debug.logUserAction('formatAndOrganizeConcepts completed')
   }
 
   // Handle creating a new concept
@@ -584,15 +645,25 @@ export default function ConceptsPage() {
   }
 
   const handleConceptsMove = async (conceptIds: string[], newCategory: string) => {
+    const operationId = 'handle-concepts-move'
+    debug.startOperation(operationId)
+    debug.logUserAction('Starting handleConceptsMove', { conceptIds, newCategory })
+    
     try {
+      debug.logUserAction('Updating concepts in database using PUT method')
+      
       // Update concepts in the database using PUT method (not PATCH)
       const updatePromises = conceptIds.map(async (conceptId) => {
+        debug.logUserAction('Fetching current concept data', { conceptId })
+        
         // First fetch the current concept to preserve other fields
         const response = await fetch(`/api/concepts/${conceptId}`, { headers: getAuthHeaders() })
         if (!response.ok) {
           throw new Error(`Failed to fetch concept ${conceptId}`)
         }
         const conceptData = await response.json()
+        
+        debug.logUserAction('Updating concept with new category', { conceptId, newCategory })
         
         // Update with new category while preserving other fields
         const updateResponse = await fetch(`/api/concepts/${conceptId}`, {
@@ -611,16 +682,27 @@ export default function ConceptsPage() {
         return updateResponse.json()
       })
       
+      debug.logUserAction('Waiting for all concept updates to complete')
       await Promise.all(updatePromises)
+      
+      debug.logUserAction('All concept updates completed, refreshing data')
       
       // Refresh the data to show updated concepts
       await refreshData()
+      
+      debug.logUserAction('Data refresh completed, showing success toast')
       
       toast({
         title: "Concepts moved successfully",
         description: `Moved ${conceptIds.length} concept(s) to "${newCategory}"`,
       })
+      
+      debug.completeOperation(operationId)
+      debug.logUserAction('handleConceptsMove completed successfully', { conceptIds, newCategory })
+      
     } catch (error) {
+      debug.failOperation(operationId, error)
+      debug.logError('Error moving concepts', { conceptIds, newCategory, error })
       console.error('Error moving concepts:', error)
       toast({
         title: "Error moving concepts",
@@ -987,6 +1069,9 @@ export default function ConceptsPage() {
             </div>
           </div>
         </PageTransition>
+        
+        {/* Add Debug Dashboard for monitoring stuck operations */}
+        <DebugDashboard />
       </DndProvider>
     </LinkingProvider>
   )
