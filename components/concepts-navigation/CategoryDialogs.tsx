@@ -113,6 +113,11 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
   executeCategoryMove,
   moveConceptsToCategory
 }) => {
+  // Silent refresh function to avoid loading animations
+  const silentRefresh = () => {
+    window.location.replace(window.location.href)
+  }
+
   return (
     <>
       {/* Add Subcategory Dialog */}
@@ -120,8 +125,8 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            setShowAddSubcategoryDialog(false)
-            setNewSubcategoryName('')
+            // Just refresh the page silently to reset everything
+            silentRefresh()
           }
         }}
       >
@@ -182,27 +187,8 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showTransferDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            // Prevent any interaction during operations
-            if (isMovingConcepts || isCreatingCategory) {
-              return
-            }
-            
-            // Use multiple timeouts to ensure proper cleanup
-            setTimeout(() => {
-              try {
-                setShowTransferDialog(false)
-              } catch (error) {
-                console.error('Error closing transfer dialog:', error)
-              }
-            }, 0)
-            
-            setTimeout(() => {
-              try {
-                resetDialogState()
-              } catch (error) {
-                console.error('Error resetting dialog state:', error)
-              }
-            }, 10)
+            // Just refresh the page silently to reset everything
+            silentRefresh()
           }
         }}
       >
@@ -426,7 +412,8 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showEditCategoryDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            setShowEditCategoryDialog(false)
+            // Just refresh the page silently to reset everything
+            silentRefresh()
           }
         }}
       >
@@ -486,7 +473,8 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showDragDropDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            setShowDragDropDialog(false)
+            // Just refresh the page silently to reset everything
+            silentRefresh()
           }
         }}
       >
