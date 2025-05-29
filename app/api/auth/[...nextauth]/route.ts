@@ -74,12 +74,18 @@ const handler = NextAuth({
         userId: user?.id,
         email: user?.email,
         provider: account?.provider,
-        accountType: account?.type
+        accountType: account?.type,
+        timestamp: new Date().toISOString()
       })
       
-      let existingUser: any = null // Declare at function scope
+      let existingUser: any = null
       
       try {
+        // Special handling for arjunnadar2003@gmail.com to debug the issue
+        if (user.email === 'arjunnadar2003@gmail.com') {
+          console.log('🎯 SPECIAL DEBUG - Processing arjunnadar2003@gmail.com login')
+        }
+        
         // Check if there's an existing email-based account with the same email
         if (user.email && account?.provider === 'google') {
           console.log('🔍 Checking for existing user with email:', user.email)
@@ -96,8 +102,10 @@ const handler = NextAuth({
             console.log('🔄 Found existing user:', {
               id: existingUser.id,
               name: existingUser.name,
+              email: existingUser.email,
               accountCount: existingUser.accounts.length,
-              sessionCount: existingUser.sessions.length
+              sessionCount: existingUser.sessions.length,
+              createdAt: existingUser.createdAt
             })
             
             // Check if this user already has a Google OAuth account
@@ -105,6 +113,15 @@ const handler = NextAuth({
             
             if (hasGoogleAccount) {
               console.log('✅ User already has Google OAuth account, allowing sign-in')
+              
+              // For debug: log the existing Google account details
+              const googleAccount = existingUser.accounts.find((acc: any) => acc.provider === 'google')
+              console.log('📱 Existing Google account:', {
+                provider: googleAccount?.provider,
+                providerAccountId: googleAccount?.providerAccountId,
+                type: googleAccount?.type
+              })
+              
               return true
             }
             
@@ -113,28 +130,49 @@ const handler = NextAuth({
             
             try {
               // Clean up any existing sessions that might conflict
-              await prisma.session.deleteMany({
+              const deletedSessions = await prisma.session.deleteMany({
                 where: { userId: existingUser.id }
               })
-              console.log('🧹 Cleaned up existing sessions for user')
+              console.log(`🧹 Cleaned up ${deletedSessions.count} existing sessions for user`)
               
               // Update the existing user to include OAuth data
-              await prisma.user.update({
+              const updatedUser = await prisma.user.update({
                 where: { id: existingUser.id },
                 data: {
                   image: user.image,
                   lastActiveAt: new Date()
                 }
               })
+              console.log('✅ User updated successfully:', {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                image: updatedUser.image ? 'Set' : 'Not set'
+              })
               
               console.log('✅ Account merge completed successfully')
+              return true
+              
             } catch (mergeError) {
               console.error('❌ Error during account merge:', mergeError)
-              // Don't block sign-in, let NextAuth handle it
+              console.error('❌ Merge error details:', {
+                name: mergeError instanceof Error ? mergeError.name : 'Unknown',
+                message: mergeError instanceof Error ? mergeError.message : 'Unknown error',
+                stack: mergeError instanceof Error ? mergeError.stack : 'No stack trace',
+                userId: existingUser.id,
+                userEmail: existingUser.email
+              })
+              
+              // Still allow sign-in, let NextAuth create a new account/session
+              console.log('⚠️ Allowing sign-in despite merge error')
               return true
             }
           } else {
             console.log('ℹ️ No existing user found, will create new OAuth user')
+            console.log('📝 New user will be created with:', {
+              email: user.email,
+              name: user.name,
+              image: user.image
+            })
           }
         }
         
@@ -149,7 +187,8 @@ const handler = NextAuth({
                   provider: account?.provider,
                   isNewUser: !user.id,
                   email: user.email,
-                  mergeAttempted: !!existingUser
+                  mergeAttempted: !!existingUser,
+                  timestamp: new Date().toISOString()
                 })
               }
             })
@@ -163,8 +202,16 @@ const handler = NextAuth({
         console.error('❌ Error in sign-in callback:', error)
         console.error('❌ Error details:', {
           message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : 'No stack trace'
+          stack: error instanceof Error ? error.stack : 'No stack trace',
+          userEmail: user?.email,
+          provider: account?.provider,
+          timestamp: new Date().toISOString()
         })
+        
+        // For arjunnadar2003@gmail.com, be extra cautious
+        if (user.email === 'arjunnadar2003@gmail.com') {
+          console.error('🚨 CRITICAL ERROR for arjunnadar2003@gmail.com:', error)
+        }
         
         // Don't block sign-in completely, but log the issue
         console.log('⚠️ Allowing sign-in despite error (to prevent blocking)')
