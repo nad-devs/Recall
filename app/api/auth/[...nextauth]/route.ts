@@ -119,151 +119,55 @@ const handler = NextAuth({
         timestamp: new Date().toISOString()
       })
       
-      let existingUser: any = null
-      
       try {
         // Special handling for arjunnadar2003@gmail.com to debug the issue
         if (user.email === 'arjunnadar2003@gmail.com') {
           console.log('🎯 SPECIAL DEBUG - Processing arjunnadar2003@gmail.com login')
         }
         
-        // Check if there's an existing email-based account with the same email
+        // For Google OAuth, check if user already exists
         if (user.email && account?.provider === 'google') {
           console.log('🔍 Checking for existing user with email:', user.email)
           
-          existingUser = await prisma.user.findUnique({
+          const existingUser = await prisma.user.findUnique({
             where: { email: user.email.toLowerCase() },
             include: {
-              accounts: true,
-              sessions: true
+              accounts: true
             }
           })
           
           if (existingUser) {
-            console.log('🔄 Found existing user:', {
+            console.log('✅ Found existing user - will use existing account:', {
               id: existingUser.id,
               name: existingUser.name,
               email: existingUser.email,
-              accountCount: existingUser.accounts.length,
-              sessionCount: existingUser.sessions.length,
-              createdAt: existingUser.createdAt
+              accountCount: existingUser.accounts.length
             })
             
-            // Check if this user already has a Google OAuth account
-            const hasGoogleAccount = existingUser.accounts.some((acc: any) => acc.provider === 'google')
-            
-            if (hasGoogleAccount) {
-              console.log('✅ User already has Google OAuth account, allowing sign-in')
-              
-              // For debug: log the existing Google account details
-              const googleAccount = existingUser.accounts.find((acc: any) => acc.provider === 'google')
-              console.log('📱 Existing Google account:', {
-                provider: googleAccount?.provider,
-                providerAccountId: googleAccount?.providerAccountId,
-                type: googleAccount?.type
-              })
-              
-              return true
-            }
-            
-            // This is an existing email-based account, merge it with OAuth
-            console.log('🔄 Merging existing email-based account with OAuth for:', user.email)
-            
-            try {
-              // Clean up any existing sessions that might conflict
-              const deletedSessions = await prisma.session.deleteMany({
-                where: { userId: existingUser.id }
-              })
-              console.log(`🧹 Cleaned up ${deletedSessions.count} existing sessions for user`)
-              
-              // Update the existing user to include OAuth data
-              const updatedUser = await prisma.user.update({
-                where: { id: existingUser.id },
-                data: {
-                  image: user.image,
-                  lastActiveAt: new Date()
-                }
-              })
-              console.log('✅ User updated successfully:', {
-                id: updatedUser.id,
-                name: updatedUser.name,
-                image: updatedUser.image ? 'Set' : 'Not set'
-              })
-              
-              console.log('✅ Account merge completed successfully')
-              return true
-              
-            } catch (mergeError) {
-              console.error('❌ Error during account merge:', mergeError)
-              console.error('❌ Merge error details:', {
-                name: mergeError instanceof Error ? mergeError.name : 'Unknown',
-                message: mergeError instanceof Error ? mergeError.message : 'Unknown error',
-                stack: mergeError instanceof Error ? mergeError.stack : 'No stack trace',
-                userId: existingUser.id,
-                userEmail: existingUser.email
-              })
-              
-              // Still allow sign-in, let NextAuth create a new account/session
-              console.log('⚠️ Allowing sign-in despite merge error')
-              return true
-            }
+            // Just allow sign-in - let NextAuth handle the OAuth account linkage
+            console.log('✅ Allowing sign-in to use existing user account')
+            return true
           } else {
             console.log('ℹ️ No existing user found, will create new OAuth user')
-            console.log('📝 New user will be created with:', {
-              email: user.email,
-              name: user.name,
-              image: user.image
-            })
           }
         }
         
-        // Track sign-in analytics (but don't block if it fails)
-        try {
-          if (user.email) {
-            console.log('⚠️ Analytics recording temporarily disabled for debugging')
-            /*
-            await prisma.analytics.create({
-              data: {
-                userId: user.id,
-                event: "user_sign_in",
-                properties: JSON.stringify({
-                  provider: account?.provider,
-                  isNewUser: !user.id,
-                  email: user.email,
-                  mergeAttempted: !!existingUser,
-                  timestamp: new Date().toISOString()
-                })
-              }
-            })
-            console.log('✅ Sign-in analytics recorded')
-            */
-          }
-        } catch (analyticsError) {
-          console.error('⚠️ Analytics recording failed (non-blocking):', analyticsError)
-        }
+        console.log('✅ Sign-in approved for user:', user?.email)
+        return true
         
       } catch (error) {
         console.error('❌ Error in sign-in callback:', error)
         console.error('❌ Error details:', {
           message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : 'No stack trace',
           userEmail: user?.email,
           provider: account?.provider,
           timestamp: new Date().toISOString()
         })
         
-        // For arjunnadar2003@gmail.com, be extra cautious
-        if (user.email === 'arjunnadar2003@gmail.com') {
-          console.error('🚨 CRITICAL ERROR for arjunnadar2003@gmail.com:', error)
-        }
-        
-        // Don't block sign-in completely, but log the issue
+        // Don't block sign-in
         console.log('⚠️ Allowing sign-in despite error (to prevent blocking)')
         return true
       }
-      
-      console.log('✅ Sign-in approved for user:', user?.email)
-      return true
     },
     async redirect({ url, baseUrl }) {
       console.log('🔄 Redirect callback:', { url, baseUrl })
