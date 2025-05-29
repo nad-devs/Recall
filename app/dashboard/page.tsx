@@ -243,8 +243,6 @@ export default function Dashboard() {
           <ThemeToggle />
         </div>
 
-
-
         {/* Header with title and action buttons */}
         <div className="flex items-center justify-between">
           <div>

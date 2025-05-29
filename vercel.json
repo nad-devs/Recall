@@ -3,7 +3,6 @@
     "BACKEND_URL": "https://recall.p3vg.onrender.com",
     "NEXT_PUBLIC_BACKEND_URL": "https://recall.p3vg.onrender.com",
     "EXTRACTION_SERVICE_URL": "https://recall.p3vg.onrender.com/api/v1/extract-concepts",
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0",
     "NEXTAUTH_URL": "https://recall-henna.vercel.app"
   }
 } 
