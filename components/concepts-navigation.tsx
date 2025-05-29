@@ -1908,74 +1908,16 @@ export function ConceptsNavigation({
       <Dialog 
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 [DEBUG] Dialog onOpenChange triggered with open =', open)
-          console.log('🔧 [DEBUG] Current time:', new Date().toISOString())
-          console.log('🔧 [DEBUG] Current loading states:', {
-            isCreatingCategory,
-            isMovingConcepts,
-            isRenamingCategory,
-            operationStarting
-          })
+          console.log('🔧 [SIMPLE] Dialog onOpenChange called with:', open)
           
+          // Super simple - just allow the dialog to close
           if (!open) {
-            console.log('🔧 [DEBUG] Dialog attempting to close...')
-            console.log('🔧 [DEBUG] About to check loading states...')
-            
-            // If we're in a loading state, prevent the dialog from closing via UI
-            // But add a small delay check to handle race conditions
-            const checkAndPreventClose = () => {
-              console.log('🔧 [DEBUG] Inside checkAndPreventClose function')
-              if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
-                console.log('🔧 [DEBUG] Preventing dialog close - operation in progress:', {
-                  isCreatingCategory,
-                  isMovingConcepts,
-                  isRenamingCategory,
-                  operationStarting
-                })
-                
-                console.log('🔧 [DEBUG] About to show toast...')
-                toast({
-                  title: "Operation in Progress",
-                  description: "Please wait for the operation to complete or click Cancel to force stop.",
-                  duration: 3000,
-                })
-                console.log('🔧 [DEBUG] Toast shown, returning false')
-                return false // Prevent close
-              }
-              console.log('🔧 [DEBUG] No loading states active, allowing close')
-              return true // Allow close
-            }
-            
-            console.log('🔧 [DEBUG] About to call checkAndPreventClose...')
-            // Check immediately
-            if (!checkAndPreventClose()) {
-              console.log('🔧 [DEBUG] checkAndPreventClose returned false, preventing close')
-              return // Don't proceed with closing
-            }
-            
-            console.log('🔧 [DEBUG] checkAndPreventClose returned true, proceeding...')
-            
-            // Also check after a brief delay to handle race conditions
-            setTimeout(() => {
-              console.log('🔧 [DEBUG] Delayed check executing...')
-              if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
-                console.log('🔧 [DEBUG] Delayed check: operation still in progress, keeping dialog open')
-                // If operation started after our initial check, don't close
-                return
-              }
-              console.log('🔧 [DEBUG] Delayed check: still safe to close')
-            }, 10)
-            
-            console.log('🔧 [DEBUG] About to call forceResetAllStates...')
-            // Safe to close - reset all states
-            console.log('🔧 [DEBUG] Safe to close - resetting states...')
-            forceResetAllStates()
-            console.log('🔧 [DEBUG] forceResetAllStates completed, dialog onOpenChange finishing')
-          } else {
-            console.log('🔧 [DEBUG] Dialog opening, no action needed')
+            console.log('🔧 [SIMPLE] Closing dialog - no complex logic')
+            setShowAddSubcategoryDialog(false)
+            setNewSubcategoryName('')
+            setSelectedParentCategory('')
+            console.log('🔧 [SIMPLE] Dialog closed successfully')
           }
-          
-          console.log('🔧 [DEBUG] Dialog onOpenChange handler completed')
         }}
       >
         <DialogContent>
@@ -2034,26 +1976,11 @@ export function ConceptsNavigation({
       <Dialog 
         open={showTransferDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 Transfer Dialog onOpenChange called with:', open)
-          
+          console.log('🔧 [SIMPLE] Transfer Dialog onOpenChange:', open)
           if (!open) {
-            console.log('🔧 Transfer Dialog attempting to close...')
-            
-            // If we're in a loading state, prevent the dialog from closing via UI
-            if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
-              console.log('🔧 Preventing dialog close - operation in progress')
-              // Don't change the dialog state - keep it open
-              toast({
-                title: "Operation in Progress", 
-                description: "Please wait for the operation to complete or click Cancel to force stop.",
-                duration: 3000,
-              })
-              return // Don't proceed with closing
-            }
-            
-            // Safe to close - reset all states
-            console.log('🔧 Safe to close - resetting states...')
-            forceResetAllStates()
+            setShowTransferDialog(false)
+            setTransferConcepts([])
+            setSelectedConceptsForTransfer(new Set())
           }
         }}
       >
@@ -2379,26 +2306,11 @@ export function ConceptsNavigation({
       <Dialog 
         open={showEditCategoryDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 Edit Category Dialog onOpenChange called with:', open)
-          
+          console.log('🔧 [SIMPLE] Edit Dialog onOpenChange:', open)
           if (!open) {
-            console.log('🔧 Edit Category Dialog attempting to close...')
-            
-            // If we're in a loading state, prevent the dialog from closing via UI
-            if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
-              console.log('🔧 Preventing dialog close - operation in progress')
-              // Don't change the dialog state - keep it open
-              toast({
-                title: "Operation in Progress",
-                description: "Please wait for the operation to complete or click Cancel to force stop.",
-                duration: 3000,
-              })
-              return // Don't proceed with closing
-            }
-            
-            // Safe to close - reset all states
-            console.log('🔧 Safe to close - resetting states...')
-            forceResetAllStates()
+            setShowEditCategoryDialog(false)
+            setEditingCategoryPath('')
+            setNewCategoryName('')
           }
         }}
       >
@@ -2457,26 +2369,10 @@ export function ConceptsNavigation({
       <Dialog 
         open={showDragDropDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 Drag Drop Dialog onOpenChange called with:', open)
-          
+          console.log('🔧 [SIMPLE] DragDrop Dialog onOpenChange:', open)
           if (!open) {
-            console.log('🔧 Drag Drop Dialog attempting to close...')
-            
-            // If we're in a loading state, prevent the dialog from closing via UI
-            if (isCreatingCategory || isMovingConcepts || isRenamingCategory || isDraggingCategory) {
-              console.log('🔧 Preventing dialog close - operation in progress')
-              // Don't change the dialog state - keep it open
-              toast({
-                title: "Operation in Progress",
-                description: "Please wait for the operation to complete or click Cancel to force stop.",
-                duration: 3000,
-              })
-              return // Don't proceed with closing
-            }
-            
-            // Safe to close - reset all states
-            console.log('🔧 Safe to close - resetting states...')
-            forceResetAllStates()
+            setShowDragDropDialog(false)
+            setDragDropData(null)
           }
         }}
       >
