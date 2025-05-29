@@ -42,6 +42,33 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 
 console.log(`📋 Total providers configured: ${providers.length}`)
 
+// Custom debug logging for all requests
+const debugRequest = (req: Request) => {
+  const url = new URL(req.url)
+  const path = url.pathname
+  const method = req.method
+  const timestamp = new Date().toISOString()
+  
+  console.log(`🌐 [${timestamp}] ${method} ${path}`)
+  
+  // Log specific NextAuth paths with extra detail
+  if (path.includes('/api/auth/')) {
+    const authPath = path.replace('/api/auth/', '')
+    console.log(`🔑 NextAuth Request: ${authPath}`)
+    
+    // Log headers for debugging
+    const headers: any = {}
+    req.headers.forEach((value, key) => {
+      if (!key.toLowerCase().includes('authorization') && !key.toLowerCase().includes('cookie')) {
+        headers[key] = value
+      } else {
+        headers[key] = '[REDACTED]'
+      }
+    })
+    console.log(`📤 Request Headers:`, JSON.stringify(headers, null, 2))
+  }
+}
+
 const handler = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
@@ -184,16 +211,58 @@ const handler = NextAuth({
   },
   events: {
     async signIn(message) {
-      console.log('📧 NextAuth signIn event:', message)
+      console.log('📧 NextAuth signIn EVENT:', {
+        user: message.user ? {
+          id: message.user.id,
+          email: message.user.email,
+          name: message.user.name
+        } : 'None',
+        account: message.account ? {
+          provider: message.account.provider,
+          type: message.account.type
+        } : 'None',
+        timestamp: new Date().toISOString()
+      })
     },
     async signOut(message) {
-      console.log('📧 NextAuth signOut event:', message)
+      console.log('📧 NextAuth signOut EVENT:', {
+        user: message.user ? {
+          id: message.user.id,
+          email: message.user.email
+        } : 'None',
+        timestamp: new Date().toISOString()
+      })
     },
     async createUser(message) {
-      console.log('📧 NextAuth createUser event:', message)
+      console.log('📧 NextAuth createUser EVENT:', {
+        user: message.user ? {
+          id: message.user.id,
+          email: message.user.email,
+          name: message.user.name
+        } : 'None',
+        timestamp: new Date().toISOString()
+      })
     },
     async session(message) {
-      console.log('📧 NextAuth session event:', message)
+      console.log('📧 NextAuth session EVENT:', {
+        session: message.session ? {
+          expires: message.session.expires,
+          hasUser: !!message.session.user
+        } : 'None',
+        token: message.token ? 'Present' : 'None',
+        timestamp: new Date().toISOString()
+      })
+    },
+    async linkAccount(message) {
+      console.log('📧 NextAuth linkAccount EVENT:', {
+        account: message.account ? {
+          provider: message.account.provider,
+          type: message.account.type,
+          providerAccountId: message.account.providerAccountId
+        } : 'None',
+        profile: message.profile ? 'Present' : 'None',
+        timestamp: new Date().toISOString()
+      })
     }
   },
   debug: process.env.NODE_ENV === 'development',
@@ -201,4 +270,31 @@ const handler = NextAuth({
 
 console.log('✅ NextAuth configuration complete')
 
-export { handler as GET, handler as POST } 
+// Wrapper functions to add request logging
+async function GET(req: Request) {
+  debugRequest(req)
+  console.log('🔹 GET Request to NextAuth')
+  try {
+    const response = await handler(req)
+    console.log('🔹 GET Response from NextAuth:', response ? 'Success' : 'Failed')
+    return response
+  } catch (error) {
+    console.error('❌ GET Request to NextAuth failed:', error)
+    throw error
+  }
+}
+
+async function POST(req: Request) {
+  debugRequest(req)
+  console.log('🔹 POST Request to NextAuth')
+  try {
+    const response = await handler(req)
+    console.log('🔹 POST Response from NextAuth:', response ? 'Success' : 'Failed')
+    return response
+  } catch (error) {
+    console.error('❌ POST Request to NextAuth failed:', error)
+    throw error
+  }
+}
+
+export { GET, POST } 
