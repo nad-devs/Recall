@@ -237,6 +237,9 @@ export function ConceptsNavigation({
   const [isMovingConcepts, setIsMovingConcepts] = useState(false)
   const [isRenamingCategory, setIsRenamingCategory] = useState(false)
   
+  // Flag to track when an operation is starting (to prevent race conditions)
+  const [operationStarting, setOperationStarting] = useState(false)
+  
   // Drag and drop state
   const [isDraggingCategory, setIsDraggingCategory] = useState(false)
   const [isDraggingAny, setIsDraggingAny] = useState(false)
@@ -783,52 +786,75 @@ export function ConceptsNavigation({
 
   const handleCreateSubcategory = useCallback(async () => {
     // Prevent multiple concurrent operations
-    if (isCreatingCategory || isMovingConcepts) {
+    if (isCreatingCategory || isMovingConcepts || operationStarting) {
+      console.log('🔧 CLIENT: Operation already in progress, ignoring request')
       return
     }
     
     // Robust validation to prevent empty names
     if (!newSubcategoryName || !newSubcategoryName.trim()) {
+      console.log('🔧 CLIENT: Validation failed - empty name')
       toast({
         title: "Invalid Name",
         description: "Category name cannot be empty. Please enter a valid name.",
         variant: "destructive",
         duration: 3000,
       })
-      return
+      return // Don't reset isCreatingCategory here - just return
     }
     
     const trimmedName = newSubcategoryName.trim()
     
     // Additional validation for special characters or length
     if (trimmedName.length < 1) {
+      console.log('🔧 CLIENT: Validation failed - name too short')
       toast({
         title: "Invalid Name",
         description: "Category name must contain at least one character.",
         variant: "destructive",
         duration: 3000,
       })
-      return
+      return // Don't reset isCreatingCategory here - just return
     }
     
+    console.log('🔧 CLIENT: Starting subcategory creation process...', {
+      trimmedName,
+      selectedParentCategory,
+      timestamp: new Date().toISOString()
+    })
+    
     try {
+      // Set operation starting flag first to prevent dialog from closing
+      console.log('🔧 CLIENT: Setting operationStarting to true...')
+      setOperationStarting(true)
+      
+      // Small delay to ensure the flag is set before any dialog events
+      await new Promise(resolve => setTimeout(resolve, 10))
+      
+      // Set loading state FIRST and log it
+      console.log('🔧 CLIENT: Setting isCreatingCategory to true...')
       setIsCreatingCategory(true)
+      
+      // Clear the starting flag since main operation flag is now set
+      setOperationStarting(false)
       
       // For top-level categories, use the name directly. For subcategories, use the full path
       const newCategoryPath = selectedParentCategory 
         ? `${selectedParentCategory} > ${trimmedName}`
         : trimmedName
       
+      console.log('🔧 CLIENT: New category path will be:', newCategoryPath)
+      
       // Check if category already exists
       if (conceptsByCategory[newCategoryPath]) {
+        console.log('🔧 CLIENT: Category already exists, showing error')
         toast({
           title: "Category Exists",
           description: `Category "${newCategoryPath}" already exists.`,
           variant: "destructive",
           duration: 3000,
         })
-        setIsCreatingCategory(false) // Reset loading state on validation failure
-        return
+        return // Will be handled in finally block
       }
       
       // Check if parent category has concepts (only applies to subcategories)
@@ -836,16 +862,17 @@ export function ConceptsNavigation({
         const parentConcepts = conceptsByCategory[selectedParentCategory] || []
         
         if (parentConcepts.length > 0) {
+          console.log('🔧 CLIENT: Parent has concepts, transitioning to transfer dialog...')
           // Ask user if they want to move concepts or create empty subcategory
           setTransferConcepts(parentConcepts)
           setShowTransferDialog(true)
-          // Reset isCreatingCategory since we're transitioning to transfer dialog
-          setIsCreatingCategory(false)
-          return
+          setShowAddSubcategoryDialog(false) // Close the current dialog
+          return // Will be handled in finally block
         }
       }
       
       // Show loading feedback
+      console.log('🔧 CLIENT: Showing loading toast...')
       toast({
         title: "Creating Category",
         description: `Creating "${newCategoryPath}"...`,
@@ -853,7 +880,9 @@ export function ConceptsNavigation({
       })
       
       // Create empty category/subcategory with a placeholder concept
+      console.log('🔧 CLIENT: About to call createPlaceholderConcept...')
       await createPlaceholderConcept(newCategoryPath)
+      console.log('🔧 CLIENT: createPlaceholderConcept completed successfully')
       
       // Select the new category to show it was created
       onCategorySelect(newCategoryPath)
@@ -865,21 +894,25 @@ export function ConceptsNavigation({
         duration: 3000,
       })
       
-      // Reset state and close dialog
+      // Reset state and close dialog ONLY on success
+      console.log('🔧 CLIENT: Resetting dialog state after successful creation...')
       resetDialogState()
       
     } catch (error) {
-      console.error('Error creating subcategory:', error)
+      console.error('🔧 CLIENT: Error in handleCreateSubcategory:', error)
       toast({
         title: "Error",
         description: "Failed to create category. Please try again.",
         variant: "destructive",
         duration: 3000,
       })
+      // Don't call resetDialogState on error - keep dialog open so user can retry
     } finally {
+      console.log('🔧 CLIENT: Finally block - resetting operation flags')
+      setOperationStarting(false)
       setIsCreatingCategory(false)
     }
-  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, resetDialogState])
+  }, [isCreatingCategory, isMovingConcepts, operationStarting, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, resetDialogState])
 
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
     if (isMovingConcepts) {
@@ -1781,12 +1814,13 @@ export function ConceptsNavigation({
     let monitoringInterval: NodeJS.Timeout | null = null
     
     // If any loading state is active, start monitoring
-    if (isCreatingCategory || isMovingConcepts || isRenamingCategory || isDraggingCategory) {
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory || isDraggingCategory || operationStarting) {
       console.log('🔧 CLIENT: STATE MONITOR - Loading state detected, starting monitoring...', {
         isCreatingCategory,
         isMovingConcepts,
         isRenamingCategory,
         isDraggingCategory,
+        operationStarting,
         timestamp: new Date().toISOString()
       })
       
@@ -1806,6 +1840,7 @@ export function ConceptsNavigation({
             isMovingConcepts,
             isRenamingCategory,
             isDraggingCategory,
+            operationStarting,
             showAddSubcategoryDialog,
             showTransferDialog,
             showEditCategoryDialog,
@@ -1841,7 +1876,7 @@ export function ConceptsNavigation({
         clearInterval(monitoringInterval)
       }
     }
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog])
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, operationStarting])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
@@ -1966,22 +2001,50 @@ export function ConceptsNavigation({
       <Dialog 
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 Add Subcategory Dialog onOpenChange called with:', open)
+          console.log('🔧 Add Subcategory Dialog onOpenChange called with:', open, {
+            isCreatingCategory,
+            isMovingConcepts,
+            isRenamingCategory,
+            timestamp: new Date().toISOString()
+          })
           
           if (!open) {
             console.log('🔧 Add Subcategory Dialog attempting to close...')
             
             // If we're in a loading state, prevent the dialog from closing via UI
-            if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
-              console.log('🔧 Preventing dialog close - operation in progress')
-              // Don't change the dialog state - keep it open
-              toast({
-                title: "Operation in Progress",
-                description: "Please wait for the operation to complete or click Cancel to force stop.",
-                duration: 3000,
-              })
+            // But add a small delay check to handle race conditions
+            const checkAndPreventClose = () => {
+              if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
+                console.log('🔧 Preventing dialog close - operation in progress:', {
+                  isCreatingCategory,
+                  isMovingConcepts,
+                  isRenamingCategory,
+                  operationStarting
+                })
+                
+                toast({
+                  title: "Operation in Progress",
+                  description: "Please wait for the operation to complete or click Cancel to force stop.",
+                  duration: 3000,
+                })
+                return false // Prevent close
+              }
+              return true // Allow close
+            }
+            
+            // Check immediately
+            if (!checkAndPreventClose()) {
               return // Don't proceed with closing
             }
+            
+            // Also check after a brief delay to handle race conditions
+            setTimeout(() => {
+              if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
+                console.log('🔧 Delayed check: operation still in progress, keeping dialog open')
+                // If operation started after our initial check, don't close
+                return
+              }
+            }, 10)
             
             // Safe to close - reset all states
             console.log('🔧 Safe to close - resetting states...')
