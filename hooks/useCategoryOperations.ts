@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useToast } from "@/hooks/use-toast"
-import { flushSync } from 'react-dom'
+import { makeAuthenticatedRequest } from '@/lib/auth-utils'
 
 interface Concept {
   id: string
@@ -58,25 +58,6 @@ export const useCategoryOperations = ({
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null)
   
-  // Helper function to get authentication headers
-  const getAuthHeaders = (): HeadersInit => {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    }
-    
-    if (typeof window !== 'undefined') {
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      
-      if (userEmail && userId) {
-        headers['x-user-email'] = userEmail
-        headers['x-user-id'] = userId
-      }
-    }
-    
-    return headers
-  }
-
   // Enhanced API call wrapper with abort support
   const makeApiCall = useCallback(async (url: string, options: RequestInit = {}) => {
     const abortController = new AbortController()
@@ -85,17 +66,24 @@ export const useCategoryOperations = ({
     try {
       const defaultOptions: RequestInit = {
         signal: abortController.signal,
-        ...options,
-        headers: {
-          ...getAuthHeaders(),
-          ...(options.headers || {})
-        }
+        ...options
       }
       
-      const response = await fetch(url, defaultOptions)
+      const response = await makeAuthenticatedRequest(url, defaultOptions)
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorText = await response.text()
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // Use the raw text if it's not JSON
+          errorMessage = errorText || errorMessage
+        }
+        
+        throw new Error(errorMessage)
       }
       
       const data = await response.json()
@@ -163,12 +151,16 @@ export const useCategoryOperations = ({
     
     try {
       const requestBody = {
-        title: `[Category: ${category}]`,
+        title: `📌 Add Concepts Here`,
         category: category,
         summary: 'This is a placeholder concept created to organize your knowledge. You can delete this once you have real concepts in this category.',
+        details: 'Click "Add Concept" or move concepts from other categories to get started. This placeholder will disappear once you have real content.',
         notes: '',
-        isPlaceholder: true
+        isPlaceholder: true,
+        isManualCreation: true // This is important to prevent requiring conversationId
       }
+      
+      console.log('Creating placeholder concept with body:', requestBody)
       
       const data = await makeApiCall('/api/concepts', {
         method: 'POST',
@@ -181,6 +173,8 @@ export const useCategoryOperations = ({
       
       return data
     } catch (error: any) {
+      console.error('Error creating placeholder concept:', error)
+      
       if (error.message === 'Operation was cancelled') {
         throw error
       }
@@ -192,6 +186,8 @@ export const useCategoryOperations = ({
         errorMessage = 'Operation timed out. Please try again.'
       } else if (error.message?.includes('401')) {
         errorMessage = 'Authentication error. Please refresh the page and try again.'
+      } else if (error.message?.includes('500')) {
+        errorMessage = 'Server error. Please try refreshing the page and try again.'
       }
       
       throw new Error(errorMessage)
