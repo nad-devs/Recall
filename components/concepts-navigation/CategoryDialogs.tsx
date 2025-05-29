@@ -37,7 +37,6 @@ interface CategoryDialogsProps {
   setNewSubcategoryName: (name: string) => void
   isCreatingCategory: boolean
   handleCreateSubcategory: () => void
-  handleCancelCategoryCreation: () => void
   
   // Transfer Concepts Dialog
   showTransferDialog: boolean
@@ -82,7 +81,6 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
   setNewSubcategoryName,
   isCreatingCategory,
   handleCreateSubcategory,
-  handleCancelCategoryCreation,
   
   // Transfer Concepts Dialog props
   showTransferDialog,
@@ -113,11 +111,6 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
   executeCategoryMove,
   moveConceptsToCategory
 }) => {
-  // Silent refresh function to avoid loading animations
-  const silentRefresh = () => {
-    window.location.replace(window.location.href)
-  }
-
   return (
     <>
       {/* Add Subcategory Dialog */}
@@ -125,8 +118,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            // Just refresh the page silently to reset everything
-            silentRefresh()
+            resetDialogState()
           }
         }}
       >
@@ -157,7 +149,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={handleCancelCategoryCreation}
+              onClick={resetDialogState}
               disabled={false}
             >
               Cancel
@@ -187,8 +179,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showTransferDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            // Just refresh the page silently to reset everything
-            silentRefresh()
+            resetDialogState()
           }
         }}
       >
@@ -444,7 +435,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={handleCancelCategoryCreation}
+              onClick={resetDialogState}
               disabled={false}
             >
               Cancel
@@ -458,8 +449,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showEditCategoryDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            // Just refresh the page silently to reset everything
-            silentRefresh()
+            resetDialogState()
           }
         }}
       >
@@ -489,7 +479,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={handleCancelCategoryCreation}
+              onClick={resetDialogState}
               disabled={false}
             >
               Cancel
@@ -519,8 +509,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showDragDropDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            // Just refresh the page silently to reset everything
-            silentRefresh()
+            resetDialogState()
           }
         }}
       >
@@ -600,7 +589,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={handleCancelCategoryCreation}
+              onClick={resetDialogState}
               disabled={isDraggingCategory}
             >
               Cancel

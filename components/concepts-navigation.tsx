@@ -222,17 +222,6 @@ export function ConceptsNavigation({
     categoryOps.setShowAddSubcategoryDialog(true)
   }, [categoryOps])
 
-  // Silent page refresh without loading animation
-  const silentRefresh = useCallback(() => {
-    // Use replace to avoid loading animation
-    window.location.replace(window.location.href)
-  }, [])
-
-  const handleCancelCategoryCreation = useCallback(() => {
-    // Simple solution: silent refresh to reset everything
-    silentRefresh()
-  }, [])
-
   // Category drop handler
   const handleCategoryDrop = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
     if (draggedCategoryPath === targetCategoryPath) return
@@ -443,35 +432,6 @@ export function ConceptsNavigation({
     }
   }, []) // Removed categoryOps dependency to prevent infinite loops
 
-  // Escape key handler - COMPLETELY FIXED to prevent freezing
-  useEffect(() => {
-    const handleEscapeKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        // Prevent default behavior and stop propagation
-        event.preventDefault()
-        event.stopPropagation()
-        
-        // Just do a silent refresh instead of trying to reset states
-        silentRefresh()
-      }
-    }
-
-    // Only add listener if any dialog is open
-    const anyDialogOpen = categoryOps.showAddSubcategoryDialog || 
-                         categoryOps.showTransferDialog || 
-                         categoryOps.showEditCategoryDialog || 
-                         categoryOps.showDragDropDialog
-
-    if (anyDialogOpen) {
-      document.addEventListener('keydown', handleEscapeKey, { passive: false })
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey)
-    }
-  }, [categoryOps.showAddSubcategoryDialog, categoryOps.showTransferDialog, 
-      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, silentRefresh])
-
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
@@ -510,17 +470,7 @@ export function ConceptsNavigation({
       <div className="p-4 border-b border-border">
         <h3 className="text-sm font-medium mb-2 text-muted-foreground">Quick Filters</h3>
         <div className="space-y-1">
-          {/* Quick Reload Button - Always available */}
-          <Button
-            variant="outline"
-            className="w-full justify-start text-sm h-8 mb-2 border-blue-300 hover:bg-blue-50"
-            onClick={silentRefresh}
-          >
-            <ArrowRight className="mr-2 h-4 w-4" />
-            Quick Reload Page
-          </Button>
-          
-          {/* Emergency Reset Button */}
+          {/* Emergency Reset Button - only show when operations are running */}
           {(categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory) && (
             <Button
               variant="destructive"
@@ -607,7 +557,6 @@ export function ConceptsNavigation({
         setNewSubcategoryName={categoryOps.setNewSubcategoryName}
         isCreatingCategory={categoryOps.isCreatingCategory}
         handleCreateSubcategory={categoryOps.handleCreateSubcategory}
-        handleCancelCategoryCreation={handleCancelCategoryCreation}
         
         // Transfer Concepts Dialog
         showTransferDialog={categoryOps.showTransferDialog}
