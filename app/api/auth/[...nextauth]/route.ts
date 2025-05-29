@@ -53,6 +53,12 @@ const handler = NextAuth({
   callbacks: {
     async session({ session, user }) {
       console.log('🔄 Session callback triggered for user:', user?.id)
+      console.log('🔄 Session data received:', {
+        userExists: !!user,
+        sessionExists: !!session,
+        userEmail: user?.email || 'None',
+        sessionExpires: session?.expires || 'None'
+      })
       
       // Test database connectivity first
       try {
@@ -74,6 +80,7 @@ const handler = NextAuth({
       try {
         if (session.user) {
           session.user.id = user.id
+          console.log('🔄 Setting session.user.id to:', user.id)
           
           try {
             // Update last active timestamp
@@ -89,6 +96,11 @@ const handler = NextAuth({
         }
         
         console.log('✅ Session callback completed successfully')
+        console.log('✅ Final session object:', {
+          userId: session?.user?.id,
+          userEmail: session?.user?.email,
+          expires: session?.expires
+        })
         return session
       } catch (sessionError) {
         console.error('❌ CRITICAL: Session callback failed:', sessionError)
@@ -117,6 +129,21 @@ const handler = NextAuth({
         provider: account?.provider,
         accountType: account?.type,
         timestamp: new Date().toISOString()
+      })
+      
+      console.log('🔍 Sign-in callback full details:', {
+        user: user ? {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image
+        } : 'None',
+        account: account ? {
+          provider: account.provider,
+          type: account.type,
+          providerAccountId: account.providerAccountId
+        } : 'None',
+        profile: profile ? 'Present' : 'None'
       })
       
       try {
