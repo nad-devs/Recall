@@ -158,12 +158,10 @@ export default function ConceptsPage() {
   // Create filtered sorted categories list
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
 
-  // Process and organize the concepts by category - MINIMIZE dependencies to prevent loops
+  // Process and organize the concepts by category - FIX stale closure issues
   const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
     debug.logUserAction('Starting formatAndOrganizeConcepts', { 
-      conceptsDataLength: conceptsData.length,
-      currentConceptsLength: concepts.length,
-      currentCategoriesCount: Object.keys(conceptsByCategory).length
+      conceptsDataLength: conceptsData.length
     })
     
     const formattedConcepts = conceptsData.map(concept => ({
@@ -176,8 +174,7 @@ export default function ConceptsPage() {
     }))
 
     debug.logUserAction('Setting formatted concepts', { count: formattedConcepts.length })
-    setConcepts(formattedConcepts)
-
+    
     // Group concepts by category
     const byCategory: Record<string, Concept[]> = {}
 
@@ -185,7 +182,6 @@ export default function ConceptsPage() {
       if (!byCategory[concept.category]) {
         byCategory[concept.category] = []
       }
-
       byCategory[concept.category].push(concept)
     })
 
@@ -194,19 +190,21 @@ export default function ConceptsPage() {
       byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
     })
 
-    debug.logUserAction('Setting concepts by category', { 
+    const sortedCategoryList = Object.keys(byCategory).sort()
+
+    debug.logUserAction('Setting all state simultaneously', { 
+      conceptsCount: formattedConcepts.length,
       categoriesCount: Object.keys(byCategory).length,
-      categories: Object.keys(byCategory)
+      categories: sortedCategoryList
     })
-    setConceptsByCategory(byCategory)
     
-    debug.logUserAction('Setting sorted categories', { 
-      categories: Object.keys(byCategory).sort()
-    })
-    setSortedCategories(Object.keys(byCategory).sort())
+    // Update all state simultaneously to prevent race conditions
+    setConcepts(formattedConcepts)
+    setConceptsByCategory(byCategory)
+    setSortedCategories(sortedCategoryList)
     
     debug.logUserAction('formatAndOrganizeConcepts completed')
-  }, [debug]) // ONLY depend on debug to prevent circular dependencies
+  }, [debug]) // Only depend on debug to prevent circular dependencies
 
   // Fetch concepts function - extracted so it can be reused for refreshing - UPDATE dependencies
   const fetchConcepts = useCallback(async () => {
@@ -309,12 +307,17 @@ export default function ConceptsPage() {
   // Auto-refresh event listener - USE REF to break dependency loop
   useEffect(() => {
     debug.logUserAction('Auto-refresh event listener effect triggered')
-    const handleRefreshConcepts = () => {
+    const handleRefreshConcepts = async () => {
       debug.logUserAction('Received refresh concepts event, refreshing data...')
       console.log('🔄 Received refresh concepts event, refreshing data...')
-      // Use ref to avoid stale closure
-      if (refreshDataRef.current) {
-        refreshDataRef.current()
+      // Use ref to avoid stale closure with error handling
+      try {
+        if (refreshDataRef.current) {
+          await refreshDataRef.current()
+        }
+      } catch (error) {
+        debug.logError('Error in auto-refresh', error)
+        console.error('Error in auto-refresh:', error)
       }
     }
 
@@ -331,10 +334,18 @@ export default function ConceptsPage() {
   // Initial data fetch - USE REF to break dependency loop
   useEffect(() => {
     debug.logUserAction('Initial data fetch effect triggered')
-    // Use ref to avoid stale closure
-    if (refreshDataRef.current) {
-      refreshDataRef.current()
+    // Use ref to avoid stale closure with error handling
+    const executeRefresh = async () => {
+      try {
+        if (refreshDataRef.current) {
+          await refreshDataRef.current()
+        }
+      } catch (error) {
+        debug.logError('Error in initial data fetch', error)
+        console.error('Error in initial data fetch:', error)
+      }
     }
+    executeRefresh()
   }, [debug]) // Only depend on debug
 
   // Handle loading screen completion
@@ -374,35 +385,6 @@ export default function ConceptsPage() {
       debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
     }
   }, [dataLoaded, loading]) // REMOVE debug dependency
-
-  // Clean up empty categories after state updates - REMOVE debug dependency
-  useEffect(() => {
-    debug.logUserAction('Category cleanup effect triggered', { 
-      conceptsByCategoryKeys: Object.keys(conceptsByCategory).length,
-      sortedCategoriesLength: sortedCategories.length
-    })
-    
-    setSortedCategories(prevSorted => {
-      const categoriesWithConcepts = Object.keys(conceptsByCategory).filter(
-        category => conceptsByCategory[category] && conceptsByCategory[category].length > 0
-      );
-      
-      // Only update if there's actually a difference
-      const shouldUpdate = prevSorted.some(cat => !categoriesWithConcepts.includes(cat)) ||
-                          categoriesWithConcepts.some(cat => !prevSorted.includes(cat));
-      
-      if (shouldUpdate) {
-        debug.logUserAction('Updating sorted categories', { 
-          oldCategories: prevSorted, 
-          newCategories: categoriesWithConcepts 
-        })
-        return categoriesWithConcepts.sort();
-      }
-      
-      debug.logUserAction('No category update needed', { categories: prevSorted })
-      return prevSorted;
-    });
-  }, [conceptsByCategory]) // REMOVE debug dependency
 
   // Handle creating a new concept
   const handleAddConcept = async (title: string) => {
