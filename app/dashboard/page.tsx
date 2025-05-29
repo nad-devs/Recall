@@ -30,6 +30,8 @@ export default function Dashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
+  
   // Check for email-based session or authentication
   useEffect(() => {
     const userName = localStorage.getItem('userName')
@@ -41,6 +43,7 @@ export default function Dashboard() {
       console.log('📋 Dashboard: Using email-based session for', userEmail)
       setUserName(userName)
       setEditedName(userName)
+      setAuthChecked(true)
       fetchDashboardData()
       return
     }
@@ -55,17 +58,31 @@ export default function Dashboard() {
       console.log('📋 Dashboard: Using NextAuth session for', session.user.email)
       setUserName(session.user.name || session.user.email || "User")
       setEditedName(session.user.name || session.user.email || "User")
+      setAuthChecked(true)
       fetchDashboardData()
       return
     }
     
-    // Only redirect if we're sure there's no authentication
-    if (status === "unauthenticated") {
-      console.log('📋 Dashboard: No authentication found, redirecting to landing page')
+    // Give more time for authentication to settle
+    if (status === "unauthenticated" && !authChecked) {
+      console.log('📋 Dashboard: Auth status is unauthenticated, waiting a bit longer...')
+      
+      // Wait a bit longer for auth to settle, especially after redirects
+      setTimeout(() => {
+        setAuthChecked(true)
+        console.log('📋 Dashboard: Auth check timeout - redirecting to landing page')
+        router.push("/")
+      }, 2000) // Wait 2 seconds before redirecting
+      return
+    }
+    
+    // Only redirect if we've checked auth and are definitely unauthenticated
+    if (status === "unauthenticated" && authChecked) {
+      console.log('📋 Dashboard: Confirmed unauthenticated after check, redirecting to landing page')
       router.push("/")
       return
     }
-  }, [status, session, router])
+  }, [status, session, router, authChecked])
 
   const handleEditName = () => {
     setIsEditingName(true)

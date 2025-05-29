@@ -40,6 +40,8 @@ const handler = NextAuth({
   providers,
   session: {
     strategy: "database",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     async session({ session, user }) {
@@ -64,51 +66,102 @@ const handler = NextAuth({
       console.log('🔄 Sign-in callback triggered:', {
         userId: user?.id,
         email: user?.email,
-        provider: account?.provider
+        provider: account?.provider,
+        accountType: account?.type
       })
+      
+      let existingUser: any = null // Declare at function scope
       
       try {
         // Check if there's an existing email-based account with the same email
         if (user.email && account?.provider === 'google') {
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email.toLowerCase() }
+          console.log('🔍 Checking for existing user with email:', user.email)
+          
+          existingUser = await prisma.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+            include: {
+              accounts: true,
+              sessions: true
+            }
           })
           
           if (existingUser) {
-            // This is an existing account, merge it with OAuth
-            console.log('🔄 Merging existing account with OAuth for:', user.email)
-            
-            // Update the existing user to include OAuth data
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: {
-                image: user.image,
-                lastActiveAt: new Date()
-              }
+            console.log('🔄 Found existing user:', {
+              id: existingUser.id,
+              name: existingUser.name,
+              accountCount: existingUser.accounts.length,
+              sessionCount: existingUser.sessions.length
             })
             
-            console.log('✅ Account merge completed')
+            // Check if this user already has a Google OAuth account
+            const hasGoogleAccount = existingUser.accounts.some((acc: any) => acc.provider === 'google')
+            
+            if (hasGoogleAccount) {
+              console.log('✅ User already has Google OAuth account, allowing sign-in')
+              return true
+            }
+            
+            // This is an existing email-based account, merge it with OAuth
+            console.log('🔄 Merging existing email-based account with OAuth for:', user.email)
+            
+            try {
+              // Clean up any existing sessions that might conflict
+              await prisma.session.deleteMany({
+                where: { userId: existingUser.id }
+              })
+              console.log('🧹 Cleaned up existing sessions for user')
+              
+              // Update the existing user to include OAuth data
+              await prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                  image: user.image,
+                  lastActiveAt: new Date()
+                }
+              })
+              
+              console.log('✅ Account merge completed successfully')
+            } catch (mergeError) {
+              console.error('❌ Error during account merge:', mergeError)
+              // Don't block sign-in, let NextAuth handle it
+              return true
+            }
+          } else {
+            console.log('ℹ️ No existing user found, will create new OAuth user')
           }
         }
         
-        // Track sign-in analytics
-        if (user.email) {
-          await prisma.analytics.create({
-            data: {
-              userId: user.id,
-              event: "user_sign_in",
-              properties: JSON.stringify({
-                provider: account?.provider,
-                isNewUser: !user.id,
-                email: user.email
-              })
-            }
-          })
-          console.log('✅ Sign-in analytics recorded')
+        // Track sign-in analytics (but don't block if it fails)
+        try {
+          if (user.email) {
+            await prisma.analytics.create({
+              data: {
+                userId: user.id,
+                event: "user_sign_in",
+                properties: JSON.stringify({
+                  provider: account?.provider,
+                  isNewUser: !user.id,
+                  email: user.email,
+                  mergeAttempted: !!existingUser
+                })
+              }
+            })
+            console.log('✅ Sign-in analytics recorded')
+          }
+        } catch (analyticsError) {
+          console.error('⚠️ Analytics recording failed (non-blocking):', analyticsError)
         }
+        
       } catch (error) {
         console.error('❌ Error in sign-in callback:', error)
-        // Don't block sign-in if analytics or merge fails
+        console.error('❌ Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : 'No stack trace'
+        })
+        
+        // Don't block sign-in completely, but log the issue
+        console.log('⚠️ Allowing sign-in despite error (to prevent blocking)')
+        return true
       }
       
       console.log('✅ Sign-in approved for user:', user?.email)
