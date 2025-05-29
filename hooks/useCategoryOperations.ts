@@ -34,10 +34,13 @@ export const useCategoryOperations = ({
   const renderCountRef = useRef(0)
   renderCountRef.current += 1
   
-  debug.logUserAction('useCategoryOperations hook render', { 
-    renderCount: renderCountRef.current,
-    conceptsByCategoryKeys: Object.keys(conceptsByCategory).length
-  })
+  // Only log every 5th render to avoid spam
+  if (renderCountRef.current % 5 === 1) {
+    debug.logUserAction('useCategoryOperations hook render', { 
+      renderCount: renderCountRef.current,
+      conceptsByCategoryKeys: Object.keys(conceptsByCategory).length
+    })
+  }
   
   // Dialog states
   const [showAddSubcategoryDialog, setShowAddSubcategoryDialog] = useState(false)
@@ -245,7 +248,7 @@ export const useCategoryOperations = ({
     }
   }, [makeApiCall, debug])
 
-  // Handle category creation - COMPLETELY REWRITTEN to fix freezing issues
+  // Handle category creation - REDUCE DEPENDENCIES to prevent infinite loops
   const handleCreateSubcategory = useCallback(async () => {
     const operationId = 'create-subcategory'
     debug.startOperation(operationId)
@@ -354,25 +357,29 @@ export const useCategoryOperations = ({
       debug.logUserAction('Cleaning up after subcategory creation')
       debug.logStateChange('isCreatingCategory', isCreatingCategory, false)
       setIsCreatingCategory(false)
-      // Close dialog and reset state
-      setShowAddSubcategoryDialog(false)
-      setShowTransferDialog(false)
-      setShowEditCategoryDialog(false)
-      setShowDragDropDialog(false)
-      setSelectedParentCategory('')
-      setNewSubcategoryName('')
-      setEditingCategoryPath('')
-      setNewCategoryName('')
-      setTransferConcepts([])
-      setSelectedConceptsForTransfer(new Set())
-      setDragDropData(null)
-      setIsMovingConcepts(false)
-      setIsRenamingCategory(false)
-      setOperationStarting(false)
+      
+      // Reset dialog state using setTimeout to avoid render loop
+      setTimeout(() => {
+        // Close dialog and reset state
+        setShowAddSubcategoryDialog(false)
+        setShowTransferDialog(false)
+        setShowEditCategoryDialog(false)
+        setShowDragDropDialog(false)
+        setSelectedParentCategory('')
+        setNewSubcategoryName('')
+        setEditingCategoryPath('')
+        setNewCategoryName('')
+        setTransferConcepts([])
+        setSelectedConceptsForTransfer(new Set())
+        setDragDropData(null)
+        setIsMovingConcepts(false)
+        setIsRenamingCategory(false)
+        setOperationStarting(false)
+      }, 0)
     }
-  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, onDataRefresh, debug])
+  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, onCategorySelect, onDataRefresh, debug]) // REMOVED createPlaceholderConcept dependency
 
-  // Handle concept transfer - COMPLETELY REWRITTEN to fix freezing issues
+  // Handle concept transfer - FIX INFINITE LOOP by removing resetDialogState dependency
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
     const operationId = 'transfer-concepts'
     debug.startOperation(operationId)
@@ -436,11 +443,14 @@ export const useCategoryOperations = ({
       debug.logStateChange('isMovingConcepts', isMovingConcepts, false)
       setIsMovingConcepts(false)
       
-      // Call resetDialogState directly (it has a guard to prevent conflicts)
+      // Call resetDialogState directly without depending on it in useCallback
       debug.logUserAction('Calling resetDialogState after concept transfer cleanup')
-      resetDialogState()
+      // Use setTimeout to avoid calling resetDialogState during render
+      setTimeout(() => {
+        resetDialogState()
+      }, 0)
     }
-  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug, resetDialogState])
+  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug]) // REMOVED resetDialogState dependency
 
   return {
     // States
