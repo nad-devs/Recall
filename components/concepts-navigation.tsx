@@ -364,32 +364,45 @@ export function ConceptsNavigation({
   const renderCategoryNode = useCallback((node: any, depth: number = 0) => {
     if (node.conceptCount === 0) return null
 
+    const hasSubcategories = Object.keys(node.subcategories).length > 0
+
     return (
-      <CategoryNodeComponent
-        key={node.fullPath}
-        node={node}
-        depth={depth}
-        isExpanded={expandedCategories.has(node.fullPath)}
-        isSelected={selectedCategory === node.fullPath}
-        isInlineEditing={inlineEditingCategory === node.fullPath}
-        onToggleCategory={toggleCategory}
-        onCategorySelect={onCategorySelect}
-        onAddSubcategory={handleAddSubcategory}
-        onStartInlineEdit={startInlineEdit}
-        onSaveInlineEdit={saveInlineEdit}
-        onCancelInlineEdit={cancelInlineEdit}
-        onSetTransferConcepts={categoryOps.setTransferConcepts}
-        onShowTransferDialog={categoryOps.setShowTransferDialog}
-        inlineEditValue={inlineEditValue}
-        onSetInlineEditValue={setInlineEditValue}
-        isCreatingCategory={categoryOps.isCreatingCategory}
-        isMovingConcepts={categoryOps.isMovingConcepts}
-        isRenamingCategory={categoryOps.isRenamingCategory}
-        handleCategoryDrop={handleCategoryDrop}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        isDraggingAny={isDraggingAny}
-      />
+      <React.Fragment key={node.fullPath}>
+        <CategoryNodeComponent
+          key={node.fullPath}
+          node={node}
+          depth={depth}
+          isExpanded={expandedCategories.has(node.fullPath)}
+          isSelected={selectedCategory === node.fullPath}
+          isInlineEditing={inlineEditingCategory === node.fullPath}
+          onToggleCategory={toggleCategory}
+          onCategorySelect={onCategorySelect}
+          onAddSubcategory={handleAddSubcategory}
+          onStartInlineEdit={startInlineEdit}
+          onSaveInlineEdit={saveInlineEdit}
+          onCancelInlineEdit={cancelInlineEdit}
+          onSetTransferConcepts={categoryOps.setTransferConcepts}
+          onShowTransferDialog={categoryOps.setShowTransferDialog}
+          inlineEditValue={inlineEditValue}
+          onSetInlineEditValue={setInlineEditValue}
+          isCreatingCategory={categoryOps.isCreatingCategory}
+          isMovingConcepts={categoryOps.isMovingConcepts}
+          isRenamingCategory={categoryOps.isRenamingCategory}
+          handleCategoryDrop={handleCategoryDrop}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          isDraggingAny={isDraggingAny}
+        />
+        {/* Render children here if expanded and has subcategories */}
+        {hasSubcategories && expandedCategories.has(node.fullPath) && (
+          <div>
+            {Object.values(node.subcategories)
+              .sort((a: any, b: any) => a.name.localeCompare(b.name))
+              .filter((subNode: any) => subNode.conceptCount > 0)
+              .map((subNode: any) => renderCategoryNode(subNode, depth + 1))}
+          </div>
+        )}
+      </React.Fragment>
     )
   }, [
     expandedCategories, selectedCategory, inlineEditingCategory, inlineEditValue,

@@ -293,40 +293,6 @@ export const CategoryNodeComponent = React.memo(({
             </DropdownMenu>
           )}
         </div>
-        
-        {hasSubcategories && (
-          <CollapsibleContent>
-            {Object.values(node.subcategories)
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map(subNode => (
-                <CategoryNodeComponent
-                  key={subNode.fullPath}
-                  node={subNode}
-                  depth={depth + 1}
-                  isExpanded={isExpanded}
-                  isSelected={isSelected}
-                  isInlineEditing={isInlineEditing}
-                  onToggleCategory={onToggleCategory}
-                  onCategorySelect={onCategorySelect}
-                  onAddSubcategory={onAddSubcategory}
-                  onStartInlineEdit={onStartInlineEdit}
-                  onSaveInlineEdit={onSaveInlineEdit}
-                  onCancelInlineEdit={onCancelInlineEdit}
-                  onSetTransferConcepts={onSetTransferConcepts}
-                  onShowTransferDialog={onShowTransferDialog}
-                  inlineEditValue={inlineEditValue}
-                  onSetInlineEditValue={onSetInlineEditValue}
-                  isCreatingCategory={isCreatingCategory}
-                  isMovingConcepts={isMovingConcepts}
-                  isRenamingCategory={isRenamingCategory}
-                  handleCategoryDrop={handleCategoryDrop}
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                  isDraggingAny={isDraggingAny}
-                />
-              ))}
-          </CollapsibleContent>
-        )}
       </Collapsible>
     </div>
   )
