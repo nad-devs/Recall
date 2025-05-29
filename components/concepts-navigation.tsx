@@ -16,6 +16,7 @@ import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
 import { useCategoryOperations } from '@/hooks/useCategoryOperations'
 import { CategoryNodeComponent } from './concepts-navigation/CategoryNode'
 import { CategoryDialogs } from './concepts-navigation/CategoryDialogs'
+import { useDebugLogger } from '@/utils/debug-logger'
 
 interface Concept {
   id: string
@@ -58,6 +59,15 @@ export function ConceptsNavigation({
   className = ""
 }: ConceptsNavigationProps) {
   const { toast } = useToast()
+  const debug = useDebugLogger('ConceptsNavigation')
+  
+  // Track component renders
+  debug.logUserAction('ConceptsNavigation render', { 
+    conceptsCount: concepts.length,
+    categoriesCount: Object.keys(conceptsByCategory).length,
+    selectedCategory,
+    showNeedsReview
+  })
   
   // Category expansion state
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
@@ -76,11 +86,21 @@ export function ConceptsNavigation({
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
   
   // Category operations hook
+  debug.logUserAction('Initializing category operations hook', { 
+    conceptsByCategoryKeys: Object.keys(conceptsByCategory).length 
+  })
+  
   const categoryOps = useCategoryOperations({
     conceptsByCategory,
     onDataRefresh,
     onCategorySelect,
     onConceptsMove
+  })
+  
+  debug.logUserAction('Category operations hook initialized', { 
+    isCreatingCategory: categoryOps.isCreatingCategory,
+    isMovingConcepts: categoryOps.isMovingConcepts,
+    isRenamingCategory: categoryOps.isRenamingCategory
   })
 
   // Calculate stats
@@ -132,22 +152,28 @@ export function ConceptsNavigation({
   }, [])
 
   const cancelInlineEdit = useCallback(() => {
+    debug.logUserAction('Starting cancelInlineEdit')
     setInlineEditingCategory(null)
     setInlineEditValue('')
+    
+    debug.logUserAction('Inline edit cancelled, scheduling refresh')
     
     // Apply same refresh logic as other cancel operations
     setTimeout(async () => {
       try {
+        debug.logUserAction('Executing refresh after inline edit cancel')
         if (onDataRefresh) {
           await onDataRefresh()
         }
+        debug.logUserAction('Refresh after inline edit cancel completed')
       } catch (refreshError: any) {
+        debug.logError('Refresh error after inline edit cancel', refreshError)
         console.error('Non-critical refresh error:', refreshError)
         // Fallback: simple page reload if refresh fails
         window.location.reload()
       }
     }, 100) // Small delay to allow UI to update
-  }, [onDataRefresh])
+  }, [onDataRefresh, debug])
 
   const saveInlineEdit = useCallback(async () => {
     if (!inlineEditingCategory || !inlineEditValue.trim()) {
@@ -522,45 +548,67 @@ export function ConceptsNavigation({
       </div>
 
       {/* All Dialogs */}
-      <CategoryDialogs
-        // Add Subcategory Dialog
-        showAddSubcategoryDialog={categoryOps.showAddSubcategoryDialog}
-        setShowAddSubcategoryDialog={categoryOps.setShowAddSubcategoryDialog}
-        selectedParentCategory={categoryOps.selectedParentCategory}
-        newSubcategoryName={categoryOps.newSubcategoryName}
-        setNewSubcategoryName={categoryOps.setNewSubcategoryName}
-        isCreatingCategory={categoryOps.isCreatingCategory}
-        handleCreateSubcategory={categoryOps.handleCreateSubcategory}
+      {(() => {
+        debug.logUserAction('About to render CategoryDialogs', {
+          showAddSubcategoryDialog: categoryOps.showAddSubcategoryDialog,
+          showTransferDialog: categoryOps.showTransferDialog,
+          showEditCategoryDialog: categoryOps.showEditCategoryDialog,
+          showDragDropDialog: categoryOps.showDragDropDialog,
+          isCreatingCategory: categoryOps.isCreatingCategory,
+          isMovingConcepts: categoryOps.isMovingConcepts
+        })
         
-        // Transfer Concepts Dialog
-        showTransferDialog={categoryOps.showTransferDialog}
-        setShowTransferDialog={categoryOps.setShowTransferDialog}
-        transferConcepts={categoryOps.transferConcepts}
-        selectedConceptsForTransfer={categoryOps.selectedConceptsForTransfer}
-        setSelectedConceptsForTransfer={categoryOps.setSelectedConceptsForTransfer}
-        isMovingConcepts={categoryOps.isMovingConcepts}
-        conceptsByCategory={conceptsByCategory}
-        handleTransferConcepts={categoryOps.handleTransferConcepts}
-        createPlaceholderConcept={categoryOps.createPlaceholderConcept}
-        resetDialogState={categoryOps.resetDialogState}
+        const startTime = performance.now()
         
-        // Edit Category Dialog
-        showEditCategoryDialog={categoryOps.showEditCategoryDialog}
-        setShowEditCategoryDialog={categoryOps.setShowEditCategoryDialog}
-        editingCategoryPath={categoryOps.editingCategoryPath}
-        newCategoryName={categoryOps.newCategoryName}
-        setNewCategoryName={categoryOps.setNewCategoryName}
-        isRenamingCategory={categoryOps.isRenamingCategory}
-        handleRenameCategoryConfirm={() => {}} // TODO: implement this
+        const result = (
+          <CategoryDialogs
+            // Add Subcategory Dialog
+            showAddSubcategoryDialog={categoryOps.showAddSubcategoryDialog}
+            setShowAddSubcategoryDialog={categoryOps.setShowAddSubcategoryDialog}
+            selectedParentCategory={categoryOps.selectedParentCategory}
+            newSubcategoryName={categoryOps.newSubcategoryName}
+            setNewSubcategoryName={categoryOps.setNewSubcategoryName}
+            isCreatingCategory={categoryOps.isCreatingCategory}
+            handleCreateSubcategory={categoryOps.handleCreateSubcategory}
+            
+            // Transfer Concepts Dialog
+            showTransferDialog={categoryOps.showTransferDialog}
+            setShowTransferDialog={categoryOps.setShowTransferDialog}
+            transferConcepts={categoryOps.transferConcepts}
+            selectedConceptsForTransfer={categoryOps.selectedConceptsForTransfer}
+            setSelectedConceptsForTransfer={categoryOps.setSelectedConceptsForTransfer}
+            isMovingConcepts={categoryOps.isMovingConcepts}
+            conceptsByCategory={conceptsByCategory}
+            handleTransferConcepts={categoryOps.handleTransferConcepts}
+            createPlaceholderConcept={categoryOps.createPlaceholderConcept}
+            resetDialogState={categoryOps.resetDialogState}
+            
+            // Edit Category Dialog
+            showEditCategoryDialog={categoryOps.showEditCategoryDialog}
+            setShowEditCategoryDialog={categoryOps.setShowEditCategoryDialog}
+            editingCategoryPath={categoryOps.editingCategoryPath}
+            newCategoryName={categoryOps.newCategoryName}
+            setNewCategoryName={categoryOps.setNewCategoryName}
+            isRenamingCategory={categoryOps.isRenamingCategory}
+            handleRenameCategoryConfirm={() => {}} // TODO: implement this
+            
+            // Drag Drop Dialog
+            showDragDropDialog={categoryOps.showDragDropDialog}
+            setShowDragDropDialog={categoryOps.setShowDragDropDialog}
+            dragDropData={categoryOps.dragDropData}
+            isDraggingCategory={false} // TODO: implement this state
+            executeCategoryMove={executeCategoryMove}
+            moveConceptsToCategory={moveConceptsToCategory}
+          />
+        )
         
-        // Drag Drop Dialog
-        showDragDropDialog={categoryOps.showDragDropDialog}
-        setShowDragDropDialog={categoryOps.setShowDragDropDialog}
-        dragDropData={categoryOps.dragDropData}
-        isDraggingCategory={false} // TODO: implement this state
-        executeCategoryMove={executeCategoryMove}
-        moveConceptsToCategory={moveConceptsToCategory}
-      />
+        const endTime = performance.now()
+        debug.logUserAction('CategoryDialogs render completed', { 
+          renderTime: `${endTime - startTime}ms`
+        })
+        
+        return result
+      })()}
     </div>
   )
 } 

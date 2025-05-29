@@ -30,6 +30,15 @@ export const useCategoryOperations = ({
   const { toast } = useToast()
   const debug = useDebugLogger('useCategoryOperations')
   
+  // Track hook renders to detect excessive re-renders
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+  
+  debug.logUserAction('useCategoryOperations hook render', { 
+    renderCount: renderCountRef.current,
+    conceptsByCategoryKeys: Object.keys(conceptsByCategory).length
+  })
+  
   // Dialog states
   const [showAddSubcategoryDialog, setShowAddSubcategoryDialog] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
