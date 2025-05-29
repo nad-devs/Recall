@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useToast } from "@/hooks/use-toast"
 import { makeAuthenticatedRequest } from '@/lib/auth-utils'
+import { useDebugLogger, loggedFetch } from '@/utils/debug-logger'
 
 interface Concept {
   id: string
@@ -27,6 +28,7 @@ export const useCategoryOperations = ({
   onConceptsMove
 }: UseCategoryOperationsProps) => {
   const { toast } = useToast()
+  const debug = useDebugLogger('useCategoryOperations')
   
   // Dialog states
   const [showAddSubcategoryDialog, setShowAddSubcategoryDialog] = useState(false)
@@ -57,9 +59,30 @@ export const useCategoryOperations = ({
   
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Enhanced state setters with debug logging
+  const setIsCreatingCategoryWithLogging = useCallback((value: boolean) => {
+    debug.logStateChange('isCreatingCategory', isCreatingCategory, value)
+    setIsCreatingCategory(value)
+  }, [debug, isCreatingCategory])
+
+  const setIsMovingConceptsWithLogging = useCallback((value: boolean) => {
+    debug.logStateChange('isMovingConcepts', isMovingConcepts, value)
+    setIsMovingConcepts(value)
+  }, [debug, isMovingConcepts])
+
+  const setShowAddSubcategoryDialogWithLogging = useCallback((value: boolean) => {
+    debug.logStateChange('showAddSubcategoryDialog', showAddSubcategoryDialog, value)
+    debug.logUserAction('Dialog state change', { dialog: 'AddSubcategory', show: value })
+    setShowAddSubcategoryDialog(value)
+  }, [debug, showAddSubcategoryDialog])
   
-  // Enhanced API call wrapper with abort support
+  // Enhanced API call wrapper with abort support and debug logging
   const makeApiCall = useCallback(async (url: string, options: RequestInit = {}) => {
+    const operationId = `api-call-${url}-${Date.now()}`
+    debug.startOperation(operationId)
+    debug.logUserAction('API call started', { url, method: options.method })
+    
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     
@@ -69,7 +92,15 @@ export const useCategoryOperations = ({
         ...options
       }
       
-      const response = await makeAuthenticatedRequest(url, defaultOptions)
+      // Use the logged fetch wrapper when available, fall back to makeAuthenticatedRequest
+      let response
+      if (options.headers || defaultOptions.headers) {
+        // If we have custom headers, use makeAuthenticatedRequest 
+        response = await makeAuthenticatedRequest(url, defaultOptions)
+      } else {
+        // Otherwise use the logged fetch wrapper
+        response = await loggedFetch(url, defaultOptions)
+      }
       
       if (!response.ok) {
         const errorText = await response.text()
@@ -87,29 +118,44 @@ export const useCategoryOperations = ({
       }
       
       const data = await response.json()
+      debug.completeOperation(operationId)
+      debug.logUserAction('API call completed', { url, method: options.method })
       return data
     } catch (error: any) {
       if (error.name === 'AbortError') {
+        debug.logUserAction('API call aborted', { url, method: options.method })
         throw new Error('Operation was cancelled')
       }
+      debug.failOperation(operationId, error)
+      debug.logError('API call failed', { url, method: options.method, error: error.message })
       throw error
     } finally {
       if (abortControllerRef.current === abortController) {
         abortControllerRef.current = null
       }
     }
-  }, [])
+  }, [debug])
 
   // Reset all dialog states - SIMPLIFIED to prevent race conditions
   const resetDialogState = useCallback(() => {
+    const operationId = 'reset-dialog-state'
+    debug.startOperation(operationId)
+    debug.logUserAction('Resetting dialog state')
+    
     // Cancel any pending operations first
     if (abortControllerRef.current) {
+      debug.logUserAction('Aborting pending API call')
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
     
     try {
       // Reset dialog states
+      debug.logStateChange('showAddSubcategoryDialog', showAddSubcategoryDialog, false)
+      debug.logStateChange('showTransferDialog', showTransferDialog, false)
+      debug.logStateChange('showEditCategoryDialog', showEditCategoryDialog, false)
+      debug.logStateChange('showDragDropDialog', showDragDropDialog, false)
+      
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
@@ -125,23 +171,35 @@ export const useCategoryOperations = ({
       setDragDropData(null)
       
       // Reset loading states
+      debug.logStateChange('isCreatingCategory', isCreatingCategory, false)
+      debug.logStateChange('isMovingConcepts', isMovingConcepts, false)
+      debug.logStateChange('isRenamingCategory', isRenamingCategory, false)
+      
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
       setOperationStarting(false)
       
+      debug.completeOperation(operationId)
+      debug.logUserAction('Dialog state reset completed')
+      
     } catch (error) {
-      console.error('Error resetting dialog state:', error)
+      debug.failOperation(operationId, error)
+      debug.logError('Error resetting dialog state', error)
       // Fallback: Force reset the critical states
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
     }
-  }, [])
+  }, [debug, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, isCreatingCategory, isMovingConcepts, isRenamingCategory])
 
   // Create placeholder concept - SIMPLIFIED to prevent race conditions
   const createPlaceholderConcept = useCallback(async (category: string) => {
+    const operationId = 'create-placeholder-concept'
+    debug.startOperation(operationId)
+    debug.logUserAction('Creating placeholder concept', { category })
+    
     try {
       const requestBody = {
         title: `📌 Add Concepts Here`,
@@ -153,53 +211,75 @@ export const useCategoryOperations = ({
         isManualCreation: true
       }
       
-      console.log('Creating placeholder concept for category:', category)
+      debug.logUserAction('Creating placeholder concept for category', { category })
       
       const response = await makeApiCall('/api/concepts', {
         method: 'POST',
         body: JSON.stringify(requestBody),
       })
       
+      debug.completeOperation(operationId)
+      debug.logUserAction('Placeholder concept created successfully', { category })
+      
       // Let the calling function handle the refresh
       return response
     } catch (error: any) {
-      console.error('Error creating placeholder concept:', error)
+      debug.failOperation(operationId, error)
+      debug.logError('Error creating placeholder concept', { category, error: error.message })
       throw new Error('Failed to create category. Please try again.')
     }
-  }, [makeApiCall])
+  }, [makeApiCall, debug])
 
   // Handle category creation - COMPLETELY REWRITTEN to fix freezing issues
   const handleCreateSubcategory = useCallback(async () => {
+    const operationId = 'create-subcategory'
+    debug.startOperation(operationId)
+    debug.logUserAction('Starting subcategory creation', { 
+      selectedParentCategory, 
+      newSubcategoryName, 
+      isCreatingCategory, 
+      isMovingConcepts 
+    })
+    
     if (isCreatingCategory || isMovingConcepts) {
+      debug.logUserAction('Blocked subcategory creation - operation in progress', { isCreatingCategory, isMovingConcepts })
       return
     }
     
     if (!newSubcategoryName || !newSubcategoryName.trim()) {
+      debug.logUserAction('Blocked subcategory creation - invalid name', { newSubcategoryName })
       toast({
         title: "Invalid Name",
         description: "Category name cannot be empty. Please enter a valid name.",
         variant: "destructive",
         duration: 3000,
       })
+      debug.failOperation(operationId, 'Invalid name')
       return
     }
     
     const trimmedName = newSubcategoryName.trim()
+    let newCategoryPath = ''
     
     try {
+      debug.logStateChange('isCreatingCategory', isCreatingCategory, true)
       setIsCreatingCategory(true)
       
-      const newCategoryPath = selectedParentCategory 
+      newCategoryPath = selectedParentCategory 
         ? `${selectedParentCategory} > ${trimmedName}`
         : trimmedName
       
+      debug.logUserAction('Checking category existence', { newCategoryPath })
+      
       if (conceptsByCategory[newCategoryPath]) {
+        debug.logUserAction('Category already exists', { newCategoryPath })
         toast({
           title: "Category Exists",
           description: `Category "${newCategoryPath}" already exists.`,
           variant: "destructive",
           duration: 3000,
         })
+        debug.failOperation(operationId, 'Category exists')
         return
       }
       
@@ -207,17 +287,26 @@ export const useCategoryOperations = ({
         const parentConcepts = conceptsByCategory[selectedParentCategory] || []
         
         if (parentConcepts.length > 0) {
+          debug.logUserAction('Parent has concepts - showing transfer dialog', { 
+            parentCategory: selectedParentCategory, 
+            conceptCount: parentConcepts.length 
+          })
           // Show transfer dialog for existing concepts
           setTransferConcepts(parentConcepts)
           setShowTransferDialog(true)
           setShowAddSubcategoryDialog(false)
           setIsCreatingCategory(false)
+          debug.completeOperation(operationId)
           return
         }
       }
       
+      debug.logUserAction('Creating category with placeholder concept', { newCategoryPath })
+      
       // Create the category and wait for completion
       await createPlaceholderConcept(newCategoryPath)
+      
+      debug.logUserAction('Refreshing data after category creation', { newCategoryPath })
       
       // Refresh data to show the new category
       if (onDataRefresh) {
@@ -233,8 +322,12 @@ export const useCategoryOperations = ({
         duration: 2000,
       })
       
+      debug.completeOperation(operationId)
+      debug.logUserAction('Subcategory creation completed successfully', { newCategoryPath })
+      
     } catch (error: any) {
-      console.error('Error creating category:', error)
+      debug.failOperation(operationId, error)
+      debug.logError('Error creating category', { newCategoryPath: newCategoryPath || 'unknown', error: error.message })
       toast({
         title: "Error",
         description: "Failed to create category. Please try again.",
@@ -243,6 +336,8 @@ export const useCategoryOperations = ({
       })
     } finally {
       // Always reset state in finally block
+      debug.logUserAction('Cleaning up after subcategory creation')
+      debug.logStateChange('isCreatingCategory', isCreatingCategory, false)
       setIsCreatingCategory(false)
       // Close dialog and reset state
       setShowAddSubcategoryDialog(false)
@@ -260,24 +355,38 @@ export const useCategoryOperations = ({
       setIsRenamingCategory(false)
       setOperationStarting(false)
     }
-  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, onDataRefresh])
+  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, createPlaceholderConcept, onCategorySelect, onDataRefresh, debug])
 
   // Handle concept transfer - COMPLETELY REWRITTEN to fix freezing issues
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
+    const operationId = 'transfer-concepts'
+    debug.startOperation(operationId)
+    debug.logUserAction('Starting concept transfer', { 
+      conceptCount: conceptsToMove.length, 
+      targetCategory, 
+      isMovingConcepts 
+    })
+    
     if (isMovingConcepts || conceptsToMove.length === 0) {
+      debug.logUserAction('Blocked concept transfer', { isMovingConcepts, conceptCount: conceptsToMove.length })
       return
     }
     
     try {
+      debug.logStateChange('isMovingConcepts', isMovingConcepts, true)
       setIsMovingConcepts(true)
       
-      console.log(`Moving ${conceptsToMove.length} concept(s) to "${targetCategory}"`)
+      debug.logUserAction('Moving concepts to category', { conceptCount: conceptsToMove.length, targetCategory })
       
       if (onConceptsMove) {
         const conceptIds = conceptsToMove.map(c => c.id)
         
+        debug.logUserAction('Executing concept move', { conceptIds, targetCategory })
+        
         // Execute move and wait for completion
         await onConceptsMove(conceptIds, targetCategory)
+        
+        debug.logUserAction('Refreshing data after concept move', { targetCategory })
         
         // Single refresh after successful move
         if (onDataRefresh) {
@@ -292,10 +401,14 @@ export const useCategoryOperations = ({
           description: `Successfully moved ${conceptsToMove.length} concept(s) to "${targetCategory}"`,
           duration: 2000,
         })
+        
+        debug.completeOperation(operationId)
+        debug.logUserAction('Concept transfer completed successfully', { conceptCount: conceptsToMove.length, targetCategory })
       }
       
     } catch (error: any) {
-      console.error('Error moving concepts:', error)
+      debug.failOperation(operationId, error)
+      debug.logError('Error moving concepts', { conceptCount: conceptsToMove.length, targetCategory, error: error.message })
       toast({
         title: "Error",
         description: "Failed to move concepts. Please try again.",
@@ -304,6 +417,8 @@ export const useCategoryOperations = ({
       })
     } finally {
       // Always reset state in finally block
+      debug.logUserAction('Cleaning up after concept transfer')
+      debug.logStateChange('isMovingConcepts', isMovingConcepts, false)
       setIsMovingConcepts(false)
       // Close dialog and reset state (but don't trigger additional refresh)
       setShowTransferDialog(false)
@@ -321,7 +436,7 @@ export const useCategoryOperations = ({
       setIsRenamingCategory(false)
       setOperationStarting(false)
     }
-  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect])
+  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug])
 
   return {
     // States
@@ -341,7 +456,7 @@ export const useCategoryOperations = ({
     dragDropData,
     
     // Setters
-    setShowAddSubcategoryDialog,
+    setShowAddSubcategoryDialog: setShowAddSubcategoryDialogWithLogging,
     setShowTransferDialog,
     setShowEditCategoryDialog,
     setShowDragDropDialog,
