@@ -68,6 +68,7 @@ export default function ConceptsPage() {
   const [loading, setLoading] = useState(true)
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
   const [newConceptId, setNewConceptId] = useState<string | null>(null)
   const [newConceptTitle, setNewConceptTitle] = useState("")
@@ -176,8 +177,32 @@ export default function ConceptsPage() {
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
-    setShowLoadingScreen(false)
+    console.log('🔧 Concepts: Loading animation complete. Data loaded:', dataLoaded)
+    // Only hide loading screen if data has been loaded
+    if (dataLoaded) {
+      setShowLoadingScreen(false)
+    } else {
+      console.log('🔧 Concepts: Data not yet loaded, keeping loading screen visible')
+      // Set a timeout to prevent infinite loading in case of errors
+      setTimeout(() => {
+        console.log('🔧 Concepts: Timeout reached, hiding loading screen anyway')
+        setShowLoadingScreen(false)
+      }, 3000)
+    }
   }
+
+  // Effect to hide loading screen once data is loaded
+  useEffect(() => {
+    if (dataLoaded && !loading) {
+      console.log('🔧 Concepts: Data loaded and not loading anymore, checking if can hide loading screen')
+      // Add a small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setShowLoadingScreen(false)
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [dataLoaded, loading])
 
   // Clean up empty categories after state updates
   useEffect(() => {
@@ -234,13 +259,22 @@ export default function ConceptsPage() {
   // Fetch concepts function - extracted so it can be reused for refreshing
   const fetchConcepts = async () => {
     try {
+      console.log('🔧 Starting concepts fetch...')
       setLoading(true)
+      setDataLoaded(false) // Reset data loaded state
       
       const headers = getAuthHeaders()
       
       console.log('Concepts page: Using headers:', headers)
       
+      // Add timestamp to track loading duration
+      const startTime = Date.now()
+      
       const response = await fetch('/api/concepts', { headers })
+      const fetchDuration = Date.now() - startTime
+      
+      console.log(`Concepts page: Fetch completed in ${fetchDuration}ms, status:`, response.status)
+      
       if (!response.ok) {
         throw new Error('Failed to fetch concepts')
       }
@@ -250,7 +284,9 @@ export default function ConceptsPage() {
       
       // Check if we have concepts data in the response
       if (data.concepts && Array.isArray(data.concepts)) {
+        console.log(`🔧 Processing ${data.concepts.length} concepts...`)
         formatAndOrganizeConcepts(data.concepts)
+        console.log('🔧 Concepts formatting complete')
       } else if (data.error) {
         // Handle error case
         setError(data.error || 'Failed to load concepts')
@@ -262,11 +298,19 @@ export default function ConceptsPage() {
         console.error('Unexpected concepts response format:', data)
         formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
       }
+      
+      // Mark data as loaded AFTER processing concepts
+      setDataLoaded(true)
+      console.log('🔧 Concepts data successfully loaded and processed')
+      
     } catch (error) {
       setError('Failed to load concepts')
       console.error('Error fetching concepts:', error)
       formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      // Even on error, mark as loaded to prevent infinite loading
+      setDataLoaded(true)
     } finally {
+      console.log('🔧 Setting loading to false')
       setLoading(false)
     }
   }

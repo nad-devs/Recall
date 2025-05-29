@@ -357,17 +357,29 @@ export function ConceptsNavigation({
     console.log('🔧 Dialog state reset complete')
   }, [])
 
-  // Force reset function for emergency state cleanup
+  // Enhanced emergency reset function that forces all dialogs closed and resets all states
   const forceResetAllStates = useCallback(() => {
     console.log('🔧 FORCE RESET - Emergency state cleanup...')
     
-    // Use flushSync to force immediate synchronous state updates
-    flushSync(() => {
-      // Immediately reset ALL states with no delays
+    // Cancel any ongoing operations immediately
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort()
+      } catch (e) {
+        console.warn('🔧 Error aborting controller:', e)
+      }
+      abortControllerRef.current = null
+    }
+    
+    // Force reset all dialog states using React's flushSync to ensure immediate updates
+    try {
+      // Reset all dialog visibility states
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
+      
+      // Reset all form states
       setSelectedParentCategory('')
       setNewSubcategoryName('')
       setEditingCategoryPath('')
@@ -375,35 +387,39 @@ export function ConceptsNavigation({
       setTransferConcepts([])
       setSelectedConceptsForTransfer(new Set())
       setDragDropData(null)
+      
+      // Reset all loading states - this is crucial to prevent freezing
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
       setIsDraggingCategory(false)
+      
+      // Reset drag and drop states
+      setIsDraggingAny(false)
+      setExpandedBeforeDrag(new Set())
+      
+      // Reset inline editing state
       setInlineEditingCategory(null)
       setInlineEditValue('')
-      setIsDraggingAny(false)
-    })
-    
-    // Force garbage collection if available
-    if (typeof window !== 'undefined' && 'gc' in window) {
-      try {
-        (window as any).gc()
-      } catch (e) {
-        // Ignore if not available
-      }
+      
+      // Force re-render to ensure all state changes take effect
+      setTimeout(() => {
+        console.log('🔧 FORCE RESET complete - all states cleared')
+      }, 0)
+      
+    } catch (error) {
+      console.error('🔧 Error during force reset:', error)
+      // If there's an error during reset, at minimum clear the loading states
+      setIsCreatingCategory(false)
+      setIsMovingConcepts(false)
+      setIsRenamingCategory(false)
+      setIsDraggingCategory(false)
+      setShowAddSubcategoryDialog(false)
+      setShowTransferDialog(false)
+      setShowEditCategoryDialog(false)
+      setShowDragDropDialog(false)
     }
-    
-    console.log('🔧 FORCE RESET complete')
-    
-    // Use a micro-task to show toast after state updates
-    Promise.resolve().then(() => {
-      toast({
-        title: "States Reset",
-        description: "All UI states have been forcefully reset.",
-        duration: 2000,
-      })
-    })
-  }, [toast])
+  }, [])
 
   // Enhanced dialog close handler with proper cleanup
   const handleDialogClose = useCallback((dialogType: string, force = false) => {
@@ -431,9 +447,22 @@ export function ConceptsNavigation({
   const handleCancelCategoryCreation = useCallback(() => {
     console.log('🔧 Force canceling all operations...')
     
+    // Cancel any ongoing network requests
+    if (abortControllerRef.current) {
+      console.log('🔧 Aborting ongoing network requests...')
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
     // Use the force reset to ensure everything is cleared
     forceResetAllStates()
-  }, [forceResetAllStates])
+    
+    toast({
+      title: "Operation Cancelled",
+      description: "All pending operations have been cancelled.",
+      duration: 2000,
+    })
+  }, [forceResetAllStates, toast])
 
   // New: Proper dialog open change handler that always allows closing
   const handleDialogOpenChange = useCallback((open: boolean, dialogType: string) => {
@@ -442,7 +471,7 @@ export function ConceptsNavigation({
     if (!open) {
       // Dialog is being closed - always allow this and reset states
       console.log(`🔧 ${dialogType} dialog closing - resetting all states`)
-      resetDialogState()
+      handleDialogClose(dialogType, true) // Force close
       return true
     }
     
@@ -451,14 +480,41 @@ export function ConceptsNavigation({
       console.log(`🔧 Preventing ${dialogType} dialog open - operation in progress`)
       toast({
         title: "Operation in Progress",
-        description: "Please wait for the current operation to complete.",
-        duration: 3000,
+        description: "Please wait for the current operation to complete, or press Escape twice to force cancel.",
+        duration: 4000,
       })
       return false
     }
     
     return true
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, resetDialogState, toast])
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, toast, handleDialogClose])
+
+  // Safety mechanism: Auto-recovery from stuck states
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+    
+    // If any loading state has been active for more than 30 seconds, force reset
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+      console.log('🔧 Loading state detected, setting safety timeout...')
+      
+      timeoutId = setTimeout(() => {
+        console.warn('🔧 Safety timeout triggered - loading state stuck for 30 seconds')
+        toast({
+          title: "Operation Timeout",
+          description: "The operation took too long and was automatically cancelled. You can try again.",
+          variant: "destructive",
+          duration: 5000,
+        })
+        forceResetAllStates()
+      }, 30000) // 30 second safety timeout
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, forceResetAllStates, toast])
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -494,78 +550,49 @@ export function ConceptsNavigation({
     return headers
   }
 
-  // Robust API call utility that works in both dev and production
-  const makeApiCall = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    const fullUrl = `${baseUrl}${endpoint}`
-    
-    // Add cache-busting parameter to prevent cached redirects
-    const separator = endpoint.includes('?') ? '&' : '?'
-    const cacheBustEndpoint = `${endpoint}${separator}_t=${Date.now()}`
-    const cacheBustFullUrl = `${fullUrl}${separator}_t=${Date.now()}`
-    
-    console.log('🔧 Making API call to:', endpoint)
-    console.log('🔧 Cache-bust endpoint:', cacheBustEndpoint)
-    console.log('🔧 Full URL:', fullUrl)
-    console.log('🔧 Options:', options)
-    
-    // Ensure headers include cache control and merge with existing headers
-    const enhancedOptions = {
-      ...options,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        ...options.headers
-      }
-    }
-    
-    // Check if we have an abort signal and if it's already aborted
-    if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
-      throw new Error('Operation was cancelled before request started')
-    }
+  // Enhanced API call wrapper with abort support and error handling
+  const makeApiCall = useCallback(async (url: string, options: RequestInit = {}) => {
+    // Create a new abort controller for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
     
     try {
-      // First try with relative path (preferred)
-      const response = await fetch(cacheBustEndpoint, enhancedOptions)
-      console.log('🔧 Response status:', response.status)
-      console.log('🔧 Response URL:', response.url)
-      
-      if (response.ok) {
-        return response
-      }
-      
-      // If relative path fails and we get a redirect or error, try with full URL
-      if (response.status === 401 || response.status === 404) {
-        console.log('🔧 Relative path failed, trying full URL...')
-        
-        // Check abort signal again before retry
-        if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
-          throw new Error('Operation was cancelled during retry')
+      const defaultOptions: RequestInit = {
+        signal: abortController.signal,
+        ...options,
+        headers: {
+          ...getAuthHeaders(),
+          ...(options.headers || {})
         }
-        
-        const fullResponse = await fetch(cacheBustFullUrl, enhancedOptions)
-        console.log('🔧 Full URL response status:', fullResponse.status)
-        return fullResponse
       }
       
-      return response
+      console.log(`🔧 Making API call to ${url}`, defaultOptions)
+      
+      const response = await fetch(url, defaultOptions)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log(`🔧 API call to ${url} successful`, data)
+      
+      return data
     } catch (error: any) {
-      if (error.name === 'AbortError' || error.message?.includes('cancelled')) {
-        console.log('🔧 API call was cancelled')
-        throw error
+      if (error.name === 'AbortError') {
+        console.log(`🔧 API call to ${url} was aborted`)
+        throw new Error('Operation was cancelled')
       }
       
-      console.error('🔧 API call error:', error)
-      // If fetch fails completely, try with full URL as fallback (only if not cancelled)
-      if (enhancedOptions.signal && enhancedOptions.signal.aborted) {
-        throw new Error('Operation was cancelled during error handling')
+      console.error(`🔧 API call to ${url} failed:`, error)
+      throw error
+    } finally {
+      // Clear the abort controller if it's the current one
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
       }
-      
-      console.log('🔧 Fetch failed, trying full URL as fallback...')
-      return await fetch(cacheBustFullUrl, enhancedOptions)
     }
-  }, [])
+  }, [getAuthHeaders])
 
   // Test API connectivity
   const testApiConnectivity = useCallback(async () => {
@@ -599,146 +626,73 @@ export function ConceptsNavigation({
   // Enhanced createPlaceholderConcept with abort controller
   const createPlaceholderConcept = useCallback(async (category: string) => {
     // Cancel any previous operation
-    cancelOngoingOperations()
+    if (abortControllerRef.current) {
+      console.log('🔧 Cancelling previous operation before creating placeholder...')
+      abortControllerRef.current.abort()
+    }
     
-    // Create new abort controller for this operation
+    // Create new abort controller
     const abortController = new AbortController()
     abortControllerRef.current = abortController
     
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: NodeJS.Timeout | null = null
     
     try {
-      // Set a timeout to prevent indefinite loading states
+      console.log(`🔧 Creating placeholder concept for category: ${category}`)
+      
+      // Set a timeout for this operation
       timeoutId = setTimeout(() => {
-        console.warn('🔧 CreatePlaceholderConcept timeout - resetting states');
-        setIsCreatingCategory(false);
-        setIsMovingConcepts(false);
-        setIsRenamingCategory(false);
-        abortController.abort()
-        toast({
-          title: "Operation Timeout",
-          description: "The operation took too long and was cancelled. Please try again.",
-          variant: "destructive",
-          duration: 5000,
-        });
-      }, 15000); // 15 second timeout
+        console.warn('🔧 CreatePlaceholder timeout - aborting operation');
+        if (abortController) {
+          abortController.abort()
+        }
+      }, 15000); // 15 second timeout for creation
       
-      // Check if operation was cancelled
-      if (abortController.signal.aborted) {
-        throw new Error('Operation was cancelled')
-      }
+      // Test connectivity first
+      await testApiConnectivity()
       
-      // First test API connectivity
-      const isConnected = await testApiConnectivity()
-      if (!isConnected) {
-        console.warn('🔧 API connectivity test failed, but proceeding anyway...')
-      }
-      
-      // Check if operation was cancelled
-      if (abortController.signal.aborted) {
-        throw new Error('Operation was cancelled')
-      }
-      
-      const headers = getAuthHeaders()
-      console.log('🔧 Creating placeholder concept for category:', category)
-      console.log('🔧 Using headers:', headers)
-      console.log('🔧 Current window location:', typeof window !== 'undefined' ? window.location.href : 'server-side')
-      
-      const response = await makeApiCall('/api/concepts', {
+      // Use the new makeApiCall wrapper
+      const data = await makeApiCall('/api/concepts', {
         method: 'POST',
-        headers,
         body: JSON.stringify({
-          title: "📌 Add Concepts Here",
+          title: `[Category: ${category}]`,
           category: category,
-          summary: "This is a placeholder concept. It will be automatically removed when you add your first real concept to this category.",
-          details: "Click 'Add Concept' or move concepts from other categories to get started. This placeholder will disappear once you have real content.",
+          summary: 'This is a placeholder concept created to organize your knowledge. You can delete this once you have real concepts in this category.',
+          notes: '',
           isPlaceholder: true
         }),
-        signal: abortController.signal
       })
       
-      // Check if operation was cancelled
-      if (abortController.signal.aborted) {
-        throw new Error('Operation was cancelled')
-      }
+      console.log(`🔧 Successfully created placeholder concept in category: ${category}`)
       
-      console.log('🔧 Response status:', response.status)
-      console.log('🔧 Response URL:', response.url)
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('🔧 Error response:', errorData)
-        
-        // If we get a 401, it might be an auth issue - let's provide more helpful error
-        if (response.status === 401) {
-          toast({
-            title: "Authentication Error",
-            description: "Please refresh the page and try again. Your session may have expired.",
-            variant: "destructive",
-            duration: 5000,
-          })
-          throw new Error('Authentication failed. Please refresh the page and try again.')
-        } else if (response.status === 429) {
-          toast({
-            title: "Rate Limited",
-            description: "Too many requests. Please wait a moment and try again.",
-            variant: "destructive",
-            duration: 5000,
-          })
-          throw new Error('Rate limited')
-        }
-        
-        throw new Error(errorData.error || 'Failed to create placeholder concept')
-      }
-      
-      const data = await response.json()
-      console.log('🔧 Successfully created placeholder concept:', data.concept?.id)
-      
-      // Check if operation was cancelled before proceeding with refresh
-      if (abortController.signal.aborted) {
-        throw new Error('Operation was cancelled')
-      }
-      
-      // Trigger data refresh to show the new category
+      // Refresh data to show the new category
       if (onDataRefresh) {
-        console.log('🔧 Triggering data refresh...')
         await onDataRefresh()
-        console.log('🔧 Data refresh completed')
       }
       
-      return data.concept
+      return data
+      
     } catch (error: any) {
-      if (error.name === 'AbortError' || error.message?.includes('cancelled')) {
-        console.log('🔧 Operation was cancelled by user')
-        return null
-      }
-      
       console.error('🔧 Error creating placeholder concept:', error)
       
-      // Ensure we don't leave loading states active
-      setIsCreatingCategory(false);
-      setIsMovingConcepts(false);
-      setIsRenamingCategory(false);
+      if (error.message === 'Operation was cancelled') {
+        console.log('🔧 Placeholder creation was cancelled')
+        throw error
+      }
       
-      // Provide user-friendly error messages
+      // Enhanced error handling
       let errorMessage = 'Failed to create category. Please try again.'
       
       if (error.message?.includes('fetch')) {
         errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (error.message?.includes('Authentication')) {
-        errorMessage = 'Session expired. Please refresh the page and try again.'
       } else if (error.message?.includes('timeout')) {
         errorMessage = 'Operation timed out. Please try again.'
+      } else if (error.message?.includes('401')) {
+        errorMessage = 'Authentication error. Please refresh the page and try again.'
       }
       
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 5000,
-      })
+      throw new Error(errorMessage)
       
-      throw error
     } finally {
       // Clear the timeout
       if (timeoutId) {
@@ -750,7 +704,7 @@ export function ConceptsNavigation({
         abortControllerRef.current = null
       }
     }
-  }, [testApiConnectivity, getAuthHeaders, makeApiCall, toast, onDataRefresh, cancelOngoingOperations])
+  }, [testApiConnectivity, makeApiCall, onDataRefresh])
 
   const handleCreateSubcategory = useCallback(async () => {
     // Prevent multiple concurrent operations

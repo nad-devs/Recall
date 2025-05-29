@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
   const [authChecked, setAuthChecked] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
   
   // Simplified authentication check - trust the server
   useEffect(() => {
@@ -101,20 +102,11 @@ export default function Dashboard() {
   }
 
   const handleSaveName = () => {
-    if (editedName.trim()) {
-      const trimmedName = editedName.trim()
-      setUserName(trimmedName)
-      localStorage.setItem('userName', trimmedName)
-      
-      // Update initials as well
-      const initials = trimmedName
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 2)
-      localStorage.setItem('userInitials', initials)
-    }
+    setUserName(editedName)
     setIsEditingName(false)
+    
+    // Update localStorage
+    localStorage.setItem('userName', editedName)
   }
 
   const handleCancelEdit = () => {
@@ -130,14 +122,26 @@ export default function Dashboard() {
     }
   }
 
-  // Handle loading screen completion
+  // Fixed loading complete handler - only hide loading screen after data is actually loaded
   const handleLoadingComplete = () => {
-    setShowLoadingScreen(false)
+    console.log('📋 Dashboard: Loading animation complete. Data loaded:', dataLoaded)
+    // Only hide loading screen if data has been loaded
+    if (dataLoaded) {
+      setShowLoadingScreen(false)
+    } else {
+      console.log('📋 Dashboard: Data not yet loaded, keeping loading screen visible')
+      // Set a timeout to prevent infinite loading in case of errors
+      setTimeout(() => {
+        console.log('📋 Dashboard: Timeout reached, hiding loading screen anyway')
+        setShowLoadingScreen(false)
+      }, 3000)
+    }
   }
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
+      setDataLoaded(false) // Reset data loaded state
       
       // Prepare headers for both email-based and OAuth sessions
       const userEmail = localStorage.getItem('userEmail')
@@ -223,12 +227,32 @@ export default function Dashboard() {
         conceptsToReview,
         recentConversations
       })
+      
+      // Mark data as loaded AFTER setting dashboard data
+      setDataLoaded(true)
+      console.log('📋 Dashboard: Data successfully loaded and state updated')
+      
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      // Even on error, mark as loaded to prevent infinite loading
+      setDataLoaded(true)
     } finally {
       setLoading(false)
     }
   }
+
+  // Effect to hide loading screen once data is loaded
+  useEffect(() => {
+    if (dataLoaded && !loading) {
+      console.log('📋 Dashboard: Data loaded and not loading anymore, checking if can hide loading screen')
+      // Add a small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setShowLoadingScreen(false)
+      }, 500)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [dataLoaded, loading])
 
   // Show loading screen if still loading or if we haven't completed the loading animation
   if (showLoadingScreen) {
