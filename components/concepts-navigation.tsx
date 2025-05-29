@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Plus,
   FolderPlus,
+  ArrowRight,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useDrop } from 'react-dnd'
@@ -411,6 +412,11 @@ export function ConceptsNavigation({
     handleDragStart, handleDragEnd, isDraggingAny
   ])
 
+  // Quick page reload function - simplest solution
+  const quickReload = useCallback(() => {
+    window.location.reload()
+  }, [])
+
   // Force reset function for emergency cases
   const forceResetAllStates = useCallback(() => {
     try {
@@ -441,13 +447,12 @@ export function ConceptsNavigation({
         event.preventDefault()
         event.stopPropagation()
         
-        // Force reset all states immediately
+        // Try to reset states, but if that fails, just reload the page
         try {
           categoryOps.resetDialogState()
         } catch (error) {
-          console.error('Error in escape handler:', error)
-          // Emergency fallback
-          forceResetAllStates()
+          console.error('Error in escape handler, reloading page:', error)
+          quickReload()
         }
       }
     }
@@ -466,7 +471,7 @@ export function ConceptsNavigation({
       document.removeEventListener('keydown', handleEscapeKey)
     }
   }, [categoryOps.showAddSubcategoryDialog, categoryOps.showTransferDialog, 
-      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, forceResetAllStates])
+      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, quickReload])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
@@ -506,6 +511,16 @@ export function ConceptsNavigation({
       <div className="p-4 border-b border-border">
         <h3 className="text-sm font-medium mb-2 text-muted-foreground">Quick Filters</h3>
         <div className="space-y-1">
+          {/* Quick Reload Button - Always available */}
+          <Button
+            variant="outline"
+            className="w-full justify-start text-sm h-8 mb-2 border-blue-300 hover:bg-blue-50"
+            onClick={quickReload}
+          >
+            <ArrowRight className="mr-2 h-4 w-4" />
+            Quick Reload Page
+          </Button>
+          
           {/* Emergency Reset Button */}
           {(categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory) && (
             <Button
