@@ -86,6 +86,7 @@ export default function ConceptsPage() {
   const lastFetchTime = useRef<number>(0)
   const FETCH_RATE_LIMIT = 1000 // 1 second between requests
   const refreshDataRef = useRef<(() => Promise<void>) | null>(null)
+  const isRefreshingRef = useRef<boolean>(false) // Add flag to prevent multiple simultaneous refreshes
   
   const { toast } = useToast()
 
@@ -206,9 +207,9 @@ export default function ConceptsPage() {
     debug.logUserAction('formatAndOrganizeConcepts completed')
   }, [debug]) // Only depend on debug to prevent circular dependencies
 
-  // Fetch concepts function - extracted so it can be reused for refreshing - UPDATE dependencies
+  // Fetch concepts function - ENHANCED rate limiting and debugging
   const fetchConcepts = useCallback(async () => {
-    // Rate limiting protection to prevent 429 errors
+    // Enhanced rate limiting protection to prevent 429 errors
     const now = Date.now()
     const timeSinceLastFetch = now - lastFetchTime.current
     if (timeSinceLastFetch < FETCH_RATE_LIMIT) {
@@ -223,7 +224,7 @@ export default function ConceptsPage() {
     
     const operationId = 'fetch-concepts'
     debug.startOperation(operationId)
-    debug.logUserAction('Starting concepts fetch')
+    debug.logUserAction('Starting concepts fetch - passed rate limiting check')
     
     try {
       console.log('🔧 Starting concepts fetch...')
@@ -294,23 +295,43 @@ export default function ConceptsPage() {
     }
   }, [debug, formatAndOrganizeConcepts]) // Add formatAndOrganizeConcepts dependency
 
-  // Refresh data function to be used after mutations - USE REF PATTERN to break loops
+  // Refresh data function to be used after mutations - ENHANCED with locking to prevent multiple calls
   const refreshData = useCallback(async () => {
-    debug.logUserAction('refreshData called - starting data refresh')
-    await fetchConcepts()
-    debug.logUserAction('refreshData completed')
+    debug.logUserAction('refreshData called - checking if already refreshing', { 
+      isRefreshing: isRefreshingRef.current 
+    })
+    
+    // Prevent multiple simultaneous refresh calls
+    if (isRefreshingRef.current) {
+      debug.logUserAction('refreshData blocked - already refreshing')
+      console.log('🚫 Refresh already in progress, skipping...')
+      return
+    }
+    
+    isRefreshingRef.current = true
+    debug.logUserAction('refreshData starting - setting refresh lock')
+    
+    try {
+      await fetchConcepts()
+      debug.logUserAction('refreshData completed successfully')
+    } catch (error) {
+      debug.logError('refreshData failed', error)
+    } finally {
+      isRefreshingRef.current = false
+      debug.logUserAction('refreshData finished - releasing refresh lock')
+    }
   }, [fetchConcepts, debug])
   
   // Store refreshData in ref to break dependency chain
   refreshDataRef.current = refreshData
 
-  // Auto-refresh event listener - USE REF to break dependency loop
+  // Auto-refresh event listener - ENHANCED with proper error handling and locking
   useEffect(() => {
     debug.logUserAction('Auto-refresh event listener effect triggered')
     const handleRefreshConcepts = async () => {
-      debug.logUserAction('Received refresh concepts event, refreshing data...')
-      console.log('🔄 Received refresh concepts event, refreshing data...')
-      // Use ref to avoid stale closure with error handling
+      debug.logUserAction('Received refresh concepts event, calling enhanced refreshData...')
+      console.log('🔄 Received refresh concepts event, calling enhanced refreshData...')
+      // Use ref to avoid stale closure with enhanced error handling and locking
       try {
         if (refreshDataRef.current) {
           await refreshDataRef.current()
