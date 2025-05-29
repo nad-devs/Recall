@@ -15,6 +15,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   providers.push(GoogleProvider({
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    authorization: {
+      params: {
+        prompt: "select_account", // Force account selection
+        access_type: "offline",
+        response_type: "code"
+      }
+    }
   }))
 } else {
   console.warn('❌ Google OAuth credentials missing:')
