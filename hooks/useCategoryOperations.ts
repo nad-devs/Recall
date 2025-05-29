@@ -59,6 +59,7 @@ export const useCategoryOperations = ({
   
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null)
+  const isResettingRef = useRef(false) // Add guard to prevent infinite resets
 
   // Enhanced state setters with debug logging
   const setIsCreatingCategoryWithLogging = useCallback((value: boolean) => {
@@ -136,8 +137,16 @@ export const useCategoryOperations = ({
     }
   }, [debug])
 
-  // Reset all dialog states - SIMPLIFIED to prevent race conditions
+  // Reset all dialog states - REMOVE DEPENDENCIES to prevent infinite loops
   const resetDialogState = useCallback(() => {
+    // Prevent multiple simultaneous resets
+    if (isResettingRef.current) {
+      debug.logUserAction('Reset already in progress, skipping')
+      return
+    }
+    
+    isResettingRef.current = true
+    
     const operationId = 'reset-dialog-state'
     debug.startOperation(operationId)
     debug.logUserAction('Resetting dialog state')
@@ -151,17 +160,14 @@ export const useCategoryOperations = ({
     
     try {
       // Reset dialog states
-      debug.logStateChange('showAddSubcategoryDialog', showAddSubcategoryDialog, false)
-      debug.logStateChange('showTransferDialog', showTransferDialog, false)
-      debug.logStateChange('showEditCategoryDialog', showEditCategoryDialog, false)
-      debug.logStateChange('showDragDropDialog', showDragDropDialog, false)
-      
+      debug.logUserAction('Closing all dialogs')
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
       
       // Reset form data
+      debug.logUserAction('Clearing form data')
       setSelectedParentCategory('')
       setNewSubcategoryName('')
       setEditingCategoryPath('')
@@ -171,10 +177,7 @@ export const useCategoryOperations = ({
       setDragDropData(null)
       
       // Reset loading states
-      debug.logStateChange('isCreatingCategory', isCreatingCategory, false)
-      debug.logStateChange('isMovingConcepts', isMovingConcepts, false)
-      debug.logStateChange('isRenamingCategory', isRenamingCategory, false)
-      
+      debug.logUserAction('Resetting loading states')
       setIsCreatingCategory(false)
       setIsMovingConcepts(false)
       setIsRenamingCategory(false)
@@ -191,8 +194,11 @@ export const useCategoryOperations = ({
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
+    } finally {
+      // Always clear the reset flag
+      isResettingRef.current = false
     }
-  }, [debug, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, isCreatingCategory, isMovingConcepts, isRenamingCategory])
+  }, [debug]) // ONLY depend on debug
 
   // Create placeholder concept - SIMPLIFIED to prevent race conditions
   const createPlaceholderConcept = useCallback(async (category: string) => {
@@ -420,23 +426,12 @@ export const useCategoryOperations = ({
       debug.logUserAction('Cleaning up after concept transfer')
       debug.logStateChange('isMovingConcepts', isMovingConcepts, false)
       setIsMovingConcepts(false)
-      // Close dialog and reset state (but don't trigger additional refresh)
-      setShowTransferDialog(false)
-      setShowAddSubcategoryDialog(false)
-      setShowEditCategoryDialog(false)
-      setShowDragDropDialog(false)
-      setSelectedParentCategory('')
-      setNewSubcategoryName('')
-      setEditingCategoryPath('')
-      setNewCategoryName('')
-      setTransferConcepts([])
-      setSelectedConceptsForTransfer(new Set())
-      setDragDropData(null)
-      setIsCreatingCategory(false)
-      setIsRenamingCategory(false)
-      setOperationStarting(false)
+      
+      // Call resetDialogState directly (it has a guard to prevent conflicts)
+      debug.logUserAction('Calling resetDialogState after concept transfer cleanup')
+      resetDialogState()
     }
-  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug])
+  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug, resetDialogState])
 
   return {
     // States

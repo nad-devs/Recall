@@ -320,7 +320,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                               await handleTransferConcepts(selectedConcepts, category)
                             } catch (error) {
                               console.error('Error moving concepts to existing category:', error)
-                              setTimeout(() => resetDialogState(), 0)
+                              resetDialogState()
                             }
                           }}
                         >
@@ -355,10 +355,10 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                     try {
                       const newCategory = `${selectedParentCategory} > ${newSubcategoryName.trim()}`
                       await createPlaceholderConcept(newCategory)
-                      setTimeout(() => resetDialogState(), 0)
+                      resetDialogState()
                     } catch (error) {
                       console.error('Error creating empty subcategory:', error)
-                      setTimeout(() => resetDialogState(), 0)
+                      resetDialogState()
                     }
                   }}
                 >
@@ -389,7 +389,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                         await handleTransferConcepts(selectedConcepts, newCategory)
                       } catch (error) {
                         console.error('Error creating subcategory with selected concepts:', error)
-                        setTimeout(() => resetDialogState(), 0)
+                        resetDialogState()
                       }
                     }}
                   >
@@ -415,7 +415,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                       await handleTransferConcepts(transferConcepts, newCategory)
                     } catch (error) {
                       console.error('Error creating subcategory with all concepts:', error)
-                      setTimeout(() => resetDialogState(), 0)
+                      resetDialogState()
                     }
                   }}
                 >
