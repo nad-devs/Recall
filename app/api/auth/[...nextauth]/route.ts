@@ -53,21 +53,62 @@ const handler = NextAuth({
   callbacks: {
     async session({ session, user }) {
       console.log('🔄 Session callback triggered for user:', user?.id)
-      if (session.user) {
-        session.user.id = user.id
-        
-        try {
-          // Update last active timestamp
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { lastActiveAt: new Date() }
-          })
-          console.log('✅ User last active timestamp updated')
-        } catch (error) {
-          console.error('❌ Error updating user last active timestamp:', error)
+      
+      // Test database connectivity first
+      try {
+        await prisma.$queryRaw`SELECT 1`
+        console.log('✅ Database connection verified in session callback')
+      } catch (dbError) {
+        console.error('❌ Database connection failed in session callback:', dbError)
+        // Return basic session without DB updates
+        return {
+          user: {
+            id: user?.id || 'unknown',
+            email: user?.email || session?.user?.email || 'unknown', 
+            name: user?.name || session?.user?.name || 'User'
+          },
+          expires: session?.expires || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }
       }
-      return session
+      
+      try {
+        if (session.user) {
+          session.user.id = user.id
+          
+          try {
+            // Update last active timestamp
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastActiveAt: new Date() }
+            })
+            console.log('✅ User last active timestamp updated')
+          } catch (error) {
+            console.error('❌ Error updating user last active timestamp:', error)
+            // Don't throw, just log the error
+          }
+        }
+        
+        console.log('✅ Session callback completed successfully')
+        return session
+      } catch (sessionError) {
+        console.error('❌ CRITICAL: Session callback failed:', sessionError)
+        console.error('❌ Session error details:', {
+          message: sessionError instanceof Error ? sessionError.message : 'Unknown error',
+          stack: sessionError instanceof Error ? sessionError.stack : 'No stack trace',
+          userId: user?.id,
+          sessionData: session ? 'Present' : 'Missing'
+        })
+        
+        // Return a minimal session to prevent complete failure
+        return {
+          user: {
+            id: user?.id || 'unknown',
+            email: user?.email || session?.user?.email || 'unknown',
+            name: user?.name || session?.user?.name || 'User'
+          },
+          expires: session?.expires || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      }
     },
     async signIn({ user, account, profile }) {
       console.log('🔄 Sign-in callback triggered:', {
@@ -179,6 +220,8 @@ const handler = NextAuth({
         // Track sign-in analytics (but don't block if it fails)
         try {
           if (user.email) {
+            console.log('⚠️ Analytics recording temporarily disabled for debugging')
+            /*
             await prisma.analytics.create({
               data: {
                 userId: user.id,
@@ -193,6 +236,7 @@ const handler = NextAuth({
               }
             })
             console.log('✅ Sign-in analytics recorded')
+            */
           }
         } catch (analyticsError) {
           console.error('⚠️ Analytics recording failed (non-blocking):', analyticsError)
