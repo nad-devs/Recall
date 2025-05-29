@@ -915,21 +915,30 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const startTime = Date.now()
+  let operationStep = 'starting'
+  
   try {
+    console.log('🔧 SERVER: POST /api/concepts - Operation started at', new Date().toISOString())
+    
     // Validate user session
+    operationStep = 'validating session'
+    console.log('🔧 SERVER: Step 1 - Validating user session...')
     const user = await validateSession(request as NextRequest);
     if (!user) {
-      console.error('🔧 POST /api/concepts - Unauthorized: No valid user session')
+      console.error('🔧 SERVER: UNAUTHORIZED - No valid user session')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    console.log('🔧 POST /api/concepts - Authenticated user:', user.id)
+    console.log('🔧 SERVER: ✅ Authenticated user:', user.id, `(${Date.now() - startTime}ms)`)
 
+    operationStep = 'parsing request data'
+    console.log('🔧 SERVER: Step 2 - Parsing request data...')
     const data = await request.json();
-    console.log('🔧 POST /api/concepts - Request data:', JSON.stringify(data, null, 2))
+    console.log('🔧 SERVER: ✅ Request data parsed:', JSON.stringify(data, null, 2), `(${Date.now() - startTime}ms)`)
     
     // Extract the title from request, use "Untitled Concept" as fallback
     const title = data.title || "Untitled Concept";
@@ -943,33 +952,41 @@ export async function POST(request: Request) {
     // Check if this is a manual concept creation (not from conversation analysis)
     const isManualCreation = data.isManualCreation || false;
     
-    console.log('🔧 POST /api/concepts - Processing concept:', {
+    console.log('🔧 SERVER: Step 3 - Processing concept with params:', {
       title,
       isPlaceholder,
       isManualCreation,
       category: data.category,
-      hasContext: !!context
+      hasContext: !!context,
+      step: operationStep,
+      elapsed: `${Date.now() - startTime}ms`
     })
     
     // If creating a real concept (not placeholder), remove any existing placeholder concepts in the same category
     if (!isPlaceholder && data.category) {
+      operationStep = 'removing placeholder concepts'
+      console.log('🔧 SERVER: Step 4 - Removing placeholder concepts for category:', data.category)
       try {
         await removePlaceholderConcepts(data.category);
-        console.log('🔧 POST /api/concepts - Removed placeholder concepts for category:', data.category)
+        console.log('🔧 SERVER: ✅ Removed placeholder concepts for category:', data.category, `(${Date.now() - startTime}ms)`)
       } catch (placeholderError) {
-        console.error('🔧 POST /api/concepts - Error removing placeholder concepts:', placeholderError)
+        console.error('🔧 SERVER: ❌ Error removing placeholder concepts:', placeholderError)
         // Continue anyway - this shouldn't block concept creation
       }
     }
     
     // Check for similar concepts (skip for placeholder concepts)
     if (!isPlaceholder) {
+      operationStep = 'checking similar concepts'
+      console.log('🔧 SERVER: Step 5 - Checking for similar concepts...')
       try {
         const similarConcepts = await findSimilarConcepts(title, user.id);
-        console.log('🔧 POST /api/concepts - Found similar concepts:', similarConcepts.length)
+        console.log('🔧 SERVER: ✅ Found similar concepts:', similarConcepts.length, `(${Date.now() - startTime}ms)`)
         
         // If we found similar concepts, return the most similar one instead of creating a new one
         if (similarConcepts.length > 0) {
+          operationStep = 'returning existing concept'
+          console.log('🔧 SERVER: Step 6 - Returning existing similar concept...')
           const mostSimilarConcept = await prisma.concept.findUnique({
             where: { id: similarConcepts[0].id },
             include: { 
@@ -978,10 +995,12 @@ export async function POST(request: Request) {
             }
           });
           
-          console.log('🔧 POST /api/concepts - Returning existing similar concept:', mostSimilarConcept?.id)
+          console.log('🔧 SERVER: ✅ Found existing concept:', mostSimilarConcept?.id, `(${Date.now() - startTime}ms)`)
           
           // If this is being added from a conversation, add the relationship
           if (data.conversationId) {
+            operationStep = 'creating relationship'
+            console.log('🔧 SERVER: Step 7 - Creating conversation relationship...')
             // Check if the relationship already exists
             const existingOccurrence = await prisma.occurrence.findFirst({
               where: {
@@ -1003,12 +1022,16 @@ export async function POST(request: Request) {
             
             // Check if we should establish relationships with technique concepts
             if (context) {
+              operationStep = 'establishing relationships'
+              console.log('🔧 SERVER: Step 8 - Establishing concept relationships...')
               // Extract techniques from the context
               const contextWithTitle = `${title} ${context}`;
               await establishConceptRelationships(mostSimilarConcept!.id, contextWithTitle);
+              console.log('🔧 SERVER: ✅ Established relationships', `(${Date.now() - startTime}ms)`)
             }
           }
           
+          console.log('🔧 SERVER: ✅ COMPLETE - Returning existing concept', mostSimilarConcept?.id, `TOTAL: ${Date.now() - startTime}ms`)
           return NextResponse.json({ 
             concept: mostSimilarConcept,
             isExisting: true,
@@ -1016,7 +1039,7 @@ export async function POST(request: Request) {
           }, { status: 200 });
         }
       } catch (similarError) {
-        console.error('🔧 POST /api/concepts - Error checking similar concepts:', similarError)
+        console.error('🔧 SERVER: ❌ Error checking similar concepts:', similarError)
         // Continue anyway - this shouldn't block concept creation
       }
     }
