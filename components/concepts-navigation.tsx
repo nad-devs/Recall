@@ -332,53 +332,51 @@ export function ConceptsNavigation({
   const resetDialogState = useCallback(() => {
     console.log('🔧 Resetting dialog state...')
     
-    // Reset all dialog visibility states
-    setShowAddSubcategoryDialog(false)
-    setShowTransferDialog(false)
-    setShowEditCategoryDialog(false)
-    setShowDragDropDialog(false)
-    
-    // Reset all form states
-    setSelectedParentCategory('')
-    setNewSubcategoryName('')
-    setEditingCategoryPath('')
-    setNewCategoryName('')
-    setTransferConcepts([])
-    setSelectedConceptsForTransfer(new Set())
-    setDragDropData(null)
-    
-    // Reset loading states - this is crucial to prevent freezing
-    setIsCreatingCategory(false)
-    setIsMovingConcepts(false)
-    setIsRenamingCategory(false)
-    setIsDraggingCategory(false)
-    
-    // Reset inline editing state
-    setInlineEditingCategory(null)
-    setInlineEditValue('')
-    
-    console.log('🔧 Dialog state reset complete')
-  }, [])
+    try {
+      // Use flushSync to batch updates and prevent render loops
+      flushSync(() => {
+        // Reset all dialog visibility states
+        setShowAddSubcategoryDialog(false)
+        setShowTransferDialog(false)
+        setShowEditCategoryDialog(false)
+        setShowDragDropDialog(false)
+        
+        // Reset all form states
+        setSelectedParentCategory('')
+        setNewSubcategoryName('')
+        setEditingCategoryPath('')
+        setNewCategoryName('')
+        setTransferConcepts([])
+        setSelectedConceptsForTransfer(new Set())
+        setDragDropData(null)
+        
+        // Reset loading states - this is crucial to prevent freezing
+        setIsCreatingCategory(false)
+        setIsMovingConcepts(false)
+        setIsRenamingCategory(false)
+        setIsDraggingCategory(false)
+        setOperationStarting(false)
+        
+        // Reset inline editing state
+        setInlineEditingCategory(null)
+        setInlineEditValue('')
+      })
+      
+      console.log('🔧 Dialog state reset complete')
+    } catch (error) {
+      console.error('🔧 Error resetting dialog state:', error)
+      // Emergency fallback
+      setShowAddSubcategoryDialog(false)
+      setShowTransferDialog(false)
+      setShowEditCategoryDialog(false)
+      setShowDragDropDialog(false)
+    }
+  }, []) // Empty dependency array to prevent recreation
 
   // Enhanced emergency reset function that forces all dialogs closed and resets all states
   const forceResetAllStates = useCallback(() => {
     const resetStartTime = Date.now()
     console.log('🔧 CLIENT: FORCE RESET - Emergency state cleanup started...', new Date().toISOString())
-    
-    // Log current state before reset
-    console.log('🔧 CLIENT: Current state before reset:', {
-      isCreatingCategory,
-      isMovingConcepts,
-      isRenamingCategory,
-      isDraggingCategory,
-      showAddSubcategoryDialog,
-      showTransferDialog,
-      showEditCategoryDialog,
-      showDragDropDialog,
-      selectedParentCategory,
-      newSubcategoryName,
-      transferConceptsCount: transferConcepts.length
-    })
     
     // Cancel any ongoing operations immediately
     if (abortControllerRef.current) {
@@ -392,74 +390,72 @@ export function ConceptsNavigation({
       console.log('🔧 CLIENT: ✅ Abort controller cleared')
     }
     
-    // Force reset all dialog states using React's flushSync to ensure immediate updates
+    // Use React's flushSync to batch all state updates and prevent render loops
     try {
-      console.log('🔧 CLIENT: Resetting dialog visibility states...')
-      // Reset all dialog visibility states
-      setShowAddSubcategoryDialog(false)
-      setShowTransferDialog(false)
-      setShowEditCategoryDialog(false)
-      setShowDragDropDialog(false)
-      console.log('🔧 CLIENT: ✅ Dialog visibility states reset')
+      console.log('🔧 CLIENT: Batching all state resets...')
       
-      console.log('🔧 CLIENT: Resetting form states...')
-      // Reset all form states
-      setSelectedParentCategory('')
-      setNewSubcategoryName('')
-      setEditingCategoryPath('')
-      setNewCategoryName('')
-      setTransferConcepts([])
-      setSelectedConceptsForTransfer(new Set())
-      setDragDropData(null)
-      console.log('🔧 CLIENT: ✅ Form states reset')
-      
-      console.log('🔧 CLIENT: Resetting loading states...')
-      // Reset all loading states - this is crucial to prevent freezing
-      setIsCreatingCategory(false)
-      setIsMovingConcepts(false)
-      setIsRenamingCategory(false)
-      setIsDraggingCategory(false)
-      console.log('🔧 CLIENT: ✅ Loading states reset')
-      
-      console.log('🔧 CLIENT: Resetting drag and drop states...')
-      // Reset drag and drop states
-      setIsDraggingAny(false)
-      setExpandedBeforeDrag(new Set())
-      console.log('🔧 CLIENT: ✅ Drag and drop states reset')
-      
-      console.log('🔧 CLIENT: Resetting inline editing states...')
-      // Reset inline editing state
-      setInlineEditingCategory(null)
-      setInlineEditValue('')
-      console.log('🔧 CLIENT: ✅ Inline editing states reset')
-      
-      // Force re-render to ensure all state changes take effect
-      setTimeout(() => {
-        const totalTime = Date.now() - resetStartTime
-        console.log('🔧 CLIENT: ✅ FORCE RESET complete - all states cleared', `(${totalTime}ms)`)
+      // Batch all state resets in a single synchronous update
+      flushSync(() => {
+        // Reset all dialog visibility states
+        setShowAddSubcategoryDialog(false)
+        setShowTransferDialog(false)
+        setShowEditCategoryDialog(false)
+        setShowDragDropDialog(false)
         
-        // Log final state after reset
-        console.log('🔧 CLIENT: Final state after reset verification (async):', {
-          timestamp: new Date().toISOString(),
-          resetDuration: `${totalTime}ms`
-        })
-      }, 0)
+        // Reset all loading states - CRITICAL to prevent freezing
+        setIsCreatingCategory(false)
+        setIsMovingConcepts(false)
+        setIsRenamingCategory(false)
+        setIsDraggingCategory(false)
+        setOperationStarting(false)
+        
+        // Reset all form states
+        setSelectedParentCategory('')
+        setNewSubcategoryName('')
+        setEditingCategoryPath('')
+        setNewCategoryName('')
+        setInlineEditingCategory(null)
+        setInlineEditValue('')
+        
+        // Reset complex states
+        setTransferConcepts([])
+        setSelectedConceptsForTransfer(new Set())
+        setDragDropData(null)
+        
+        // Reset drag and drop states
+        setIsDraggingAny(false)
+        setExpandedBeforeDrag(new Set())
+      })
+      
+      console.log('🔧 CLIENT: ✅ All states reset in batch')
+      
+      const totalTime = Date.now() - resetStartTime
+      console.log('🔧 CLIENT: ✅ FORCE RESET complete - all states cleared', `(${totalTime}ms)`)
       
     } catch (error) {
-      console.error('🔧 CLIENT: ❌ Error during force reset:', error)
-      // If there's an error during reset, at minimum clear the loading states
-      console.log('🔧 CLIENT: Emergency fallback - clearing critical states...')
-      setIsCreatingCategory(false)
-      setIsMovingConcepts(false)
-      setIsRenamingCategory(false)
-      setIsDraggingCategory(false)
-      setShowAddSubcategoryDialog(false)
-      setShowTransferDialog(false)
-      setShowEditCategoryDialog(false)
-      setShowDragDropDialog(false)
-      console.log('🔧 CLIENT: ✅ Emergency fallback complete')
+      console.error('🔧 CLIENT: ❌ CRITICAL ERROR during force reset:', error)
+      
+      // Emergency fallback - manually reset only critical states
+      try {
+        console.log('🔧 CLIENT: Emergency fallback - clearing only critical loading states...')
+        setIsCreatingCategory(false)
+        setIsMovingConcepts(false)
+        setIsRenamingCategory(false)
+        setIsDraggingCategory(false)
+        setOperationStarting(false)
+        setShowAddSubcategoryDialog(false)
+        setShowTransferDialog(false)
+        setShowEditCategoryDialog(false)
+        setShowDragDropDialog(false)
+        console.log('🔧 CLIENT: ✅ Emergency fallback complete')
+      } catch (fallbackError) {
+        console.error('🔧 CLIENT: ❌ CRITICAL: Even emergency fallback failed:', fallbackError)
+        // Last resort - reload the page
+        console.log('🔧 CLIENT: Last resort - reloading page...')
+        setTimeout(() => window.location.reload(), 1000)
+      }
     }
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, selectedParentCategory, newSubcategoryName, transferConcepts])
+  }, []) // Empty dependency array to prevent recreation and potential loops
 
   // Enhanced dialog close handler with proper cleanup
   const handleDialogClose = useCallback((dialogType: string, force = false) => {
@@ -483,26 +479,22 @@ export function ConceptsNavigation({
     return true
   }, [resetDialogState, forceResetAllStates])
 
-  // Enhanced cancel handler for category creation with immediate state reset
+  // Simple cancel handler - just close the dialog, nothing complex
   const handleCancelCategoryCreation = useCallback(() => {
-    console.log('🔧 User clicked Cancel - force canceling all operations...')
+    console.log('🔧 Simple cancel - just closing dialog...')
     
-    // Cancel any ongoing network requests
-    if (abortControllerRef.current) {
-      console.log('🔧 Aborting ongoing network requests...')
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
-    }
+    // Just close the dialog - that's it!
+    setShowAddSubcategoryDialog(false)
+    setShowTransferDialog(false)
+    setShowEditCategoryDialog(false)
+    setShowDragDropDialog(false)
     
-    // Force reset all states and close all dialogs
-    forceResetAllStates()
+    // Reset form fields
+    setNewSubcategoryName('')
+    setSelectedParentCategory('')
     
-    toast({
-      title: "Operation Cancelled",
-      description: "All pending operations have been cancelled.",
-      duration: 2000,
-    })
-  }, [forceResetAllStates, toast])
+    console.log('🔧 ✅ Cancel completed - dialog closed')
+  }, [])
 
   // New: Proper dialog open change handler that always allows closing
   const handleDialogOpenChange = useCallback((open: boolean, dialogType: string) => {
@@ -1685,69 +1677,38 @@ export function ConceptsNavigation({
     )
   }, [expandedCategories, selectedCategory, inlineEditingCategory, inlineEditValue, toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit, saveInlineEdit, cancelInlineEdit, setTransferConcepts, setShowTransferDialog, setInlineEditValue, isCreatingCategory, isMovingConcepts, isRenamingCategory, handleCategoryDrop, handleDragStart, handleDragEnd, isDraggingAny])
 
-  // Add keyboard escape handler to force close dialogs
+  // Simple escape key handler - just close dialogs
   useEffect(() => {
-    let escapeCount = 0
-    let escapeTimer: NodeJS.Timeout | null = null
-    
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        escapeCount++
+        console.log('🔧 Escape pressed - closing dialogs')
         
-        console.log(`🔧 Escape key pressed (${escapeCount}) - forcing dialog closure and cancelling operations`)
+        // Just close dialogs - simple!
+        setShowAddSubcategoryDialog(false)
+        setShowTransferDialog(false)
+        setShowEditCategoryDialog(false)
+        setShowDragDropDialog(false)
         
-        // Cancel any ongoing operations
-        if (abortControllerRef.current) {
-          console.log('🔧 Cancelling ongoing operations...')
-          abortControllerRef.current.abort()
-          abortControllerRef.current = null
-        }
+        // Reset form fields
+        setNewSubcategoryName('')
+        setSelectedParentCategory('')
         
-        // Force reset all states
-        forceResetAllStates()
-        
-        // Prevent the escape from bubbling up
         event.preventDefault()
         event.stopPropagation()
         
-        // If double escape within 1 second, do extra aggressive reset
-        if (escapeCount >= 2) {
-          console.log('🔧 Double escape detected - performing ultra reset')
-          
-          // Force reload the page as last resort
-          setTimeout(() => {
-            if (escapeCount >= 3) {
-              console.warn('🔧 Triple escape - reloading page as emergency measure')
-              toast({
-                title: "Emergency Reload",
-                description: "Page will reload to recover from stuck state...",
-                variant: "destructive",
-                duration: 3000,
-              })
-              setTimeout(() => window.location.reload(), 2000)
-            }
-          }, 1000)
-        }
-        
-        // Reset escape count after 2 seconds
-        if (escapeTimer) clearTimeout(escapeTimer)
-        escapeTimer = setTimeout(() => {
-          escapeCount = 0
-        }, 2000)
+        console.log('🔧 ✅ Escape handled')
       }
     }
 
-    // Add event listener when any dialog is open
+    // Only add listener when dialogs are open
     if (showAddSubcategoryDialog || showTransferDialog || showEditCategoryDialog || showDragDropDialog) {
-      document.addEventListener('keydown', handleEscapeKey, true) // Use capture phase
+      document.addEventListener('keydown', handleEscapeKey, true)
     }
 
-    // Cleanup
     return () => {
       document.removeEventListener('keydown', handleEscapeKey, true)
-      if (escapeTimer) clearTimeout(escapeTimer)
     }
-  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, forceResetAllStates, toast])
+  }, [showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog])
 
   // Add cleanup effect when component unmounts
   useEffect(() => {
@@ -1787,96 +1748,27 @@ export function ConceptsNavigation({
     }
   }, [forceResetAllStates])
 
-  // Add a watchdog timer to detect UI freezing
+  // Simplified state monitoring - only log when things get stuck for too long
   useEffect(() => {
-    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
-      console.log('🔧 Starting watchdog timer for operation...')
-      
-      const watchdogTimer = setTimeout(() => {
-        console.warn('🔧 WATCHDOG: Operation taking too long, force resetting...')
-        forceResetAllStates()
-        toast({
-          title: "Operation Timeout",
-          description: "Operation was taking too long and has been cancelled.",
-          variant: "destructive",
-          duration: 5000,
-        })
-      }, 30000) // 30 second watchdog
-      
-      return () => {
-        clearTimeout(watchdogTimer)
-      }
-    }
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, forceResetAllStates, toast])
-
-  // Add a state monitoring effect to track when loading states get stuck
-  useEffect(() => {
-    let monitoringInterval: NodeJS.Timeout | null = null
+    let timeoutId: NodeJS.Timeout | null = null
     
-    // If any loading state is active, start monitoring
-    if (isCreatingCategory || isMovingConcepts || isRenamingCategory || isDraggingCategory || operationStarting) {
-      console.log('🔧 CLIENT: STATE MONITOR - Loading state detected, starting monitoring...', {
-        isCreatingCategory,
-        isMovingConcepts,
-        isRenamingCategory,
-        isDraggingCategory,
-        operationStarting,
-        timestamp: new Date().toISOString()
-      })
+    // Only monitor if there's actually a loading state active
+    if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+      console.log('🔧 Operation started, setting safety timeout...')
       
-      let monitorStartTime = Date.now()
-      let lastLogTime = Date.now()
-      
-      monitoringInterval = setInterval(() => {
-        const currentTime = Date.now()
-        const totalElapsed = currentTime - monitorStartTime
-        const sinceLastLog = currentTime - lastLogTime
-        
-        console.log('🔧 CLIENT: STATE MONITOR - Loading state still active', {
-          totalElapsed: `${totalElapsed}ms`,
-          sinceLastLog: `${sinceLastLog}ms`,
-          currentStates: {
-            isCreatingCategory,
-            isMovingConcepts,
-            isRenamingCategory,
-            isDraggingCategory,
-            operationStarting,
-            showAddSubcategoryDialog,
-            showTransferDialog,
-            showEditCategoryDialog,
-            showDragDropDialog
-          },
-          hasAbortController: !!abortControllerRef.current,
-          timestamp: new Date().toISOString()
-        })
-        
-        // If stuck for more than 10 seconds, warn
-        if (totalElapsed > 10000) {
-          console.warn('🔧 CLIENT: STATE MONITOR - WARNING: Loading state stuck for >10s', {
-            totalElapsed: `${totalElapsed}ms`,
-            suggestAction: 'Consider force reset if no progress'
-          })
-        }
-        
-        // If stuck for more than 20 seconds, suggest force reset
-        if (totalElapsed > 20000) {
-          console.error('🔧 CLIENT: STATE MONITOR - CRITICAL: Loading state stuck for >20s', {
-            totalElapsed: `${totalElapsed}ms`,
-            recommendation: 'Force reset recommended - possible infinite loop or network hang'
-          })
-        }
-        
-        lastLogTime = currentTime
-      }, 2000) // Log every 2 seconds when loading states are active
+      // Just set a simple timeout - no complex monitoring
+      timeoutId = setTimeout(() => {
+        console.warn('🔧 Operation taking too long (>10s) - might be stuck')
+        // Don't auto-reset, just warn
+      }, 10000) // 10 seconds
     }
     
     return () => {
-      if (monitoringInterval) {
-        console.log('🔧 CLIENT: STATE MONITOR - Clearing monitoring interval (loading states cleared)')
-        clearInterval(monitoringInterval)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
       }
     }
-  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, operationStarting])
+  }, [isCreatingCategory, isMovingConcepts, isRenamingCategory])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
