@@ -444,7 +444,7 @@ export function ConceptsNavigation({
     handleDragStart, handleDragEnd, isDraggingAny
   ])
 
-  return (
+  const result = (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-border">
@@ -607,8 +607,37 @@ export function ConceptsNavigation({
           renderTime: `${endTime - startTime}ms`
         })
         
+        // Add critical debugging to see if we're blocking after CategoryDialogs
+        debug.logUserAction('About to return from CategoryDialogs wrapper')
+        
+        // Add a setTimeout to check if we're blocking the event loop
+        setTimeout(() => {
+          debug.logUserAction('CategoryDialogs wrapper - 0ms timeout executed successfully')
+          console.log('🔄 CategoryDialogs setTimeout executed - event loop is not blocked')
+        }, 0)
+        
+        setTimeout(() => {
+          debug.logUserAction('CategoryDialogs wrapper - 100ms timeout executed')
+          console.log('🔄 CategoryDialogs 100ms timeout executed')
+        }, 100)
+        
+        debug.logUserAction('Returning CategoryDialogs result')
         return result
       })()}
     </div>
   )
+  
+  // Add debugging and setTimeout inside useEffect where debug is available
+  useEffect(() => {
+    debug.logUserAction('ConceptsNavigation component completed render cycle')
+    
+    const timer = setTimeout(() => {
+      debug.logUserAction('ConceptsNavigation - Post-render setTimeout executed')
+      console.log('🔄 ConceptsNavigation post-render timeout - JavaScript execution continues')
+    }, 0)
+    
+    return () => clearTimeout(timer)
+  })
+
+  return result
 } 
