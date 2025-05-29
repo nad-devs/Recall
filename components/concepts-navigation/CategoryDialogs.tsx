@@ -304,6 +304,52 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
             <div className="space-y-3">
               <h4 className="text-sm font-medium">Choose an option:</h4>
               
+              {/* Move to Existing Categories */}
+              {Object.keys(conceptsByCategory).filter(cat => cat !== transferConcepts[0]?.category).length > 0 && (
+                <div className="p-3 border-2 border-green-200 rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+                  <h5 className="text-sm font-medium mb-2">Move to Existing Categories:</h5>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {Object.keys(conceptsByCategory)
+                      .filter(cat => cat !== transferConcepts[0]?.category) // Don't show current category
+                      .sort()
+                      .map(category => (
+                        <Button
+                          key={category}
+                          variant="outline"
+                          className="w-full justify-start text-sm h-8 border-green-300 hover:bg-green-100"
+                          disabled={isCreatingCategory || isMovingConcepts}
+                          onClick={async () => {
+                            if (isCreatingCategory || isMovingConcepts) return
+                            
+                            try {
+                              const selectedConcepts = selectedConceptsForTransfer.size > 0 
+                                ? transferConcepts.filter(c => selectedConceptsForTransfer.has(c.id))
+                                : transferConcepts
+                              await handleTransferConcepts(selectedConcepts, category)
+                            } catch (error) {
+                              console.error('Error moving concepts to existing category:', error)
+                              setTimeout(() => resetDialogState(), 0)
+                            }
+                          }}
+                        >
+                          <ArrowRight className="mr-2 h-4 w-4" />
+                          {category} ({(conceptsByCategory[category] || []).length})
+                        </Button>
+                      ))}
+                  </div>
+                  {selectedConceptsForTransfer.size > 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Will move {selectedConceptsForTransfer.size} selected concept(s)
+                    </p>
+                  )}
+                  {selectedConceptsForTransfer.size === 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Will move all {transferConcepts.length} concept(s)
+                    </p>
+                  )}
+                </div>
+              )}
+              
               {/* Create empty subcategory */}
               <div className="p-3 border-2 border-green-200 rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-800">
                 <Button
