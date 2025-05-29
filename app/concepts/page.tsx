@@ -65,6 +65,16 @@ function CategoryDropZone({ category, onDrop, children }: CategoryDropZoneProps)
 export default function ConceptsPage() {
   const router = useRouter()
   const debug = useDebugLogger('ConceptsPage')
+  
+  // Track component renders to detect freezing
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+  
+  debug.logUserAction('ConceptsPage render', { 
+    renderCount: renderCountRef.current,
+    timestamp: new Date().toISOString()
+  })
+  
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
@@ -89,6 +99,13 @@ export default function ConceptsPage() {
   const isRefreshingRef = useRef<boolean>(false) // Add flag to prevent multiple simultaneous refreshes
   
   const { toast } = useToast()
+
+  debug.logUserAction('ConceptsPage state initialized', { 
+    conceptsLength: concepts.length,
+    categoriesCount: Object.keys(conceptsByCategory).length,
+    loading,
+    dataLoaded
+  })
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -120,6 +137,13 @@ export default function ConceptsPage() {
   }
 
   // Filter concepts based on search query, selected category, and needs review filter
+  debug.logUserAction('Starting filteredConcepts calculation', { 
+    conceptsLength: concepts.length,
+    searchQuery: searchQuery.substring(0, 20),
+    selectedCategory,
+    showNeedsReview
+  })
+  
   const filteredConcepts = concepts.filter(concept => {
     const matchesSearch = concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (concept.notes && concept.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -132,7 +156,13 @@ export default function ConceptsPage() {
     return matchesSearch && matchesCategory && matchesNeedsReview
   })
   
+  debug.logUserAction('Completed filteredConcepts calculation', { 
+    filteredCount: filteredConcepts.length
+  })
+  
   // Filter concepts by category based on search query, selected category, and needs review filter
+  debug.logUserAction('Starting filteredConceptsByCategory calculation')
+  
   const filteredConceptsByCategory = Object.entries(conceptsByCategory).reduce((acc, [category, categoryItems]) => {
     // If a category is selected and this isn't it, skip
     if (selectedCategory !== null && category !== selectedCategory) {
@@ -156,10 +186,19 @@ export default function ConceptsPage() {
     return acc;
   }, {} as Record<string, Concept[]>);
   
+  debug.logUserAction('Completed filteredConceptsByCategory calculation', { 
+    filteredCategoriesCount: Object.keys(filteredConceptsByCategory).length
+  })
+  
   // Create filtered sorted categories list
+  debug.logUserAction('Starting filteredSortedCategories calculation')
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
+  debug.logUserAction('Completed filteredSortedCategories calculation', { 
+    categoriesCount: filteredSortedCategories.length
+  })
 
   // Process and organize the concepts by category - FIX stale closure issues
+  debug.logUserAction('Creating formatAndOrganizeConcepts function')
   const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
     debug.logUserAction('Starting formatAndOrganizeConcepts', { 
       conceptsDataLength: conceptsData.length
@@ -208,6 +247,7 @@ export default function ConceptsPage() {
   }, [debug]) // Only depend on debug to prevent circular dependencies
 
   // Fetch concepts function - ENHANCED rate limiting and debugging
+  debug.logUserAction('Creating fetchConcepts function')
   const fetchConcepts = useCallback(async () => {
     // Enhanced rate limiting protection to prevent 429 errors
     const now = Date.now()
@@ -296,6 +336,7 @@ export default function ConceptsPage() {
   }, [debug, formatAndOrganizeConcepts]) // Add formatAndOrganizeConcepts dependency
 
   // Refresh data function to be used after mutations - ENHANCED with locking to prevent multiple calls
+  debug.logUserAction('Creating refreshData function')
   const refreshData = useCallback(async () => {
     debug.logUserAction('refreshData called - checking if already refreshing', { 
       isRefreshing: isRefreshingRef.current 
@@ -323,9 +364,11 @@ export default function ConceptsPage() {
   }, [fetchConcepts, debug])
   
   // Store refreshData in ref to break dependency chain
+  debug.logUserAction('Storing refreshData in ref')
   refreshDataRef.current = refreshData
 
   // Auto-refresh event listener - ENHANCED with proper error handling and locking
+  debug.logUserAction('Setting up auto-refresh event listener')
   useEffect(() => {
     debug.logUserAction('Auto-refresh event listener effect triggered')
     const handleRefreshConcepts = async () => {
@@ -353,6 +396,7 @@ export default function ConceptsPage() {
   }, [debug]) // Only depend on debug
 
   // Initial data fetch - USE REF to break dependency loop
+  debug.logUserAction('Setting up initial data fetch')
   useEffect(() => {
     debug.logUserAction('Initial data fetch effect triggered')
     // Use ref to avoid stale closure with error handling
@@ -386,6 +430,7 @@ export default function ConceptsPage() {
   }
 
   // Effect to hide loading screen once data is loaded - REMOVE debug dependency
+  debug.logUserAction('Setting up loading screen effect')
   useEffect(() => {
     debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
     
@@ -408,6 +453,7 @@ export default function ConceptsPage() {
   }, [dataLoaded, loading]) // REMOVE debug dependency
 
   // Handle creating a new concept
+  debug.logUserAction('Creating handleAddConcept function')
   const handleAddConcept = async (title: string) => {
     try {
       setIsCreatingConcept(true)
@@ -743,10 +789,23 @@ export default function ConceptsPage() {
     }
   }
 
+  debug.logUserAction('ConceptsPage setup completed, checking if should show loading screen', { 
+    showLoadingScreen,
+    dataLoaded,
+    loading
+  })
+
   // Show loading screen if still loading or if we haven't completed the loading animation
   if (showLoadingScreen) {
+    debug.logUserAction('Showing loading screen')
     return <ConceptsLoading onComplete={handleLoadingComplete} />
   }
+
+  debug.logUserAction('ConceptsPage about to render main UI', { 
+    conceptsLength: concepts.length,
+    filteredConceptsLength: filteredConcepts.length,
+    categoriesCount: Object.keys(conceptsByCategory).length
+  })
 
   return (
     <LinkingProvider>
