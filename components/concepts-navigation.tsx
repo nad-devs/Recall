@@ -222,9 +222,15 @@ export function ConceptsNavigation({
     categoryOps.setShowAddSubcategoryDialog(true)
   }, [categoryOps])
 
+  // Silent page refresh without loading animation
+  const silentRefresh = useCallback(() => {
+    // Use replace to avoid loading animation
+    window.location.replace(window.location.href)
+  }, [])
+
   const handleCancelCategoryCreation = useCallback(() => {
-    // Simple solution: just reload the page to reset everything
-    window.location.reload()
+    // Simple solution: silent refresh to reset everything
+    silentRefresh()
   }, [])
 
   // Category drop handler
@@ -445,13 +451,8 @@ export function ConceptsNavigation({
         event.preventDefault()
         event.stopPropagation()
         
-        // Try to reset states, but if that fails, just reload the page
-        try {
-          categoryOps.resetDialogState()
-        } catch (error) {
-          console.error('Error in escape handler, reloading page:', error)
-          quickReload()
-        }
+        // Just do a silent refresh instead of trying to reset states
+        silentRefresh()
       }
     }
 
@@ -469,7 +470,7 @@ export function ConceptsNavigation({
       document.removeEventListener('keydown', handleEscapeKey)
     }
   }, [categoryOps.showAddSubcategoryDialog, categoryOps.showTransferDialog, 
-      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, quickReload])
+      categoryOps.showEditCategoryDialog, categoryOps.showDragDropDialog, silentRefresh])
 
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
@@ -513,7 +514,7 @@ export function ConceptsNavigation({
           <Button
             variant="outline"
             className="w-full justify-start text-sm h-8 mb-2 border-blue-300 hover:bg-blue-50"
-            onClick={quickReload}
+            onClick={silentRefresh}
           >
             <ArrowRight className="mr-2 h-4 w-4" />
             Quick Reload Page
