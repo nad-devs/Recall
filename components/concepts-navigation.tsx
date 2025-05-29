@@ -357,85 +357,53 @@ export function ConceptsNavigation({
     console.log('🔧 Dialog state reset complete')
   }, [])
 
-  // Enhanced forceResetAllStates with detailed debugging
+  // Force reset function for emergency state cleanup
   const forceResetAllStates = useCallback(() => {
     console.log('🔧 FORCE RESET - Emergency state cleanup...')
-    console.time('🔧 Force Reset Duration')
     
-    try {
-      // Log current states before reset
-      console.log('🔧 Current states before reset:', {
-        showAddSubcategoryDialog,
-        showTransferDialog, 
-        showEditCategoryDialog,
-        showDragDropDialog,
-        isCreatingCategory,
-        isMovingConcepts,
-        isRenamingCategory,
-        isDraggingCategory,
-        selectedConceptsForTransfer: selectedConceptsForTransfer.size,
-        transferConcepts: transferConcepts.length
-      })
-      
-      // Monitor DOM before reset
-      const dialogCount = document.querySelectorAll('[role="dialog"]').length
-      const overlayCount = document.querySelectorAll('[data-radix-portal]').length
-      console.log(`🔧 DOM before reset: ${dialogCount} dialogs, ${overlayCount} overlays`)
-      
-      // Use flushSync to force immediate synchronous state updates
-      flushSync(() => {
-        console.log('🔧 Starting flushSync state reset...')
-        
-        // Immediately reset ALL states with no delays
-        setShowAddSubcategoryDialog(false)
-        setShowTransferDialog(false)
-        setShowEditCategoryDialog(false)
-        setShowDragDropDialog(false)
-        setSelectedParentCategory('')
-        setNewSubcategoryName('')
-        setEditingCategoryPath('')
-        setNewCategoryName('')
-        setTransferConcepts([])
-        setSelectedConceptsForTransfer(new Set())
-        setDragDropData(null)
-        setIsCreatingCategory(false)
-        setIsMovingConcepts(false)
-        setIsRenamingCategory(false)
-        setIsDraggingCategory(false)
-        setInlineEditingCategory(null)
-        setInlineEditValue('')
-        setIsDraggingAny(false)
-        
-        console.log('🔧 flushSync state reset completed')
-      })
-      
-      // Force garbage collection if available
-      if (typeof window !== 'undefined' && 'gc' in window) {
-        try {
-          (window as any).gc()
-          console.log('🔧 Forced garbage collection')
-        } catch (e) {
-          // Ignore if not available
-        }
+    // Use flushSync to force immediate synchronous state updates
+    flushSync(() => {
+      // Immediately reset ALL states with no delays
+      setShowAddSubcategoryDialog(false)
+      setShowTransferDialog(false)
+      setShowEditCategoryDialog(false)
+      setShowDragDropDialog(false)
+      setSelectedParentCategory('')
+      setNewSubcategoryName('')
+      setEditingCategoryPath('')
+      setNewCategoryName('')
+      setTransferConcepts([])
+      setSelectedConceptsForTransfer(new Set())
+      setDragDropData(null)
+      setIsCreatingCategory(false)
+      setIsMovingConcepts(false)
+      setIsRenamingCategory(false)
+      setIsDraggingCategory(false)
+      setInlineEditingCategory(null)
+      setInlineEditValue('')
+      setIsDraggingAny(false)
+    })
+    
+    // Force garbage collection if available
+    if (typeof window !== 'undefined' && 'gc' in window) {
+      try {
+        (window as any).gc()
+      } catch (e) {
+        // Ignore if not available
       }
-      
-      console.timeEnd('🔧 Force Reset Duration')
-      console.log('🔧 FORCE RESET complete')
-      
-      // Use a micro-task to show toast after state updates
-      Promise.resolve().then(() => {
-        toast({
-          title: "States Reset",
-          description: "All UI states have been forcefully reset.",
-          duration: 2000,
-        })
-      })
-      
-    } catch (error) {
-      console.error('🔧 Error during force reset:', error)
-      console.timeEnd('🔧 Force Reset Duration')
     }
-  }, [toast, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog, isCreatingCategory, isMovingConcepts, isRenamingCategory, isDraggingCategory, selectedConceptsForTransfer, transferConcepts])
+    
+    console.log('🔧 FORCE RESET complete')
+    
+    // Use a micro-task to show toast after state updates
+    Promise.resolve().then(() => {
+      toast({
+        title: "States Reset",
+        description: "All UI states have been forcefully reset.",
+        duration: 2000,
+      })
+    })
+  }, [toast])
 
   // Enhanced dialog close handler with proper cleanup
   const handleDialogClose = useCallback((dialogType: string, force = false) => {
@@ -1776,136 +1744,6 @@ export function ConceptsNavigation({
     }
   }, [isCreatingCategory, isMovingConcepts, isRenamingCategory, forceResetAllStates, toast])
 
-  // Add performance monitoring to detect main thread blocking
-  const performanceRef = useRef<{
-    lastCheck: number
-    isBlocked: boolean
-    blockCount: number
-  }>({ lastCheck: 0, isBlocked: false, blockCount: 0 })
-
-  // Monitor main thread blocking
-  useEffect(() => {
-    const monitorMainThread = () => {
-      const now = performance.now()
-      const timeSinceLastCheck = now - performanceRef.current.lastCheck
-      
-      if (performanceRef.current.lastCheck > 0 && timeSinceLastCheck > 100) {
-        performanceRef.current.blockCount++
-        console.error(`🚨 MAIN THREAD BLOCKED for ${timeSinceLastCheck}ms (count: ${performanceRef.current.blockCount})`)
-        
-        if (timeSinceLastCheck > 500) {
-          console.error('🚨 SEVERE BLOCKING DETECTED - Attempting emergency recovery')
-          
-          // Try DOM-level emergency recovery first
-          try {
-            // Remove all dialogs immediately
-            const dialogs = document.querySelectorAll('[role="dialog"], .fixed')
-            console.log(`🚨 Emergency: Found ${dialogs.length} dialogs to remove`)
-            dialogs.forEach(dialog => dialog.remove())
-            
-            // Remove all overlays immediately
-            const overlays = document.querySelectorAll('[data-radix-portal], .backdrop, .overlay')
-            console.log(`🚨 Emergency: Found ${overlays.length} overlays to remove`)
-            overlays.forEach(overlay => overlay.remove())
-            
-            // Reset body styles immediately
-            document.body.style.overflow = 'auto'
-            document.body.style.pointerEvents = 'auto'
-            document.documentElement.style.pointerEvents = 'auto'
-            
-            console.log('🚨 Emergency DOM cleanup completed')
-            
-            // Then try React reset after DOM cleanup
-            setTimeout(() => {
-              forceResetAllStates()
-            }, 50)
-            
-          } catch (error) {
-            console.error('🚨 Emergency recovery failed:', error)
-            
-            // Last resort - reload page after delay
-            setTimeout(() => {
-              console.log('🚨 Last resort - reloading page due to UI freeze')
-              window.location.reload()
-            }, 2000)
-          }
-        }
-      }
-      
-      performanceRef.current.lastCheck = now
-    }
-
-    const interval = setInterval(monitorMainThread, 50) // Check every 50ms
-    return () => clearInterval(interval)
-  }, [forceResetAllStates])
-
-  // Emergency recovery function
-  const emergencyRecovery = useCallback(() => {
-    console.log('🚨 EMERGENCY RECOVERY - Bypassing React entirely')
-    
-    try {
-      // 1. Cancel any ongoing operations first
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        abortControllerRef.current = null
-      }
-      
-      // 2. Force remove all dialogs via DOM manipulation
-      const dialogs = document.querySelectorAll('[role="dialog"], .fixed, [data-state="open"]')
-      dialogs.forEach(dialog => {
-        try {
-          dialog.remove()
-        } catch (e) {
-          console.log('Failed to remove dialog:', e)
-        }
-      })
-      
-      // 3. Force remove any overlays
-      const overlays = document.querySelectorAll('.overlay, .backdrop, [data-radix-portal]')
-      overlays.forEach(overlay => {
-        try {
-          overlay.remove()
-        } catch (e) {
-          console.log('Failed to remove overlay:', e)
-        }
-      })
-      
-      // 4. Reset scroll and pointer events
-      document.body.style.overflow = 'auto'
-      document.body.style.pointerEvents = 'auto'
-      document.documentElement.style.overflow = 'auto'
-      document.documentElement.style.pointerEvents = 'auto'
-      
-      // 5. Force garbage collection if available
-      if ('gc' in window) {
-        try {
-          (window as any).gc()
-        } catch (e) {}
-      }
-      
-      // 6. Use requestIdleCallback to safely reset React state
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-          forceResetAllStates()
-        })
-      } else {
-        setTimeout(() => {
-          forceResetAllStates()
-        }, 0)
-      }
-      
-      console.log('🚨 Emergency recovery completed')
-      
-    } catch (error) {
-      console.error('🚨 Emergency recovery failed:', error)
-      // Last resort - reload page
-      setTimeout(() => {
-        console.log('🚨 Last resort - reloading page')
-        window.location.reload()
-      }, 2000)
-    }
-  }, [forceResetAllStates])
-
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
@@ -1947,74 +1785,17 @@ export function ConceptsNavigation({
         <div className="space-y-1">
           {/* Emergency Reset Button - Show when operations are taking too long */}
           {(isCreatingCategory || isMovingConcepts || isRenamingCategory) && (
-            <div className="space-y-1">
-              <Button
-                variant="destructive"
-                className="w-full justify-start text-sm h-8"
-                onClick={() => {
-                  console.log('🔧 Emergency reset button clicked')
-                  forceResetAllStates()
-                }}
-              >
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Emergency Reset
-              </Button>
-              
-              {/* DOM-level emergency button */}
-              <Button
-                variant="destructive"
-                className="w-full justify-start text-sm h-8 bg-red-700 hover:bg-red-800"
-                onClick={() => {
-                  console.log('🚨 DOM Emergency Recovery button clicked')
-                  
-                  // Bypass React entirely - manipulate DOM directly
-                  try {
-                    // Remove all dialogs
-                    const dialogs = document.querySelectorAll('[role="dialog"], .fixed')
-                    console.log(`🚨 Found ${dialogs.length} dialogs to remove`)
-                    dialogs.forEach((dialog, index) => {
-                      console.log(`🚨 Removing dialog ${index}`)
-                      dialog.remove()
-                    })
-                    
-                    // Remove all overlays
-                    const overlays = document.querySelectorAll('[data-radix-portal], .backdrop, .overlay')
-                    console.log(`🚨 Found ${overlays.length} overlays to remove`)
-                    overlays.forEach((overlay, index) => {
-                      console.log(`🚨 Removing overlay ${index}`)
-                      overlay.remove()
-                    })
-                    
-                    // Reset body styles
-                    document.body.style.overflow = 'auto'
-                    document.body.style.pointerEvents = 'auto'
-                    document.documentElement.style.pointerEvents = 'auto'
-                    
-                    // Force re-enable scrolling
-                    document.body.classList.remove('overflow-hidden', 'pointer-events-none')
-                    document.documentElement.classList.remove('overflow-hidden', 'pointer-events-none')
-                    
-                    console.log('🚨 DOM cleanup completed')
-                    
-                    // Then try React reset
-                    setTimeout(() => {
-                      forceResetAllStates()
-                    }, 100)
-                    
-                  } catch (error) {
-                    console.error('🚨 DOM cleanup failed:', error)
-                    // Last resort
-                    setTimeout(() => {
-                      console.log('🚨 Last resort - reloading page')
-                      window.location.reload()
-                    }, 1000)
-                  }
-                }}
-              >
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                DOM Reset
-              </Button>
-            </div>
+            <Button
+              variant="destructive"
+              className="w-full justify-start text-sm h-8 mb-2"
+              onClick={() => {
+                console.log('🔧 Emergency reset button clicked')
+                forceResetAllStates()
+              }}
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Emergency Reset
+            </Button>
           )}
           
           <Button
