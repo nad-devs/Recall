@@ -376,32 +376,38 @@ export function ConceptsNavigation({
   // Enhanced emergency reset function that forces all dialogs closed and resets all states
   const forceResetAllStates = useCallback(() => {
     const resetStartTime = Date.now()
-    console.log('🔧 CLIENT: FORCE RESET - Emergency state cleanup started...', new Date().toISOString())
+    console.log('🔧 [DEBUG] forceResetAllStates ENTRY - Emergency state cleanup started...', new Date().toISOString())
     
+    console.log('🔧 [DEBUG] Step 1: About to cancel network requests...')
     // Cancel any ongoing operations immediately
     if (abortControllerRef.current) {
       try {
-        console.log('🔧 CLIENT: Aborting network requests...')
+        console.log('🔧 [DEBUG] Aborting network requests...')
         abortControllerRef.current.abort()
       } catch (e) {
-        console.warn('🔧 CLIENT: Error aborting controller:', e)
+        console.warn('🔧 [DEBUG] Error aborting controller:', e)
       }
       abortControllerRef.current = null
-      console.log('🔧 CLIENT: ✅ Abort controller cleared')
+      console.log('🔧 [DEBUG] ✅ Abort controller cleared')
+    } else {
+      console.log('🔧 [DEBUG] No abort controller to clear')
     }
     
+    console.log('🔧 [DEBUG] Step 2: About to start flushSync batch...')
     // Use React's flushSync to batch all state updates and prevent render loops
     try {
-      console.log('🔧 CLIENT: Batching all state resets...')
+      console.log('🔧 [DEBUG] Entering flushSync block...')
       
       // Batch all state resets in a single synchronous update
       flushSync(() => {
+        console.log('🔧 [DEBUG] Inside flushSync - setting dialog states...')
         // Reset all dialog visibility states
         setShowAddSubcategoryDialog(false)
         setShowTransferDialog(false)
         setShowEditCategoryDialog(false)
         setShowDragDropDialog(false)
         
+        console.log('🔧 [DEBUG] Inside flushSync - setting loading states...')
         // Reset all loading states - CRITICAL to prevent freezing
         setIsCreatingCategory(false)
         setIsMovingConcepts(false)
@@ -409,6 +415,7 @@ export function ConceptsNavigation({
         setIsDraggingCategory(false)
         setOperationStarting(false)
         
+        console.log('🔧 [DEBUG] Inside flushSync - setting form states...')
         // Reset all form states
         setSelectedParentCategory('')
         setNewSubcategoryName('')
@@ -417,27 +424,33 @@ export function ConceptsNavigation({
         setInlineEditingCategory(null)
         setInlineEditValue('')
         
+        console.log('🔧 [DEBUG] Inside flushSync - setting complex states...')
         // Reset complex states
         setTransferConcepts([])
         setSelectedConceptsForTransfer(new Set())
         setDragDropData(null)
         
+        console.log('🔧 [DEBUG] Inside flushSync - setting drag states...')
         // Reset drag and drop states
         setIsDraggingAny(false)
         setExpandedBeforeDrag(new Set())
+        
+        console.log('🔧 [DEBUG] flushSync block completed')
       })
       
-      console.log('🔧 CLIENT: ✅ All states reset in batch')
+      console.log('🔧 [DEBUG] flushSync completed successfully')
+      console.log('🔧 [DEBUG] ✅ All states reset in batch')
       
       const totalTime = Date.now() - resetStartTime
-      console.log('🔧 CLIENT: ✅ FORCE RESET complete - all states cleared', `(${totalTime}ms)`)
+      console.log('🔧 [DEBUG] ✅ FORCE RESET complete - all states cleared', `(${totalTime}ms)`)
       
     } catch (error) {
-      console.error('🔧 CLIENT: ❌ CRITICAL ERROR during force reset:', error)
+      console.error('🔧 [DEBUG] ❌ CRITICAL ERROR during force reset:', error)
+      console.log('🔧 [DEBUG] Error occurred at:', Date.now() - resetStartTime, 'ms')
       
       // Emergency fallback - manually reset only critical states
       try {
-        console.log('🔧 CLIENT: Emergency fallback - clearing only critical loading states...')
+        console.log('🔧 [DEBUG] Emergency fallback - clearing only critical loading states...')
         setIsCreatingCategory(false)
         setIsMovingConcepts(false)
         setIsRenamingCategory(false)
@@ -447,14 +460,16 @@ export function ConceptsNavigation({
         setShowTransferDialog(false)
         setShowEditCategoryDialog(false)
         setShowDragDropDialog(false)
-        console.log('🔧 CLIENT: ✅ Emergency fallback complete')
+        console.log('🔧 [DEBUG] ✅ Emergency fallback complete')
       } catch (fallbackError) {
-        console.error('🔧 CLIENT: ❌ CRITICAL: Even emergency fallback failed:', fallbackError)
+        console.error('🔧 [DEBUG] ❌ CRITICAL: Even emergency fallback failed:', fallbackError)
         // Last resort - reload the page
-        console.log('🔧 CLIENT: Last resort - reloading page...')
+        console.log('🔧 [DEBUG] Last resort - reloading page...')
         setTimeout(() => window.location.reload(), 1000)
       }
     }
+    
+    console.log('🔧 [DEBUG] forceResetAllStates EXIT - function completed')
   }, []) // Empty dependency array to prevent recreation and potential loops
 
   // Enhanced dialog close handler with proper cleanup
@@ -1893,55 +1908,74 @@ export function ConceptsNavigation({
       <Dialog 
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
-          console.log('🔧 Add Subcategory Dialog onOpenChange called with:', open, {
+          console.log('🔧 [DEBUG] Dialog onOpenChange triggered with open =', open)
+          console.log('🔧 [DEBUG] Current time:', new Date().toISOString())
+          console.log('🔧 [DEBUG] Current loading states:', {
             isCreatingCategory,
             isMovingConcepts,
             isRenamingCategory,
-            timestamp: new Date().toISOString()
+            operationStarting
           })
           
           if (!open) {
-            console.log('🔧 Add Subcategory Dialog attempting to close...')
+            console.log('🔧 [DEBUG] Dialog attempting to close...')
+            console.log('🔧 [DEBUG] About to check loading states...')
             
             // If we're in a loading state, prevent the dialog from closing via UI
             // But add a small delay check to handle race conditions
             const checkAndPreventClose = () => {
+              console.log('🔧 [DEBUG] Inside checkAndPreventClose function')
               if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
-                console.log('🔧 Preventing dialog close - operation in progress:', {
+                console.log('🔧 [DEBUG] Preventing dialog close - operation in progress:', {
                   isCreatingCategory,
                   isMovingConcepts,
                   isRenamingCategory,
                   operationStarting
                 })
                 
+                console.log('🔧 [DEBUG] About to show toast...')
                 toast({
                   title: "Operation in Progress",
                   description: "Please wait for the operation to complete or click Cancel to force stop.",
                   duration: 3000,
                 })
+                console.log('🔧 [DEBUG] Toast shown, returning false')
                 return false // Prevent close
               }
+              console.log('🔧 [DEBUG] No loading states active, allowing close')
               return true // Allow close
             }
             
+            console.log('🔧 [DEBUG] About to call checkAndPreventClose...')
             // Check immediately
             if (!checkAndPreventClose()) {
+              console.log('🔧 [DEBUG] checkAndPreventClose returned false, preventing close')
               return // Don't proceed with closing
             }
             
+            console.log('🔧 [DEBUG] checkAndPreventClose returned true, proceeding...')
+            
             // Also check after a brief delay to handle race conditions
             setTimeout(() => {
+              console.log('🔧 [DEBUG] Delayed check executing...')
               if (isCreatingCategory || isMovingConcepts || isRenamingCategory || operationStarting) {
-                console.log('🔧 Delayed check: operation still in progress, keeping dialog open')
+                console.log('🔧 [DEBUG] Delayed check: operation still in progress, keeping dialog open')
                 // If operation started after our initial check, don't close
                 return
               }
+              console.log('🔧 [DEBUG] Delayed check: still safe to close')
             }, 10)
             
+            console.log('🔧 [DEBUG] About to call forceResetAllStates...')
             // Safe to close - reset all states
-            console.log('🔧 Safe to close - resetting states...')
+            console.log('🔧 [DEBUG] Safe to close - resetting states...')
             forceResetAllStates()
+            console.log('🔧 [DEBUG] forceResetAllStates completed, dialog onOpenChange finishing')
+          } else {
+            console.log('🔧 [DEBUG] Dialog opening, no action needed')
           }
+          
+          console.log('🔧 [DEBUG] Dialog onOpenChange handler completed')
         }}
       >
         <DialogContent>
