@@ -100,7 +100,7 @@ export const useCategoryOperations = ({
     }
   }, [])
 
-  // Reset all dialog states - IMPROVED to prevent freezing
+  // Reset all dialog states - IMPROVED to prevent freezing and refresh data
   const resetDialogState = useCallback(() => {
     // Cancel any pending operations first
     if (abortControllerRef.current) {
@@ -130,6 +130,19 @@ export const useCategoryOperations = ({
       setIsRenamingCategory(false)
       setOperationStarting(false)
       
+      // Apply same refresh logic as concept drag/drop operations
+      setTimeout(async () => {
+        try {
+          if (onDataRefresh) {
+            await onDataRefresh()
+          }
+        } catch (refreshError: any) {
+          console.error('Non-critical refresh error:', refreshError)
+          // Fallback: simple page reload if refresh fails
+          window.location.reload()
+        }
+      }, 100) // Small delay to allow UI to update
+      
     } catch (error) {
       console.error('Error resetting dialog state:', error)
       // Fallback: Force reset the critical states
@@ -138,7 +151,7 @@ export const useCategoryOperations = ({
       setShowEditCategoryDialog(false)
       setShowDragDropDialog(false)
     }
-  }, [])
+  }, [onDataRefresh])
 
   // Create placeholder concept - FIXED to prevent freezing
   const createPlaceholderConcept = useCallback(async (category: string) => {

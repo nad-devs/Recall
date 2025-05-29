@@ -139,7 +139,13 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
               placeholder={selectedParentCategory ? "Enter subcategory name..." : "Enter category name..."}
               value={newSubcategoryName}
               onChange={(e) => setNewSubcategoryName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isCreatingCategory && handleCreateSubcategory()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isCreatingCategory) {
+                  handleCreateSubcategory()
+                } else if (e.key === 'Escape') {
+                  resetDialogState()
+                }
+              }}
               disabled={isCreatingCategory}
             />
             <p className="text-sm text-muted-foreground mt-2">
@@ -188,6 +194,11 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                 placeholder="Enter subcategory name..."
                 value={newSubcategoryName}
                 onChange={(e) => setNewSubcategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    resetDialogState()
+                  }
+                }}
                 disabled={isCreatingCategory || isMovingConcepts}
                 className="mt-1"
               />
@@ -447,7 +458,13 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
               placeholder="Enter new category name..."
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isRenamingCategory && handleRenameCategoryConfirm()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isRenamingCategory) {
+                  handleRenameCategoryConfirm()
+                } else if (e.key === 'Escape') {
+                  resetDialogState()
+                }
+              }}
               disabled={isRenamingCategory}
             />
             <p className="text-sm text-muted-foreground mt-2">
