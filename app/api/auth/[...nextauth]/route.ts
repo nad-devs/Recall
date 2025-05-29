@@ -46,56 +46,46 @@ const handler = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers,
   session: {
-    strategy: "database",
+    strategy: "jwt", // Temporarily switch to JWT to test
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
-    async session({ session, user }) {
-      console.log('🔄 Session callback triggered for user:', user?.id)
-      console.log('🔄 Session data received:', {
+    async jwt({ token, user, account }) {
+      console.log('🔄 JWT callback triggered:', {
+        tokenExists: !!token,
         userExists: !!user,
-        sessionExists: !!session,
-        userEmail: user?.email || 'None',
-        sessionExpires: session?.expires || 'None'
+        accountExists: !!account,
+        userEmail: user?.email || token?.email,
+        userId: user?.id || token?.sub
       })
       
-      // Test database connectivity first
-      try {
-        await prisma.$queryRaw`SELECT 1`
-        console.log('✅ Database connection verified in session callback')
-      } catch (dbError) {
-        console.error('❌ Database connection failed in session callback:', dbError)
-        // Return basic session without DB updates
-        return {
-          user: {
-            id: user?.id || 'unknown',
-            email: user?.email || session?.user?.email || 'unknown', 
-            name: user?.name || session?.user?.name || 'User'
-          },
-          expires: session?.expires || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        }
+      // Include user ID in the token
+      if (user) {
+        token.userId = user.id
+        console.log('🔄 Setting token.userId to:', user.id)
       }
       
+      console.log('✅ JWT callback completed')
+      return token
+    },
+    async session({ session, token }) {
+      console.log('🔄 Session callback triggered (JWT mode)')
+      console.log('🔄 Session data received:', {
+        sessionExists: !!session,
+        tokenExists: !!token,
+        sessionUserEmail: session?.user?.email,
+        tokenEmail: token?.email,
+        tokenUserId: token?.userId
+      })
+      
       try {
-        if (session.user) {
-          session.user.id = user.id
-          console.log('🔄 Setting session.user.id to:', user.id)
-          
-          try {
-            // Update last active timestamp
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastActiveAt: new Date() }
-            })
-            console.log('✅ User last active timestamp updated')
-          } catch (error) {
-            console.error('❌ Error updating user last active timestamp:', error)
-            // Don't throw, just log the error
-          }
+        if (session.user && token) {
+          session.user.id = token.userId as string || token.sub as string
+          console.log('🔄 Setting session.user.id to:', session.user.id)
         }
         
-        console.log('✅ Session callback completed successfully')
+        console.log('✅ Session callback completed successfully (JWT mode)')
         console.log('✅ Final session object:', {
           userId: session?.user?.id,
           userEmail: session?.user?.email,
@@ -103,20 +93,14 @@ const handler = NextAuth({
         })
         return session
       } catch (sessionError) {
-        console.error('❌ CRITICAL: Session callback failed:', sessionError)
-        console.error('❌ Session error details:', {
-          message: sessionError instanceof Error ? sessionError.message : 'Unknown error',
-          stack: sessionError instanceof Error ? sessionError.stack : 'No stack trace',
-          userId: user?.id,
-          sessionData: session ? 'Present' : 'Missing'
-        })
+        console.error('❌ CRITICAL: Session callback failed (JWT mode):', sessionError)
         
         // Return a minimal session to prevent complete failure
         return {
           user: {
-            id: user?.id || 'unknown',
-            email: user?.email || session?.user?.email || 'unknown',
-            name: user?.name || session?.user?.name || 'User'
+            id: token?.userId as string || token?.sub as string || 'unknown',
+            email: token?.email as string || session?.user?.email || 'unknown',
+            name: token?.name as string || session?.user?.name || 'User'
           },
           expires: session?.expires || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         }
