@@ -16,6 +16,7 @@ import {
   Layers,
   BookOpen
 } from "lucide-react"
+import { useDebugLogger } from '@/utils/debug-logger'
 
 interface Concept {
   id: string
@@ -111,13 +112,30 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
   executeCategoryMove,
   moveConceptsToCategory
 }) => {
+  const debug = useDebugLogger('CategoryDialogs')
+  
+  // Track component renders and critical state
+  debug.logUserAction('CategoryDialogs render', {
+    showAddSubcategoryDialog,
+    showTransferDialog,
+    showEditCategoryDialog,
+    showDragDropDialog,
+    isCreatingCategory,
+    isMovingConcepts,
+    isRenamingCategory,
+    transferConceptsCount: transferConcepts.length,
+    selectedParentCategory
+  })
+
   return (
     <>
       {/* Add Subcategory Dialog */}
       <Dialog 
         open={showAddSubcategoryDialog} 
         onOpenChange={(open) => {
+          debug.logUserAction('Add subcategory dialog onOpenChange', { open, showAddSubcategoryDialog })
           if (!open) {
+            debug.logUserAction('Closing add subcategory dialog, calling resetDialogState')
             resetDialogState()
           }
         }}
@@ -174,7 +192,9 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
       <Dialog 
         open={showTransferDialog} 
         onOpenChange={(open) => {
+          debug.logUserAction('Transfer dialog onOpenChange', { open, showTransferDialog })
           if (!open) {
+            debug.logUserAction('Closing transfer dialog, calling resetDialogState')
             resetDialogState()
           }
         }}
