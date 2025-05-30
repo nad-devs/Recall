@@ -1,9 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
+/* Dark variant and theme variables */
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -121,13 +120,15 @@
   --textarea-color: #ffffff;
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+/* Base styles */
+* {
+  border-color: var(--border);
+  outline-color: rgba(var(--ring), 0.5);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 /* Page transition styling */
@@ -182,20 +183,14 @@ button:active {
 .loading-cursor select,
 .loading-cursor .cursor-pointer {
   cursor: wait !important;
-  pointer-events: none;
+  /* Allow interactions but show wait cursor */
+  /* pointer-events: none; - removed to allow interaction */
 }
 
-/* Visual overlay for loading state */
-.global-loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: all;
+/* Only disable pointer events on specific elements that need to be unclickable */
+.loading-cursor [data-loading-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.7;
 }
+
+/* Loading state indicator styles are now directly in the LoadingOverlay component */

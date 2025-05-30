@@ -232,7 +232,7 @@ export const useCategoryOperations = ({
   onConceptsMove
 }: UseCategoryOperationsProps) => {
   const { toast } = useToast()
-  const { startLoading, stopLoading } = useLoading()
+  const { isLoading, startLoading, stopLoading, resetLoading } = useLoading()
   const [state, dispatch] = useReducer(categoryOperationsReducer, initialState)
 
   // Improved dialog lifecycle 
@@ -264,9 +264,12 @@ export const useCategoryOperations = ({
     }
   }, [startLoading, stopLoading, dispatch])
 
-  // Enhanced cancel handler with proper sequencing
+  // Enhanced cancel handler with proper sequencing and improved loading state management
   const handleCancel = async () => {
-    console.log('🔵 Canceling operation - enhanced single state update')
+    console.log('🔵 Canceling operation - enhanced with loading state management')
+    
+    // We don't start a loading operation here because the parent component will handle it
+    // This prevents duplicate loading states that might interfere with each other
     
     try {
       // First, show that we're processing the cancel
@@ -282,16 +285,25 @@ export const useCategoryOperations = ({
       // Batch all dialog closes
       dispatch({ type: 'CLOSE_ALL_DIALOGS' })
       
+      // IMPORTANT: Clear any lingering loading state to ensure UI is unlocked
+      // This is crucial to prevent the UI from freezing
+      resetLoading()
+      console.log('🗡 Force reset all loading states to ensure UI responsiveness')
+      
       // Small delay to ensure UI updates are processed
       await new Promise(resolve => setTimeout(resolve, 50))
       
       // Complete reset
       dispatch({ type: 'RESET_ALL_STATE' })
+      console.log('🟢 Cancel operation complete, all states reset successfully')
       
     } catch (error) {
       console.error('Error during cancel operation:', error)
       // Force reset as fallback
       dispatch({ type: 'RESET_ALL_STATE' })
+      // Make sure to reset loading even in case of error
+      resetLoading()
+      console.log('🚨 Error during cancel, forced reset of all loading states')
     }
   }
 

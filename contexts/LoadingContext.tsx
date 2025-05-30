@@ -36,11 +36,18 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     if (typeof document !== 'undefined') {
       if (isLoading) {
         document.body.style.cursor = 'wait'
-        // Add a class to make all buttons and interactive elements show wait cursor too
+        // Add a class to make all buttons and interactive elements show wait cursor
+        // but still allow interaction
         document.body.classList.add('loading-cursor')
+        
+        // Log loading state for debugging
+        console.log('🔄 Loading state activated - cursor should show wait but allow interactions')
       } else {
         document.body.style.cursor = ''
         document.body.classList.remove('loading-cursor')
+        
+        // Log loading state ended
+        console.log('✅ Loading state deactivated - cursor back to normal')
       }
     }
     
