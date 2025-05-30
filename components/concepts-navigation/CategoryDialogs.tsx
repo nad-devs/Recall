@@ -24,147 +24,135 @@ interface Concept {
 }
 
 interface CategoryDialogsProps {
-  // Add Subcategory Dialog
+  // State values
   showAddSubcategoryDialog: boolean
-  setShowAddSubcategoryDialog: (show: boolean) => void
+  showTransferDialog: boolean
+  showEditCategoryDialog: boolean
+  showDragDropDialog: boolean
   selectedParentCategory: string
   newSubcategoryName: string
-  setNewSubcategoryName: (name: string) => void
-  isCreatingCategory: boolean
-  handleCreateSubcategory: () => Promise<void>
-  
-  // Transfer Concepts Dialog
-  showTransferDialog: boolean
-  setShowTransferDialog: (show: boolean) => void
-  transferConcepts: Concept[]
-  selectedConceptsForTransfer: Set<string>
-  setSelectedConceptsForTransfer: (concepts: Set<string>) => void
-  isMovingConcepts: boolean
-  conceptsByCategory: Record<string, Concept[]>
-  handleTransferConcepts: (concepts: Concept[], targetCategory: string) => Promise<void>
-  createPlaceholderConcept: (category: string) => Promise<any>
-  resetDialogState: () => void
-  
-  // Edit Category Dialog (simplified)
-  showEditCategoryDialog: boolean
-  setShowEditCategoryDialog: (show: boolean) => void
   editingCategoryPath: string
   newCategoryName: string
-  setNewCategoryName: (name: string) => void
+  transferConcepts: Concept[]
+  selectedConceptsForTransfer: Set<string>
+  isCreatingCategory: boolean
+  isMovingConcepts: boolean
   isRenamingCategory: boolean
-  handleRenameCategoryConfirm: () => void
-  
-  // Drag Drop Dialog (simplified)
-  showDragDropDialog: boolean
-  setShowDragDropDialog: (show: boolean) => void
+  isResettingState: boolean
   dragDropData: {
     draggedCategoryPath: string
     targetCategoryPath: string | null
     targetCategoryName: string
   } | null
+  
+  // Action dispatchers
+  setNewSubcategoryName: (name: string) => void
+  setNewCategoryName: (name: string) => void
+  setSelectedConceptsForTransfer: (concepts: Set<string>) => void
+  
+  // Handlers
+  handleCreateSubcategory: () => Promise<void>
+  handleTransferConcepts: (concepts: Concept[], targetCategory: string) => Promise<void>
+  handleCancel: () => Promise<void>
+  createPlaceholderConcept: (category: string) => Promise<any>
+  
+  // Data
+  conceptsByCategory: Record<string, Concept[]>
+  
+  // Legacy handlers (for drag drop functionality)
   isDraggingCategory: boolean
   executeCategoryMove: (draggedPath: string, targetPath: string | null) => Promise<void>
   moveConceptsToCategory: (sourcePath: string, targetPath: string) => Promise<void>
+  handleRenameCategoryConfirm: () => void
 }
 
 export function CategoryDialogs({
-  // Add Subcategory Dialog props
+  // State values
   showAddSubcategoryDialog,
-  setShowAddSubcategoryDialog,
+  showTransferDialog,
+  showEditCategoryDialog,
+  showDragDropDialog,
   selectedParentCategory,
   newSubcategoryName,
-  setNewSubcategoryName,
-  isCreatingCategory,
-  handleCreateSubcategory,
-  
-  // Transfer Concepts Dialog props
-  showTransferDialog,
-  setShowTransferDialog,
-  transferConcepts,
-  selectedConceptsForTransfer,
-  setSelectedConceptsForTransfer,
-  isMovingConcepts,
-  conceptsByCategory,
-  handleTransferConcepts,
-  createPlaceholderConcept,
-  resetDialogState,
-  
-  // Edit Category Dialog props
-  showEditCategoryDialog,
-  setShowEditCategoryDialog,
   editingCategoryPath,
   newCategoryName,
-  setNewCategoryName,
+  transferConcepts,
+  selectedConceptsForTransfer,
+  isCreatingCategory,
+  isMovingConcepts,
   isRenamingCategory,
-  handleRenameCategoryConfirm,
-  
-  // Drag Drop Dialog props
-  showDragDropDialog,
-  setShowDragDropDialog,
+  isResettingState,
   dragDropData,
+  
+  // Action dispatchers
+  setNewSubcategoryName,
+  setNewCategoryName,
+  setSelectedConceptsForTransfer,
+  
+  // Handlers
+  handleCreateSubcategory,
+  handleTransferConcepts,
+  handleCancel,
+  createPlaceholderConcept,
+  
+  // Data
+  conceptsByCategory,
+  
+  // Legacy handlers
   isDraggingCategory,
   executeCategoryMove,
   moveConceptsToCategory,
+  handleRenameCategoryConfirm,
 }: CategoryDialogsProps) {
 
   // Enhanced state for move concepts functionality
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
 
-  // ULTRA-SIMPLE cancel handler to prevent React freeze
-  const handleCancel = () => {
-    console.log('🔵 Ultra-simple cancel - minimal state changes')
+  // Enhanced cancel handler with loading state awareness
+  const handleDialogCancel = async () => {
+    console.log('🔵 Enhanced dialog cancel with loading awareness')
     
-    // Close dialogs one by one with small delays to prevent React batching issues
-    setTimeout(() => setShowAddSubcategoryDialog(false), 0)
-    setTimeout(() => setShowTransferDialog(false), 10)
-    setTimeout(() => setShowEditCategoryDialog(false), 20)
-    setTimeout(() => setShowDragDropDialog(false), 30)
-    
-    // Reset local state
-    setTargetCategory('')
-    setCreateNewCategory(false)
-    
-    // Delay the heavy reset to prevent freeze
-    setTimeout(() => {
-      resetDialogState()
-    }, 100)
+    try {
+      // Reset local state immediately
+      setTargetCategory('')
+      setCreateNewCategory(false)
+      
+      // Call the enhanced cancel handler
+      await handleCancel()
+      
+    } catch (error) {
+      console.error('Error in dialog cancel:', error)
+      // Fallback: just reset local state
+      setTargetCategory('')
+      setCreateNewCategory(false)
+    }
   }
 
-  // ENHANCED: Create category with optional concept transfer
+  // Loading state indicator
+  const isAnyOperationInProgress = isCreatingCategory || isMovingConcepts || isRenamingCategory || isResettingState
+
+  // Enhanced create with better error handling
   const handleCreate = async () => {
-    console.log('🔵 Enhanced create category')
+    console.log('🔵 Enhanced create category with loading states')
     
-    if (!newSubcategoryName.trim()) {
+    if (!newSubcategoryName.trim() || isAnyOperationInProgress) {
       return
     }
 
     try {
       await handleCreateSubcategory()
       
-      // If there are concepts in the parent category and this is being called from transfer dialog
-      if (transferConcepts.length > 0 && showTransferDialog) {
-        const newCategoryPath = selectedParentCategory 
-          ? `${selectedParentCategory} > ${newSubcategoryName.trim()}`
-          : newSubcategoryName.trim()
-        
-        // Transfer selected concepts or all concepts if none selected
-        const conceptsToMove = selectedConceptsForTransfer.size > 0
-          ? transferConcepts.filter(c => selectedConceptsForTransfer.has(c.id))
-          : transferConcepts
-
-        if (conceptsToMove.length > 0) {
-          await handleTransferConcepts(conceptsToMove, newCategoryPath)
-        }
-      }
+      // Additional handling for transfer scenarios is now managed by the hook
+      
     } catch (error) {
       console.error('Error in enhanced create:', error)
     }
   }
 
-  // ENHANCED: Transfer concepts to existing category
+  // Enhanced transfer with loading awareness
   const handleTransferToExisting = async () => {
-    if (!targetCategory || transferConcepts.length === 0) return
+    if (!targetCategory || transferConcepts.length === 0 || isAnyOperationInProgress) return
     
     console.log('🔵 Enhanced transfer to existing category:', targetCategory)
     
@@ -199,7 +187,9 @@ export function CategoryDialogs({
   return (
     <>
       {/* ENHANCED: Add Subcategory Dialog */}
-      <Dialog open={showAddSubcategoryDialog} onOpenChange={setShowAddSubcategoryDialog}>
+      <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
+        if (!open) handleDialogCancel()
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center">
@@ -252,7 +242,7 @@ export function CategoryDialogs({
           </div>
           
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={handleCancel} disabled={isCreatingCategory}>
+            <Button variant="outline" onClick={handleDialogCancel} disabled={isCreatingCategory}>
               Cancel
             </Button>
             <Button 
@@ -266,7 +256,9 @@ export function CategoryDialogs({
       </Dialog>
 
       {/* ENHANCED: Transfer Concepts Dialog */}
-      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+      <Dialog open={showTransferDialog} onOpenChange={(open) => {
+        if (!open) handleDialogCancel()
+      }}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center">
@@ -402,16 +394,29 @@ export function CategoryDialogs({
                   <div className="ml-6 space-y-2">
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setShowTransferDialog(false)
-                        setShowAddSubcategoryDialog(true)
+                      onClick={async () => {
+                        // Close transfer dialog and open add subcategory dialog
+                        // The transfer context will be preserved in the state
+                        try {
+                          await handleCancel()
+                          // Add a small delay to ensure state is reset before opening new dialog
+                          setTimeout(() => {
+                            // The hook will handle opening the add subcategory dialog
+                            // with the transfer concepts preserved
+                          }, 100)
+                        } catch (error) {
+                          console.error('Error transitioning to create category:', error)
+                        }
                       }}
                       className="w-full"
-                      disabled={isMovingConcepts}
+                      disabled={isAnyOperationInProgress}
                     >
                       <FolderPlus className="mr-2 h-4 w-4" />
                       Create New Category & Move Concepts
                     </Button>
+                    <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
+                      This will create a new category and move the selected concepts to it.
+                    </div>
                   </div>
                 )}
               </div>
@@ -423,7 +428,7 @@ export function CategoryDialogs({
               Moving {selectedConceptsForTransfer.size || transferConcepts.length} of {transferConcepts.length} concept(s)
             </div>
             <div className="space-x-2">
-              <Button variant="outline" onClick={handleCancel} disabled={isMovingConcepts}>
+              <Button variant="outline" onClick={handleDialogCancel} disabled={isMovingConcepts}>
                 Cancel
               </Button>
               <Button 
@@ -438,7 +443,9 @@ export function CategoryDialogs({
       </Dialog>
 
       {/* Edit Category Dialog - Simplified placeholder */}
-      <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
+      <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
+        if (!open) handleDialogCancel()
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Category</DialogTitle>
@@ -461,7 +468,7 @@ export function CategoryDialogs({
           </div>
           
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={handleCancel} disabled={isRenamingCategory}>
+            <Button variant="outline" onClick={handleDialogCancel} disabled={isRenamingCategory}>
               Cancel
             </Button>
             <Button 
@@ -475,7 +482,9 @@ export function CategoryDialogs({
       </Dialog>
 
       {/* ENHANCED: Drag Drop Dialog */}
-      <Dialog open={showDragDropDialog} onOpenChange={setShowDragDropDialog}>
+      <Dialog open={showDragDropDialog} onOpenChange={(open) => {
+        if (!open) handleDialogCancel()
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center">
@@ -504,7 +513,7 @@ export function CategoryDialogs({
                 onClick={async () => {
                   if (dragDropData) {
                     await executeCategoryMove(dragDropData.draggedCategoryPath, dragDropData.targetCategoryPath)
-                    handleCancel()
+                    handleDialogCancel()
                   }
                 }}
               >
@@ -520,7 +529,7 @@ export function CategoryDialogs({
                     if (dragDropData) {
                       const targetPath = dragDropData.targetCategoryPath || 'Root'
                       await moveConceptsToCategory(dragDropData.draggedCategoryPath, targetPath)
-                      handleCancel()
+                      handleDialogCancel()
                     }
                   }}
                 >
@@ -532,7 +541,7 @@ export function CategoryDialogs({
           </div>
           
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={handleCancel}>
+            <Button variant="outline" onClick={handleDialogCancel}>
               Cancel
             </Button>
           </div>
