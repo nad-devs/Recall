@@ -15,8 +15,6 @@ import { useToast } from "@/hooks/use-toast"
 import { PageTransition } from "@/components/page-transition"
 import { LinkingProvider } from "@/components/concept-card"
 import { ConceptsLoading } from "@/components/concepts-loading"
-import { DebugDashboard } from "@/components/debug-dashboard"
-import { useDebugLogger } from '@/utils/debug-logger'
 
 interface Concept {
   id: string
@@ -64,47 +62,14 @@ function CategoryDropZone({ category, onDrop, children }: CategoryDropZoneProps)
 
 export default function ConceptsPage() {
   const router = useRouter()
-  const debug = useDebugLogger('ConceptsPage')
+  const { toast } = useToast()
   
-  // Track component renders to detect freezing
-  const renderCountRef = useRef(0)
-  renderCountRef.current += 1
-  
-  debug.logUserAction('ConceptsPage render', { 
-    renderCount: renderCountRef.current,
-    timestamp: new Date().toISOString()
-  })
-  
-  // CRITICAL: Add render loop detection
-  const lastRenderTime = useRef(Date.now())
-  const currentTime = Date.now()
-  const timeSinceLastRender = currentTime - lastRenderTime.current
-  lastRenderTime.current = currentTime
-  
-  if (renderCountRef.current > 1) {
-    debug.logUserAction('Render timing analysis', {
-      renderCount: renderCountRef.current,
-      timeSinceLastRender,
-      isRapidRender: timeSinceLastRender < 16 // Less than one frame
-    })
-    
-    if (timeSinceLastRender < 16 && renderCountRef.current > 10) {
-      debug.logError('POTENTIAL INFINITE RENDER LOOP DETECTED', {
-        renderCount: renderCountRef.current,
-        timeSinceLastRender
-      })
-      console.error('🚨 INFINITE RENDER LOOP DETECTED - renders too frequent!')
-    }
-  }
-  
-  // Add event loop check at start of render
-  debug.logEventLoop('ConceptsPage-render-start')
-  
+  // Simple state management - no complex tracking
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [showLoadingScreen, _setShowLoadingScreen] = useState(true)
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
@@ -117,263 +82,45 @@ export default function ConceptsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showNeedsReview, setShowNeedsReview] = useState(false)
   
-  // Add rate limiting protection
+  // Simple rate limiting
   const lastFetchTime = useRef<number>(0)
-  const FETCH_RATE_LIMIT = 1000 // 1 second between requests
+  const FETCH_RATE_LIMIT = 1000
   const refreshDataRef = useRef<(() => Promise<void>) | null>(null)
-  const isRefreshingRef = useRef<boolean>(false) // Add flag to prevent multiple simultaneous refreshes
-  
-  const { toast } = useToast()
+  const isRefreshingRef = useRef<boolean>(false)
 
-  debug.logUserAction('ConceptsPage state initialized', { 
-    conceptsLength: concepts.length,
-    categoriesCount: Object.keys(conceptsByCategory).length,
-    loading,
-    dataLoaded
-  })
-  
-  // CRITICAL: Add React reconciliation debugging after state declarations
-  const componentUpdateId = useRef(0)
-  componentUpdateId.current += 1
-  
-  console.log(`🔧 REACT RECONCILIATION: ConceptsPage update #${componentUpdateId.current}`)
-  console.log(`🔧 REACT STATE SNAPSHOT:`, {
-    conceptsLength: concepts.length,
-    categoriesCount: Object.keys(conceptsByCategory).length,
-    sortedCategoriesLength: sortedCategories.length,
-    loading,
-    showLoadingScreen,
-    dataLoaded,
-    error: error ? 'present' : 'null',
-    selectedCategory,
-    searchQuery: searchQuery.substring(0, 10),
-    showNeedsReview
-  })
-  
-  // CRITICAL: Comprehensive freeze detection system with granular logging
-  const freezeDetectionRef = useRef({
-    lastHeartbeat: Date.now(),
-    currentOperation: 'initialization',
-    operationStack: [] as string[],
-    isMonitoring: true
-  })
-  
-  // Heartbeat mechanism - this should keep running unless truly frozen
-  useEffect(() => {
-    const heartbeatInterval = setInterval(() => {
-      if (freezeDetectionRef.current.isMonitoring) {
-        const now = Date.now()
-        const timeSinceLastHeartbeat = now - freezeDetectionRef.current.lastHeartbeat
-        
-        console.log(`💓 HEARTBEAT: ${now} (${timeSinceLastHeartbeat}ms since last) - Current operation: ${freezeDetectionRef.current.currentOperation}`)
-        debug.logUserAction('Heartbeat check', {
-          currentOperation: freezeDetectionRef.current.currentOperation,
-          operationStack: freezeDetectionRef.current.operationStack,
-          timeSinceLastHeartbeat
-        })
-        
-        freezeDetectionRef.current.lastHeartbeat = now
-        
-        // If more than 5 seconds since last heartbeat, we might be frozen
-        if (timeSinceLastHeartbeat > 5000) {
-          console.error(`🚨 POTENTIAL FREEZE DETECTED: ${timeSinceLastHeartbeat}ms since last heartbeat`)
-          console.error(`🚨 STUCK AT: ${freezeDetectionRef.current.currentOperation}`)
-          console.error(`🚨 OPERATION STACK:`, freezeDetectionRef.current.operationStack)
-          
-          debug.logError('POTENTIAL FREEZE DETECTED', {
-            timeSinceLastHeartbeat,
-            currentOperation: freezeDetectionRef.current.currentOperation,
-            operationStack: freezeDetectionRef.current.operationStack
-          })
-          
-          // If frozen for more than 15 seconds, show detailed report and offer recovery options
-          if (timeSinceLastHeartbeat > 15000) {
-            console.error(`🚨 SEVERE FREEZE: ${timeSinceLastHeartbeat}ms - Creating detailed freeze report`)
-            
-            const freezeReport = {
-              freezeDuration: timeSinceLastHeartbeat,
-              stuckOperation: freezeDetectionRef.current.currentOperation,
-              operationStack: [...freezeDetectionRef.current.operationStack],
-              timestamp: new Date().toISOString(),
-              componentState: {
-                conceptsLength: concepts.length,
-                categoriesCount: Object.keys(conceptsByCategory).length,
-                loading,
-                showLoadingScreen,
-                dataLoaded,
-                selectedCategory,
-                showNeedsReview
-              },
-              browserInfo: {
-                userAgent: navigator.userAgent,
-                memory: (performance as any).memory ? {
-                  used: (performance as any).memory.usedJSHeapSize,
-                  total: (performance as any).memory.totalJSHeapSize,
-                  limit: (performance as any).memory.jsHeapSizeLimit
-                } : 'unavailable'
-              }
-            }
-            
-            console.error('🚨 COMPLETE FREEZE REPORT:', freezeReport)
-            debug.logError('COMPLETE FREEZE REPORT', freezeReport)
-            
-            // Store freeze report in localStorage for debugging
-            try {
-              localStorage.setItem('lastFreezeReport', JSON.stringify(freezeReport))
-            } catch (e) {
-              console.error('Could not save freeze report to localStorage:', e)
-            }
-            
-            // Show user-friendly alert after 20 seconds
-            if (timeSinceLastHeartbeat > 20000) {
-              alert(`Page appears to be frozen for ${Math.round(timeSinceLastHeartbeat/1000)}s. 
-              
-Stuck at: ${freezeDetectionRef.current.currentOperation}
-
-Check console for detailed freeze report. Would you like to reload the page?`)
-            }
-          }
-        }
-      }
-    }, 1000) // Check every second
-    
-    return () => clearInterval(heartbeatInterval)
-  }, [debug])
-  
-  // Helper function to track operations
-  const trackOperation = useCallback((operation: string, isStart: boolean = true) => {
-    const timestamp = Date.now()
-    
-    if (isStart) {
-      freezeDetectionRef.current.currentOperation = operation
-      freezeDetectionRef.current.operationStack.push(`${operation}@${timestamp}`)
-      console.log(`🔵 START: ${operation} at ${timestamp}`)
-    } else {
-      console.log(`🟢 END: ${operation} at ${timestamp}`)
-      // Remove the operation from stack
-      freezeDetectionRef.current.operationStack = freezeDetectionRef.current.operationStack.filter(
-        op => !op.startsWith(operation + '@')
-      )
-      if (freezeDetectionRef.current.operationStack.length > 0) {
-        const lastOp = freezeDetectionRef.current.operationStack[freezeDetectionRef.current.operationStack.length - 1]
-        freezeDetectionRef.current.currentOperation = lastOp.split('@')[0]
-      } else {
-        freezeDetectionRef.current.currentOperation = 'idle'
-      }
-    }
-    
-    debug.logUserAction(`Track operation: ${operation}`, {
-      isStart,
-      currentOperation: freezeDetectionRef.current.currentOperation,
-      stackSize: freezeDetectionRef.current.operationStack.length
-    })
-  }, [debug])
-  
-  // CRITICAL: React reconciliation tracking with granular logging
-  useEffect(() => {
-    trackOperation('react-render-effect', true)
-    
-    debug.logUserAction('React render cycle completed successfully', {
-      componentUpdateId: componentUpdateId.current,
-      timestamp: Date.now()
-    })
-    
-    trackOperation('react-render-effect', false)
-  }, [debug, trackOperation])
-  
-  // CRITICAL: Enhanced setShowLoadingScreen with freeze detection
-  const setShowLoadingScreen = useCallback((newValue: boolean) => {
-    trackOperation(`setShowLoadingScreen-${newValue}`, true)
-    
-    debug.logUserAction('setShowLoadingScreen called', { 
-      currentValue: showLoadingScreen, 
-      newValue,
-      stack: new Error().stack?.split('\n').slice(1, 4).join('\n')
-    })
-    debug.logEventLoop('before-setShowLoadingScreen-call')
-    
-    try {
-      console.log(`🔵 CRITICAL: About to call _setShowLoadingScreen(${newValue})`)
-      const startTime = performance.now()
-      
-      _setShowLoadingScreen(newValue)
-      
-      const endTime = performance.now()
-      const duration = endTime - startTime
-      
-      console.log(`🟢 CRITICAL: _setShowLoadingScreen(${newValue}) completed in ${duration.toFixed(2)}ms`)
-      debug.logUserAction('setShowLoadingScreen completed', { 
-        newValue,
-        duration: endTime - startTime
-      })
-      debug.logEventLoop('after-setShowLoadingScreen-call')
-      
-      trackOperation(`setShowLoadingScreen-${newValue}`, false)
-    } catch (error: any) {
-      console.error(`🔥 CRITICAL ERROR in setShowLoadingScreen(${newValue}):`, error)
-      debug.logError('Error in setShowLoadingScreen call', { newValue, error: error.message })
-      trackOperation(`setShowLoadingScreen-${newValue}`, false)
-    }
-  }, [debug, showLoadingScreen, _setShowLoadingScreen, trackOperation])
-  
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
       'Content-Type': 'application/json'
     }
     
-    // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       const userEmail = localStorage.getItem('userEmail')
       const userId = localStorage.getItem('userId')
       
-      console.log('🔧 Auth check - userEmail:', userEmail ? 'present' : 'missing')
-      console.log('🔧 Auth check - userId:', userId ? 'present' : 'missing')
-      
-      // For email-based sessions
       if (userEmail && userId) {
         headers['x-user-email'] = userEmail
         headers['x-user-id'] = userId
-        console.log('🔧 Added email-based auth headers')
-      } else {
-        console.warn('🔧 No authentication data found in localStorage')
       }
-    } else {
-      console.log('🔧 Server-side environment, no localStorage available')
     }
     
     return headers
   }
 
   // Filter concepts based on search query, selected category, and needs review filter
-  debug.logUserAction('Starting filteredConcepts calculation', { 
-    conceptsLength: concepts.length,
-    searchQuery: searchQuery.substring(0, 20),
-    selectedCategory,
-    showNeedsReview
-  })
-  
   const filteredConcepts = concepts.filter(concept => {
     const matchesSearch = concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (concept.notes && concept.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (concept.summary && concept.summary.toLowerCase().includes(searchQuery.toLowerCase()))
     
-    // Use exact category matching (not hierarchical)
     const matchesCategory = selectedCategory === null || concept.category === selectedCategory
     const matchesNeedsReview = !showNeedsReview || concept.needsReview
     
     return matchesSearch && matchesCategory && matchesNeedsReview
   })
   
-  debug.logUserAction('Completed filteredConcepts calculation', { 
-    filteredCount: filteredConcepts.length
-  })
-  
-  // Filter concepts by category based on search query, selected category, and needs review filter
-  debug.logUserAction('Starting filteredConceptsByCategory calculation')
-  
+  // Filter concepts by category
   const filteredConceptsByCategory = Object.entries(conceptsByCategory).reduce((acc, [category, categoryItems]) => {
-    // If a category is selected and this isn't it, skip
     if (selectedCategory !== null && category !== selectedCategory) {
       return acc
     }
@@ -395,24 +142,11 @@ Check console for detailed freeze report. Would you like to reload the page?`)
     return acc;
   }, {} as Record<string, Concept[]>);
   
-  debug.logUserAction('Completed filteredConceptsByCategory calculation', { 
-    filteredCategoriesCount: Object.keys(filteredConceptsByCategory).length
-  })
-  
   // Create filtered sorted categories list
-  debug.logUserAction('Starting filteredSortedCategories calculation')
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
-  debug.logUserAction('Completed filteredSortedCategories calculation', { 
-    categoriesCount: filteredSortedCategories.length
-  })
 
-  // Process and organize the concepts by category - FIX stale closure issues
-  debug.logUserAction('Creating formatAndOrganizeConcepts function')
+  // Simple format and organize function
   const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
-    debug.logUserAction('Starting formatAndOrganizeConcepts', { 
-      conceptsDataLength: conceptsData.length
-    })
-    
     const formattedConcepts = conceptsData.map(concept => ({
       id: concept.id,
       title: concept.title,
@@ -422,11 +156,8 @@ Check console for detailed freeze report. Would you like to reload the page?`)
       needsReview: concept.confidenceScore < 0.7
     }))
 
-    debug.logUserAction('Setting formatted concepts', { count: formattedConcepts.length })
-    
     // Group concepts by category
     const byCategory: Record<string, Concept[]> = {}
-
     formattedConcepts.forEach((concept) => {
       if (!byCategory[concept.category]) {
         byCategory[concept.category] = []
@@ -441,281 +172,132 @@ Check console for detailed freeze report. Would you like to reload the page?`)
 
     const sortedCategoryList = Object.keys(byCategory).sort()
 
-    debug.logUserAction('Setting all state simultaneously', { 
-      conceptsCount: formattedConcepts.length,
-      categoriesCount: Object.keys(byCategory).length,
-      categories: sortedCategoryList
-    })
-    
-    // Update all state simultaneously to prevent race conditions
+    // Update all state simultaneously
     setConcepts(formattedConcepts)
     setConceptsByCategory(byCategory)
     setSortedCategories(sortedCategoryList)
-    
-    debug.logUserAction('formatAndOrganizeConcepts completed')
-  }, [debug]) // Only depend on debug to prevent circular dependencies
+  }, [])
 
-  // Fetch concepts function - ENHANCED rate limiting and debugging
-  debug.logUserAction('Creating fetchConcepts function')
+  // Simple fetch concepts function
   const fetchConcepts = useCallback(async () => {
-    // Enhanced rate limiting protection to prevent 429 errors
     const now = Date.now()
     const timeSinceLastFetch = now - lastFetchTime.current
     if (timeSinceLastFetch < FETCH_RATE_LIMIT) {
-      debug.logUserAction('Rate limiting: Skipping fetch request', { 
-        timeSinceLastFetch, 
-        rateLimitMs: FETCH_RATE_LIMIT 
-      })
-      console.log(`🚫 Rate limiting: Skipping fetch (${timeSinceLastFetch}ms since last fetch)`)
       return
     }
     lastFetchTime.current = now
     
-    const operationId = 'fetch-concepts'
-    debug.startOperation(operationId)
-    debug.logUserAction('Starting concepts fetch - passed rate limiting check')
-    
     try {
-      console.log('🔧 Starting concepts fetch...')
-      debug.logUserAction('Setting loading state', { currentLoading: loading, newLoading: true })
       setLoading(true)
-      setDataLoaded(false) // Reset data loaded state
+      setDataLoaded(false)
       
       const headers = getAuthHeaders()
-      
-      console.log('Concepts page: Using headers:', headers)
-      debug.logUserAction('Making API call to /api/concepts', { headers })
-      
-      // Add timestamp to track loading duration
       const startTime = Date.now()
       
       const response = await fetch('/api/concepts', { headers })
       const fetchDuration = Date.now() - startTime
-      
-      console.log(`Concepts page: Fetch completed in ${fetchDuration}ms, status:`, response.status)
-      debug.logUserAction('API call completed', { duration: fetchDuration, status: response.status })
       
       if (!response.ok) {
         throw new Error('Failed to fetch concepts')
       }
       const data = await response.json()
       
-      console.log('Concepts page: Fetched concepts raw response:', data)
-      
-      // Check if we have concepts data in the response
       if (data.concepts && Array.isArray(data.concepts)) {
-        console.log(`🔧 Processing ${data.concepts.length} concepts...`)
-        debug.logUserAction('Processing concepts data', { count: data.concepts.length })
         formatAndOrganizeConcepts(data.concepts)
-        console.log('🔧 Concepts formatting complete')
       } else if (data.error) {
-        // Handle error case
         setError(data.error || 'Failed to load concepts')
-        console.error('Error in concepts response:', data.error)
-        debug.logError('Error in concepts response', { error: data.error })
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+        formatAndOrganizeConcepts([])
       } else {
-        // Fallback for unexpected response format
         setError('Invalid response format')
-        console.error('Unexpected concepts response format:', data)
-        debug.logError('Unexpected response format', { data })
-        formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+        formatAndOrganizeConcepts([])
       }
       
-      // Mark data as loaded AFTER processing concepts
-      debug.logUserAction('Setting dataLoaded to true')
       setDataLoaded(true)
-      console.log('🔧 Concepts data successfully loaded and processed')
-      debug.completeOperation(operationId)
-      debug.logUserAction('Concepts fetch completed successfully')
       
     } catch (error) {
-      debug.failOperation(operationId, error)
-      debug.logError('Failed to fetch concepts', { error })
       console.error('Failed to fetch concepts:', error)
       setError('Failed to load concepts')
-      // Still mark as loaded to prevent infinite loading
       setDataLoaded(true)
-      formatAndOrganizeConcepts([]) // Use empty array to avoid crashes
+      formatAndOrganizeConcepts([])
     } finally {
-      console.log('🔧 Setting loading to false')
-      debug.logUserAction('Setting loading state to false', { currentLoading: loading })
       setLoading(false)
     }
-  }, [debug, formatAndOrganizeConcepts]) // Add formatAndOrganizeConcepts dependency
+  }, [formatAndOrganizeConcepts])
 
-  // Refresh data function to be used after mutations - ENHANCED with locking to prevent multiple calls
-  debug.logUserAction('Creating refreshData function')
+  // Simple refresh data function
   const refreshData = useCallback(async () => {
-    debug.logUserAction('refreshData called - checking if already refreshing', { 
-      isRefreshing: isRefreshingRef.current 
-    })
-    
-    // Prevent multiple simultaneous refresh calls
     if (isRefreshingRef.current) {
-      debug.logUserAction('refreshData blocked - already refreshing')
-      console.log('🚫 Refresh already in progress, skipping...')
       return
     }
     
     isRefreshingRef.current = true
-    debug.logUserAction('refreshData starting - setting refresh lock')
     
     try {
       await fetchConcepts()
-      debug.logUserAction('refreshData completed successfully')
     } catch (error) {
-      debug.logError('refreshData failed', error)
+      console.error('Refresh error:', error)
     } finally {
       isRefreshingRef.current = false
-      debug.logUserAction('refreshData finished - releasing refresh lock')
     }
-  }, [fetchConcepts, debug])
+  }, [fetchConcepts])
   
-  // Store refreshData in ref to break dependency chain
-  debug.logUserAction('Storing refreshData in ref')
+  // Store refreshData in ref
   refreshDataRef.current = refreshData
 
-  // Auto-refresh event listener - ENHANCED with proper error handling and locking
-  debug.logUserAction('Setting up auto-refresh event listener')
+  // Auto-refresh event listener
   useEffect(() => {
-    debug.logUserAction('Auto-refresh event listener effect triggered')
     const handleRefreshConcepts = async () => {
-      debug.logUserAction('Received refresh concepts event, calling enhanced refreshData...')
-      console.log('🔄 Received refresh concepts event, calling enhanced refreshData...')
-      // Use ref to avoid stale closure with enhanced error handling and locking
       try {
         if (refreshDataRef.current) {
           await refreshDataRef.current()
         }
       } catch (error) {
-        debug.logError('Error in auto-refresh', error)
         console.error('Error in auto-refresh:', error)
       }
     }
 
-    // Listen for custom refresh events from other pages
     window.addEventListener('refreshConcepts', handleRefreshConcepts)
     
-    // Cleanup listener on unmount
     return () => {
-      debug.logUserAction('Cleaning up auto-refresh event listener')
       window.removeEventListener('refreshConcepts', handleRefreshConcepts)
     }
-  }, [debug]) // Only depend on debug
+  }, [])
 
-  // Initial data fetch - USE REF to break dependency loop
-  debug.logUserAction('Setting up initial data fetch')
+  // Initial data fetch
   useEffect(() => {
-    debug.logUserAction('Initial data fetch effect triggered')
-    // Use ref to avoid stale closure with error handling
     const executeRefresh = async () => {
       try {
         if (refreshDataRef.current) {
           await refreshDataRef.current()
         }
       } catch (error) {
-        debug.logError('Error in initial data fetch', error)
         console.error('Error in initial data fetch:', error)
       }
     }
     executeRefresh()
-  }, [debug]) // Only depend on debug
+  }, [])
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
-    console.log('🔧 Concepts: Loading animation complete. Data loaded:', dataLoaded)
-    // Only hide loading screen if data has been loaded
     if (dataLoaded) {
       setShowLoadingScreen(false)
     } else {
-      console.log('🔧 Concepts: Data not yet loaded, keeping loading screen visible')
-      // Set a timeout to prevent infinite loading in case of errors
       setTimeout(() => {
-        console.log('🔧 Concepts: Timeout reached, hiding loading screen anyway')
         setShowLoadingScreen(false)
       }, 3000)
     }
   }
 
-  // Effect to hide loading screen once data is loaded - FIXED operation tracking
-  debug.logUserAction('Setting up loading screen effect')
+  // Simple effect to hide loading screen
   useEffect(() => {
-    const effectId = `loading-screen-effect-${Date.now()}`
-    trackOperation(effectId, true)
-    debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
-    
-    // Don't run if loading screen is already hidden
-    if (!showLoadingScreen) {
-      debug.logUserAction('Loading screen already hidden, skipping effect')
-      trackOperation(effectId, false)
-      return
-    }
-    
-    if (dataLoaded && !loading) {
-      trackOperation('loading-screen-conditions-met', true)
-      debug.logUserAction('Conditions met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
-      
-      // Add a small delay to ensure smooth transition
+    if (dataLoaded && !loading && showLoadingScreen) {
       const timer = setTimeout(() => {
-        trackOperation('loading-screen-timeout', true)
-        debug.logUserAction('About to call setShowLoadingScreen(false) - CRITICAL POINT')
-        debug.logEventLoop('before-setShowLoadingScreen-false')
-        
-        try {
-          // Add comprehensive debugging around the critical state update
-          console.log('🚨 CRITICAL LOADING SCREEN: About to set showLoadingScreen to false')
-          console.log('🚨 Current state:', { dataLoaded, loading, showLoadingScreen })
-          
-          trackOperation('calling-setShowLoadingScreen-false', true)
-          setShowLoadingScreen(false)
-          trackOperation('calling-setShowLoadingScreen-false', false)
-          
-          console.log('🟢 CRITICAL LOADING SCREEN: setShowLoadingScreen(false) call completed')
-          debug.logEventLoop('after-setShowLoadingScreen-false')
-          
-          // Add a verification timeout to see if React updates
-          setTimeout(() => {
-            trackOperation('post-setState-verification', true)
-            debug.logUserAction('Post-setState verification timeout executed')
-            console.log('🔄 Post-setState verification - JavaScript still executing')
-            debug.logEventLoop('post-setState-verification')
-            trackOperation('post-setState-verification', false)
-          }, 0)
-          
-          // Add a longer timeout to see if we're completely stuck
-          setTimeout(() => {
-            trackOperation('long-term-verification', true)
-            debug.logUserAction('Long-term verification timeout (1s)')
-            console.log('🔄 1-second post-setState check - JavaScript still executing')
-            trackOperation('long-term-verification', false)
-          }, 1000)
-          
-          trackOperation('loading-screen-timeout', false)
-          
-        } catch (setStateError: any) {
-          console.error('🔥 CRITICAL ERROR in loading screen setShowLoadingScreen:', setStateError)
-          debug.logError('Error in setShowLoadingScreen(false)', setStateError)
-          trackOperation('loading-screen-timeout', false)
-          
-          // Log the freeze location for debugging
-          console.error('🚨 FREEZE DETECTED in loading screen effect')
-          console.error('🚨 OPERATION STACK:', freezeDetectionRef.current.operationStack)
-        }
+        setShowLoadingScreen(false)
       }, 500)
       
-      trackOperation('loading-screen-conditions-met', false)
-      
-      return () => {
-        debug.logUserAction('Cleaning up loading screen timeout')
-        clearTimeout(timer)
-        trackOperation(effectId, false)
-      }
-    } else {
-      debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
-      trackOperation(effectId, false) // Complete tracking immediately
+      return () => clearTimeout(timer)
     }
-  }, [dataLoaded, loading, showLoadingScreen]) // Added showLoadingScreen to dependencies
+  }, [dataLoaded, loading, showLoadingScreen])
 
   // Handle creating a new concept
   const handleAddConcept = async (title: string) => {
@@ -986,25 +568,15 @@ Check console for detailed freeze report. Would you like to reload the page?`)
   }
 
   const handleConceptsMove = async (conceptIds: string[], newCategory: string) => {
-    const operationId = 'handle-concepts-move'
-    debug.startOperation(operationId)
-    debug.logUserAction('Starting handleConceptsMove', { conceptIds, newCategory })
-    
     try {
-      debug.logUserAction('Updating concepts in database using PUT method')
-      
-      // Update concepts in the database using PUT method (not PATCH)
+      // Update concepts in the database using PUT method
       const updatePromises = conceptIds.map(async (conceptId) => {
-        debug.logUserAction('Fetching current concept data', { conceptId })
-        
         // First fetch the current concept to preserve other fields
         const response = await fetch(`/api/concepts/${conceptId}`, { headers: getAuthHeaders() })
         if (!response.ok) {
           throw new Error(`Failed to fetch concept ${conceptId}`)
         }
         const conceptData = await response.json()
-        
-        debug.logUserAction('Updating concept with new category', { conceptId, newCategory })
         
         // Update with new category while preserving other fields
         const updateResponse = await fetch(`/api/concepts/${conceptId}`, {
@@ -1023,27 +595,17 @@ Check console for detailed freeze report. Would you like to reload the page?`)
         return updateResponse.json()
       })
       
-      debug.logUserAction('Waiting for all concept updates to complete')
       await Promise.all(updatePromises)
-      
-      debug.logUserAction('All concept updates completed, refreshing data')
       
       // Refresh the data to show updated concepts
       await refreshData()
-      
-      debug.logUserAction('Data refresh completed, showing success toast')
       
       toast({
         title: "Concepts moved successfully",
         description: `Moved ${conceptIds.length} concept(s) to "${newCategory}"`,
       })
       
-      debug.completeOperation(operationId)
-      debug.logUserAction('handleConceptsMove completed successfully', { conceptIds, newCategory })
-      
     } catch (error) {
-      debug.failOperation(operationId, error)
-      debug.logError('Error moving concepts', { conceptIds, newCategory, error })
       console.error('Error moving concepts:', error)
       toast({
         title: "Error moving concepts",
@@ -1053,23 +615,10 @@ Check console for detailed freeze report. Would you like to reload the page?`)
     }
   }
 
-  debug.logUserAction('ConceptsPage setup completed, checking if should show loading screen', { 
-    showLoadingScreen,
-    dataLoaded,
-    loading
-  })
-
   // Show loading screen if still loading or if we haven't completed the loading animation
   if (showLoadingScreen) {
-    debug.logUserAction('Showing loading screen')
     return <ConceptsLoading onComplete={handleLoadingComplete} />
   }
-
-  debug.logUserAction('ConceptsPage about to render main UI', { 
-    conceptsLength: concepts.length,
-    filteredConceptsLength: filteredConcepts.length,
-    categoriesCount: Object.keys(conceptsByCategory).length
-  })
 
   return (
     <LinkingProvider>
@@ -1079,8 +628,7 @@ Check console for detailed freeze report. Would you like to reload the page?`)
             {/* Navigation Sidebar */}
             {showNavigation && (
               (() => {
-                trackOperation('rendering-concepts-navigation', true)
-                console.log('🔵 CRITICAL: About to render ConceptsNavigation')
+                console.log('🟢 CRITICAL: About to render ConceptsNavigation')
                 
                 const result = (
                   <ConceptsNavigation
@@ -1100,12 +648,6 @@ Check console for detailed freeze report. Would you like to reload the page?`)
                 )
                 
                 console.log('🟢 CRITICAL: ConceptsNavigation rendering completed')
-                trackOperation('rendering-concepts-navigation', false)
-                
-                // Add post-render verification
-                setTimeout(() => {
-                  console.log('🔄 ConceptsNavigation post-render verification - JavaScript still executing')
-                }, 0)
                 
                 return result
               })()
@@ -1440,9 +982,6 @@ Check console for detailed freeze report. Would you like to reload the page?`)
             </div>
           </div>
         </PageTransition>
-        
-        {/* Add Debug Dashboard for monitoring stuck operations */}
-        <DebugDashboard />
       </DndProvider>
     </LinkingProvider>
   )
