@@ -701,13 +701,6 @@ export const useDebugLogger = (componentName: string): DebugLoggerInterface => {
     return baseLogger
   }, [componentName])
 
-  // Log render cycles
-  useEffect(() => {
-    if (isDebugMode.current) {
-      logger.logRenderCycle(componentName, { renderCount: renderCountRef.current })
-    }
-  })
-
   return logger
 }
 
