@@ -254,6 +254,46 @@ export const useCategoryOperations = ({
           if (onDataRefresh) {
             await onDataRefresh()
             debug.logUserAction('Post-reset data refresh completed', { resetId })
+            debug.completeOperation(`${resetId}-refresh`)
+            
+            // CRITICAL: Monitor React rendering after state reset completion
+            debug.logUserAction('Starting React render monitoring after reset', { resetId })
+            
+            // Schedule immediate render check
+            setTimeout(() => {
+              debug.logUserAction('CRITICAL: First post-reset render check - JavaScript executing', { resetId })
+              console.log(`🔄 REACT RENDER CHECK 1: JavaScript continues after resetDialogState (${resetId})`)
+              
+              // Schedule React reconciliation check
+              setTimeout(() => {
+                debug.logUserAction('CRITICAL: React reconciliation check - JavaScript executing', { resetId })
+                console.log(`🔄 REACT RENDER CHECK 2: React reconciliation phase (${resetId})`)
+                
+                // Schedule final render confirmation
+                setTimeout(() => {
+                  debug.logUserAction('CRITICAL: Final render confirmation - JavaScript executing', { resetId })
+                  console.log(`🔄 REACT RENDER CHECK 3: Final render completion (${resetId})`)
+                }, 100)
+              }, 50)
+            }, 0)
+            
+            // Add React Fiber monitoring
+            const startTime = performance.now()
+            setTimeout(() => {
+              const renderTime = performance.now() - startTime
+              if (renderTime > 100) {
+                debug.logError('POTENTIAL REACT RENDER FREEZE DETECTED', { 
+                  resetId, 
+                  renderTime,
+                  message: 'React render took >100ms after resetDialogState'
+                })
+                console.error(`🚨 REACT FREEZE: Render took ${renderTime}ms after resetDialogState (${resetId})`)
+              } else {
+                debug.logUserAction('React render completed normally', { resetId, renderTime })
+                console.log(`✅ REACT OK: Render completed in ${renderTime}ms after resetDialogState (${resetId})`)
+              }
+            }, 200)
+            
           }
           
           debug.logAsyncEnd('resetDialogState-refresh', `${resetId}-refresh`, { result: 'success' })
