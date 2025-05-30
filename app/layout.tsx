@@ -4,6 +4,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/contexts/ThemeContext"
 import { AuthProvider } from "@/components/auth-provider"
+import { LoadingProvider } from "@/contexts/LoadingContext"
+import { LoadingOverlay } from "@/components/loading-overlay"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,8 +34,11 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ThemeProvider>
-            {children}
-            <Toaster />
+            <LoadingProvider>
+              {children}
+              <Toaster />
+              <LoadingOverlay />
+            </LoadingProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

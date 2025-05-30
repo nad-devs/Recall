@@ -167,3 +167,35 @@ button:active {
     animation-duration: 0.001s !important;
   }
 }
+
+/* Global loading cursor styles */
+.loading-cursor,
+.loading-cursor * {
+  cursor: wait !important;
+}
+
+/* Ensure dialog content gets loading cursor too */
+.loading-cursor button,
+.loading-cursor a,
+.loading-cursor [role="button"],
+.loading-cursor input,
+.loading-cursor select,
+.loading-cursor .cursor-pointer {
+  cursor: wait !important;
+  pointer-events: none;
+}
+
+/* Visual overlay for loading state */
+.global-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+}

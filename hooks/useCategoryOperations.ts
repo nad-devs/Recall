@@ -1,5 +1,6 @@
-import { useState, useReducer } from 'react'
+import { useState, useCallback, useReducer } from 'react'
 import { useToast } from "@/hooks/use-toast"
+import { useLoading } from "@/contexts/LoadingContext"
 
 interface Concept {
   id: string
@@ -231,28 +232,37 @@ export const useCategoryOperations = ({
   onConceptsMove
 }: UseCategoryOperationsProps) => {
   const { toast } = useToast()
+  const { startLoading, stopLoading } = useLoading()
   const [state, dispatch] = useReducer(categoryOperationsReducer, initialState)
 
-  // Improved dialog lifecycle management with batched state updates
-  const resetDialogState = async () => {
-    console.log('🔵 Starting dialog state reset with loading indicator')
+  // Improved dialog lifecycle 
+  const resetDialogState = useCallback(() => {
+    // Start a loading operation for the reset
+    const stopLoadingFn = startLoading('reset-dialog-state', 'Resetting dialog state...')
     
-    dispatch({ type: 'START_RESETTING_STATE' })
-    
-    // Small delay to ensure UI shows loading state
-    await new Promise(resolve => setTimeout(resolve, 50))
-    
-    // Close all dialogs first
-    dispatch({ type: 'CLOSE_ALL_DIALOGS' })
-    
-    // Small delay between UI updates
-    await new Promise(resolve => setTimeout(resolve, 50))
-    
-    // Reset all state atomically
-    dispatch({ type: 'RESET_ALL_STATE' })
-    
-    console.log('🔵 Dialog state reset complete')
-  }
+    try {
+      // Use a single dispatch to reset all state atomically
+      dispatch({ type: 'START_RESETTING_STATE' })
+      
+      // Small delay to ensure UI updates are processed
+      setTimeout(() => {
+        // Close all dialogs first
+        dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+        
+        // Then reset all state
+        dispatch({ type: 'RESET_ALL_STATE' })
+        
+        console.log('🟢 Dialog state reset successfully')
+        
+        // Stop the loading operation
+        stopLoadingFn()
+      }, 50)
+    } catch (error) {
+      console.error('❌ Error resetting dialog state:', error)
+      dispatch({ type: 'RESET_ALL_STATE' }) // Fallback reset
+      stopLoadingFn() // Make sure to stop loading
+    }
+  }, [startLoading, stopLoading, dispatch])
 
   // Enhanced cancel handler with proper sequencing
   const handleCancel = async () => {
@@ -299,6 +309,9 @@ export const useCategoryOperations = ({
       return
     }
     
+    // Start a loading operation
+    const stopLoadingFn = startLoading('create-subcategory', `Creating category ${state.newSubcategoryName}...`)
+    
     const trimmedName = state.newSubcategoryName.trim()
     const newCategoryPath = state.selectedParentCategory 
       ? `${state.selectedParentCategory} > ${trimmedName}`
@@ -316,7 +329,7 @@ export const useCategoryOperations = ({
           variant: "destructive",
           duration: 3000,
         })
-        dispatch({ type: 'FINISH_CREATING_CATEGORY' })
+        stopLoadingFn()
         return
       }
       
@@ -326,7 +339,7 @@ export const useCategoryOperations = ({
         if (parentConcepts.length > 0) {
           // Show transfer dialog instead of creating immediately
           dispatch({ type: 'SHOW_TRANSFER_DIALOG', payload: { concepts: parentConcepts } })
-          dispatch({ type: 'FINISH_CREATING_CATEGORY' })
+          stopLoadingFn()
           return
         }
       }
@@ -367,6 +380,7 @@ export const useCategoryOperations = ({
         duration: 3000,
       })
     } finally {
+      stopLoadingFn()
       dispatch({ type: 'FINISH_CREATING_CATEGORY' })
     }
   }
@@ -374,6 +388,9 @@ export const useCategoryOperations = ({
   // Enhanced concept transfer with separated data and UI operations
   const handleTransferConcepts = async (conceptsToMove: Concept[], targetCategory: string) => {
     if (state.isMovingConcepts || conceptsToMove.length === 0 || state.isResettingState) return
+    
+    // Start a loading operation
+    const stopLoadingFn = startLoading('transfer-concepts', `Moving ${conceptsToMove.length} concepts to ${targetCategory}...`)
     
     try {
       // Step 1: Start loading state
