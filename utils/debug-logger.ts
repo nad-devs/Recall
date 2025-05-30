@@ -1,3 +1,5 @@
+import { useRef, useMemo, useEffect } from 'react'
+
 interface LogEvent {
   timestamp: number
   type: 'API_CALL' | 'STATE_CHANGE' | 'USER_ACTION' | 'ERROR' | 'PERFORMANCE' | 'DATABASE'
@@ -14,6 +16,25 @@ interface PerformanceMetrics {
   operations: Map<string, { startTime: number; status: 'pending' | 'completed' | 'failed' }>
 }
 
+interface DebugLoggerInterface {
+  logUserAction: (action: string, data?: any) => void
+  logError: (error: string, data?: any) => void
+  logStateChange: (stateName: string, oldValue: any, newValue: any) => void
+  startOperation: (operationId: string) => void
+  completeOperation: (operationId: string) => void
+  failOperation: (operationId: string, error: any) => void
+  isDebugEnabled: () => boolean
+  // Enhanced methods for tracking async flows
+  logAsyncStart: (operationName: string, operationId: string, data?: any) => void
+  logAsyncEnd: (operationName: string, operationId: string, data?: any) => void
+  logAsyncError: (operationName: string, operationId: string, error: any) => void
+  logRenderCycle: (componentName: string, renderData?: any) => void
+  logEventLoop: (checkPoint: string) => void
+  logStackTrace: (label: string) => void
+  trackStateUpdate: (component: string, stateName: string, value: any) => void
+  trackDialogTransition: (dialog: string, from: string, to: string, trigger: string) => void
+}
+
 class DebugLogger {
   private events: LogEvent[] = []
   private metrics: PerformanceMetrics = {
@@ -23,6 +44,11 @@ class DebugLogger {
   }
   private maxEvents = 1000
   private isEnabled = false
+
+  // Enhanced debugging properties
+  private eventLoopCheckId = 0
+  stateTransitions = new Map<string, { previous: any, current: any, timestamp: number }>()
+  private renderCountRef = { current: 0 }
 
   constructor() {
     // Only enable in specific conditions - PRODUCTION SAFE
@@ -169,6 +195,96 @@ class DebugLogger {
       case 'DATABASE': return '💾'
       default: return '📝'
     }
+  }
+
+  // Enhanced debugging methods
+  getStackTrace() {
+    try {
+      throw new Error()
+    } catch (e: any) {
+      return e.stack?.split('\n').slice(2, 8).join('\n') || 'No stack trace available'
+    }
+  }
+
+  checkEventLoop(checkPoint: string) {
+    const checkId = ++this.eventLoopCheckId
+    const startTime = performance.now()
+    
+    setTimeout(() => {
+      const endTime = performance.now()
+      const delay = endTime - startTime
+      
+      if (delay > 50) {
+        console.warn(`🔴 EVENT LOOP DELAY at ${checkPoint}: ${delay.toFixed(2)}ms (check #${checkId})`)
+      } else {
+        console.log(`🟢 Event loop OK at ${checkPoint}: ${delay.toFixed(2)}ms (check #${checkId})`)
+      }
+    }, 0)
+  }
+
+  // Enhanced methods for tracking async flows
+  logAsyncStart(operationName: string, operationId: string, data?: any) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`🔄 [${operationName}][${timestamp}] ASYNC START: ${operationName} (${operationId})`, data || '')
+    console.time(`⏱️ ASYNC ${operationId}`)
+    this.checkEventLoop(`async-start-${operationName}`)
+  }
+
+  logAsyncEnd(operationName: string, operationId: string, data?: any) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`✅ [${operationName}][${timestamp}] ASYNC END: ${operationName} (${operationId})`, data || '')
+    console.timeEnd(`⏱️ ASYNC ${operationId}`)
+    this.checkEventLoop(`async-end-${operationName}`)
+  }
+
+  logAsyncError(operationName: string, operationId: string, error: any) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.error(`💥 [${operationName}][${timestamp}] ASYNC ERROR: ${operationName} (${operationId})`, error)
+    console.timeEnd(`⏱️ ASYNC ${operationId}`)
+    this.checkEventLoop(`async-error-${operationName}`)
+  }
+
+  logRenderCycle(componentName: string, renderData?: any) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`🎨 [${componentName}][${timestamp}] RENDER #${this.renderCountRef.current}`, renderData || '')
+    this.checkEventLoop(`render-${componentName}`)
+  }
+
+  logEventLoop(checkPoint: string) {
+    if (!this.isEnabled) return
+    this.checkEventLoop(checkPoint)
+  }
+
+  logStackTrace(label: string) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`📍 [${label}][${timestamp}] STACK TRACE - ${label}:`)
+    console.log(this.getStackTrace())
+  }
+
+  trackStateUpdate(component: string, stateName: string, value: any) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`📊 [${component}][${timestamp}] STATE UPDATE: ${stateName} =`, value)
+    this.checkEventLoop(`state-update-${stateName}`)
+  }
+
+  trackDialogTransition(dialog: string, from: string, to: string, trigger: string) {
+    if (!this.isEnabled) return
+    
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+    console.log(`🔲 [${dialog}][${timestamp}] DIALOG: ${dialog} | ${from} → ${to} | trigger: ${trigger}`)
+    this.checkEventLoop(`dialog-transition-${dialog}`)
   }
 
   // API Call tracking
@@ -421,22 +537,178 @@ if (typeof window !== 'undefined') {
   ;(window as any).debugLogger = debugLogger
 }
 
-// Helper hooks for React components
-export const useDebugLogger = (componentName: string) => {
-  return {
-    logStateChange: (stateName: string, oldValue: any, newValue: any) => 
-      debugLogger.logStateChange(componentName, stateName, oldValue, newValue),
-    logUserAction: (action: string, details?: any) => 
-      debugLogger.logUserAction(`${componentName}: ${action}`, details),
-    logError: (message: string, details?: any) => 
-      debugLogger.logError(componentName, message, details),
-    startOperation: (operationId: string) => 
-      debugLogger.startOperation(`${componentName}:${operationId}`),
-    completeOperation: (operationId: string) => 
-      debugLogger.completeOperation(`${componentName}:${operationId}`),
-    failOperation: (operationId: string, error: any) => 
-      debugLogger.failOperation(`${componentName}:${operationId}`, error)
-  }
+// Enhanced React hook for component-level debugging
+export const useDebugLogger = (componentName: string): DebugLoggerInterface => {
+  const isDebugMode = useRef(
+    typeof window !== 'undefined' && 
+    (window.localStorage.getItem('debug') === 'true' || 
+     window.location.search.includes('debug=true'))
+  )
+
+  // Component render tracking
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+
+  const logger = useMemo(() => {
+    const baseLogger = {
+      logUserAction: (action: string, data?: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        const prefix = `🎯 [${componentName}][${timestamp}]`
+        
+        if (data && Object.keys(data).length > 0) {
+          console.log(`${prefix} ${action}:`, data)
+        } else {
+          console.log(`${prefix} ${action}`)
+        }
+      },
+
+      logError: (error: string, data?: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        const prefix = `❌ [${componentName}][${timestamp}]`
+        
+        if (data && Object.keys(data).length > 0) {
+          console.error(`${prefix} ${error}:`, data)
+        } else {
+          console.error(`${prefix} ${error}`)
+        }
+      },
+
+      logStateChange: (stateName: string, oldValue: any, newValue: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        const stateKey = `${componentName}.${stateName}`
+        
+        // Track transition
+        debugLogger.stateTransitions.set(stateKey, {
+          previous: oldValue,
+          current: newValue,
+          timestamp: Date.now()
+        })
+        
+        console.log(`🔄 [${componentName}][${timestamp}] STATE: ${stateName}`, {
+          from: oldValue,
+          to: newValue,
+          changed: oldValue !== newValue
+        })
+        
+        // Check for rapid state changes (potential infinite loops)
+        const recentTransitions = Array.from(debugLogger.stateTransitions.entries())
+          .filter(([_, transition]) => Date.now() - transition.timestamp < 1000)
+          .filter(([key, _]) => key === stateKey)
+        
+        if (recentTransitions.length > 5) {
+          console.warn(`🚨 RAPID STATE CHANGES detected for ${stateKey}:`, recentTransitions)
+        }
+      },
+
+      startOperation: (operationId: string) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`🚀 [${componentName}][${timestamp}] START: ${operationId}`)
+        console.time(`⏱️ ${operationId}`)
+      },
+
+      completeOperation: (operationId: string) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`✅ [${componentName}][${timestamp}] COMPLETE: ${operationId}`)
+        console.timeEnd(`⏱️ ${operationId}`)
+      },
+
+      failOperation: (operationId: string, error: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`💥 [${componentName}][${timestamp}] FAILED: ${operationId}`, error)
+        console.timeEnd(`⏱️ ${operationId}`)
+      },
+
+      isDebugEnabled: () => isDebugMode.current,
+
+      // Enhanced async tracking
+      logAsyncStart: (operationName: string, operationId: string, data?: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`🔄 [${componentName}][${timestamp}] ASYNC START: ${operationName} (${operationId})`, data || '')
+        console.time(`⏱️ ASYNC ${operationId}`)
+        debugLogger.checkEventLoop(`async-start-${operationName}`)
+      },
+
+      logAsyncEnd: (operationName: string, operationId: string, data?: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`✅ [${componentName}][${timestamp}] ASYNC END: ${operationName} (${operationId})`, data || '')
+        console.timeEnd(`⏱️ ASYNC ${operationId}`)
+        debugLogger.checkEventLoop(`async-end-${operationName}`)
+      },
+
+      logAsyncError: (operationName: string, operationId: string, error: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.error(`💥 [${componentName}][${timestamp}] ASYNC ERROR: ${operationName} (${operationId})`, error)
+        console.timeEnd(`⏱️ ASYNC ${operationId}`)
+        debugLogger.checkEventLoop(`async-error-${operationName}`)
+      },
+
+      logRenderCycle: (componentName: string, renderData?: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`🎨 [${componentName}][${timestamp}] RENDER #${renderCountRef.current}`, renderData || '')
+        debugLogger.checkEventLoop(`render-${componentName}`)
+      },
+
+      logEventLoop: (checkPoint: string) => {
+        if (!isDebugMode.current) return
+        debugLogger.checkEventLoop(checkPoint)
+      },
+
+      logStackTrace: (label: string) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`📍 [${componentName}][${timestamp}] STACK TRACE - ${label}:`)
+        console.log(debugLogger.getStackTrace())
+      },
+
+      trackStateUpdate: (component: string, stateName: string, value: any) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`📊 [${component}][${timestamp}] STATE UPDATE: ${stateName} =`, value)
+        debugLogger.checkEventLoop(`state-update-${stateName}`)
+      },
+
+      trackDialogTransition: (dialog: string, from: string, to: string, trigger: string) => {
+        if (!isDebugMode.current) return
+        
+        const timestamp = new Date().toISOString().split('T')[1].slice(0, -1)
+        console.log(`🔲 [${componentName}][${timestamp}] DIALOG: ${dialog} | ${from} → ${to} | trigger: ${trigger}`)
+        debugLogger.checkEventLoop(`dialog-transition-${dialog}`)
+      }
+    }
+
+    return baseLogger
+  }, [componentName])
+
+  // Log render cycles
+  useEffect(() => {
+    if (isDebugMode.current) {
+      logger.logRenderCycle(componentName, { renderCount: renderCountRef.current })
+    }
+  })
+
+  return logger
 }
 
 // API call wrapper with automatic logging

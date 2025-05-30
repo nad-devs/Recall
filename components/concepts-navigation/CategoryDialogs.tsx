@@ -127,18 +127,92 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
     selectedParentCategory
   })
 
+  // CRITICAL: Enhanced cancel handler with comprehensive debugging
+  const handleCancel = React.useCallback((dialogType: string, trigger: string = 'cancel-button') => {
+    const cancelId = `cancel-${dialogType}-${Date.now()}`
+    debug.logAsyncStart('handleCancel', cancelId, { dialogType, trigger })
+    debug.logStackTrace(`Cancel triggered for ${dialogType}`)
+    
+    try {
+      debug.logUserAction('Cancel button clicked', { dialogType, trigger, cancelId })
+      debug.trackDialogTransition(dialogType, 'open', 'closing', trigger)
+      
+      // Check for blocking operations
+      if (isCreatingCategory || isMovingConcepts || isRenamingCategory) {
+        debug.logUserAction('Cancel blocked by pending operation', { 
+          dialogType, 
+          cancelId,
+          isCreatingCategory, 
+          isMovingConcepts, 
+          isRenamingCategory 
+        })
+        
+        // Force unblock after a timeout
+        setTimeout(() => {
+          debug.logUserAction('Force unblocking cancel operation', { dialogType, cancelId })
+          resetDialogState()
+        }, 2000)
+        
+        debug.logAsyncEnd('handleCancel', cancelId, { result: 'blocked-but-scheduled' })
+        return
+      }
+      
+      debug.logUserAction('Executing immediate cancel', { dialogType, cancelId })
+      debug.logEventLoop('before-resetDialogState')
+      
+      // Execute the reset with event loop monitoring
+      setTimeout(() => {
+        debug.logUserAction('Executing resetDialogState in setTimeout', { dialogType, cancelId })
+        debug.logEventLoop('resetDialogState-setTimeout-start')
+        
+        try {
+          resetDialogState()
+          debug.logUserAction('resetDialogState completed successfully', { dialogType, cancelId })
+          debug.logEventLoop('resetDialogState-completed')
+          debug.logAsyncEnd('handleCancel', cancelId, { result: 'success' })
+        } catch (resetError: any) {
+          debug.logAsyncError('handleCancel', cancelId, { dialogType, resetError: resetError.message })
+          debug.logError('resetDialogState failed in cancel handler', resetError)
+          
+          // Fallback: force page reload
+          debug.logUserAction('Fallback: forcing page reload due to reset failure', { dialogType, cancelId })
+          window.location.reload()
+        }
+      }, 0)
+      
+    } catch (error: any) {
+      debug.logAsyncError('handleCancel', cancelId, { dialogType, error: error.message })
+      debug.logError('Error in cancel handler', error)
+      
+      // Emergency fallback
+      debug.logUserAction('Emergency fallback: immediate page reload', { dialogType, cancelId })
+      window.location.reload()
+    }
+  }, [debug, resetDialogState, isCreatingCategory, isMovingConcepts, isRenamingCategory])
+
+  // Enhanced dialog close handlers
+  const handleAddSubcategoryDialogClose = React.useCallback((open: boolean) => {
+    debug.logUserAction('Add subcategory dialog onOpenChange', { open, showAddSubcategoryDialog })
+    if (!open) {
+      debug.logUserAction('Closing add subcategory dialog via onOpenChange')
+      handleCancel('AddSubcategory', 'dialog-close')
+    }
+  }, [debug, showAddSubcategoryDialog, handleCancel])
+
+  const handleTransferDialogClose = React.useCallback((open: boolean) => {
+    debug.logUserAction('Transfer dialog onOpenChange', { open, showTransferDialog })
+    if (!open) {
+      debug.logUserAction('Closing transfer dialog via onOpenChange')
+      handleCancel('Transfer', 'dialog-close')
+    }
+  }, [debug, showTransferDialog, handleCancel])
+
   return (
     <>
       {/* Add Subcategory Dialog */}
       <Dialog 
         open={showAddSubcategoryDialog} 
-        onOpenChange={(open) => {
-          debug.logUserAction('Add subcategory dialog onOpenChange', { open, showAddSubcategoryDialog })
-          if (!open) {
-            debug.logUserAction('Closing add subcategory dialog, calling resetDialogState')
-            resetDialogState()
-          }
-        }}
+        onOpenChange={handleAddSubcategoryDialogClose}
       >
         <DialogContent>
           <DialogHeader>
@@ -161,7 +235,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                 if (e.key === 'Enter' && !isCreatingCategory) {
                   handleCreateSubcategory()
                 } else if (e.key === 'Escape') {
-                  resetDialogState()
+                  handleCancel('AddSubcategory', 'escape-key')
                 }
               }}
               disabled={isCreatingCategory}
@@ -173,7 +247,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
+              onClick={() => handleCancel('AddSubcategory', 'cancel-button')}
               disabled={false}
             >
               Cancel
@@ -188,16 +262,10 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Transfer Concepts Dialog - COMPLETELY FIXED to prevent freezing */}
+      {/* Transfer Concepts Dialog - ENHANCED with comprehensive debugging */}
       <Dialog 
         open={showTransferDialog} 
-        onOpenChange={(open) => {
-          debug.logUserAction('Transfer dialog onOpenChange', { open, showTransferDialog })
-          if (!open) {
-            debug.logUserAction('Closing transfer dialog, calling resetDialogState')
-            resetDialogState()
-          }
-        }}
+        onOpenChange={handleTransferDialogClose}
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -206,7 +274,8 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
               You're creating "{selectedParentCategory} {newSubcategoryName ? `> ${newSubcategoryName}` : '> [Enter name below]'}". What would you like to do with the {transferConcepts.length} existing concept(s) in "{transferConcepts[0]?.category}"?
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          
+          <div className="py-4 space-y-4">
             {/* Subcategory name input */}
             <div className="mb-4">
               <label className="text-sm font-medium">Subcategory Name:</label>
@@ -216,7 +285,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                 onChange={(e) => setNewSubcategoryName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
-                    resetDialogState()
+                    handleCancel('Transfer', 'escape-key')
                   }
                 }}
                 disabled={isCreatingCategory || isMovingConcepts}
@@ -230,7 +299,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
             </div>
             
             {/* Concepts selection */}
-            <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium">Existing concepts in {transferConcepts[0]?.category}:</h4>
                 <Button
@@ -264,52 +333,55 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                   {selectedConceptsForTransfer.size === transferConcepts.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
-              {transferConcepts.map(concept => (
-                <div 
-                  key={concept.id} 
-                  className={`flex items-center justify-between p-2 border rounded cursor-pointer transition-colors ${
-                    selectedConceptsForTransfer.has(concept.id) 
-                      ? 'bg-primary/10 border-primary/30' 
-                      : 'hover:bg-muted/50'
-                  } ${isMovingConcepts || isCreatingCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => {
-                    if (isMovingConcepts || isCreatingCategory) return
-                    
-                    try {
-                      // Prevent rapid clicking and state corruption
-                      setTimeout(() => {
-                        try {
-                          const newSelected = new Set(selectedConceptsForTransfer)
-                          if (newSelected.has(concept.id)) {
-                            newSelected.delete(concept.id)
-                          } else {
-                            newSelected.add(concept.id)
+              
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {transferConcepts.map((concept) => (
+                  <div 
+                    key={concept.id} 
+                    className={`flex items-center justify-between p-2 border rounded cursor-pointer transition-colors ${
+                      selectedConceptsForTransfer.has(concept.id) 
+                        ? 'bg-primary/10 border-primary/30' 
+                        : 'hover:bg-muted/50'
+                    } ${isMovingConcepts || isCreatingCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => {
+                      if (isMovingConcepts || isCreatingCategory) return
+                      
+                      try {
+                        // Prevent rapid clicking and state corruption
+                        setTimeout(() => {
+                          try {
+                            const newSelected = new Set(selectedConceptsForTransfer)
+                            if (newSelected.has(concept.id)) {
+                              newSelected.delete(concept.id)
+                            } else {
+                              newSelected.add(concept.id)
+                            }
+                            setSelectedConceptsForTransfer(newSelected)
+                          } catch (innerError) {
+                            console.error('Inner error updating individual concept selection:', innerError)
+                            setSelectedConceptsForTransfer(new Set())
                           }
-                          setSelectedConceptsForTransfer(newSelected)
-                        } catch (innerError) {
-                          console.error('Inner error updating individual concept selection:', innerError)
-                          setSelectedConceptsForTransfer(new Set())
-                        }
-                      }, 0)
-                    } catch (error) {
-                      console.error('Error updating concept selection:', error)
-                      setSelectedConceptsForTransfer(new Set())
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedConceptsForTransfer.has(concept.id)}
-                      onChange={() => {}}
-                      className="w-4 h-4"
-                      disabled={isMovingConcepts || isCreatingCategory}
-                    />
-                    <span className="font-medium">{concept.title}</span>
+                        }, 0)
+                      } catch (error) {
+                        console.error('Error updating concept selection:', error)
+                        setSelectedConceptsForTransfer(new Set())
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedConceptsForTransfer.has(concept.id)}
+                        onChange={() => {}}
+                        className="w-4 h-4"
+                        disabled={isMovingConcepts || isCreatingCategory}
+                      />
+                      <span className="font-medium">{concept.title}</span>
+                    </div>
+                    <Badge variant="outline">{concept.category}</Badge>
                   </div>
-                  <Badge variant="outline">{concept.category}</Badge>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
             
             {/* Action options */}
@@ -317,7 +389,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
               <h4 className="text-sm font-medium">Choose an option:</h4>
               
               {/* Move to Existing Categories */}
-              {Object.keys(conceptsByCategory).filter(cat => cat !== transferConcepts[0]?.category).length > 0 && (
+              {Object.keys(conceptsByCategory).length > 1 && (
                 <div className="p-3 border-2 border-green-200 rounded-lg bg-green-50 dark:bg-green-950/20 dark:border-green-800">
                   <h5 className="text-sm font-medium mb-2">Move to Existing Categories:</h5>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -340,7 +412,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                               await handleTransferConcepts(selectedConcepts, category)
                             } catch (error) {
                               console.error('Error moving concepts to existing category:', error)
-                              resetDialogState()
+                              handleCancel('Transfer', 'error-fallback')
                             }
                           }}
                         >
@@ -375,10 +447,10 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                     try {
                       const newCategory = `${selectedParentCategory} > ${newSubcategoryName.trim()}`
                       await createPlaceholderConcept(newCategory)
-                      resetDialogState()
+                      handleCancel('Transfer', 'create-empty-success')
                     } catch (error) {
                       console.error('Error creating empty subcategory:', error)
-                      resetDialogState()
+                      handleCancel('Transfer', 'error-fallback')
                     }
                   }}
                 >
@@ -409,7 +481,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                         await handleTransferConcepts(selectedConcepts, newCategory)
                       } catch (error) {
                         console.error('Error creating subcategory with selected concepts:', error)
-                        resetDialogState()
+                        handleCancel('Transfer', 'error-fallback')
                       }
                     }}
                   >
@@ -435,7 +507,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                       await handleTransferConcepts(transferConcepts, newCategory)
                     } catch (error) {
                       console.error('Error creating subcategory with all concepts:', error)
-                      resetDialogState()
+                      handleCancel('Transfer', 'error-fallback')
                     }
                   }}
                 >
@@ -448,7 +520,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
+              onClick={() => handleCancel('Transfer', 'cancel-button')}
               disabled={false}
             >
               Cancel
@@ -462,7 +534,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         open={showEditCategoryDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            resetDialogState()
+            handleCancel('EditCategory', 'dialog-close')
           }
         }}
       >
@@ -482,7 +554,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                 if (e.key === 'Enter' && !isRenamingCategory) {
                   handleRenameCategoryConfirm()
                 } else if (e.key === 'Escape') {
-                  resetDialogState()
+                  handleCancel('EditCategory', 'escape-key')
                 }
               }}
               disabled={isRenamingCategory}
@@ -498,7 +570,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
+              onClick={() => handleCancel('EditCategory', 'cancel-button')}
               disabled={false}
             >
               Cancel
@@ -513,12 +585,12 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Drag and Drop Confirmation Dialog */}
+      {/* Drag Drop Dialog */}
       <Dialog 
         open={showDragDropDialog} 
         onOpenChange={(open) => {
           if (!open) {
-            resetDialogState()
+            handleCancel('DragDrop', 'dialog-close')
           }
         }}
       >
@@ -538,6 +610,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
               )}
             </DialogDescription>
           </DialogHeader>
+          
           <div className="py-4 space-y-3">
             {dragDropData && (
               <>
@@ -551,7 +624,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                         disabled={isDraggingCategory}
                         onClick={async () => {
                           await moveConceptsToCategory(dragDropData.draggedCategoryPath, dragDropData.targetCategoryPath!)
-                          resetDialogState()
+                          handleCancel('DragDrop', 'move-success')
                         }}
                       >
                         <ArrowRight className="mr-2 h-4 w-4" />
@@ -567,7 +640,7 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                         disabled={isDraggingCategory}
                         onClick={async () => {
                           await executeCategoryMove(dragDropData.draggedCategoryPath, dragDropData.targetCategoryPath)
-                          resetDialogState()
+                          handleCancel('DragDrop', 'move-success')
                         }}
                       >
                         <Layers className="mr-2 h-4 w-4" />
@@ -584,21 +657,22 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
                       disabled={isDraggingCategory}
                       onClick={async () => {
                         await executeCategoryMove(dragDropData.draggedCategoryPath, null)
-                        resetDialogState()
+                        handleCancel('DragDrop', 'move-success')
                       }}
                     >
                       <BookOpen className="mr-2 h-4 w-4" />
-                      Create new root category "{dragDropData.draggedCategoryPath.split(' {`>`} ').pop()}"
+                      Create new root category "{dragDropData.draggedCategoryPath.split(' > ').pop()}"
                     </Button>
                   </div>
                 )}
               </>
             )}
           </div>
+          
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={resetDialogState}
+              onClick={() => handleCancel('DragDrop', 'cancel-button')}
               disabled={isDraggingCategory}
             >
               Cancel
