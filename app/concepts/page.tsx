@@ -638,11 +638,19 @@ Check console for detailed freeze report. Would you like to reload the page?`)
     }
   }
 
-  // Effect to hide loading screen once data is loaded - ENHANCED with freeze detection
+  // Effect to hide loading screen once data is loaded - FIXED operation tracking
   debug.logUserAction('Setting up loading screen effect')
   useEffect(() => {
-    trackOperation('loading-screen-effect', true)
+    const effectId = `loading-screen-effect-${Date.now()}`
+    trackOperation(effectId, true)
     debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
+    
+    // Don't run if loading screen is already hidden
+    if (!showLoadingScreen) {
+      debug.logUserAction('Loading screen already hidden, skipping effect')
+      trackOperation(effectId, false)
+      return
+    }
     
     if (dataLoaded && !loading) {
       trackOperation('loading-screen-conditions-met', true)
@@ -701,13 +709,13 @@ Check console for detailed freeze report. Would you like to reload the page?`)
       return () => {
         debug.logUserAction('Cleaning up loading screen timeout')
         clearTimeout(timer)
-        trackOperation('loading-screen-effect', false)
+        trackOperation(effectId, false)
       }
     } else {
       debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
-      trackOperation('loading-screen-effect', false)
+      trackOperation(effectId, false) // Complete tracking immediately
     }
-  }, [dataLoaded, loading, trackOperation, debug]) // Added trackOperation dependency
+  }, [dataLoaded, loading, showLoadingScreen]) // Added showLoadingScreen to dependencies
 
   // Handle creating a new concept
   const handleAddConcept = async (title: string) => {
