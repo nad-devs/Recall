@@ -302,6 +302,13 @@ export const useCategoryOperationsRedux = ({
     })
     
     console.log('✅ Redux: Smart cancel completed - minimal re-rendering')
+    
+    // STRATEGIC PAGE REFRESH for cancellation too!
+    sessionStorage.setItem('skipLoadingScreen', 'true')
+    setTimeout(() => {
+      window.location.reload()
+    }, 300) // Faster refresh for cancellation
+    
   }, [dispatch, toast])
 
   // ============ RETURN API (Same interface as before!) ============
