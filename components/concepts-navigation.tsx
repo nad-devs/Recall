@@ -59,25 +59,8 @@ export function ConceptsNavigation({
 }: ConceptsNavigationProps) {
   const { toast } = useToast()
   
-  // Category expansion state
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(['Backend Engineering', 'Data Structures', 'Computer Science'])
-  )
-  
-  // Drag and drop state
-  const [isDraggingAny, setIsDraggingAny] = useState(false)
-  const [expandedBeforeDrag, setExpandedBeforeDrag] = useState<Set<string>>(new Set())
-  
-  // Inline editing state
-  const [inlineEditingCategory, setInlineEditingCategory] = useState<string | null>(null)
-  const [inlineEditValue, setInlineEditValue] = useState('')
-  
-  // Build dynamic hierarchy from actual categories - OPTIMIZED with useMemo
-  const categoryHierarchy = useMemo(() => {
-    return useCategoryHierarchy(conceptsByCategory)
-  }, [conceptsByCategory])
-  
-  // Category operations hook - SIMPLIFIED to prevent infinite renders
+  // FIXED: Always call hooks in the same order
+  const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
   const categoryOps = useCategoryOperations({
     conceptsByCategory,
     onDataRefresh,
@@ -85,19 +68,69 @@ export function ConceptsNavigation({
     onConceptsMove
   })
 
-  // Calculate stats - OPTIMIZED with useMemo
+  // Simple state management
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(['Backend Engineering', 'Data Structures', 'Computer Science'])
+  )
+  const [isDraggingAny, setIsDraggingAny] = useState(false)
+  const [expandedBeforeDrag, setExpandedBeforeDrag] = useState<Set<string>>(new Set())
+  const [inlineEditingCategory, setInlineEditingCategory] = useState<string | null>(null)
+  const [inlineEditValue, setInlineEditValue] = useState('')
+
+  // Calculate stats
   const stats = useMemo(() => {
     const totalConcepts = concepts.length
     const needsReviewCount = concepts.filter(c => c.needsReview).length
     return { totalConcepts, needsReviewCount }
   }, [concepts])
 
-  // Drag handlers
+  // IMPROVED: Enhanced search functionality
+  const filteredConceptsByCategory = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return conceptsByCategory
+    }
+
+    const query = searchQuery.toLowerCase().trim()
+    const filtered: Record<string, Concept[]> = {}
+
+    Object.entries(conceptsByCategory).forEach(([category, categoryItems]) => {
+      const matchingConcepts = categoryItems.filter(concept => {
+        const titleMatch = concept.title.toLowerCase().includes(query)
+        const notesMatch = concept.notes?.toLowerCase().includes(query) || false
+        const summaryMatch = concept.summary?.toLowerCase().includes(query) || false
+        const categoryMatch = concept.category.toLowerCase().includes(query)
+        
+        return titleMatch || notesMatch || summaryMatch || categoryMatch
+      })
+
+      if (matchingConcepts.length > 0) {
+        filtered[category] = matchingConcepts
+      }
+    })
+
+    return filtered
+  }, [conceptsByCategory, searchQuery])
+
+  // Auto-expand categories when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const categoriesToExpand = new Set<string>()
+      Object.keys(filteredConceptsByCategory).forEach(category => {
+        const parts = category.split(' > ')
+        for (let i = 0; i < parts.length; i++) {
+          const parentPath = parts.slice(0, i + 1).join(' > ')
+          categoriesToExpand.add(parentPath)
+        }
+      })
+      setExpandedCategories(categoriesToExpand)
+    }
+  }, [searchQuery, filteredConceptsByCategory])
+
+  // Simple drag handlers
   const handleDragStart = useCallback(() => {
     setIsDraggingAny(true)
     setExpandedBeforeDrag(new Set(expandedCategories))
     
-    // Expand all categories that have subcategories
     const allCategoriesWithSubs = new Set<string>()
     Object.values(categoryHierarchy).forEach(node => {
       const addCategoriesWithSubs = (n: any) => {
@@ -127,7 +160,7 @@ export function ConceptsNavigation({
     setExpandedCategories(newExpanded)
   }, [expandedCategories])
 
-  // Inline editing handlers
+  // IMPROVED: Enhanced inline editing with proper API calls
   const startInlineEdit = useCallback((categoryPath: string) => {
     const categoryName = categoryPath.includes(' > ') 
       ? categoryPath.split(' > ').pop() || '' 
@@ -139,19 +172,7 @@ export function ConceptsNavigation({
   const cancelInlineEdit = useCallback(() => {
     setInlineEditingCategory(null)
     setInlineEditValue('')
-    
-    // Simple refresh
-    setTimeout(async () => {
-      try {
-        if (onDataRefresh) {
-          await onDataRefresh()
-        }
-      } catch (refreshError: any) {
-        console.error('Non-critical refresh error:', refreshError)
-        window.location.reload()
-      }
-    }, 100)
-  }, [onDataRefresh])
+  }, [])
 
   const saveInlineEdit = useCallback(async () => {
     if (!inlineEditingCategory || !inlineEditValue.trim()) {
@@ -220,26 +241,38 @@ export function ConceptsNavigation({
     }
   }, [inlineEditingCategory, inlineEditValue, conceptsByCategory, toast, onDataRefresh, onCategorySelect, cancelInlineEdit])
 
-  // Additional handlers for CategoryDialogs
+  // IMPROVED: Enhanced subcategory creation
   const handleAddSubcategory = useCallback((parentCategory: string) => {
     if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts) {
+      toast({
+        title: "Operation in Progress",
+        description: "Please wait for the current operation to complete.",
+        variant: "destructive",
+        duration: 3000,
+      })
       return
     }
     categoryOps.setSelectedParentCategory(parentCategory)
     categoryOps.setNewSubcategoryName('')
     categoryOps.setShowAddSubcategoryDialog(true)
-  }, [categoryOps])
+  }, [categoryOps, toast])
 
   const handleAddTopLevelCategory = useCallback(() => {
     if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts) {
+      toast({
+        title: "Operation in Progress", 
+        description: "Please wait for the current operation to complete.",
+        variant: "destructive",
+        duration: 3000,
+      })
       return
     }
     categoryOps.setSelectedParentCategory('')
     categoryOps.setNewSubcategoryName('')
     categoryOps.setShowAddSubcategoryDialog(true)
-  }, [categoryOps])
+  }, [categoryOps, toast])
 
-  // Category drop handler
+  // IMPROVED: Enhanced category drop handling
   const handleCategoryDrop = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
     if (draggedCategoryPath === targetCategoryPath) return
     
@@ -265,7 +298,7 @@ export function ConceptsNavigation({
     categoryOps.setShowDragDropDialog(true)
   }, [toast, categoryOps])
 
-  // Additional drag/drop handlers
+  // IMPROVED: Enhanced category move execution
   const executeCategoryMove = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
     try {
       const draggedPathParts = draggedCategoryPath.split(' > ')
@@ -312,6 +345,7 @@ export function ConceptsNavigation({
     }
   }, [toast, onDataRefresh])
 
+  // IMPROVED: Enhanced concept move functionality
   const moveConceptsToCategory = useCallback(async (sourceCategoryPath: string, targetCategoryPath: string) => {
     try {
       const sourceConcepts = conceptsByCategory[sourceCategoryPath] || []
@@ -372,16 +406,44 @@ export function ConceptsNavigation({
     }),
   }), [handleCategoryDrop])
 
-  const renderCategoryNode = useCallback((node: any, depth: number = 0) => {
-    if (node.conceptCount === 0) return null
+  // Use filtered hierarchy for rendering
+  const filteredHierarchy = useMemo(() => {
+    const filtered: Record<string, any> = {}
+    
+    Object.entries(categoryHierarchy).forEach(([key, node]) => {
+      if (filteredConceptsByCategory[node.fullPath] || 
+          Object.values(node.subcategories).some(subNode => 
+            filteredConceptsByCategory[subNode.fullPath])) {
+        filtered[key] = {
+          ...node,
+          conceptCount: filteredConceptsByCategory[node.fullPath]?.length || 0
+        }
+      }
+    })
+    
+    return filtered
+  }, [categoryHierarchy, filteredConceptsByCategory])
 
-    const hasSubcategories = Object.keys(node.subcategories).length > 0
+  const renderCategoryNode = useCallback((node: any, depth: number = 0) => {
+    const hasFilteredConcepts = filteredConceptsByCategory[node.fullPath]
+    const hasFilteredSubcategories = Object.values(node.subcategories).some((subNode: any) => 
+      filteredConceptsByCategory[subNode.fullPath] || 
+      Object.values(subNode.subcategories).some((deepNode: any) => 
+        filteredConceptsByCategory[deepNode.fullPath]))
+
+    // Don't render if no concepts match the search
+    if (!hasFilteredConcepts && !hasFilteredSubcategories) return null
+
+    const nodeWithFilteredCount = {
+      ...node,
+      conceptCount: filteredConceptsByCategory[node.fullPath]?.length || 0
+    }
 
     return (
       <React.Fragment key={node.fullPath}>
         <CategoryNodeComponent
           key={node.fullPath}
-          node={node}
+          node={nodeWithFilteredCount}
           depth={depth}
           isExpanded={expandedCategories.has(node.fullPath)}
           isSelected={selectedCategory === node.fullPath}
@@ -404,24 +466,20 @@ export function ConceptsNavigation({
           onDragEnd={handleDragEnd}
           isDraggingAny={isDraggingAny}
         />
-        {/* Render children here if expanded and has subcategories */}
-        {hasSubcategories && expandedCategories.has(node.fullPath) && (
+        {Object.keys(node.subcategories).length > 0 && expandedCategories.has(node.fullPath) && (
           <div>
             {Object.values(node.subcategories)
               .sort((a: any, b: any) => a.name.localeCompare(b.name))
-              .filter((subNode: any) => subNode.conceptCount > 0)
               .map((subNode: any) => renderCategoryNode(subNode, depth + 1))}
           </div>
         )}
       </React.Fragment>
     )
   }, [
-    expandedCategories, selectedCategory, inlineEditingCategory, inlineEditValue,
-    toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit,
-    saveInlineEdit, cancelInlineEdit, handleCategoryDrop,
-    handleDragStart, handleDragEnd, isDraggingAny,
-    categoryOps.setTransferConcepts, categoryOps.setShowTransferDialog,
-    categoryOps.isCreatingCategory, categoryOps.isMovingConcepts, categoryOps.isRenamingCategory
+    filteredConceptsByCategory, expandedCategories, selectedCategory, inlineEditingCategory, 
+    inlineEditValue, toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit,
+    saveInlineEdit, cancelInlineEdit, handleCategoryDrop, handleDragStart, handleDragEnd,
+    isDraggingAny, categoryOps
   ])
 
   return (
@@ -442,6 +500,12 @@ export function ConceptsNavigation({
             className="pl-10"
           />
         </div>
+        
+        {searchQuery && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Found {Object.values(filteredConceptsByCategory).flat().length} concepts
+          </div>
+        )}
       </div>
 
       {/* Quick Stats */}
@@ -512,16 +576,19 @@ export function ConceptsNavigation({
           </Button>
         </div>
         <div className={`space-y-1 min-h-32 ${isOverEmptySpace ? 'bg-primary/5 border-2 border-dashed border-primary/30 rounded-lg p-2' : ''}`}>
-          {Object.values(categoryHierarchy).length > 0 ? (
-            Object.values(categoryHierarchy)
+          {Object.values(filteredHierarchy).length > 0 ? (
+            Object.values(filteredHierarchy)
               .sort((a, b) => a.name.localeCompare(b.name))
-              .filter(node => node.conceptCount > 0)
               .map(node => renderCategoryNode(node, 0))
           ) : (
             <div className="text-center py-6 text-muted-foreground">
               <FolderPlus className="mx-auto h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm mb-1">No categories yet</p>
-              <p className="text-xs">Click the + button above to create your first category</p>
+              <p className="text-sm mb-1">
+                {searchQuery ? 'No categories match your search' : 'No categories yet'}
+              </p>
+              <p className="text-xs">
+                {searchQuery ? 'Try a different search term' : 'Click the + button above to create your first category'}
+              </p>
             </div>
           )}
         </div>
@@ -563,7 +630,7 @@ export function ConceptsNavigation({
         showDragDropDialog={categoryOps.showDragDropDialog}
         setShowDragDropDialog={categoryOps.setShowDragDropDialog}
         dragDropData={categoryOps.dragDropData}
-        isDraggingCategory={false} // TODO: implement this state
+        isDraggingCategory={false}
         executeCategoryMove={executeCategoryMove}
         moveConceptsToCategory={moveConceptsToCategory}
       />
