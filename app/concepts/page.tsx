@@ -627,30 +627,20 @@ export default function ConceptsPage() {
           <div className="flex h-screen bg-background">
             {/* Navigation Sidebar */}
             {showNavigation && (
-              (() => {
-                console.log('🟢 CRITICAL: About to render ConceptsNavigation')
-                
-                const result = (
-                  <ConceptsNavigation
-                    concepts={concepts}
-                    conceptsByCategory={conceptsByCategory}
-                    sortedCategories={sortedCategories}
-                    searchQuery={searchQuery}
-                    onSearchChange={handleSearchChange}
-                    onCategorySelect={handleCategorySelect}
-                    selectedCategory={selectedCategory}
-                    showNeedsReview={showNeedsReview}
-                    onNeedsReviewToggle={handleNeedsReviewToggle}
-                    onConceptsMove={handleConceptsMove}
-                    onDataRefresh={refreshData}
-                    className="hidden md:flex"
-                  />
-                )
-                
-                console.log('🟢 CRITICAL: ConceptsNavigation rendering completed')
-                
-                return result
-              })()
+              <ConceptsNavigation
+                concepts={concepts}
+                conceptsByCategory={conceptsByCategory}
+                sortedCategories={sortedCategories}
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                onCategorySelect={handleCategorySelect}
+                selectedCategory={selectedCategory}
+                showNeedsReview={showNeedsReview}
+                onNeedsReviewToggle={handleNeedsReviewToggle}
+                onConceptsMove={handleConceptsMove}
+                onDataRefresh={refreshData}
+                className="hidden md:flex"
+              />
             )}
 
             {/* Main Content */}
