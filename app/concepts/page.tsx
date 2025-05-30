@@ -150,58 +150,141 @@ export default function ConceptsPage() {
     showNeedsReview
   })
   
-  // CRITICAL: Emergency recovery mechanism for React reconciliation issues - FIXED
-  const lastRenderCompletionTime = useRef(Date.now())
-  const emergencyTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // CRITICAL: Comprehensive freeze detection system with granular logging
+  const freezeDetectionRef = useRef({
+    lastHeartbeat: Date.now(),
+    currentOperation: 'initialization',
+    operationStack: [] as string[],
+    isMonitoring: true
+  })
   
+  // Heartbeat mechanism - this should keep running unless truly frozen
   useEffect(() => {
-    // Track when React rendering completes
-    lastRenderCompletionTime.current = Date.now()
-    debug.logUserAction('React render cycle completed successfully')
-    
-    // Clear any existing emergency timer
-    if (emergencyTimerRef.current) {
-      clearTimeout(emergencyTimerRef.current)
-    }
-    
-    // Only set up emergency timer if we haven't already
-    if (!emergencyTimerRef.current) {
-      emergencyTimerRef.current = setTimeout(() => {
-        const timeSinceLastRender = Date.now() - lastRenderCompletionTime.current
-        if (timeSinceLastRender > 10000) { // Increased to 10 seconds to be more conservative
-          debug.logError('EMERGENCY: React rendering appears stuck', { 
-            timeSinceLastRender,
-            componentUpdateId: componentUpdateId.current
-          })
-          console.error('🚨 EMERGENCY: React rendering stuck for >10 seconds, forcing reload')
+    const heartbeatInterval = setInterval(() => {
+      if (freezeDetectionRef.current.isMonitoring) {
+        const now = Date.now()
+        const timeSinceLastHeartbeat = now - freezeDetectionRef.current.lastHeartbeat
+        
+        console.log(`💓 HEARTBEAT: ${now} (${timeSinceLastHeartbeat}ms since last) - Current operation: ${freezeDetectionRef.current.currentOperation}`)
+        debug.logUserAction('Heartbeat check', {
+          currentOperation: freezeDetectionRef.current.currentOperation,
+          operationStack: freezeDetectionRef.current.operationStack,
+          timeSinceLastHeartbeat
+        })
+        
+        freezeDetectionRef.current.lastHeartbeat = now
+        
+        // If more than 5 seconds since last heartbeat, we might be frozen
+        if (timeSinceLastHeartbeat > 5000) {
+          console.error(`🚨 POTENTIAL FREEZE DETECTED: ${timeSinceLastHeartbeat}ms since last heartbeat`)
+          console.error(`🚨 STUCK AT: ${freezeDetectionRef.current.currentOperation}`)
+          console.error(`🚨 OPERATION STACK:`, freezeDetectionRef.current.operationStack)
           
-          // Emergency page reload
-          window.location.reload()
+          debug.logError('POTENTIAL FREEZE DETECTED', {
+            timeSinceLastHeartbeat,
+            currentOperation: freezeDetectionRef.current.currentOperation,
+            operationStack: freezeDetectionRef.current.operationStack
+          })
+          
+          // If frozen for more than 15 seconds, show detailed report and offer recovery options
+          if (timeSinceLastHeartbeat > 15000) {
+            console.error(`🚨 SEVERE FREEZE: ${timeSinceLastHeartbeat}ms - Creating detailed freeze report`)
+            
+            const freezeReport = {
+              freezeDuration: timeSinceLastHeartbeat,
+              stuckOperation: freezeDetectionRef.current.currentOperation,
+              operationStack: [...freezeDetectionRef.current.operationStack],
+              timestamp: new Date().toISOString(),
+              componentState: {
+                conceptsLength: concepts.length,
+                categoriesCount: Object.keys(conceptsByCategory).length,
+                loading,
+                showLoadingScreen,
+                dataLoaded,
+                selectedCategory,
+                showNeedsReview
+              },
+              browserInfo: {
+                userAgent: navigator.userAgent,
+                memory: (performance as any).memory ? {
+                  used: (performance as any).memory.usedJSHeapSize,
+                  total: (performance as any).memory.totalJSHeapSize,
+                  limit: (performance as any).memory.jsHeapSizeLimit
+                } : 'unavailable'
+              }
+            }
+            
+            console.error('🚨 COMPLETE FREEZE REPORT:', freezeReport)
+            debug.logError('COMPLETE FREEZE REPORT', freezeReport)
+            
+            // Store freeze report in localStorage for debugging
+            try {
+              localStorage.setItem('lastFreezeReport', JSON.stringify(freezeReport))
+            } catch (e) {
+              console.error('Could not save freeze report to localStorage:', e)
+            }
+            
+            // Show user-friendly alert after 20 seconds
+            if (timeSinceLastHeartbeat > 20000) {
+              alert(`Page appears to be frozen for ${Math.round(timeSinceLastHeartbeat/1000)}s. 
+              
+Stuck at: ${freezeDetectionRef.current.currentOperation}
+
+Check console for detailed freeze report. Would you like to reload the page?`)
+            }
+          }
         }
-        emergencyTimerRef.current = null
-      }, 10000)
-    }
+      }
+    }, 1000) // Check every second
     
-    // Cleanup function
-    return () => {
-      if (emergencyTimerRef.current) {
-        clearTimeout(emergencyTimerRef.current)
-        emergencyTimerRef.current = null
+    return () => clearInterval(heartbeatInterval)
+  }, [debug])
+  
+  // Helper function to track operations
+  const trackOperation = useCallback((operation: string, isStart: boolean = true) => {
+    const timestamp = Date.now()
+    
+    if (isStart) {
+      freezeDetectionRef.current.currentOperation = operation
+      freezeDetectionRef.current.operationStack.push(`${operation}@${timestamp}`)
+      console.log(`🔵 START: ${operation} at ${timestamp}`)
+    } else {
+      console.log(`🟢 END: ${operation} at ${timestamp}`)
+      // Remove the operation from stack
+      freezeDetectionRef.current.operationStack = freezeDetectionRef.current.operationStack.filter(
+        op => !op.startsWith(operation + '@')
+      )
+      if (freezeDetectionRef.current.operationStack.length > 0) {
+        const lastOp = freezeDetectionRef.current.operationStack[freezeDetectionRef.current.operationStack.length - 1]
+        freezeDetectionRef.current.currentOperation = lastOp.split('@')[0]
+      } else {
+        freezeDetectionRef.current.currentOperation = 'idle'
       }
     }
-  }, [debug]) // Only depend on debug to avoid running on every render
+    
+    debug.logUserAction(`Track operation: ${operation}`, {
+      isStart,
+      currentOperation: freezeDetectionRef.current.currentOperation,
+      stackSize: freezeDetectionRef.current.operationStack.length
+    })
+  }, [debug])
   
-  // CRITICAL: React reconciliation tracking (removed emergency recovery to prevent refreshes)
+  // CRITICAL: React reconciliation tracking with granular logging
   useEffect(() => {
-    // Simply track when React rendering completes - no timers or recovery
+    trackOperation('react-render-effect', true)
+    
     debug.logUserAction('React render cycle completed successfully', {
       componentUpdateId: componentUpdateId.current,
       timestamp: Date.now()
     })
-  }, [debug]) // Only run when debug changes
+    
+    trackOperation('react-render-effect', false)
+  }, [debug, trackOperation])
   
-  // CRITICAL: Create debugged version of setShowLoadingScreen
+  // CRITICAL: Enhanced setShowLoadingScreen with freeze detection
   const setShowLoadingScreen = useCallback((newValue: boolean) => {
+    trackOperation(`setShowLoadingScreen-${newValue}`, true)
+    
     debug.logUserAction('setShowLoadingScreen called', { 
       currentValue: showLoadingScreen, 
       newValue,
@@ -210,19 +293,28 @@ export default function ConceptsPage() {
     debug.logEventLoop('before-setShowLoadingScreen-call')
     
     try {
+      console.log(`🔵 CRITICAL: About to call _setShowLoadingScreen(${newValue})`)
       const startTime = performance.now()
-      _setShowLoadingScreen(newValue)
-      const endTime = performance.now()
       
+      _setShowLoadingScreen(newValue)
+      
+      const endTime = performance.now()
+      const duration = endTime - startTime
+      
+      console.log(`🟢 CRITICAL: _setShowLoadingScreen(${newValue}) completed in ${duration.toFixed(2)}ms`)
       debug.logUserAction('setShowLoadingScreen completed', { 
         newValue,
         duration: endTime - startTime
       })
       debug.logEventLoop('after-setShowLoadingScreen-call')
+      
+      trackOperation(`setShowLoadingScreen-${newValue}`, false)
     } catch (error: any) {
+      console.error(`🔥 CRITICAL ERROR in setShowLoadingScreen(${newValue}):`, error)
       debug.logError('Error in setShowLoadingScreen call', { newValue, error: error.message })
+      trackOperation(`setShowLoadingScreen-${newValue}`, false)
     }
-  }, [debug, showLoadingScreen, _setShowLoadingScreen])
+  }, [debug, showLoadingScreen, _setShowLoadingScreen, trackOperation])
   
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -546,67 +638,76 @@ export default function ConceptsPage() {
     }
   }
 
-  // Effect to hide loading screen once data is loaded - REMOVE debug dependency
+  // Effect to hide loading screen once data is loaded - ENHANCED with freeze detection
   debug.logUserAction('Setting up loading screen effect')
   useEffect(() => {
+    trackOperation('loading-screen-effect', true)
     debug.logUserAction('Loading screen effect triggered', { dataLoaded, loading, showLoadingScreen })
     
     if (dataLoaded && !loading) {
+      trackOperation('loading-screen-conditions-met', true)
       debug.logUserAction('Conditions met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
       
       // Add a small delay to ensure smooth transition
       const timer = setTimeout(() => {
+        trackOperation('loading-screen-timeout', true)
         debug.logUserAction('About to call setShowLoadingScreen(false) - CRITICAL POINT')
         debug.logEventLoop('before-setShowLoadingScreen-false')
         
         try {
           // Add comprehensive debugging around the critical state update
-          console.log('🚨 CRITICAL: About to set showLoadingScreen to false')
+          console.log('🚨 CRITICAL LOADING SCREEN: About to set showLoadingScreen to false')
           console.log('🚨 Current state:', { dataLoaded, loading, showLoadingScreen })
           
-          // Check if React is in the middle of rendering
-          const beforeTime = performance.now()
-          
+          trackOperation('calling-setShowLoadingScreen-false', true)
           setShowLoadingScreen(false)
+          trackOperation('calling-setShowLoadingScreen-false', false)
           
-          const afterTime = performance.now()
-          const duration = afterTime - beforeTime
-          
-          console.log(`🚨 setShowLoadingScreen(false) completed in ${duration.toFixed(2)}ms`)
-          debug.logUserAction('setShowLoadingScreen(false) completed successfully', { duration })
+          console.log('🟢 CRITICAL LOADING SCREEN: setShowLoadingScreen(false) call completed')
           debug.logEventLoop('after-setShowLoadingScreen-false')
           
           // Add a verification timeout to see if React updates
           setTimeout(() => {
+            trackOperation('post-setState-verification', true)
             debug.logUserAction('Post-setState verification timeout executed')
             console.log('🔄 Post-setState verification - JavaScript still executing')
             debug.logEventLoop('post-setState-verification')
+            trackOperation('post-setState-verification', false)
           }, 0)
           
           // Add a longer timeout to see if we're completely stuck
           setTimeout(() => {
+            trackOperation('long-term-verification', true)
             debug.logUserAction('Long-term verification timeout (1s)')
             console.log('🔄 1-second post-setState check - JavaScript still executing')
+            trackOperation('long-term-verification', false)
           }, 1000)
           
-        } catch (setStateError: any) {
-          debug.logError('Error in setShowLoadingScreen(false)', setStateError)
-          console.error('🔥 CRITICAL ERROR in setShowLoadingScreen:', setStateError)
+          trackOperation('loading-screen-timeout', false)
           
-          // Emergency fallback
-          debug.logUserAction('Emergency fallback: forcing page reload due to setState error')
-          window.location.reload()
+        } catch (setStateError: any) {
+          console.error('🔥 CRITICAL ERROR in loading screen setShowLoadingScreen:', setStateError)
+          debug.logError('Error in setShowLoadingScreen(false)', setStateError)
+          trackOperation('loading-screen-timeout', false)
+          
+          // Log the freeze location for debugging
+          console.error('🚨 FREEZE DETECTED in loading screen effect')
+          console.error('🚨 OPERATION STACK:', freezeDetectionRef.current.operationStack)
         }
       }, 500)
+      
+      trackOperation('loading-screen-conditions-met', false)
       
       return () => {
         debug.logUserAction('Cleaning up loading screen timeout')
         clearTimeout(timer)
+        trackOperation('loading-screen-effect', false)
       }
     } else {
       debug.logUserAction('Conditions not met for hiding loading screen', { dataLoaded, loading, showLoadingScreen })
+      trackOperation('loading-screen-effect', false)
     }
-  }, [dataLoaded, loading]) // REMOVE debug dependency
+  }, [dataLoaded, loading, trackOperation, debug]) // Added trackOperation dependency
 
   // Handle creating a new concept
   const handleAddConcept = async (title: string) => {
@@ -969,20 +1070,37 @@ export default function ConceptsPage() {
           <div className="flex h-screen bg-background">
             {/* Navigation Sidebar */}
             {showNavigation && (
-              <ConceptsNavigation
-                concepts={concepts}
-                conceptsByCategory={conceptsByCategory}
-                sortedCategories={sortedCategories}
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                onCategorySelect={handleCategorySelect}
-                selectedCategory={selectedCategory}
-                showNeedsReview={showNeedsReview}
-                onNeedsReviewToggle={handleNeedsReviewToggle}
-                onConceptsMove={handleConceptsMove}
-                onDataRefresh={refreshData}
-                className="hidden md:flex"
-              />
+              (() => {
+                trackOperation('rendering-concepts-navigation', true)
+                console.log('🔵 CRITICAL: About to render ConceptsNavigation')
+                
+                const result = (
+                  <ConceptsNavigation
+                    concepts={concepts}
+                    conceptsByCategory={conceptsByCategory}
+                    sortedCategories={sortedCategories}
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    onCategorySelect={handleCategorySelect}
+                    selectedCategory={selectedCategory}
+                    showNeedsReview={showNeedsReview}
+                    onNeedsReviewToggle={handleNeedsReviewToggle}
+                    onConceptsMove={handleConceptsMove}
+                    onDataRefresh={refreshData}
+                    className="hidden md:flex"
+                  />
+                )
+                
+                console.log('🟢 CRITICAL: ConceptsNavigation rendering completed')
+                trackOperation('rendering-concepts-navigation', false)
+                
+                // Add post-render verification
+                setTimeout(() => {
+                  console.log('🔄 ConceptsNavigation post-render verification - JavaScript still executing')
+                }, 0)
+                
+                return result
+              })()
             )}
 
             {/* Main Content */}
