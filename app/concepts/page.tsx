@@ -131,7 +131,51 @@ export default function ConceptsPage() {
     loading,
     dataLoaded
   })
-
+  
+  // CRITICAL: Add React reconciliation debugging after state declarations
+  const componentUpdateId = useRef(0)
+  componentUpdateId.current += 1
+  
+  console.log(`🔧 REACT RECONCILIATION: ConceptsPage update #${componentUpdateId.current}`)
+  console.log(`🔧 REACT STATE SNAPSHOT:`, {
+    conceptsLength: concepts.length,
+    categoriesCount: Object.keys(conceptsByCategory).length,
+    sortedCategoriesLength: sortedCategories.length,
+    loading,
+    showLoadingScreen,
+    dataLoaded,
+    error: error ? 'present' : 'null',
+    selectedCategory,
+    searchQuery: searchQuery.substring(0, 10),
+    showNeedsReview
+  })
+  
+  // CRITICAL: Emergency recovery mechanism for React reconciliation issues
+  const lastRenderCompletionTime = useRef(Date.now())
+  
+  useEffect(() => {
+    // Track when React rendering completes
+    lastRenderCompletionTime.current = Date.now()
+    debug.logUserAction('React render cycle completed successfully')
+    
+    // Set up emergency recovery timer
+    const emergencyTimer = setTimeout(() => {
+      const timeSinceLastRender = Date.now() - lastRenderCompletionTime.current
+      if (timeSinceLastRender > 5000) {
+        debug.logError('EMERGENCY: React rendering appears stuck', { 
+          timeSinceLastRender,
+          componentUpdateId: componentUpdateId.current
+        })
+        console.error('🚨 EMERGENCY: React rendering stuck for >5 seconds, forcing reload')
+        
+        // Emergency page reload
+        window.location.reload()
+      }
+    }, 5000)
+    
+    return () => clearTimeout(emergencyTimer)
+  })
+  
   // CRITICAL: Create debugged version of setShowLoadingScreen
   const setShowLoadingScreen = useCallback((newValue: boolean) => {
     debug.logUserAction('setShowLoadingScreen called', { 
