@@ -71,25 +71,23 @@ export default function ConceptsPage() {
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [showLoadingScreen, setShowLoadingScreen] = useState(() => {
-    // Check if we should skip loading screen (after Redux operations)
+  
+  // Read the flag once and use it for both states to avoid race condition
+  const [isReduxRefresh] = useState(() => {
     if (typeof window !== 'undefined') {
       const shouldSkip = sessionStorage.getItem('skipLoadingScreen')
       if (shouldSkip) {
-        sessionStorage.removeItem('skipLoadingScreen') // Clear flag
-        return false // Skip loading screen
+        console.log('🔄 Detected Redux operation refresh - will show SKELETON')
+        sessionStorage.removeItem('skipLoadingScreen') // Clear flag after reading
+        return true // This was a Redux operation refresh
       }
     }
-    return true // Show loading screen normally
+    console.log('🆕 Normal page load - will show BEAUTIFUL animation')
+    return false // This is a normal page load
   })
-  const [showSkeletonOnly, setShowSkeletonOnly] = useState(() => {
-    // Check if this is a Redux operation refresh (show skeleton instead of animation)
-    if (typeof window !== 'undefined') {
-      const isReduxRefresh = sessionStorage.getItem('skipLoadingScreen')
-      return !!isReduxRefresh // Show skeleton if Redux operation
-    }
-    return false // Show beautiful animation for initial loads
-  })
+  
+  const [showLoadingScreen, setShowLoadingScreen] = useState(!isReduxRefresh)
+  const [showSkeletonOnly, setShowSkeletonOnly] = useState(isReduxRefresh)
   const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
@@ -673,6 +671,7 @@ export default function ConceptsPage() {
 
   // Show skeleton loading screen only for Redux operations
   if ((showLoadingScreen || loading) && showSkeletonOnly) {
+    console.log('🦴 Showing SKELETON loading screen (Redux operation)')
     return (
       <div className="min-h-screen bg-background">
         {/* Header skeleton */}
@@ -744,6 +743,7 @@ export default function ConceptsPage() {
 
   // Show beautiful animation loading screen for initial page loads
   if (showLoadingScreen || loading) {
+    console.log('🎨 Showing BEAUTIFUL animation loading screen (initial page load)')
     return (
       <ConceptsLoading onComplete={handleLoadingComplete} />
     )
