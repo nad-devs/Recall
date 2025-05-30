@@ -152,9 +152,5 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     )
   }
 
-  if (!isAuth) {
-    return null // Will redirect, so don't render anything
-  }
-
-  return <>{children}</>
+  return isAuth ? <>{children}</> : null // Will redirect, so don't render anything if not authenticated
 } 
