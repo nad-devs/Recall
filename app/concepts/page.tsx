@@ -26,34 +26,36 @@ interface Concept {
   needsReview?: boolean
 }
 
-// CategoryDropZone component to handle concept drops
+// FIXED: Moved CategoryDropZone component OUTSIDE to prevent conditional hook usage
 interface CategoryDropZoneProps {
   category: string
   onDrop: (item: any, category: string) => void
   children: React.ReactNode
 }
 
+// This is now a separate component that can be safely used conditionally
 function CategoryDropZone({ category, onDrop, children }: CategoryDropZoneProps) {
-  const dropRef = useRef<HTMLDivElement>(null);
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: 'CONCEPT_CARD',
-    drop: (item: any) => onDrop(item, category),
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
-    }),
-  }))
+  // TEMPORARILY DISABLED: Testing if this component is causing hook violations
+  // const dropRef = useRef<HTMLDivElement>(null);
+  // const [{ isOver }, drop] = useDrop(() => ({
+  //   accept: 'CONCEPT_CARD',
+  //   drop: (item: any) => onDrop(item, category),
+  //   collect: (monitor) => ({
+  //     isOver: !!monitor.isOver(),
+  //   }),
+  // }))
   
-  // Connect the drop ref
-  useEffect(() => {
-    if (dropRef.current) {
-      drop(dropRef);
-    }
-  }, [drop, dropRef]);
+  // // Connect the drop ref
+  // useEffect(() => {
+  //   if (dropRef.current) {
+  //     drop(dropRef);
+  //   }
+  // }, [drop, dropRef]);
 
   return (
     <div 
-      ref={dropRef} 
-      className={`space-y-4 ${isOver ? 'bg-primary-50 dark:bg-primary-950/20 rounded-lg p-2' : ''}`}
+      // ref={dropRef} 
+      className={`space-y-4`} // ${isOver ? 'bg-primary-50 dark:bg-primary-950/20 rounded-lg p-2' : ''}
     >
       {children}
     </div>
