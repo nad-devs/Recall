@@ -418,8 +418,10 @@ export function ConceptsNavigation({
   }, [
     expandedCategories, selectedCategory, inlineEditingCategory, inlineEditValue,
     toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit,
-    saveInlineEdit, cancelInlineEdit, categoryOps, handleCategoryDrop,
-    handleDragStart, handleDragEnd, isDraggingAny
+    saveInlineEdit, cancelInlineEdit, handleCategoryDrop,
+    handleDragStart, handleDragEnd, isDraggingAny,
+    categoryOps.setTransferConcepts, categoryOps.setShowTransferDialog,
+    categoryOps.isCreatingCategory, categoryOps.isMovingConcepts, categoryOps.isRenamingCategory
   ])
 
   return (
