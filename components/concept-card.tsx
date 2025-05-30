@@ -79,7 +79,7 @@ function useLinking() {
   return useContext(LinkingContext);
 }
 
-export function ConceptCard({ 
+export const ConceptCard = React.memo(function ConceptCard({ 
   concept, 
   showDescription = false, 
   showRelatedConcepts = false,
@@ -1363,4 +1363,4 @@ export function ConceptCard({
       />
     </>
   )
-}
+})

@@ -66,7 +66,7 @@ interface CategoryDialogsProps {
   handleRenameCategoryConfirm: () => void
 }
 
-export function CategoryDialogs({
+export const CategoryDialogs = React.memo(function CategoryDialogs({
   // State values
   showAddSubcategoryDialog,
   showTransferDialog,
@@ -560,4 +560,4 @@ export function CategoryDialogs({
       </Dialog>
     </>
   )
-} 
+}) 
