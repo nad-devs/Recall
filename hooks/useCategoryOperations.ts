@@ -287,7 +287,7 @@ export const useCategoryOperations = ({
         }
       }, 100) // Small delay to allow UI to update
     }
-  }, [debug, onDataRefresh]) // Minimal dependencies
+  }, []) // FIXED: Removed all dependencies that cause infinite loops
 
   // Create placeholder concept - SIMPLIFIED to prevent race conditions
   const createPlaceholderConcept = useCallback(async (category: string) => {
@@ -323,7 +323,7 @@ export const useCategoryOperations = ({
       debug.logError('Error creating placeholder concept', { category, error: error.message })
       throw new Error('Failed to create category. Please try again.')
     }
-  }, [makeApiCall, debug])
+  }, []) // FIXED: Removed unstable dependencies
 
   // Handle category creation - REDUCE DEPENDENCIES to prevent infinite loops
   const handleCreateSubcategory = useCallback(async () => {
@@ -454,9 +454,9 @@ export const useCategoryOperations = ({
         setOperationStarting(false)
       }, 0)
     }
-  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory, toast, onCategorySelect, onDataRefresh, debug]) // REMOVED createPlaceholderConcept dependency
+  }, [isCreatingCategory, isMovingConcepts, newSubcategoryName, selectedParentCategory, conceptsByCategory]) // FIXED: Removed unstable dependencies
 
-  // Handle concept transfer - FIX INFINITE LOOP by removing resetDialogState dependency
+  // Handle concept transfer - FIX INFINITE LOOP by removing unstable dependencies
   const handleTransferConcepts = useCallback(async (conceptsToMove: Concept[], targetCategory: string) => {
     const operationId = 'transfer-concepts'
     debug.startOperation(operationId)
@@ -527,7 +527,7 @@ export const useCategoryOperations = ({
         resetDialogState()
       }, 0)
     }
-  }, [isMovingConcepts, toast, onConceptsMove, onDataRefresh, onCategorySelect, debug]) // REMOVED resetDialogState dependency
+  }, [isMovingConcepts]) // FIXED: Removed all unstable dependencies
 
   return {
     // States
