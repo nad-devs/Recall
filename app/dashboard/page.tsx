@@ -35,30 +35,27 @@ export default function Dashboard() {
   
   // Simplified authentication check - trust the server
   useEffect(() => {
-    console.log('📋 Dashboard: Checking authentication...')
-    console.log('📋 Dashboard: NextAuth status:', status)
-    console.log('📋 Dashboard: Session exists:', !!session)
-    
-    // Check localStorage first (for email-based sessions)
-    const userName = localStorage.getItem('userName')
+    if (status === 'loading') {
+      return
+    }
+
+    // Check for email-based session first
     const userEmail = localStorage.getItem('userEmail')
     const userId = localStorage.getItem('userId')
     
-    if (userName && userEmail && userId) {
-      console.log('📋 Dashboard: Using email-based session for', userEmail)
-      setUserName(userName)
-      setEditedName(userName)
+    if (userEmail && userId) {
+      // Email-based session is valid
       setAuthChecked(true)
       fetchDashboardData()
       return
     }
     
-    // For OAuth sessions - if we're on this page, server already authenticated us
-    if (status === "authenticated" && session?.user) {
-      console.log('📋 Dashboard: Using NextAuth session for', session.user.email)
+    // Check NextAuth session
+    if (session?.user?.email) {
+      // NextAuth session is valid
+      setAuthChecked(true)
       setUserName(session.user.name || session.user.email || "User")
       setEditedName(session.user.name || session.user.email || "User")
-      setAuthChecked(true)
       
       // Store session data in localStorage for API calls
       if (session.user.email) {
@@ -78,23 +75,12 @@ export default function Dashboard() {
       return
     }
     
-    // If NextAuth is still loading, wait
-    if (status === "loading") {
-      console.log('📋 Dashboard: NextAuth session still loading, waiting...')
+    // No valid session found
+    if (!userEmail && !session) {
+      router.push('/')
       return
     }
-    
-    // Only redirect if we're definitely unauthenticated AND no localStorage data
-    if (status === "unauthenticated" && !userName && !userEmail) {
-      console.log('📋 Dashboard: No authentication found, redirecting to landing page')
-      router.push("/")
-      return
-    }
-    
-    // If we reach here, we're probably authenticated but session is still loading
-    console.log('📋 Dashboard: Authentication state unclear, staying on dashboard')
-    setAuthChecked(true)
-  }, [status, session, router])
+  }, [session, status, router])
 
   const handleEditName = () => {
     setIsEditingName(true)
@@ -124,15 +110,10 @@ export default function Dashboard() {
 
   // Fixed loading complete handler - only hide loading screen after data is actually loaded
   const handleLoadingComplete = () => {
-    console.log('📋 Dashboard: Loading animation complete. Data loaded:', dataLoaded)
-    // Only hide loading screen if data has been loaded
     if (dataLoaded) {
       setShowLoadingScreen(false)
     } else {
-      console.log('📋 Dashboard: Data not yet loaded, keeping loading screen visible')
-      // Set a timeout to prevent infinite loading in case of errors
       setTimeout(() => {
-        console.log('📋 Dashboard: Timeout reached, hiding loading screen anyway')
         setShowLoadingScreen(false)
       }, 3000)
     }
@@ -141,7 +122,7 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      setDataLoaded(false) // Reset data loaded state
+      setDataLoaded(false)
       
       // Prepare headers for both email-based and OAuth sessions
       const userEmail = localStorage.getItem('userEmail')
@@ -161,33 +142,25 @@ export default function Dashboard() {
         headers['x-user-id'] = session.user.id || ''
       }
       
-      console.log('Dashboard: Using headers:', headers)
-      
       // Fetch conversations
       const conversationsResponse = await fetch('/api/conversations', { headers })
       const conversations = await conversationsResponse.json()
-      console.log('Dashboard: Fetched conversations:', conversations.length, conversations)
       
       // Fetch concepts
       const conceptsResponse = await fetch('/api/concepts', { headers })
-      console.log('Dashboard: Concepts response status:', conceptsResponse.status)
       const conceptsData = await conceptsResponse.json()
-      console.log('Dashboard: Fetched concepts raw response:', conceptsData)
       
       // Extract concepts array from the response object
       const concepts = conceptsData.concepts || conceptsData || []
-      console.log('Dashboard: Extracted concepts array:', concepts)
       
       // Check if we got error responses and provide fallbacks
       if (!Array.isArray(conversations)) {
-        console.warn('Conversations response is not an array, using empty fallback:', conversations)
         if (conversations && typeof conversations === 'object' && conversations.error) {
           console.error('Conversations API error:', conversations.error)
         }
       }
       
       if (!Array.isArray(concepts)) {
-        console.warn('Concepts response is not an array, using empty fallback:', concepts)
         if (concepts && typeof concepts === 'object' && concepts.error) {
           console.error('Concepts API error:', concepts.error)
         }
@@ -212,14 +185,6 @@ export default function Dashboard() {
       // Get recent conversations (already sorted by API)
       const recentConversations = safeConversations.slice(0, 5)
       
-      console.log('Dashboard: Processed data:', {
-        conversationsCount,
-        conceptsCount,
-        categoriesCount,
-        conceptsToReview: conceptsToReview.length,
-        recentConversations: recentConversations.length
-      })
-      
       setDashboardData({
         conversationsCount,
         conceptsCount,
@@ -230,7 +195,6 @@ export default function Dashboard() {
       
       // Mark data as loaded AFTER setting dashboard data
       setDataLoaded(true)
-      console.log('📋 Dashboard: Data successfully loaded and state updated')
       
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -244,7 +208,6 @@ export default function Dashboard() {
   // Effect to hide loading screen once data is loaded
   useEffect(() => {
     if (dataLoaded && !loading) {
-      console.log('📋 Dashboard: Data loaded and not loading anymore, checking if can hide loading screen')
       // Add a small delay to ensure smooth transition
       const timer = setTimeout(() => {
         setShowLoadingScreen(false)
@@ -255,11 +218,9 @@ export default function Dashboard() {
   }, [dataLoaded, loading])
 
   // Show loading screen if still loading or if we haven't completed the loading animation
-  if (showLoadingScreen) {
-    return <DashboardLoading onComplete={handleLoadingComplete} />
-  }
-
-  return (
+  return showLoadingScreen ? (
+    <DashboardLoading onComplete={handleLoadingComplete} />
+  ) : (
     <PageTransition>
       <div className="container mx-auto max-w-7xl py-6 space-y-8 relative">
         {/* Floating theme toggle in corner */}

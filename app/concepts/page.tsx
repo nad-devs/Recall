@@ -616,11 +616,9 @@ export default function ConceptsPage() {
   }
 
   // Show loading screen if still loading or if we haven't completed the loading animation
-  if (showLoadingScreen) {
-    return <ConceptsLoading onComplete={handleLoadingComplete} />
-  }
-
-  return (
+  return showLoadingScreen ? (
+    <ConceptsLoading onComplete={handleLoadingComplete} />
+  ) : (
     <LinkingProvider>
       <DndProvider backend={HTML5Backend}>
         <PageTransition>
