@@ -82,6 +82,14 @@ export default function ConceptsPage() {
     }
     return true // Show loading screen normally
   })
+  const [showSkeletonOnly, setShowSkeletonOnly] = useState(() => {
+    // Check if this is a Redux operation refresh (show skeleton instead of animation)
+    if (typeof window !== 'undefined') {
+      const isReduxRefresh = sessionStorage.getItem('skipLoadingScreen')
+      return !!isReduxRefresh // Show skeleton if Redux operation
+    }
+    return false // Show beautiful animation for initial loads
+  })
   const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
@@ -663,10 +671,85 @@ export default function ConceptsPage() {
     }
   }
 
-  // Show loading screen if still loading or if we haven't completed the loading animation
-  return showLoadingScreen ? (
-    <ConceptsLoading onComplete={handleLoadingComplete} />
-  ) : (
+  // Show skeleton loading screen only for Redux operations
+  if ((showLoadingScreen || loading) && showSkeletonOnly) {
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Header skeleton */}
+        <div className="border-b bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div className="h-8 w-32 bg-muted rounded animate-pulse"></div>
+            <div className="flex gap-2">
+              <div className="h-9 w-24 bg-muted rounded animate-pulse"></div>
+              <div className="h-9 w-24 bg-muted rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-1 h-[calc(100vh-73px)]">
+          {/* Left sidebar skeleton */}
+          <div className="w-80 border-r bg-card p-4 space-y-4">
+            {/* Search skeleton */}
+            <div className="h-10 w-full bg-muted rounded animate-pulse"></div>
+            
+            {/* Category tree skeleton */}
+            <div className="space-y-2">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="h-4 w-4 bg-muted rounded animate-pulse"></div>
+                  <div className={`h-4 bg-muted rounded animate-pulse ${
+                    i % 3 === 0 ? 'w-24' : i % 3 === 1 ? 'w-32' : 'w-28'
+                  }`}></div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Add category button skeleton */}
+            <div className="h-9 w-full bg-muted rounded animate-pulse mt-4"></div>
+          </div>
+
+          {/* Main content skeleton */}
+          <div className="flex-1 p-6">
+            {/* Content header skeleton */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="h-8 w-48 bg-muted rounded animate-pulse"></div>
+              <div className="flex gap-2">
+                <div className="h-9 w-20 bg-muted rounded animate-pulse"></div>
+                <div className="h-9 w-24 bg-muted rounded animate-pulse"></div>
+              </div>
+            </div>
+
+            {/* Concept cards grid skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(9)].map((_, i) => (
+                <div key={i} className="bg-card border rounded-lg p-4 space-y-3">
+                  <div className="h-6 w-3/4 bg-muted rounded animate-pulse"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-full bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-5/6 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-4/6 bg-muted rounded animate-pulse"></div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="h-5 w-20 bg-muted rounded animate-pulse"></div>
+                    <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show beautiful animation loading screen for initial page loads
+  if (showLoadingScreen || loading) {
+    return (
+      <ConceptsLoading onComplete={handleLoadingComplete} />
+    )
+  }
+
+  return (
     <LinkingProvider>
       <DndProvider backend={HTML5Backend}>
         <PageTransition>
