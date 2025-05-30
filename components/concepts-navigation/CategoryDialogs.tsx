@@ -6,7 +6,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { useLoading } from "@/contexts/LoadingContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -110,73 +109,26 @@ export function CategoryDialogs({
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
 
-  // Use the loading context to manage loading state
-  const { isLoading, startLoading, stopLoading, resetLoading } = useLoading()
+  console.log('🚀 CategoryDialogs: Redux-only mode - no loading context conflicts!')
   
-  // Emergency UI unlocker to prevent freezing
-  useEffect(() => {
-    // Create a fail-safe to ensure UI never freezes for more than 2 seconds
-    const emergencyUnlocker = setInterval(() => {
-      // Check if any dialog is open
-      const isAnyDialogOpen = showAddSubcategoryDialog || 
-                            showTransferDialog || 
-                            showEditCategoryDialog || 
-                            showDragDropDialog;
-                            
-      // If there's any loading state AND a dialog is open, ensure UI is responsive
-      if (isLoading && isAnyDialogOpen) {
-        // Force the cursor back to normal if it's been in loading state too long
-        if (document.body.style.cursor === 'wait') {
-          console.log('🚑 Emergency UI unlocker activated - preventing freeze')
-          // Directly modify DOM to ensure responsiveness
-          document.body.style.cursor = ''
-          document.body.classList.remove('loading-cursor')
-        }
-      }
-    }, 2000) // Check every 2 seconds
-    
-    return () => {
-      clearInterval(emergencyUnlocker)
-    }
-  }, [isLoading, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog])
-
-  // ENHANCED cancel handler with loading state management and forced UI reset
+  // REDUX-ONLY cancel handler - no loading system conflicts
   const handleDialogCancel = () => {
-    console.log('🔵 Cancel operation started - using loading context')
-    
-    // IMPORTANT: Force immediately unlock the UI first before anything else
-    document.body.style.cursor = ''
-    document.body.classList.remove('loading-cursor')
-    
-    // Start a loading operation with a very brief duration
-    const stopLoadingFn = startLoading('dialog-cancel', 'Canceling operation...')
+    console.log('🚀 Redux: Instant dialog cancel - no loading conflicts!')
     
     // Reset local state immediately
     setTargetCategory('')
     setCreateNewCategory(false)
-    console.log('🟢 Successfully reset dialog state')
+    console.log('✅ Redux: Dialog state reset instantly')
     
-    // Immediately stop loading to avoid freezing
-    setTimeout(() => {
-      stopLoadingFn()
-    }, 10)
-    
-    // Handle parent cancel in a separate non-blocking call
-    setTimeout(() => {
-      try {
-        // Call handleCancel from props, but in a try/catch to prevent crashes
-        handleCancel()
-      } catch (cancelError) {
-        console.error('Error in parent cancel handler:', cancelError)
-      }
-    }, 50)
+    // Call Redux cancel immediately - no loading system interference
+    handleCancel()
   }
 
   const isAnyOperationInProgress = isCreatingCategory || isMovingConcepts || isRenamingCategory || isResettingState
 
-  // Enhanced create with better error handling
+  // Redux-only create handler
   const handleCreate = async () => {
-    console.log('🔵 Enhanced create category with loading states')
+    console.log('🚀 Redux: Create category - background processing, UI stays responsive!')
     
     if (!newSubcategoryName.trim() || isAnyOperationInProgress) {
       return
@@ -184,46 +136,21 @@ export function CategoryDialogs({
 
     try {
       await handleCreateSubcategory()
-      
-      // Additional handling for transfer scenarios is now managed by the hook
-      
     } catch (error) {
-      console.error('Error in enhanced create:', error)
+      console.error('Redux: Error in create:', error)
     }
   }
 
-  // Enhanced transfer with loading awareness
+  // Redux-only transfer handler
   const handleTransferToExisting = async () => {
     if (!targetCategory || transferConcepts.length === 0 || isAnyOperationInProgress) return
     
-    console.log('🔵 Enhanced transfer to existing category:', targetCategory)
+    console.log('🚀 Redux: Transfer to existing category - background processing!')
     
-    // Defensive programming: Handle both Set and Array types
-    const isSelected = (conceptId: string) => {
-      if (selectedConceptsForTransfer && typeof selectedConceptsForTransfer.has === 'function') {
-        return selectedConceptsForTransfer.has(conceptId)
-      } else if (Array.isArray(selectedConceptsForTransfer)) {
-        return selectedConceptsForTransfer.includes(conceptId)
-      }
-      return false
-    }
-    
-    const selectedCount = selectedConceptsForTransfer && typeof selectedConceptsForTransfer.size === 'number' 
-      ? selectedConceptsForTransfer.size 
-      : Array.isArray(selectedConceptsForTransfer) 
-        ? selectedConceptsForTransfer.length 
-        : 0
-    
-    const conceptsToMove = selectedCount > 0
-      ? transferConcepts.filter(c => isSelected(c.id))
-      : transferConcepts
-
-    if (conceptsToMove.length === 0) return
-
     try {
-      await handleTransferConcepts(conceptsToMove, targetCategory)
+      await handleTransferConcepts(transferConcepts, targetCategory)
     } catch (error) {
-      console.error('Error in transfer to existing:', error)
+      console.error('Redux: Error in transfer:', error)
     }
   }
 
