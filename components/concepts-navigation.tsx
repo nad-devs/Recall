@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useEffect, memo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +44,7 @@ interface ConceptsNavigationProps {
   className?: string
 }
 
-export function ConceptsNavigation({ 
+export const ConceptsNavigation = memo(({ 
   concepts, 
   conceptsByCategory, 
   sortedCategories, 
@@ -57,7 +57,7 @@ export function ConceptsNavigation({
   onConceptsMove,
   onDataRefresh,
   className = ""
-}: ConceptsNavigationProps) {
+}: ConceptsNavigationProps) => {
   const { toast } = useToast()
   const debug = useDebugLogger('ConceptsNavigation')
   
@@ -82,20 +82,24 @@ export function ConceptsNavigation({
   const [inlineEditingCategory, setInlineEditingCategory] = useState<string | null>(null)
   const [inlineEditValue, setInlineEditValue] = useState('')
   
-  // Build dynamic hierarchy from actual categories
-  const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
+  // Build dynamic hierarchy from actual categories - OPTIMIZED with useMemo
+  const categoryHierarchy = useMemo(() => {
+    return useCategoryHierarchy(conceptsByCategory)
+  }, [conceptsByCategory])
   
-  // Category operations hook
-  debug.logUserAction('Initializing category operations hook', { 
-    conceptsByCategoryKeys: Object.keys(conceptsByCategory).length 
-  })
-  
-  const categoryOps = useCategoryOperations({
+  // Category operations hook - OPTIMIZED with useMemo for props
+  const categoryOpsProps = useMemo(() => ({
     conceptsByCategory,
     onDataRefresh,
     onCategorySelect,
     onConceptsMove
+  }), [conceptsByCategory, onDataRefresh, onCategorySelect, onConceptsMove])
+  
+  debug.logUserAction('Initializing category operations hook', { 
+    conceptsByCategoryKeys: Object.keys(conceptsByCategory).length 
   })
+  
+  const categoryOps = useCategoryOperations(categoryOpsProps)
   
   debug.logUserAction('Category operations hook initialized', { 
     isCreatingCategory: categoryOps.isCreatingCategory,
@@ -103,9 +107,12 @@ export function ConceptsNavigation({
     isRenamingCategory: categoryOps.isRenamingCategory
   })
 
-  // Calculate stats
-  const totalConcepts = concepts.length
-  const needsReviewCount = concepts.filter(c => c.needsReview).length
+  // Calculate stats - OPTIMIZED with useMemo
+  const stats = useMemo(() => {
+    const totalConcepts = concepts.length
+    const needsReviewCount = concepts.filter(c => c.needsReview).length
+    return { totalConcepts, needsReviewCount }
+  }, [concepts])
 
   // Drag handlers
   const handleDragStart = useCallback(() => {
@@ -468,7 +475,7 @@ export function ConceptsNavigation({
       <div className="p-4 border-b border-border">
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-center p-2 bg-muted/50 rounded">
-            <div className="font-semibold">{totalConcepts}</div>
+            <div className="font-semibold">{stats.totalConcepts}</div>
             <div className="text-muted-foreground">Total</div>
           </div>
           <div className="text-center p-2 bg-muted/50 rounded">
@@ -493,7 +500,7 @@ export function ConceptsNavigation({
             <BookOpen className="mr-2 h-4 w-4" />
             All Concepts
             <Badge variant="secondary" className="ml-auto">
-              {totalConcepts}
+              {stats.totalConcepts}
             </Badge>
           </Button>
           
@@ -505,7 +512,7 @@ export function ConceptsNavigation({
             <AlertTriangle className="mr-2 h-4 w-4 text-orange-500" />
             Needs Review
             <Badge variant="secondary" className="ml-auto">
-              {needsReviewCount}
+              {stats.needsReviewCount}
             </Badge>
           </Button>
         </div>
@@ -640,4 +647,4 @@ export function ConceptsNavigation({
   })
 
   return result
-} 
+}) 
