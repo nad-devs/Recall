@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -73,7 +73,7 @@ interface CategoryDialogsProps {
   moveConceptsToCategory: (sourcePath: string, targetPath: string) => void
 }
 
-export const CategoryDialogs: React.FC<CategoryDialogsProps> = memo(({
+export const CategoryDialogs: React.FC<CategoryDialogsProps> = ({
   // Add Subcategory Dialog props
   showAddSubcategoryDialog,
   setShowAddSubcategoryDialog,
@@ -682,4 +682,4 @@ export const CategoryDialogs: React.FC<CategoryDialogsProps> = memo(({
       </Dialog>
     </>
   )
-}) 
+} 

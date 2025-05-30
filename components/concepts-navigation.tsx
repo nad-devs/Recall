@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, memo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +44,7 @@ interface ConceptsNavigationProps {
   className?: string
 }
 
-export const ConceptsNavigation = memo(({ 
+export function ConceptsNavigation({ 
   concepts, 
   conceptsByCategory, 
   sortedCategories, 
@@ -57,7 +57,7 @@ export const ConceptsNavigation = memo(({
   onConceptsMove,
   onDataRefresh,
   className = ""
-}: ConceptsNavigationProps) => {
+}: ConceptsNavigationProps) {
   const { toast } = useToast()
   const debug = useDebugLogger('ConceptsNavigation')
   
@@ -87,19 +87,17 @@ export const ConceptsNavigation = memo(({
     return useCategoryHierarchy(conceptsByCategory)
   }, [conceptsByCategory])
   
-  // Category operations hook - OPTIMIZED with useMemo for props
-  const categoryOpsProps = useMemo(() => ({
-    conceptsByCategory,
-    onDataRefresh,
-    onCategorySelect,
-    onConceptsMove
-  }), [conceptsByCategory, onDataRefresh, onCategorySelect, onConceptsMove])
-  
+  // Category operations hook - SIMPLIFIED to prevent infinite renders
   debug.logUserAction('Initializing category operations hook', { 
     conceptsByCategoryKeys: Object.keys(conceptsByCategory).length 
   })
   
-  const categoryOps = useCategoryOperations(categoryOpsProps)
+  const categoryOps = useCategoryOperations({
+    conceptsByCategory,
+    onDataRefresh,
+    onCategorySelect,
+    onConceptsMove
+  })
   
   debug.logUserAction('Category operations hook initialized', { 
     isCreatingCategory: categoryOps.isCreatingCategory,
@@ -647,4 +645,4 @@ export const ConceptsNavigation = memo(({
   })
 
   return result
-}) 
+} 
