@@ -75,11 +75,36 @@ export default function ConceptsPage() {
     timestamp: new Date().toISOString()
   })
   
+  // CRITICAL: Add render loop detection
+  const lastRenderTime = useRef(Date.now())
+  const currentTime = Date.now()
+  const timeSinceLastRender = currentTime - lastRenderTime.current
+  lastRenderTime.current = currentTime
+  
+  if (renderCountRef.current > 1) {
+    debug.logUserAction('Render timing analysis', {
+      renderCount: renderCountRef.current,
+      timeSinceLastRender,
+      isRapidRender: timeSinceLastRender < 16 // Less than one frame
+    })
+    
+    if (timeSinceLastRender < 16 && renderCountRef.current > 10) {
+      debug.logError('POTENTIAL INFINITE RENDER LOOP DETECTED', {
+        renderCount: renderCountRef.current,
+        timeSinceLastRender
+      })
+      console.error('🚨 INFINITE RENDER LOOP DETECTED - renders too frequent!')
+    }
+  }
+  
+  // Add event loop check at start of render
+  debug.logEventLoop('ConceptsPage-render-start')
+  
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true)
+  const [showLoadingScreen, _setShowLoadingScreen] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
@@ -107,6 +132,30 @@ export default function ConceptsPage() {
     dataLoaded
   })
 
+  // CRITICAL: Create debugged version of setShowLoadingScreen
+  const setShowLoadingScreen = useCallback((newValue: boolean) => {
+    debug.logUserAction('setShowLoadingScreen called', { 
+      currentValue: showLoadingScreen, 
+      newValue,
+      stack: new Error().stack?.split('\n').slice(1, 4).join('\n')
+    })
+    debug.logEventLoop('before-setShowLoadingScreen-call')
+    
+    try {
+      const startTime = performance.now()
+      _setShowLoadingScreen(newValue)
+      const endTime = performance.now()
+      
+      debug.logUserAction('setShowLoadingScreen completed', { 
+        newValue,
+        duration: endTime - startTime
+      })
+      debug.logEventLoop('after-setShowLoadingScreen-call')
+    } catch (error: any) {
+      debug.logError('Error in setShowLoadingScreen call', { newValue, error: error.message })
+    }
+  }, [debug, showLoadingScreen, _setShowLoadingScreen])
+  
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
@@ -439,8 +488,47 @@ export default function ConceptsPage() {
       
       // Add a small delay to ensure smooth transition
       const timer = setTimeout(() => {
-        debug.logUserAction('Setting showLoadingScreen to false via timeout')
-        setShowLoadingScreen(false)
+        debug.logUserAction('About to call setShowLoadingScreen(false) - CRITICAL POINT')
+        debug.logEventLoop('before-setShowLoadingScreen-false')
+        
+        try {
+          // Add comprehensive debugging around the critical state update
+          console.log('🚨 CRITICAL: About to set showLoadingScreen to false')
+          console.log('🚨 Current state:', { dataLoaded, loading, showLoadingScreen })
+          
+          // Check if React is in the middle of rendering
+          const beforeTime = performance.now()
+          
+          setShowLoadingScreen(false)
+          
+          const afterTime = performance.now()
+          const duration = afterTime - beforeTime
+          
+          console.log(`🚨 setShowLoadingScreen(false) completed in ${duration.toFixed(2)}ms`)
+          debug.logUserAction('setShowLoadingScreen(false) completed successfully', { duration })
+          debug.logEventLoop('after-setShowLoadingScreen-false')
+          
+          // Add a verification timeout to see if React updates
+          setTimeout(() => {
+            debug.logUserAction('Post-setState verification timeout executed')
+            console.log('🔄 Post-setState verification - JavaScript still executing')
+            debug.logEventLoop('post-setState-verification')
+          }, 0)
+          
+          // Add a longer timeout to see if we're completely stuck
+          setTimeout(() => {
+            debug.logUserAction('Long-term verification timeout (1s)')
+            console.log('🔄 1-second post-setState check - JavaScript still executing')
+          }, 1000)
+          
+        } catch (setStateError: any) {
+          debug.logError('Error in setShowLoadingScreen(false)', setStateError)
+          console.error('🔥 CRITICAL ERROR in setShowLoadingScreen:', setStateError)
+          
+          // Emergency fallback
+          debug.logUserAction('Emergency fallback: forcing page reload due to setState error')
+          window.location.reload()
+        }
       }, 500)
       
       return () => {
@@ -453,7 +541,6 @@ export default function ConceptsPage() {
   }, [dataLoaded, loading]) // REMOVE debug dependency
 
   // Handle creating a new concept
-  debug.logUserAction('Creating handleAddConcept function')
   const handleAddConcept = async (title: string) => {
     try {
       setIsCreatingConcept(true)
