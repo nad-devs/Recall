@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, BookOpen, CheckCircle, LockIcon } from "lucide-react"
+import { ArrowLeft, BookOpen, CheckCircle, LockIcon, RotateCcw, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { ConceptQuiz } from "@/components/concept-quiz"
 import { useToast } from "@/hooks/use-toast"
 
@@ -177,12 +177,63 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
     fetchConceptAndGenerateQuiz()
   }, [resolvedParams.id, toast])
 
+  // Function to generate appropriate feedback based on score
+  const getScoreFeedback = (score: number, total: number) => {
+    const percentage = (score / total) * 100
+    
+    if (percentage === 100) {
+      return {
+        message: "Perfect score! Outstanding work!",
+        suggestion: "You've mastered this concept completely.",
+        color: "green",
+        variant: "default" as const
+      }
+    } else if (percentage >= 80) {
+      return {
+        message: "Excellent work!",
+        suggestion: "You have a strong understanding of this concept.",
+        color: "green",
+        variant: "default" as const
+      }
+    } else if (percentage >= 70) {
+      return {
+        message: "Good job!",
+        suggestion: "You're on the right track. Review the areas you missed.",
+        color: "blue",
+        variant: "default" as const
+      }
+    } else if (percentage >= 60) {
+      return {
+        message: "Not bad, but room for improvement.",
+        suggestion: "Consider reviewing this concept more thoroughly.",
+        color: "yellow",
+        variant: "default" as const
+      }
+    } else if (percentage >= 40) {
+      return {
+        message: "Needs more study.",
+        suggestion: "This concept requires additional review and practice.",
+        color: "orange",
+        variant: "destructive" as const
+      }
+    } else {
+      return {
+        message: "Keep studying!",
+        suggestion: "This concept needs significant review. Don't give up!",
+        color: "red",
+        variant: "destructive" as const
+      }
+    }
+  }
+
   const handleQuizComplete = async (score: number) => {
     setQuizCompleted(true)
     setQuizScore(score)
     
     const conceptId = resolvedParams.id
     if (!conceptId) return
+    
+    const feedback = getScoreFeedback(score, totalQuestions)
     
     // Try to update review stats in database, but don't show errors to user
     try {
@@ -199,32 +250,35 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
         const responseData = await response.json()
         console.log('🔧 Review update successful:', responseData)
         
-        // Only show success toast if the update actually worked
+        // Show success toast with appropriate feedback
         toast({
           title: "Quiz Completed!",
-          description: `You scored ${score}/${totalQuestions}. Your progress has been saved.`,
-          duration: 4000,
+          description: `You scored ${score}/${totalQuestions} (${Math.round((score/totalQuestions)*100)}%). ${feedback.message} Your progress has been saved.`,
+          variant: feedback.variant,
+          duration: 5000,
         })
       } else {
         // Log the error but don't show it to the user
         console.warn('🔧 Review update failed:', response.status, response.statusText)
         
-        // Show a generic completion message instead
+        // Show completion message with appropriate feedback
         toast({
           title: "Quiz Completed!",
-          description: `You scored ${score}/${totalQuestions}. Great job!`,
-          duration: 4000,
+          description: `You scored ${score}/${totalQuestions} (${Math.round((score/totalQuestions)*100)}%). ${feedback.message}`,
+          variant: feedback.variant,
+          duration: 5000,
         })
       }
     } catch (error) {
       // Log the error but don't show it to the user
       console.warn("🔧 Error updating review stats (non-critical):", error)
       
-      // Show a generic completion message
+      // Show completion message with appropriate feedback
       toast({
         title: "Quiz Completed!",
-        description: `You scored ${score}/${totalQuestions}. Great job!`,
-        duration: 4000,
+        description: `You scored ${score}/${totalQuestions} (${Math.round((score/totalQuestions)*100)}%). ${feedback.message}`,
+        variant: feedback.variant,
+        duration: 5000,
       })
     }
   }
@@ -290,31 +344,92 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
           </Card>
         )
       ) : (
-        <Card className="border-green-200 dark:border-green-800">
-          <CardHeader className="bg-green-50 dark:bg-green-900/20">
-            <CardTitle className="flex items-center text-green-700 dark:text-green-300">
-              <CheckCircle className="mr-2 h-5 w-5" />
-              Quiz Completed!
-            </CardTitle>
-            <CardDescription>
-              You scored {quizScore > totalQuestions ? totalQuestions : quizScore} out of {totalQuestions} ({Math.round(((quizScore > totalQuestions ? totalQuestions : quizScore) / totalQuestions) * 100)}%)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <p>Great job reviewing {concept.title}! Continue exploring other concepts or return to the dashboard.</p>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button variant="outline" asChild>
-              <Link href="/concepts">
-                <BookOpen className="mr-2 h-4 w-4" />
-                Browse Concepts
-              </Link>
-            </Button>
-            <Button asChild>
-                              <Link href="/dashboard">Return to Dashboard</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+        (() => {
+          const feedback = getScoreFeedback(quizScore, totalQuestions)
+          const percentage = Math.round((quizScore / totalQuestions) * 100)
+          
+          return (
+            <Card className={`border-2 ${
+              feedback.color === 'green' ? 'border-green-200 dark:border-green-800' :
+              feedback.color === 'blue' ? 'border-blue-200 dark:border-blue-800' :
+              feedback.color === 'yellow' ? 'border-yellow-200 dark:border-yellow-800' :
+              feedback.color === 'orange' ? 'border-orange-200 dark:border-orange-800' :
+              'border-red-200 dark:border-red-800'
+            }`}>
+              <CardHeader className={`${
+                feedback.color === 'green' ? 'bg-green-50 dark:bg-green-900/20' :
+                feedback.color === 'blue' ? 'bg-blue-50 dark:bg-blue-900/20' :
+                feedback.color === 'yellow' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+                feedback.color === 'orange' ? 'bg-orange-50 dark:bg-orange-900/20' :
+                'bg-red-50 dark:bg-red-900/20'
+              }`}>
+                <CardTitle className={`flex items-center ${
+                  feedback.color === 'green' ? 'text-green-700 dark:text-green-300' :
+                  feedback.color === 'blue' ? 'text-blue-700 dark:text-blue-300' :
+                  feedback.color === 'yellow' ? 'text-yellow-700 dark:text-yellow-300' :
+                  feedback.color === 'orange' ? 'text-orange-700 dark:text-orange-300' :
+                  'text-red-700 dark:text-red-300'
+                }`}>
+                  <CheckCircle className="mr-2 h-5 w-5" />
+                  Quiz Completed!
+                </CardTitle>
+                <CardDescription>
+                  You scored {quizScore > totalQuestions ? totalQuestions : quizScore} out of {totalQuestions} ({percentage}%)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    {percentage >= 80 ? (
+                      <TrendingUp className="h-5 w-5 text-green-500" />
+                    ) : percentage >= 60 ? (
+                      <Minus className="h-5 w-5 text-yellow-500" />
+                    ) : (
+                      <TrendingDown className="h-5 w-5 text-red-500" />
+                    )}
+                    <p className="font-medium">{feedback.message}</p>
+                  </div>
+                  <p className="text-muted-foreground">{feedback.suggestion}</p>
+                  {percentage < 70 && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        💡 Tip: Review the concept notes below and consider retaking the quiz to improve your understanding.
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-sm">Continue exploring other concepts or return to the dashboard.</p>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <div className="flex gap-2">
+                  <Button variant="outline" asChild>
+                    <Link href="/concepts">
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Browse Concepts
+                    </Link>
+                  </Button>
+                  {percentage < 70 && (
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => {
+                        setQuizCompleted(false)
+                        setQuizScore(0)
+                        // Re-shuffle questions for variety
+                        window.location.reload()
+                      }}
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Retake Quiz
+                    </Button>
+                  )}
+                </div>
+                <Button asChild>
+                  <Link href="/dashboard">Return to Dashboard</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          )
+        })()
       )}
 
       {/* Concept Notes Card - Blurred until quiz is completed */}

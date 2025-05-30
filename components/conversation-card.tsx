@@ -8,6 +8,7 @@ import { Calendar, ArrowRight, CheckCircle, Trash2, Loader2 } from "lucide-react
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { getAuthHeaders } from '@/lib/auth-utils'
 
 interface ConversationCardProps {
   conversation: {
@@ -128,16 +129,19 @@ export function ConversationCard({ conversation, onDelete }: ConversationCardPro
     try {
       const response = await fetch(`/api/conversations/${id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete conversation');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete conversation');
       }
 
       toast({
-        title: "Conversation Deleted",
+        title: "✓ Conversation Deleted",
         description: "The conversation has been successfully removed",
         duration: 3000,
+        className: "border-green-200 bg-green-50 text-green-900",
       });
 
       // Call the callback if provided
@@ -150,10 +154,10 @@ export function ConversationCard({ conversation, onDelete }: ConversationCardPro
     } catch (error) {
       console.error('Error deleting conversation:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete conversation",
+        title: "❌ Error",
+        description: error instanceof Error ? error.message : "Failed to delete conversation",
         variant: "destructive",
-        duration: 3000,
+        duration: 5000,
       });
     } finally {
       setIsDeleting(false);

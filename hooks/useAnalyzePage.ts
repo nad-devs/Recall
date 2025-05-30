@@ -586,13 +586,11 @@ export function useAnalyzePage() {
       }
 
       console.log("Analysis completed successfully")
-      // Keep the loading screen visible for longer to show completion
-      setTimeout(() => {
-        setShowAnimation(false)
-        setIsAnalyzing(false)
-        setDiscoveredConcepts([])
-        setAnalysisStage("Initializing...")
-      }, 2500) // Increased from 1000ms to 2500ms for better UX
+      // Set analysis states immediately for smooth transition
+      setIsAnalyzing(false)
+      setShowAnimation(false)
+      setDiscoveredConcepts([])
+      setAnalysisStage("Initializing...")
     } catch (error) {
       console.error('Error during analysis:', error)
       toast({

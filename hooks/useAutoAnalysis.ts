@@ -93,12 +93,11 @@ export function useAutoAnalysis({
       }
       
       console.log("Auto-analysis completed successfully")
-      setTimeout(() => {
-        setShowAnimation(false)
-        setIsAnalyzing(false)
-        setDiscoveredConcepts([])
-        setAnalysisStage("Initializing...")
-      }, 2500)
+      // Set analysis states immediately for smooth transition
+      setIsAnalyzing(false)
+      setShowAnimation(false)
+      setDiscoveredConcepts([])
+      setAnalysisStage("Initializing...")
     } catch (error) {
       console.error('Error during auto-analysis:', error)
       toast({

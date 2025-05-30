@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { FolderPlus, ArrowRight, AlertTriangle, Folder } from "lucide-react"
+import { Select, SelectOption } from "@/components/ui/select"
 
 interface Concept {
   id: string
@@ -364,19 +365,19 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                 {!createNewCategory && (
                   <div className="ml-6 space-y-2">
                     <Label className="text-xs text-muted-foreground">Select destination category</Label>
-                    <select
+                    <Select
                       value={targetCategory}
                       onChange={(e) => setTargetCategory(e.target.value)}
-                      className="w-full p-3 border rounded-lg text-sm bg-background hover:bg-accent focus:bg-background focus:ring-2 focus:ring-primary transition-colors"
                       disabled={isMovingConcepts}
+                      className="w-full p-3"
                     >
-                      <option value="">Choose a category...</option>
+                      <SelectOption value="">Choose a category...</SelectOption>
                       {availableCategories.map(category => (
-                        <option key={category} value={category}>
+                        <SelectOption key={category} value={category}>
                           📁 {category} ({conceptsByCategory[category]?.length || 0} concepts)
-                        </option>
+                        </SelectOption>
                       ))}
-                    </select>
+                    </Select>
                     
                     {targetCategory && (
                       <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded text-xs">
