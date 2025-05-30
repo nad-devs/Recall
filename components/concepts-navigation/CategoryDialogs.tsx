@@ -201,7 +201,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <FolderPlus className="mr-2 h-5 w-5" />
@@ -270,7 +270,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh] bg-background border shadow-lg">
+        <DialogContent className="sm:max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <ArrowRight className="mr-2 h-5 w-5" />
@@ -457,7 +457,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
       <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Category</DialogTitle>
             <DialogDescription>
@@ -496,7 +496,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
       <Dialog open={showDragDropDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Folder className="mr-2 h-5 w-5" />
