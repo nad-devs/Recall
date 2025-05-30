@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, useEffect, lazy } from 'react'
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -72,28 +72,58 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
     typeof window !== 'undefined' && 
     window.location.search.includes('redux=true')
   
-  // FIXED: Only use old loading system when NOT using Redux
-  const { isLoading, startLoading, stopLoading } = USE_REDUX 
-    ? { isLoading: false, startLoading: () => () => {}, stopLoading: () => {} }
-    : useLoading()
+  // 🚀 PURE REDUX MODE - No React state management when Redux is active
+  if (USE_REDUX) {
+    console.log('🚀 PURE REDUX MODE ACTIVATED - No React state management')
+    
+    // Import the Redux navigation component
+    const ConceptsNavigationRedux = lazy(() => 
+      import('./concepts-navigation-redux').then(module => ({ default: module.ConceptsNavigationRedux }))
+    )
+    
+    return (
+      <React.Suspense fallback={
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+            <div className="text-sm text-muted-foreground">Loading Redux Navigation...</div>
+          </div>
+        </div>
+      }>
+        <ConceptsNavigationRedux
+          concepts={concepts}
+          conceptsByCategory={conceptsByCategory}
+          sortedCategories={sortedCategories}
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
+          onCategorySelect={onCategorySelect}
+          selectedCategory={selectedCategory}
+          showNeedsReview={showNeedsReview}
+          onNeedsReviewToggle={onNeedsReviewToggle}
+          onConceptsMove={onConceptsMove}
+          onDataRefresh={onDataRefresh}
+          className={className}
+        />
+      </React.Suspense>
+    )
+  }
   
-  // FIXED: Always call hooks in the same order
+  // 🟢 LEGACY REACT MODE - All original React state management
+  console.log('🟢 LEGACY REACT MODE - Using original React state management')
+  
+  // Original loading system for React mode
+  const { isLoading, startLoading, stopLoading } = useLoading()
+  
+  // Original category operations for React mode
+  const categoryOps = useCategoryOperations({
+    conceptsByCategory,
+    onDataRefresh,
+    onCategorySelect,
+    onConceptsMove
+  })
+
+  // React state management for legacy mode
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
-  
-  // CONDITIONAL: Use Redux or regular version based on flag
-  const categoryOps = USE_REDUX 
-    ? useCategoryOperationsRedux({
-        conceptsByCategory,
-        onDataRefresh,
-        onCategorySelect,
-        onConceptsMove
-      })
-    : useCategoryOperations({
-        conceptsByCategory,
-        onDataRefresh,
-        onCategorySelect,
-        onConceptsMove
-      })
 
   // Simple state management
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
@@ -759,7 +789,11 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         editingCategoryPath={categoryOps.editingCategoryPath}
         newCategoryName={categoryOps.newCategoryName}
         transferConcepts={categoryOps.transferConcepts}
-        selectedConceptsForTransfer={categoryOps.selectedConceptsForTransfer}
+        selectedConceptsForTransfer={USE_REDUX 
+          ? (categoryOps.selectedConceptsForTransfer instanceof Array 
+             ? new Set(categoryOps.selectedConceptsForTransfer)
+             : categoryOps.selectedConceptsForTransfer)
+          : categoryOps.selectedConceptsForTransfer}
         isCreatingCategory={categoryOps.isCreatingCategory}
         isMovingConcepts={categoryOps.isMovingConcepts}
         isRenamingCategory={categoryOps.isRenamingCategory}
