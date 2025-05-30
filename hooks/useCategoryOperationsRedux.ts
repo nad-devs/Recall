@@ -124,11 +124,17 @@ export const useCategoryOperationsRedux = ({
         parentCategory: categoryState.selectedParentCategory || ''
       }) as any)
 
-      // Success - refresh data and show success
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
+      // Success - NON-BLOCKING data refresh and navigation
       onCategorySelect(newCategoryPath)
+      
+      // Refresh data in background without blocking UI
+      if (onDataRefresh) {
+        setTimeout(() => {
+          onDataRefresh().catch(error => {
+            console.error('Background data refresh failed:', error)
+          })
+        }, 100)
+      }
       
       toast({
         title: "Category Created",
@@ -186,11 +192,17 @@ export const useCategoryOperationsRedux = ({
         targetCategory
       }) as any)
 
-      // Success - refresh data and show success
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
+      // Success - NON-BLOCKING data refresh and navigation
       onCategorySelect(targetCategory)
+      
+      // Refresh data in background without blocking UI
+      if (onDataRefresh) {
+        setTimeout(() => {
+          onDataRefresh().catch(error => {
+            console.error('Background data refresh failed:', error)
+          })
+        }, 100)
+      }
       
       toast({
         title: "Concepts Moved",
@@ -235,16 +247,21 @@ export const useCategoryOperationsRedux = ({
         newName
       }) as any)
 
-      // Success - refresh data and show success  
-      if (onDataRefresh) {
-        await onDataRefresh()
-      }
-      
+      // Success - NON-BLOCKING data refresh and navigation
       // Calculate new path for selection
       const newPath = categoryPath.length > 1 
         ? `${categoryPath.slice(0, -1).join(' > ')} > ${newName}`
         : newName
       onCategorySelect(newPath)
+      
+      // Refresh data in background without blocking UI
+      if (onDataRefresh) {
+        setTimeout(() => {
+          onDataRefresh().catch(error => {
+            console.error('Background data refresh failed:', error)
+          })
+        }, 100)
+      }
       
       toast({
         title: "Category Renamed",
