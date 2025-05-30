@@ -198,8 +198,24 @@ export function CategoryDialogs({
     
     console.log('🔵 Enhanced transfer to existing category:', targetCategory)
     
-    const conceptsToMove = selectedConceptsForTransfer.size > 0
-      ? transferConcepts.filter(c => selectedConceptsForTransfer.has(c.id))
+    // Defensive programming: Handle both Set and Array types
+    const isSelected = (conceptId: string) => {
+      if (selectedConceptsForTransfer && typeof selectedConceptsForTransfer.has === 'function') {
+        return selectedConceptsForTransfer.has(conceptId)
+      } else if (Array.isArray(selectedConceptsForTransfer)) {
+        return selectedConceptsForTransfer.includes(conceptId)
+      }
+      return false
+    }
+    
+    const selectedCount = selectedConceptsForTransfer && typeof selectedConceptsForTransfer.size === 'number' 
+      ? selectedConceptsForTransfer.size 
+      : Array.isArray(selectedConceptsForTransfer) 
+        ? selectedConceptsForTransfer.length 
+        : 0
+    
+    const conceptsToMove = selectedCount > 0
+      ? transferConcepts.filter(c => isSelected(c.id))
       : transferConcepts
 
     if (conceptsToMove.length === 0) return
@@ -219,11 +235,37 @@ export function CategoryDialogs({
 
   // Toggle select all/none
   const handleToggleAll = () => {
-    if (selectedConceptsForTransfer.size === transferConcepts.length) {
+    const selectedCount = selectedConceptsForTransfer && typeof selectedConceptsForTransfer.size === 'number' 
+      ? selectedConceptsForTransfer.size 
+      : Array.isArray(selectedConceptsForTransfer) 
+        ? selectedConceptsForTransfer.length 
+        : 0
+    
+    if (selectedCount === transferConcepts.length) {
       setSelectedConceptsForTransfer(new Set())
     } else {
       setSelectedConceptsForTransfer(new Set(transferConcepts.map(c => c.id)))
     }
+  }
+
+  // Defensive function to check if concept is selected
+  const isConceptSelected = (conceptId: string) => {
+    if (selectedConceptsForTransfer && typeof selectedConceptsForTransfer.has === 'function') {
+      return selectedConceptsForTransfer.has(conceptId)
+    } else if (Array.isArray(selectedConceptsForTransfer)) {
+      return selectedConceptsForTransfer.includes(conceptId)
+    }
+    return false
+  }
+
+  // Defensive function to get selected count
+  const getSelectedCount = () => {
+    if (selectedConceptsForTransfer && typeof selectedConceptsForTransfer.size === 'number') {
+      return selectedConceptsForTransfer.size
+    } else if (Array.isArray(selectedConceptsForTransfer)) {
+      return selectedConceptsForTransfer.length
+    }
+    return 0
   }
 
   return (
@@ -232,7 +274,7 @@ export function CategoryDialogs({
       <Dialog open={showAddSubcategoryDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <FolderPlus className="mr-2 h-5 w-5" />
@@ -277,7 +319,7 @@ export function CategoryDialogs({
                   <span className="text-sm font-medium">Move Concepts</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {selectedConceptsForTransfer.size || transferConcepts.length} concept(s) will be moved to this new category
+                  {getSelectedCount()} concept(s) will be moved to this new category
                 </p>
               </div>
             )}
@@ -301,7 +343,7 @@ export function CategoryDialogs({
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh]">
+        <DialogContent className="sm:max-w-3xl max-h-[80vh] bg-background border shadow-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <ArrowRight className="mr-2 h-5 w-5" />
@@ -323,7 +365,7 @@ export function CategoryDialogs({
                   onClick={handleToggleAll}
                   className="h-7 text-xs"
                 >
-                  {selectedConceptsForTransfer.size === transferConcepts.length ? 'Deselect All' : 'Select All'}
+                  {getSelectedCount() === transferConcepts.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
               
@@ -334,7 +376,7 @@ export function CategoryDialogs({
                       <input
                         type="checkbox"
                         id={`concept-${concept.id}`}
-                        checked={selectedConceptsForTransfer.has(concept.id)}
+                        checked={isConceptSelected(concept.id)}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           const newSelected = new Set(selectedConceptsForTransfer)
                           if (e.target.checked) {
@@ -411,7 +453,7 @@ export function CategoryDialogs({
                     
                     {targetCategory && (
                       <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded text-xs">
-                        ✅ Will move {selectedConceptsForTransfer.size || transferConcepts.length} concept(s) to "<strong>{targetCategory}</strong>"
+                        ✅ Will move {getSelectedCount()} concept(s) to "<strong>{targetCategory}</strong>"
                       </div>
                     )}
                   </div>
@@ -467,7 +509,7 @@ export function CategoryDialogs({
           
           <div className="flex justify-between items-center pt-4 border-t">
             <div className="text-sm text-muted-foreground">
-              Moving {selectedConceptsForTransfer.size || transferConcepts.length} of {transferConcepts.length} concept(s)
+              Moving {getSelectedCount()} of {transferConcepts.length} concept(s)
             </div>
             <div className="space-x-2">
               <Button variant="outline" onClick={handleDialogCancel} disabled={isMovingConcepts}>
@@ -488,7 +530,7 @@ export function CategoryDialogs({
       <Dialog open={showEditCategoryDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
           <DialogHeader>
             <DialogTitle>Rename Category</DialogTitle>
             <DialogDescription>
@@ -527,7 +569,7 @@ export function CategoryDialogs({
       <Dialog open={showDragDropDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-background border shadow-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Folder className="mr-2 h-5 w-5" />
