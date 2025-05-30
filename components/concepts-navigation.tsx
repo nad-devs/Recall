@@ -1,26 +1,9 @@
-import React, { useState, useCallback, useMemo, useEffect, lazy } from 'react'
-import { 
-  ChevronDown, 
-  ChevronRight, 
-  Search, 
-  Plus, 
-  RefreshCw, 
-  AlertCircle, 
-  Filter, 
-  BookOpen, 
-  AlertTriangle, 
-  FolderPlus 
-} from 'lucide-react'
-import { Button } from "@/components/ui/button"
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { Search, BookOpen } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { useToast } from "@/hooks/use-toast"
-import { useDrop } from 'react-dnd'
 import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
-import { useCategoryOperationsRedux } from '@/hooks/useCategoryOperationsRedux'
 import { CategoryNodeComponent } from './concepts-navigation/CategoryNode'
-import { CategoryDialogs } from './concepts-navigation/CategoryDialogs'
 
 interface Concept {
   id: string
@@ -51,45 +34,17 @@ interface ConceptsNavigationProps {
 export const ConceptsNavigation = React.memo(function ConceptsNavigationComponent({ 
   concepts, 
   conceptsByCategory, 
-  sortedCategories, 
   searchQuery, 
   onSearchChange, 
   onCategorySelect, 
   selectedCategory,
-  showNeedsReview,
-  onNeedsReviewToggle,
-  onConceptsMove,
-  onDataRefresh,
   className = ""
 }: ConceptsNavigationProps) {
-  const { toast } = useToast()
   
-  console.log('🚀 REDUX-ONLY MODE - Complete replacement of React state management')
-  
-  // ALWAYS use Redux operations - no more toggle system
-  const categoryOps = useCategoryOperationsRedux({
-    conceptsByCategory,
-    onDataRefresh,
-    onCategorySelect,
-    onConceptsMove
-  })
-
-  // Keep minimal React UI state for immediate responsiveness
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(['Backend Engineering', 'Data Structures', 'Computer Science'])
   )
-  const [isDraggingAny, setIsDraggingAny] = useState(false)
-  const [expandedBeforeDrag, setExpandedBeforeDrag] = useState<Set<string>>(new Set())
-  const [inlineEditingCategory, setInlineEditingCategory] = useState<string | null>(null)
-  const [inlineEditValue, setInlineEditValue] = useState('')
-
-  // Calculate stats
-  const stats = useMemo(() => {
-    const totalConcepts = concepts.length
-    const needsReviewCount = concepts.filter(c => c.needsReview).length
-    return { totalConcepts, needsReviewCount }
-  }, [concepts])
 
   // Enhanced search functionality
   const filteredConceptsByCategory = useMemo(() => {
@@ -133,30 +88,6 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
     }
   }, [searchQuery, filteredConceptsByCategory])
 
-  // Simple drag handlers
-  const handleDragStart = useCallback(() => {
-    setIsDraggingAny(true)
-    setExpandedBeforeDrag(new Set(expandedCategories))
-    
-    const allCategoriesWithSubs = new Set<string>()
-    Object.values(categoryHierarchy).forEach(node => {
-      const addCategoriesWithSubs = (n: any) => {
-        if (Object.keys(n.subcategories).length > 0) {
-          allCategoriesWithSubs.add(n.fullPath)
-        }
-        Object.values(n.subcategories).forEach(addCategoriesWithSubs)
-      }
-      addCategoriesWithSubs(node)
-    })
-    setExpandedCategories(allCategoriesWithSubs)
-  }, [expandedCategories, categoryHierarchy])
-
-  const handleDragEnd = useCallback(() => {
-    setIsDraggingAny(false)
-    setExpandedCategories(expandedBeforeDrag)
-    setExpandedBeforeDrag(new Set())
-  }, [expandedBeforeDrag])
-
   const toggleCategory = useCallback((categoryPath: string) => {
     const newExpanded = new Set(expandedCategories)
     if (newExpanded.has(categoryPath)) {
@@ -167,123 +98,35 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
     setExpandedCategories(newExpanded)
   }, [expandedCategories])
 
-  // Inline editing with Redux operations
-  const startInlineEdit = useCallback((categoryPath: string) => {
-    const categoryName = categoryPath.includes(' > ') 
-      ? categoryPath.split(' > ').pop() || '' 
-      : categoryPath
-    setInlineEditingCategory(categoryPath)
-    setInlineEditValue(categoryName)
-  }, [])
-
-  const cancelInlineEdit = useCallback(() => {
-    setInlineEditingCategory(null)
-    setInlineEditValue('')
-  }, [])
-
-  const saveInlineEdit = useCallback(async () => {
-    if (!inlineEditingCategory || !inlineEditValue.trim()) {
-      cancelInlineEdit()
-      return
-    }
-    
-    const trimmedName = inlineEditValue.trim()
-    const oldPath = inlineEditingCategory
-    const pathParts = oldPath.split(' > ')
-    pathParts[pathParts.length - 1] = trimmedName
-    const newPath = pathParts.join(' > ')
-    
-    if (newPath === oldPath) {
-      cancelInlineEdit()
-      return
-    }
-    
-    if (conceptsByCategory[newPath]) {
-      toast({
-        title: "Category Exists",
-        description: `Category "${newPath}" already exists.`,
-        variant: "destructive",
-        duration: 3000,
-      })
-      return
-    }
-    
-    try {
-      // Use Redux for rename operation
-      await categoryOps.handleRenameCategory(oldPath.split(' > '), trimmedName)
-      cancelInlineEdit()
-    } catch (error) {
-      console.error('Error renaming category:', error)
-      toast({
-        title: "Error",
-        description: "Failed to rename category. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
-    }
-  }, [inlineEditingCategory, inlineEditValue, conceptsByCategory, toast, categoryOps, cancelInlineEdit])
-
-  // Redux-powered handlers
-  const handleAddSubcategory = useCallback((parentCategory: string) => {
-    console.log('🚀 Redux: Adding subcategory (background) - UI stays responsive!')
-    categoryOps.openAddSubcategoryDialog(parentCategory)
-  }, [categoryOps])
-
-  const handleAddTopLevelCategory = useCallback(() => {
-    console.log('🚀 Redux: Adding top level category (background) - UI stays responsive!')
-    categoryOps.openAddSubcategoryDialog('')
-  }, [categoryOps])
-
-  // Category drop handling
-  const handleCategoryDrop = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
-    if (draggedCategoryPath === targetCategoryPath) return
-    
-    if (targetCategoryPath && targetCategoryPath.startsWith(draggedCategoryPath + ' > ')) {
-      toast({
-        title: "Invalid Move",
-        description: "Cannot move a category into its own subcategory.",
-        variant: "destructive",
-        duration: 3000,
-      })
-      return
-    }
-    
-    const targetName = targetCategoryPath 
-      ? targetCategoryPath.split(' > ').pop() || 'Unknown'
-      : 'Root Level'
-    
-    categoryOps.openDragDropDialog({
-      draggedCategoryPath,
-      targetCategoryPath,
-      targetCategoryName: targetName
-    })
-  }, [toast, categoryOps])
-
-  // Drop zone for empty space (root level drops)
-  const [{ isOverEmptySpace }, dropEmptySpace] = useDrop(() => ({
-    accept: 'CATEGORY',
-    drop: (item: { categoryPath: string }, monitor) => {
-      if (!monitor.isOver({ shallow: true })) {
-        return
-      }
-      handleCategoryDrop(item.categoryPath, null)
-    },
-    collect: (monitor) => ({
-      isOverEmptySpace: !!monitor.isOver({ shallow: true }),
-    }),
-  }), [handleCategoryDrop])
-
   // Use filtered hierarchy for rendering
   const filteredHierarchy = useMemo(() => {
     const filtered: Record<string, any> = {}
     
+    // Helper function to calculate total concepts in a node and its subcategories
+    const calculateTotalConcepts = (node: any, filteredConceptsByCategory: Record<string, Concept[]>): number => {
+      let total = filteredConceptsByCategory[node.fullPath]?.length || 0
+      
+      Object.values(node.subcategories).forEach((subNode: any) => {
+        total += calculateTotalConcepts(subNode, filteredConceptsByCategory)
+      })
+      
+      return total
+    }
+    
     Object.entries(categoryHierarchy).forEach(([key, node]) => {
-      if (filteredConceptsByCategory[node.fullPath] || 
-          Object.values(node.subcategories).some(subNode => 
-            filteredConceptsByCategory[subNode.fullPath])) {
+      const hasFilteredConcepts = filteredConceptsByCategory[node.fullPath]
+      const hasFilteredSubcategories = Object.values(node.subcategories).some(subNode => 
+        filteredConceptsByCategory[subNode.fullPath] || 
+        Object.values(subNode.subcategories).some((deepNode: any) => 
+          filteredConceptsByCategory[deepNode.fullPath]))
+
+      if (hasFilteredConcepts || hasFilteredSubcategories) {
+        const totalConceptCount = calculateTotalConcepts(node, filteredConceptsByCategory)
+        
         filtered[key] = {
           ...node,
-          conceptCount: filteredConceptsByCategory[node.fullPath]?.length || 0
+          conceptCount: totalConceptCount,
+          concepts: filteredConceptsByCategory[node.fullPath] || []
         }
       }
     })
@@ -300,9 +143,21 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
 
     if (!hasFilteredConcepts && !hasFilteredSubcategories) return null
 
+    // Helper function to calculate total concepts in a node and its subcategories
+    const calculateTotalConcepts = (nodeToCalculate: any): number => {
+      let total = filteredConceptsByCategory[nodeToCalculate.fullPath]?.length || 0
+      
+      Object.values(nodeToCalculate.subcategories).forEach((subNode: any) => {
+        total += calculateTotalConcepts(subNode)
+      })
+      
+      return total
+    }
+
     const nodeWithFilteredCount = {
       ...node,
-      conceptCount: filteredConceptsByCategory[node.fullPath]?.length || 0
+      conceptCount: calculateTotalConcepts(node),
+      concepts: filteredConceptsByCategory[node.fullPath] || []
     }
 
     return (
@@ -313,27 +168,27 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
           depth={depth}
           isExpanded={expandedCategories.has(node.fullPath)}
           isSelected={selectedCategory === node.fullPath}
-          isInlineEditing={inlineEditingCategory === node.fullPath}
+          isInlineEditing={false}
           onToggleCategory={toggleCategory}
           onCategorySelect={onCategorySelect}
-          onAddSubcategory={handleAddSubcategory}
-          onStartInlineEdit={startInlineEdit}
-          onSaveInlineEdit={saveInlineEdit}
-          onCancelInlineEdit={cancelInlineEdit}
-          onSetTransferConcepts={(concepts: Concept[]) => {
-            categoryOps.openTransferDialog(concepts)
-          }}
-          inlineEditValue={inlineEditValue}
-          onSetInlineEditValue={setInlineEditValue}
-          isCreatingCategory={categoryOps.isCreatingCategory}
-          isMovingConcepts={categoryOps.isMovingConcepts}
-          isRenamingCategory={categoryOps.isRenamingCategory}
-          handleCategoryDrop={handleCategoryDrop}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          isDraggingAny={isDraggingAny}
+          onAddSubcategory={() => {}}
+          onStartInlineEdit={() => {}}
+          onSaveInlineEdit={() => {}}
+          onCancelInlineEdit={() => {}}
+          onSetTransferConcepts={() => {}}
+          inlineEditValue=""
+          onSetInlineEditValue={() => {}}
+          isCreatingCategory={false}
+          isMovingConcepts={false}
+          isRenamingCategory={false}
+          handleCategoryDrop={() => {}}
+          onDragStart={() => {}}
+          onDragEnd={() => {}}
+          isDraggingAny={false}
         />
-        {Object.keys(node.subcategories).length > 0 && expandedCategories.has(node.fullPath) && (
+        
+        {/* Render subcategories when expanded */}
+        {expandedCategories.has(node.fullPath) && (
           <div>
             {Object.values(node.subcategories)
               .sort((a: any, b: any) => a.name.localeCompare(b.name))
@@ -342,60 +197,21 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         )}
       </React.Fragment>
     )
-  }, [
-    filteredConceptsByCategory, expandedCategories, selectedCategory, inlineEditingCategory, 
-    inlineEditValue, toggleCategory, onCategorySelect, handleAddSubcategory, startInlineEdit,
-    saveInlineEdit, cancelInlineEdit, handleCategoryDrop, handleDragStart, handleDragEnd,
-    isDraggingAny, categoryOps
-  ])
-
-  // Redux-only cancel handler
-  const handleCancel = useCallback(async () => {
-    console.log('🚀 Redux: Force canceling all operations - stopping background processes!')
-    
-    try {
-      await categoryOps.handleCancel()
-      
-      // Also reset local UI state
-      setInlineEditingCategory(null)
-      setInlineEditValue('')
-      
-      console.log('✅ Redux: All operations canceled successfully')
-    } catch (error) {
-      console.error('❌ Redux: Error during cancel:', error)
-      toast({
-        title: "Cancel Error",
-        description: "There was an issue canceling operations. Please refresh if problems persist.",
-        variant: "destructive",
-        duration: 3000,
-      })
-    }
-  }, [categoryOps, toast])
+  }, [filteredConceptsByCategory, expandedCategories, selectedCategory, toggleCategory, onCategorySelect])
 
   return (
-    <div className={`h-full flex flex-col bg-background ${className}`}>
-      {/* Redux Status Indicator */}
-      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2 m-4 text-sm">
-        <div className="flex items-center space-x-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-green-700 dark:text-green-300">
-            🚀 REDUX-ONLY MODE - Zero UI Blocking
-          </span>
-        </div>
-        <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-          ✅ All operations managed by Redux • No React state conflicts
-        </div>
-      </div>
-
-      {/* Header */}
+    <div className={`h-full flex flex-col bg-background border-r border-border ${className}`}>
+      {/* Header with better alignment */}
       <div className="p-4 border-b border-border">
-        <h2 className="text-lg font-semibold mb-2 flex items-center">
-          <BookOpen className="mr-2 h-5 w-5" />
-          Navigate Concepts
-          <span className="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded-full">
-            🚀 Redux Only
-          </span>
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold flex items-center">
+            <BookOpen className="mr-2 h-5 w-5" />
+            Navigate Concepts
+          </h2>
+          <Badge variant="secondary" className="text-xs">
+            {Object.values(filteredConceptsByCategory).flat().length}
+          </Badge>
+        </div>
         
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -406,155 +222,25 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
             className="pl-10"
           />
         </div>
-        
-        {searchQuery && (
-          <div className="mt-2 text-xs text-muted-foreground">
-            Found {Object.values(filteredConceptsByCategory).flat().length} concepts
-          </div>
-        )}
-      </div>
-
-      {/* Quick Stats */}
-      <div className="p-4 border-b border-border">
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-center p-2 bg-muted/50 rounded">
-            <div className="font-semibold">{stats.totalConcepts}</div>
-            <div className="text-muted-foreground">Total</div>
-          </div>
-          <div className="text-center p-2 bg-muted/50 rounded">
-            <div className="font-semibold">{Object.keys(conceptsByCategory).length}</div>
-            <div className="text-muted-foreground">Categories</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="p-4 border-b border-border">
-        <h3 className="text-sm font-medium mb-2 text-muted-foreground">Quick Filters</h3>
-        <div className="space-y-1">
-          <Button
-            variant={selectedCategory === null && !showNeedsReview ? "secondary" : "ghost"}
-            className="w-full justify-start text-sm h-8"
-            onClick={() => {
-              onCategorySelect(null)
-              if (showNeedsReview) onNeedsReviewToggle()
-            }}
-          >
-            <BookOpen className="mr-2 h-4 w-4" />
-            All Concepts
-            <Badge variant="secondary" className="ml-auto">
-              {stats.totalConcepts}
-            </Badge>
-          </Button>
-          
-          <Button
-            variant={showNeedsReview ? "secondary" : "ghost"}
-            className="w-full justify-start text-sm h-8"
-            onClick={onNeedsReviewToggle}
-          >
-            <AlertTriangle className="mr-2 h-4 w-4 text-orange-500" />
-            Needs Review
-            <Badge variant="secondary" className="ml-auto">
-              {stats.needsReviewCount}
-            </Badge>
-          </Button>
-        </div>
       </div>
 
       {/* Categories */}
-      <div 
-        className="flex-1 overflow-y-auto p-4"
-        ref={(el) => {
-          dropEmptySpace(el)
-        }}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-muted-foreground">Categories</h3>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-6 w-6 p-0" 
-            onClick={handleAddTopLevelCategory}
-            disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
-            title={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory ? "Please wait for current operation to complete" : "Add new category"}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-        </div>
-        <div className={`space-y-1 min-h-32 ${isOverEmptySpace ? 'bg-primary/5 border-2 border-dashed border-primary/30 rounded-lg p-2' : ''}`}>
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-1">
           {Object.values(filteredHierarchy).length > 0 ? (
             Object.values(filteredHierarchy)
               .sort((a: any, b: any) => a.name.localeCompare(b.name))
               .map((node: any) => renderCategoryNode(node, 0))
           ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <FolderPlus className="mx-auto h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm mb-1">
-                {searchQuery ? 'No categories match your search' : 'No categories yet'}
-              </p>
-              <p className="text-xs">
-                {searchQuery ? 'Try a different search term' : 'Click the + button above to create your first category'}
+            <div className="text-center py-8 text-muted-foreground">
+              <BookOpen className="mx-auto h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">
+                {searchQuery ? 'No concepts match your search' : 'No concepts found'}
               </p>
             </div>
           )}
         </div>
       </div>
-
-      {/* All Dialogs - Pure Redux */}
-      <CategoryDialogs
-        // State values
-        showAddSubcategoryDialog={categoryOps.showAddSubcategoryDialog}
-        showTransferDialog={categoryOps.showTransferDialog}
-        showEditCategoryDialog={categoryOps.showEditCategoryDialog}
-        showDragDropDialog={categoryOps.showDragDropDialog}
-        selectedParentCategory={categoryOps.selectedParentCategory}
-        newSubcategoryName={categoryOps.newSubcategoryName}
-        editingCategoryPath={categoryOps.editingCategoryPath}
-        newCategoryName={categoryOps.newCategoryName}
-        transferConcepts={categoryOps.transferConcepts}
-        selectedConceptsForTransfer={
-          categoryOps.selectedConceptsForTransfer instanceof Array 
-            ? new Set(categoryOps.selectedConceptsForTransfer)
-            : categoryOps.selectedConceptsForTransfer
-        }
-        isCreatingCategory={categoryOps.isCreatingCategory}
-        isMovingConcepts={categoryOps.isMovingConcepts}
-        isRenamingCategory={categoryOps.isRenamingCategory}
-        isResettingState={categoryOps.isResettingState}
-        dragDropData={categoryOps.dragDropData}
-        
-        // Action dispatchers
-        setNewSubcategoryName={categoryOps.setNewSubcategoryName}
-        setNewCategoryName={categoryOps.setNewCategoryName}
-        setSelectedConceptsForTransfer={categoryOps.setSelectedConceptsForTransfer}
-        
-        // Handlers - All Redux-powered
-        handleCreateSubcategory={categoryOps.handleCreateSubcategory}
-        handleTransferConcepts={categoryOps.handleTransferConcepts}
-        handleCancel={handleCancel}
-        createPlaceholderConcept={categoryOps.createPlaceholderConcept}
-        
-        // Data
-        conceptsByCategory={conceptsByCategory}
-        
-        // Handlers for drag drop functionality - All Redux-powered
-        isDraggingCategory={false}
-        executeCategoryMove={async () => {
-          // Redux handles all category moves
-          console.log('🚀 Redux: Category move handled by Redux operations')
-        }}
-        moveConceptsToCategory={async () => {
-          // Redux handles all concept moves
-          console.log('🚀 Redux: Concept move handled by Redux operations')
-        }}
-        handleRenameCategoryConfirm={async () => {
-          // Redux handles all renames
-          await categoryOps.handleRenameCategory(
-            categoryOps.editingCategoryPath?.split(' > ') || [],
-            categoryOps.newCategoryName || ''
-          )
-        }}
-      />
     </div>
   )
 }) 

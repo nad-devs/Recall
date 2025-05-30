@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { TrashIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { getAuthHeaders } from '@/lib/auth-utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,16 +38,19 @@ export function DeleteConversationButton({
     try {
       const response = await fetch(`/api/conversations/${conversationId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete conversation');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete conversation');
       }
 
       toast({
-        title: "Conversation Deleted",
+        title: "✓ Conversation Deleted",
         description: "The conversation has been successfully removed",
         duration: 3000,
+        className: "border-green-200 bg-green-50 text-green-900",
       });
       
       // Close the dialog
@@ -64,10 +68,10 @@ export function DeleteConversationButton({
     } catch (error) {
       console.error('Error deleting conversation:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete conversation",
+        title: "❌ Error",
+        description: error instanceof Error ? error.message : "Failed to delete conversation",
         variant: "destructive",
-        duration: 3000,
+        duration: 5000,
       });
     } finally {
       setIsDeleting(false);

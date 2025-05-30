@@ -125,17 +125,25 @@ function AnalyzePage() {
           </div>
 
           {/* Main content area */}
-          {!analysisResult ? (
-            /* Full width layout for input view */
+          {!analysisResult || isAnalyzing ? (
+            /* Full width layout for input view and analyzing */
             <div className="w-full">
-              <InputView
-                conversationText={conversationText}
-                setConversationText={setConversationText}
-                handleAnalyze={handleAnalyze}
-                isAnalyzing={isAnalyzing}
-                usageData={usageData}
-                remainingConversations={getRemainingConversations()}
-              />
+              {isAnalyzing ? (
+                <AnalyzingView
+                  conversationText={conversationText}
+                  discoveredConcepts={discoveredConcepts}
+                  analysisStage={analysisStage}
+                />
+              ) : (
+                <InputView
+                  conversationText={conversationText}
+                  setConversationText={setConversationText}
+                  handleAnalyze={handleAnalyze}
+                  isAnalyzing={isAnalyzing}
+                  usageData={usageData}
+                  remainingConversations={getRemainingConversations()}
+                />
+              )}
             </div>
           ) : (
             /* Grid layout for analysis results */
@@ -154,57 +162,49 @@ function AnalyzePage() {
                 />
               </div>
 
-              {/* Right column - Analysis results or analyzing view */}
+              {/* Right column - Analysis results */}
               <div className="lg:col-span-2">
-                {isAnalyzing ? (
-                  <AnalyzingView
-                    conversationText={conversationText}
-                    discoveredConcepts={discoveredConcepts}
-                    analysisStage={analysisStage}
-                  />
-                ) : (
-                  <ResultsView
-                    analysisResult={analysisResult}
-                    selectedConcept={selectedConcept}
-                    selectedTab={selectedTab}
-                    setSelectedTab={setSelectedTab}
-                    showAddConceptCard={showAddConceptCard}
-                    setShowAddConceptCard={setShowAddConceptCard}
-                    editConceptMode={editConceptMode}
-                    setEditConceptMode={setEditConceptMode}
-                    editConceptTitle={editConceptTitle}
-                    setEditConceptTitle={setEditConceptTitle}
-                    editConceptCategory={editConceptCategory}
-                    setEditConceptCategory={setEditConceptCategory}
-                    isEditingCategory={isEditingCategory}
-                    setIsEditingCategory={setIsEditingCategory}
-                    editCategoryValue={editCategoryValue}
-                    setEditCategoryValue={setEditCategoryValue}
-                    isAddingConcept={isAddingConcept}
-                    isSaving={isSaving}
-                    saveError={saveError}
-                    isDeleting={isDeleting}
-                    showConceptConfirmation={showConceptConfirmation}
-                    existingConcepts={existingConcepts}
-                    handleSaveConversation={handleSaveConversation}
-                    handleAddConcept={handleAddConcept}
-                    handleDeleteConcept={handleDeleteConcept}
-                    handleDeleteCodeSnippet={handleDeleteCodeSnippet}
-                    handleCategoryUpdate={handleCategoryUpdate}
-                    handleConfirmConceptUpdates={handleConfirmConceptUpdates}
-                    handleCancelConceptUpdates={handleCancelConceptUpdates}
-                    setSelectedConcept={setSelectedConcept}
-                    addConceptToCurrentAnalysis={addConceptToCurrentAnalysis}
-                    conceptMatches={conceptMatches}
-                    showConceptMatchDialog={showConceptMatchDialog}
-                    isProcessingMatches={isProcessingMatches}
-                    handleConceptMatchDecision={handleConceptMatchDecision}
-                    showConversationSaveDialog={showConversationSaveDialog}
-                    updatedConceptsCount={updatedConceptsCount}
-                    handleSaveConversationDecision={handleSaveConversationDecision}
-                    handleSkipSavingDecision={handleSkipSavingDecision}
-                  />
-                )}
+                <ResultsView
+                  analysisResult={analysisResult}
+                  selectedConcept={selectedConcept}
+                  selectedTab={selectedTab}
+                  setSelectedTab={setSelectedTab}
+                  showAddConceptCard={showAddConceptCard}
+                  setShowAddConceptCard={setShowAddConceptCard}
+                  editConceptMode={editConceptMode}
+                  setEditConceptMode={setEditConceptMode}
+                  editConceptTitle={editConceptTitle}
+                  setEditConceptTitle={setEditConceptTitle}
+                  editConceptCategory={editConceptCategory}
+                  setEditConceptCategory={setEditConceptCategory}
+                  isEditingCategory={isEditingCategory}
+                  setIsEditingCategory={setIsEditingCategory}
+                  editCategoryValue={editCategoryValue}
+                  setEditCategoryValue={setEditCategoryValue}
+                  isAddingConcept={isAddingConcept}
+                  isSaving={isSaving}
+                  saveError={saveError}
+                  isDeleting={isDeleting}
+                  showConceptConfirmation={showConceptConfirmation}
+                  existingConcepts={existingConcepts}
+                  handleSaveConversation={handleSaveConversation}
+                  handleAddConcept={handleAddConcept}
+                  handleDeleteConcept={handleDeleteConcept}
+                  handleDeleteCodeSnippet={handleDeleteCodeSnippet}
+                  handleCategoryUpdate={handleCategoryUpdate}
+                  handleConfirmConceptUpdates={handleConfirmConceptUpdates}
+                  handleCancelConceptUpdates={handleCancelConceptUpdates}
+                  setSelectedConcept={setSelectedConcept}
+                  addConceptToCurrentAnalysis={addConceptToCurrentAnalysis}
+                  conceptMatches={conceptMatches}
+                  showConceptMatchDialog={showConceptMatchDialog}
+                  isProcessingMatches={isProcessingMatches}
+                  handleConceptMatchDecision={handleConceptMatchDecision}
+                  showConversationSaveDialog={showConversationSaveDialog}
+                  updatedConceptsCount={updatedConceptsCount}
+                  handleSaveConversationDecision={handleSaveConversationDecision}
+                  handleSkipSavingDecision={handleSkipSavingDecision}
+                />
               </div>
             </div>
           )}

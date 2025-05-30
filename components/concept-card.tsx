@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Select, SelectOption } from "@/components/ui/select"
 import { MessageSquare, ArrowRight, BookOpen, ExternalLink, Edit, Check, X, Loader2, Trash2, Link as LinkIcon, Tag, Plus, Video, AlertTriangle, FileText } from "lucide-react"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
@@ -476,10 +477,11 @@ export const ConceptCard = React.memo(function ConceptCard({
         });
 
         if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
           if (response.status === 401) {
             throw new Error('Authentication failed - please make sure you are logged in')
           }
-          throw new Error('Failed to delete concept');
+          throw new Error(errorData.error || 'Failed to delete concept');
         }
         
         const result = await response.json();
@@ -487,9 +489,10 @@ export const ConceptCard = React.memo(function ConceptCard({
         // Check if the conversation was also deleted due to having no concepts
         if (result.conversationDeleted) {
           toast({
-            title: "Concept & Conversation Deleted",
+            title: "✓ Concept & Conversation Deleted",
             description: `"${title}" and its conversation were deleted because it was the last concept`,
-            duration: 3000,
+            duration: 4000,
+            className: "border-orange-200 bg-orange-50 text-orange-900",
           });
           
           // If we're on a conversation page, redirect to the conversations list
@@ -498,19 +501,20 @@ export const ConceptCard = React.memo(function ConceptCard({
           }
         } else {
           toast({
-            title: "Concept Deleted",
+            title: "✓ Concept Deleted",
             description: `"${title}" has been deleted`,
             duration: 3000,
+            className: "border-green-200 bg-green-50 text-green-900",
           });
         }
       }
     } catch (error) {
       console.error('Error deleting concept:', error);
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: error instanceof Error ? error.message : "Failed to delete concept",
         variant: "destructive",
-        duration: 3000,
+        duration: 5000,
       });
     } finally {
       setIsDeleting(false);
@@ -1018,26 +1022,26 @@ export const ConceptCard = React.memo(function ConceptCard({
                     <span className="text-xs text-muted-foreground">Loading categories...</span>
                   </div>
                 ) : (
-                  <select 
-                    className="text-xs border rounded py-1 px-2 bg-background min-w-[120px] max-w-[200px]" 
+                  <Select 
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
                     disabled={isSaving || isLoadingCategories}
+                    className="text-xs min-w-[120px] max-w-[200px] h-8"
                   >
                     {availableCategories.map((cat) => (
-                      <option 
+                      <SelectOption 
                         key={cat.value} 
                         value={cat.value}
                         style={{ 
-                          paddingLeft: `${cat.depth * 12 + 4}px`,
+                          paddingLeft: `${cat.depth * 12 + 8}px`,
                           fontWeight: cat.isHierarchical ? 'normal' : 'bold'
                         }}
                       >
                         {cat.depth > 0 ? '└ ' : ''}{cat.label}
                         {cat.isLearned ? ' 🧠' : ''}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 <Button 
                   variant="ghost" 

@@ -158,7 +158,7 @@ export async function DELETE(
     // Validate session - require authentication for DELETE
     const user = await validateSession(request);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - Please sign in to delete conversations' }, { status: 401 });
     }
 
     // Check if the conversation exists and belongs to the user
@@ -174,29 +174,32 @@ export async function DELETE(
     });
 
     if (!conversation) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Conversation not found or you do not have permission to delete it' }, { status: 404 });
     }
 
-    // Delete code snippets associated with concepts in this conversation
-    for (const concept of conversation.concepts) {
-      await prisma.codeSnippet.deleteMany({
-        where: { conceptId: concept.id }
+    // Use a transaction to ensure all deletes succeed or fail together
+    await prisma.$transaction(async (tx) => {
+      // Delete code snippets associated with concepts in this conversation
+      for (const concept of conversation.concepts) {
+        await tx.codeSnippet.deleteMany({
+          where: { conceptId: concept.id }
+        });
+      }
+
+      // Delete all occurrences associated with this conversation
+      await tx.occurrence.deleteMany({
+        where: { conversationId: id }
       });
-    }
 
-    // Delete all occurrences associated with this conversation
-    await prisma.occurrence.deleteMany({
-      where: { conversationId: id }
-    });
+      // Delete all concepts associated with this conversation
+      await tx.concept.deleteMany({
+        where: { conversationId: id }
+      });
 
-    // Delete all concepts associated with this conversation
-    await prisma.concept.deleteMany({
-      where: { conversationId: id }
-    });
-
-    // Delete the conversation itself
-    await prisma.conversation.delete({
-      where: { id }
+      // Delete the conversation itself
+      await tx.conversation.delete({
+        where: { id }
+      });
     });
 
     return NextResponse.json({ 
@@ -205,8 +208,25 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting conversation:', error);
+    
+    // Provide more specific error messages based on the error type
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return NextResponse.json(
+          { error: 'Conversation not found' },
+          { status: 404 }
+        );
+      }
+      if (error.message.includes('unique constraint')) {
+        return NextResponse.json(
+          { error: 'Database constraint error - please try again' },
+          { status: 409 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to delete conversation', details: error },
+      { error: 'Failed to delete conversation - please try again later' },
       { status: 500 }
     );
   }
