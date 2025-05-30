@@ -4,8 +4,6 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/contexts/ThemeContext"
 import { AuthProvider } from "@/components/auth-provider"
-import { LoadingProvider } from "@/contexts/LoadingContext"
-import { LoadingOverlay } from "@/components/loading-overlay"
 import { ReduxProvider } from "@/components/redux-provider"
 
 const geistSans = Geist({
@@ -36,11 +34,8 @@ export default function RootLayout({
         <ReduxProvider>
           <AuthProvider>
             <ThemeProvider>
-              <LoadingProvider>
-                {children}
-                <Toaster />
-                <LoadingOverlay />
-              </LoadingProvider>
+              {children}
+              <Toaster />
             </ThemeProvider>
           </AuthProvider>
         </ReduxProvider>
