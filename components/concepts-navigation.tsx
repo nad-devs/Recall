@@ -66,12 +66,16 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
   className = ""
 }: ConceptsNavigationProps) {
   const { toast } = useToast()
-  const { isLoading, startLoading, stopLoading } = useLoading()
   
   // ADD: Redux test toggle - set to true to test Redux!
   const USE_REDUX = process.env.NODE_ENV === 'production' && 
     typeof window !== 'undefined' && 
     window.location.search.includes('redux=true')
+  
+  // FIXED: Only use old loading system when NOT using Redux
+  const { isLoading, startLoading, stopLoading } = USE_REDUX 
+    ? { isLoading: false, startLoading: () => () => {}, stopLoading: () => {} }
+    : useLoading()
   
   // FIXED: Always call hooks in the same order
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
@@ -515,7 +519,14 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
 
   // Enhanced cancel handler with proper sequencing and global loading state
   const handleCancel = useCallback(async () => {
-    // Start a loading operation
+    if (USE_REDUX) {
+      // Use Redux cancel (instant, no loading conflicts)
+      console.log('🚀 Redux: Using instant cancel')
+      categoryOps.handleCancel()
+      return
+    }
+    
+    // Original cancel logic for non-Redux mode
     const stopLoadingFn = startLoading('cancel-dialog-operation', 'Canceling operation...');
     
     try {
@@ -533,7 +544,7 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
       // Always stop the loading operation
       stopLoadingFn()
     }
-  }, [categoryOps, toast, startLoading, stopLoading])
+  }, [USE_REDUX, categoryOps, toast, startLoading, stopLoading])
 
   // EMERGENCY: Force close all dialogs if normal cancel fails
   const emergencyClose = useCallback(() => {
@@ -590,8 +601,8 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
 
   return (
     <div className={`h-full flex flex-col bg-background ${className}`}>
-      {/* Performance Monitor for debugging */}
-      {isAnyOperationInProgress && (
+      {/* Performance Monitor for debugging - DISABLED when Redux is active */}
+      {!USE_REDUX && isAnyOperationInProgress && (
         <PerformanceMonitor 
           operationName={getLoadingMessage()} 
           onComplete={(duration) => {
@@ -602,6 +613,23 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
             }
           }}
         />
+      )}
+
+      {/* Redux Status Indicator */}
+      {USE_REDUX && (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory) && (
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2 m-4 text-sm">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-green-700 dark:text-green-300">
+              {categoryOps.isCreatingCategory && "🚀 Redux: Creating category in background..."}
+              {categoryOps.isMovingConcepts && "🚀 Redux: Moving concepts in background..."}
+              {categoryOps.isRenamingCategory && "🚀 Redux: Renaming category in background..."}
+            </span>
+          </div>
+          <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+            ✅ UI stays responsive! No blocking operations.
+          </div>
+        </div>
       )}
 
       {/* Header */}
