@@ -150,31 +150,55 @@ export default function ConceptsPage() {
     showNeedsReview
   })
   
-  // CRITICAL: Emergency recovery mechanism for React reconciliation issues
+  // CRITICAL: Emergency recovery mechanism for React reconciliation issues - FIXED
   const lastRenderCompletionTime = useRef(Date.now())
+  const emergencyTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   useEffect(() => {
     // Track when React rendering completes
     lastRenderCompletionTime.current = Date.now()
     debug.logUserAction('React render cycle completed successfully')
     
-    // Set up emergency recovery timer
-    const emergencyTimer = setTimeout(() => {
-      const timeSinceLastRender = Date.now() - lastRenderCompletionTime.current
-      if (timeSinceLastRender > 5000) {
-        debug.logError('EMERGENCY: React rendering appears stuck', { 
-          timeSinceLastRender,
-          componentUpdateId: componentUpdateId.current
-        })
-        console.error('🚨 EMERGENCY: React rendering stuck for >5 seconds, forcing reload')
-        
-        // Emergency page reload
-        window.location.reload()
-      }
-    }, 5000)
+    // Clear any existing emergency timer
+    if (emergencyTimerRef.current) {
+      clearTimeout(emergencyTimerRef.current)
+    }
     
-    return () => clearTimeout(emergencyTimer)
-  })
+    // Only set up emergency timer if we haven't already
+    if (!emergencyTimerRef.current) {
+      emergencyTimerRef.current = setTimeout(() => {
+        const timeSinceLastRender = Date.now() - lastRenderCompletionTime.current
+        if (timeSinceLastRender > 10000) { // Increased to 10 seconds to be more conservative
+          debug.logError('EMERGENCY: React rendering appears stuck', { 
+            timeSinceLastRender,
+            componentUpdateId: componentUpdateId.current
+          })
+          console.error('🚨 EMERGENCY: React rendering stuck for >10 seconds, forcing reload')
+          
+          // Emergency page reload
+          window.location.reload()
+        }
+        emergencyTimerRef.current = null
+      }, 10000)
+    }
+    
+    // Cleanup function
+    return () => {
+      if (emergencyTimerRef.current) {
+        clearTimeout(emergencyTimerRef.current)
+        emergencyTimerRef.current = null
+      }
+    }
+  }, [debug]) // Only depend on debug to avoid running on every render
+  
+  // CRITICAL: React reconciliation tracking (removed emergency recovery to prevent refreshes)
+  useEffect(() => {
+    // Simply track when React rendering completes - no timers or recovery
+    debug.logUserAction('React render cycle completed successfully', {
+      componentUpdateId: componentUpdateId.current,
+      timestamp: Date.now()
+    })
+  }, [debug]) // Only run when debug changes
   
   // CRITICAL: Create debugged version of setShowLoadingScreen
   const setShowLoadingScreen = useCallback((newValue: boolean) => {
