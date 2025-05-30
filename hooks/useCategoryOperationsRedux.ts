@@ -289,21 +289,22 @@ export const useCategoryOperationsRedux = ({
   // ============ ENHANCED CANCELLATION SUPPORT ============
   
   const forceCancel = useCallback(() => {
-    console.log('🚨 Redux: Force canceling all operations - stopping background processes!')
+    console.log('🚨 Redux: Smart cancel - only closing dialogs, no mass state reset!')
     
-    // Close all dialogs immediately
+    // Close all dialogs immediately (minimal re-render)
     dispatch(closeAllDialogs())
     
-    // Reset all state to stop any ongoing operations
-    dispatch(resetAllState())
+    // DON'T reset all state - that causes massive re-renders!
+    // The operations will naturally stop when dialogs close
+    // dispatch(resetAllState()) // ← REMOVED: This was causing the blocking!
     
     toast({
       title: "Operations Canceled",
-      description: "All background operations have been stopped.",
+      description: "Dialogs closed successfully.",
       duration: 2000,
     })
     
-    console.log('✅ Redux: All operations force-canceled successfully')
+    console.log('✅ Redux: Smart cancel completed - minimal re-rendering')
   }, [dispatch, toast])
 
   // ============ RETURN API (Same interface as before!) ============
@@ -317,7 +318,6 @@ export const useCategoryOperationsRedux = ({
     openTransferDialog: openTransfer,
     closeAllDialogs: closeDialogs,
     setNewSubcategoryName: setSubcategoryName,
-    resetAllState: resetState,
     
     // Async Operations (BACKGROUND - No blocking!)
     handleCreateSubcategory: createCategory,
@@ -325,7 +325,7 @@ export const useCategoryOperationsRedux = ({
     handleRenameCategoryConfirm: renameCategory,
     handleRenameCategory: renameCategory, // Add alias for consistency
     
-    // ENHANCED: Force cancellation that stops background operations
+    // ENHANCED: Smart cancellation that only closes dialogs
     handleCancel: forceCancel,
     
     // Legacy setters (mapped to Redux actions)
