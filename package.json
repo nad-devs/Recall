@@ -31,6 +31,7 @@
     "@radix-ui/react-slot": "^1.2.2",
     "@radix-ui/react-tabs": "^1.1.11",
     "@radix-ui/react-toast": "^1.2.13",
+    "@reduxjs/toolkit": "^2.8.2",
     "@sentry/nextjs": "^8.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -52,6 +53,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.48.2",
+    "react-redux": "^9.2.0",
     "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.0",
     "zod": "^3.22.4"

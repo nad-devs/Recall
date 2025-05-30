@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext"
 import { AuthProvider } from "@/components/auth-provider"
 import { LoadingProvider } from "@/contexts/LoadingContext"
 import { LoadingOverlay } from "@/components/loading-overlay"
+import { ReduxProvider } from "@/components/redux-provider"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,15 +33,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <ThemeProvider>
-            <LoadingProvider>
-              {children}
-              <Toaster />
-              <LoadingOverlay />
-            </LoadingProvider>
-          </ThemeProvider>
-        </AuthProvider>
+        <ReduxProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <LoadingProvider>
+                {children}
+                <Toaster />
+                <LoadingOverlay />
+              </LoadingProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </ReduxProvider>
       </body>
     </html>
   );

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useDrop } from 'react-dnd'
 import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
 import { useCategoryOperations } from '@/hooks/useCategoryOperations'
+import { useCategoryOperationsRedux } from '@/hooks/useCategoryOperationsRedux'
 import { CategoryNodeComponent } from './concepts-navigation/CategoryNode'
 import { CategoryDialogs } from './concepts-navigation/CategoryDialogs'
 import { PerformanceMonitor } from './concepts-navigation/LoadingOverlay'
@@ -67,14 +68,28 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
   const { toast } = useToast()
   const { isLoading, startLoading, stopLoading } = useLoading()
   
+  // ADD: Redux test toggle - set to true to test Redux!
+  const USE_REDUX = process.env.NODE_ENV === 'production' && 
+    typeof window !== 'undefined' && 
+    window.location.search.includes('redux=true')
+  
   // FIXED: Always call hooks in the same order
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
-  const categoryOps = useCategoryOperations({
-    conceptsByCategory,
-    onDataRefresh,
-    onCategorySelect,
-    onConceptsMove
-  })
+  
+  // CONDITIONAL: Use Redux or regular version based on flag
+  const categoryOps = USE_REDUX 
+    ? useCategoryOperationsRedux({
+        conceptsByCategory,
+        onDataRefresh,
+        onCategorySelect,
+        onConceptsMove
+      })
+    : useCategoryOperations({
+        conceptsByCategory,
+        onDataRefresh,
+        onCategorySelect,
+        onConceptsMove
+      })
 
   // Simple state management
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
@@ -594,6 +609,11 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         <h2 className="text-lg font-semibold mb-2 flex items-center">
           <BookOpen className="mr-2 h-5 w-5" />
           Navigate Concepts
+          {USE_REDUX && (
+            <span className="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded-full animate-pulse">
+              🚀 Redux Active
+            </span>
+          )}
         </h2>
         
         <div className="relative">

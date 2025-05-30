@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -111,42 +111,65 @@ export function CategoryDialogs({
   const [createNewCategory, setCreateNewCategory] = useState(false)
 
   // Use the loading context to manage loading state
-  const { isLoading, startLoading, stopLoading } = useLoading()
+  const { isLoading, startLoading, stopLoading, resetLoading } = useLoading()
+  
+  // Emergency UI unlocker to prevent freezing
+  useEffect(() => {
+    // Create a fail-safe to ensure UI never freezes for more than 2 seconds
+    const emergencyUnlocker = setInterval(() => {
+      // Check if any dialog is open
+      const isAnyDialogOpen = showAddSubcategoryDialog || 
+                            showTransferDialog || 
+                            showEditCategoryDialog || 
+                            showDragDropDialog;
+                            
+      // If there's any loading state AND a dialog is open, ensure UI is responsive
+      if (isLoading && isAnyDialogOpen) {
+        // Force the cursor back to normal if it's been in loading state too long
+        if (document.body.style.cursor === 'wait') {
+          console.log('🚑 Emergency UI unlocker activated - preventing freeze')
+          // Directly modify DOM to ensure responsiveness
+          document.body.style.cursor = ''
+          document.body.classList.remove('loading-cursor')
+        }
+      }
+    }, 2000) // Check every 2 seconds
+    
+    return () => {
+      clearInterval(emergencyUnlocker)
+    }
+  }, [isLoading, showAddSubcategoryDialog, showTransferDialog, showEditCategoryDialog, showDragDropDialog])
 
-  // ENHANCED cancel handler with loading state management
+  // ENHANCED cancel handler with loading state management and forced UI reset
   const handleDialogCancel = () => {
     console.log('🔵 Cancel operation started - using loading context')
     
-    // Start a loading operation - this will set the cursor to wait
+    // IMPORTANT: Force immediately unlock the UI first before anything else
+    document.body.style.cursor = ''
+    document.body.classList.remove('loading-cursor')
+    
+    // Start a loading operation with a very brief duration
     const stopLoadingFn = startLoading('dialog-cancel', 'Canceling operation...')
     
-    // Use a single setTimeout to handle all state changes atomically
+    // Reset local state immediately
+    setTargetCategory('')
+    setCreateNewCategory(false)
+    console.log('🟢 Successfully reset dialog state')
+    
+    // Immediately stop loading to avoid freezing
+    setTimeout(() => {
+      stopLoadingFn()
+    }, 10)
+    
+    // Handle parent cancel in a separate non-blocking call
     setTimeout(() => {
       try {
-        // Since we don't have direct access to setters, we'll call handleCancel from props
-        // which will handle closing all dialogs properly through the parent component
-        
-        // Reset local state
-        setTargetCategory('')
-        setCreateNewCategory(false)
-        
-        console.log('🟢 Successfully reset dialog state')
-        
         // Call handleCancel from props, but in a try/catch to prevent crashes
-        try {
-          handleCancel()
-        } catch (error) {
-          console.error('⚠️ Error in handleCancel:', error)
-        }
-        
-        // Stop the loading operation - this will set the cursor back to normal
-        stopLoadingFn()
-      } catch (error) {
-        console.error('⚠️ Error during dialog cancel:', error)
-        // Make sure we stop loading even if there's an error
-        stopLoadingFn()
+        handleCancel()
+      } catch (cancelError) {
+        console.error('Error in parent cancel handler:', cancelError)
       }
-    }, 100) // A slight delay to ensure UI updates
+    }, 50)
   }
 
   const isAnyOperationInProgress = isCreatingCategory || isMovingConcepts || isRenamingCategory || isResettingState
