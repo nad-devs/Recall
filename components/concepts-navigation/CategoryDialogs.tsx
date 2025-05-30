@@ -6,6 +6,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { useLoading } from "@/contexts/LoadingContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -109,27 +110,45 @@ export function CategoryDialogs({
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
 
-  // Enhanced cancel handler with loading state awareness
-  const handleDialogCancel = async () => {
-    console.log('🔵 Enhanced dialog cancel with loading awareness')
+  // Use the loading context to manage loading state
+  const { isLoading, startLoading, stopLoading } = useLoading()
+
+  // ENHANCED cancel handler with loading state management
+  const handleDialogCancel = () => {
+    console.log('🔵 Cancel operation started - using loading context')
     
-    try {
-      // Reset local state immediately
-      setTargetCategory('')
-      setCreateNewCategory(false)
-      
-      // Call the enhanced cancel handler
-      await handleCancel()
-      
-    } catch (error) {
-      console.error('Error in dialog cancel:', error)
-      // Fallback: just reset local state
-      setTargetCategory('')
-      setCreateNewCategory(false)
-    }
+    // Start a loading operation - this will set the cursor to wait
+    const stopLoadingFn = startLoading('dialog-cancel', 'Canceling operation...')
+    
+    // Use a single setTimeout to handle all state changes atomically
+    setTimeout(() => {
+      try {
+        // Since we don't have direct access to setters, we'll call handleCancel from props
+        // which will handle closing all dialogs properly through the parent component
+        
+        // Reset local state
+        setTargetCategory('')
+        setCreateNewCategory(false)
+        
+        console.log('🟢 Successfully reset dialog state')
+        
+        // Call handleCancel from props, but in a try/catch to prevent crashes
+        try {
+          handleCancel()
+        } catch (error) {
+          console.error('⚠️ Error in handleCancel:', error)
+        }
+        
+        // Stop the loading operation - this will set the cursor back to normal
+        stopLoadingFn()
+      } catch (error) {
+        console.error('⚠️ Error during dialog cancel:', error)
+        // Make sure we stop loading even if there's an error
+        stopLoadingFn()
+      }
+    }, 100) // A slight delay to ensure UI updates
   }
 
-  // Loading state indicator
   const isAnyOperationInProgress = isCreatingCategory || isMovingConcepts || isRenamingCategory || isResettingState
 
   // Enhanced create with better error handling

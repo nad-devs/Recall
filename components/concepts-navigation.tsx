@@ -21,7 +21,8 @@ import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
 import { useCategoryOperations } from '@/hooks/useCategoryOperations'
 import { CategoryNodeComponent } from './concepts-navigation/CategoryNode'
 import { CategoryDialogs } from './concepts-navigation/CategoryDialogs'
-import { LoadingOverlay, PerformanceMonitor } from './concepts-navigation/LoadingOverlay'
+import { PerformanceMonitor } from './concepts-navigation/LoadingOverlay'
+import { useLoading } from '@/contexts/LoadingContext'
 
 interface Concept {
   id: string
@@ -64,6 +65,7 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
   className = ""
 }: ConceptsNavigationProps) {
   const { toast } = useToast()
+  const { isLoading, startLoading, stopLoading } = useLoading()
   
   // FIXED: Always call hooks in the same order
   const categoryHierarchy = useCategoryHierarchy(conceptsByCategory)
@@ -301,6 +303,9 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
 
   // IMPROVED: Enhanced category move execution
   const executeCategoryMove = useCallback(async (draggedCategoryPath: string, targetCategoryPath: string | null) => {
+    // Start a loading operation
+    const stopLoadingFn = startLoading('move-category', `Moving ${draggedCategoryPath} to ${targetCategoryPath || 'Root'}...`)
+    
     try {
       const draggedPathParts = draggedCategoryPath.split(' > ')
       const targetPathParts = targetCategoryPath ? targetCategoryPath.split(' > ') : []
@@ -343,11 +348,17 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         variant: "destructive",
         duration: 3000,
       })
+    } finally {
+      // Always stop the loading operation
+      stopLoadingFn()
     }
-  }, [toast, onDataRefresh])
+  }, [toast, onDataRefresh, startLoading, stopLoading])
 
-  // IMPROVED: Enhanced concept move functionality
+  // IMPROVED: Enhanced concept move functionality with loading state
   const moveConceptsToCategory = useCallback(async (sourceCategoryPath: string, targetCategoryPath: string) => {
+    // Start a loading operation
+    const stopLoadingFn = startLoading('move-concepts', `Moving concepts from ${sourceCategoryPath} to ${targetCategoryPath}...`);
+    
     try {
       const sourceConcepts = conceptsByCategory[sourceCategoryPath] || []
       
@@ -390,8 +401,11 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         variant: "destructive",
         duration: 3000,
       })
+    } finally {
+      // Always stop the loading operation
+      stopLoadingFn()
     }
-  }, [conceptsByCategory, toast, onConceptsMove, onDataRefresh])
+  }, [conceptsByCategory, toast, onConceptsMove, onDataRefresh, startLoading, stopLoading])
 
   // Drop zone for empty space (root level drops)
   const [{ isOverEmptySpace }, dropEmptySpace] = useDrop(() => ({
@@ -484,10 +498,14 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
     isDraggingAny, categoryOps
   ])
 
-  // Enhanced cancel handler with proper error handling
+  // Enhanced cancel handler with proper sequencing and global loading state
   const handleCancel = useCallback(async () => {
+    // Start a loading operation
+    const stopLoadingFn = startLoading('cancel-dialog-operation', 'Canceling operation...');
+    
     try {
       await categoryOps.handleCancel()
+      console.log('🟢 Dialog cancel completed successfully')
     } catch (error) {
       console.error('Error during cancel operation:', error)
       toast({
@@ -496,8 +514,11 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         variant: "destructive",
         duration: 3000,
       })
+    } finally {
+      // Always stop the loading operation
+      stopLoadingFn()
     }
-  }, [categoryOps, toast])
+  }, [categoryOps, toast, startLoading, stopLoading])
 
   // EMERGENCY: Force close all dialogs if normal cancel fails
   const emergencyClose = useCallback(() => {
@@ -545,31 +566,28 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
     return "Processing operation..."
   }
 
-  // Check if any operation is in progress for loading overlay
+  // Check if any operation is in progress for loading state check
   const isAnyOperationInProgress = categoryOps.isCreatingCategory || 
     categoryOps.isMovingConcepts || 
     categoryOps.isRenamingCategory || 
-    categoryOps.isResettingState
+    categoryOps.isResettingState || 
+    isLoading
 
   return (
     <div className={`h-full flex flex-col bg-background ${className}`}>
-      {/* Performance monitoring for debugging */}
+      {/* Performance Monitor for debugging */}
       {isAnyOperationInProgress && (
         <PerformanceMonitor 
           operationName={getLoadingMessage()} 
           onComplete={(duration) => {
             if (duration > 1000) {
               console.warn(`⚠️ Slow operation detected: ${getLoadingMessage()} took ${duration.toFixed(2)}ms`)
+            } else {
+              console.log(`Operation completed in ${duration.toFixed(2)}ms`)
             }
           }}
         />
       )}
-
-      {/* Loading overlay for operations */}
-      <LoadingOverlay 
-        isVisible={isAnyOperationInProgress}
-        message={getLoadingMessage()}
-      />
 
       {/* Header */}
       <div className="p-4 border-b border-border">
@@ -714,19 +732,65 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         // Data
         conceptsByCategory={conceptsByCategory}
         
-        // Legacy handlers (for drag drop functionality)
+        // Handlers with loading state for drag drop functionality
         isDraggingCategory={false}
-        executeCategoryMove={async (draggedPath: string, targetPath: string | null) => {
-          // Implementation will be added later
-          console.log('Execute category move:', draggedPath, 'to', targetPath)
-        }}
-        moveConceptsToCategory={async (sourcePath: string, targetPath: string) => {
-          // Implementation will be added later
-          console.log('Move concepts from', sourcePath, 'to', targetPath)
-        }}
-        handleRenameCategoryConfirm={() => {
-          // Implementation will be added later
-          console.log('Rename category confirm')
+        executeCategoryMove={executeCategoryMove}
+        moveConceptsToCategory={moveConceptsToCategory}
+        handleRenameCategoryConfirm={async () => {
+          // Start a loading operation
+          const stopLoadingFn = startLoading('rename-category', `Renaming category...`);
+          
+          try {
+            // Access the current values from the categoryOps object
+            const currentPath = categoryOps.editingCategoryPath;
+            const newName = categoryOps.newCategoryName;
+            
+            console.log(`Renaming category ${currentPath} to ${newName}`);
+            const pathParts = currentPath.split(' > ');
+            
+            const response = await fetch('/api/categories', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'rename',
+                categoryPath: pathParts,
+                newName: newName
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to rename category')
+            }
+            
+            if (onDataRefresh) {
+              await onDataRefresh();
+            }
+            
+            toast({
+              title: "Category Renamed",
+              description: `Successfully renamed category to "${newName}".`,
+              duration: 3000,
+            });
+            
+            // Calculate the new path for selection
+            if (pathParts.length > 1) {
+              const parentPath = pathParts.slice(0, -1).join(' > ');
+              const newPath = `${parentPath} > ${newName}`;
+              onCategorySelect(newPath);
+            } else {
+              onCategorySelect(newName);
+            }
+          } catch (error) {
+            console.error('Error renaming category:', error);
+            toast({
+              title: "Error",
+              description: "Failed to rename category. Please try again.",
+              variant: "destructive",
+              duration: 3000,
+            });
+          } finally {
+            stopLoadingFn();
+          }
         }}
       />
     </div>
