@@ -76,25 +76,29 @@ export const useCategoryOperations = ({
   // Enhanced state setters with debug logging
   const setIsCreatingCategoryWithLogging = useCallback((value: boolean) => {
     debug.logStateChange('isCreatingCategory', isCreatingCategory, value)
+    debug.trackStateUpdate('useCategoryOperations', 'isCreatingCategory', value)
+    debug.logEventLoop('setIsCreatingCategory')
     setIsCreatingCategory(value)
   }, [debug, isCreatingCategory])
 
   const setIsMovingConceptsWithLogging = useCallback((value: boolean) => {
     debug.logStateChange('isMovingConcepts', isMovingConcepts, value)
+    debug.trackStateUpdate('useCategoryOperations', 'isMovingConcepts', value)
+    debug.logEventLoop('setIsMovingConcepts')
     setIsMovingConcepts(value)
   }, [debug, isMovingConcepts])
 
   const setShowAddSubcategoryDialogWithLogging = useCallback((value: boolean) => {
     debug.logStateChange('showAddSubcategoryDialog', showAddSubcategoryDialog, value)
-    debug.logUserAction('Dialog state change', { dialog: 'AddSubcategory', show: value })
+    debug.trackDialogTransition('AddSubcategory', showAddSubcategoryDialog ? 'open' : 'closed', value ? 'open' : 'closed', 'manual')
+    debug.logEventLoop('setShowAddSubcategoryDialog')
     setShowAddSubcategoryDialog(value)
   }, [debug, showAddSubcategoryDialog])
   
   // Enhanced API call wrapper with abort support and debug logging
   const makeApiCall = useCallback(async (url: string, options: RequestInit = {}) => {
     const operationId = `api-call-${url}-${Date.now()}`
-    debug.startOperation(operationId)
-    debug.logUserAction('API call started', { url, method: options.method })
+    debug.logAsyncStart('makeApiCall', operationId, { url, method: options.method })
     
     const abortController = new AbortController()
     abortControllerRef.current = abortController
@@ -131,16 +135,14 @@ export const useCategoryOperations = ({
       }
       
       const data = await response.json()
-      debug.completeOperation(operationId)
-      debug.logUserAction('API call completed', { url, method: options.method })
+      debug.logAsyncEnd('makeApiCall', operationId, { url, method: options.method })
       return data
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        debug.logUserAction('API call aborted', { url, method: options.method })
+        debug.logAsyncError('makeApiCall', operationId, { url, method: options.method, type: 'AbortError' })
         throw new Error('Operation was cancelled')
       }
-      debug.failOperation(operationId, error)
-      debug.logError('API call failed', { url, method: options.method, error: error.message })
+      debug.logAsyncError('makeApiCall', operationId, { url, method: options.method, error: error.message })
       throw error
     } finally {
       if (abortControllerRef.current === abortController) {
@@ -149,59 +151,91 @@ export const useCategoryOperations = ({
     }
   }, [debug])
 
-  // Reset all dialog states - REMOVE DEPENDENCIES to prevent infinite loops
+  // CRITICAL: Enhanced reset function with comprehensive debugging
   const resetDialogState = useCallback(() => {
+    const resetId = `reset-${Date.now()}`
+    debug.logAsyncStart('resetDialogState', resetId)
+    debug.logStackTrace('resetDialogState called')
+    
     // Prevent multiple simultaneous resets
     if (isResettingRef.current) {
-      debug.logUserAction('Reset already in progress, skipping')
+      debug.logUserAction('Reset already in progress, skipping', { resetId })
+      debug.logAsyncEnd('resetDialogState', resetId, { result: 'skipped' })
       return
     }
     
     isResettingRef.current = true
     
-    const operationId = 'reset-dialog-state'
-    debug.startOperation(operationId)
-    debug.logUserAction('Resetting dialog state')
-    
-    // Cancel any pending operations first
-    if (abortControllerRef.current) {
-      debug.logUserAction('Aborting pending API call')
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
-    }
-    
     try {
-      // Reset dialog states
-      debug.logUserAction('Closing all dialogs')
+      debug.logUserAction('Starting dialog state reset', { resetId })
+      
+      // Cancel any pending operations first
+      if (abortControllerRef.current) {
+        debug.logUserAction('Aborting pending API call', { resetId })
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      
+      // Reset dialog states with individual tracking
+      debug.logUserAction('Closing all dialogs', { resetId })
+      debug.trackDialogTransition('AddSubcategory', 'any', 'closed', 'reset')
       setShowAddSubcategoryDialog(false)
+      
+      debug.trackDialogTransition('Transfer', 'any', 'closed', 'reset')
       setShowTransferDialog(false)
+      
+      debug.trackDialogTransition('EditCategory', 'any', 'closed', 'reset')
       setShowEditCategoryDialog(false)
+      
+      debug.trackDialogTransition('DragDrop', 'any', 'closed', 'reset')
       setShowDragDropDialog(false)
       
-      // Reset form data
-      debug.logUserAction('Clearing form data')
+      // Reset form data with individual tracking
+      debug.logUserAction('Clearing form data', { resetId })
+      debug.trackStateUpdate('useCategoryOperations', 'selectedParentCategory', '')
       setSelectedParentCategory('')
+      
+      debug.trackStateUpdate('useCategoryOperations', 'newSubcategoryName', '')
       setNewSubcategoryName('')
+      
+      debug.trackStateUpdate('useCategoryOperations', 'editingCategoryPath', '')
       setEditingCategoryPath('')
+      
+      debug.trackStateUpdate('useCategoryOperations', 'newCategoryName', '')
       setNewCategoryName('')
+      
+      debug.trackStateUpdate('useCategoryOperations', 'transferConcepts', [])
       setTransferConcepts([])
+      
+      debug.trackStateUpdate('useCategoryOperations', 'selectedConceptsForTransfer', new Set())
       setSelectedConceptsForTransfer(new Set())
+      
+      debug.trackStateUpdate('useCategoryOperations', 'dragDropData', null)
       setDragDropData(null)
       
-      // Reset loading states
-      debug.logUserAction('Resetting loading states')
+      // Reset loading states with individual tracking
+      debug.logUserAction('Resetting loading states', { resetId })
+      debug.trackStateUpdate('useCategoryOperations', 'isCreatingCategory', false)
       setIsCreatingCategory(false)
+      
+      debug.trackStateUpdate('useCategoryOperations', 'isMovingConcepts', false)
       setIsMovingConcepts(false)
+      
+      debug.trackStateUpdate('useCategoryOperations', 'isRenamingCategory', false)
       setIsRenamingCategory(false)
+      
+      debug.trackStateUpdate('useCategoryOperations', 'operationStarting', false)
       setOperationStarting(false)
       
-      debug.completeOperation(operationId)
-      debug.logUserAction('Dialog state reset completed')
+      debug.logUserAction('Dialog state reset completed successfully', { resetId })
+      debug.logAsyncEnd('resetDialogState', resetId, { result: 'success' })
       
     } catch (error) {
-      debug.failOperation(operationId, error)
+      debug.logAsyncError('resetDialogState', resetId, error)
       debug.logError('Error resetting dialog state', error)
+      
       // Fallback: Force reset the critical states
+      debug.logUserAction('Executing fallback reset', { resetId })
       setShowAddSubcategoryDialog(false)
       setShowTransferDialog(false)
       setShowEditCategoryDialog(false)
@@ -209,8 +243,33 @@ export const useCategoryOperations = ({
     } finally {
       // Always clear the reset flag
       isResettingRef.current = false
+      debug.logUserAction('Reset flag cleared', { resetId })
+      
+      // CRITICAL: Add data refresh after reset to ensure UI consistency
+      setTimeout(async () => {
+        debug.logAsyncStart('resetDialogState-refresh', `${resetId}-refresh`)
+        try {
+          debug.logUserAction('Executing post-reset data refresh', { resetId })
+          
+          if (onDataRefresh) {
+            await onDataRefresh()
+            debug.logUserAction('Post-reset data refresh completed', { resetId })
+          }
+          
+          debug.logAsyncEnd('resetDialogState-refresh', `${resetId}-refresh`, { result: 'success' })
+        } catch (refreshError: any) {
+          debug.logAsyncError('resetDialogState-refresh', `${resetId}-refresh`, refreshError)
+          debug.logError('Post-reset refresh error (non-critical)', refreshError)
+          
+          // If refresh fails, try a simple page reload as fallback
+          debug.logUserAction('Fallback: reloading page due to refresh failure', { resetId })
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+        }
+      }, 100) // Small delay to allow UI to update
     }
-  }, [debug]) // ONLY depend on debug
+  }, [debug, onDataRefresh]) // Minimal dependencies
 
   // Create placeholder concept - SIMPLIFIED to prevent race conditions
   const createPlaceholderConcept = useCallback(async (category: string) => {
