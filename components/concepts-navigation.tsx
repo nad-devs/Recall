@@ -1,21 +1,27 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { 
+  ChevronDown, 
+  ChevronRight, 
+  Search, 
+  Plus, 
+  RefreshCw, 
+  AlertCircle, 
+  Filter, 
+  BookOpen, 
+  AlertTriangle, 
+  FolderPlus 
+} from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Search, 
-  BookOpen, 
-  AlertTriangle,
-  Plus,
-  FolderPlus,
-  ArrowRight,
-} from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useToast } from "@/hooks/use-toast"
 import { useDrop } from 'react-dnd'
 import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
 import { useCategoryOperations } from '@/hooks/useCategoryOperations'
 import { CategoryNodeComponent } from './concepts-navigation/CategoryNode'
 import { CategoryDialogs } from './concepts-navigation/CategoryDialogs'
+import { LoadingOverlay, PerformanceMonitor } from './concepts-navigation/LoadingOverlay'
 
 interface Concept {
   id: string
@@ -43,7 +49,7 @@ interface ConceptsNavigationProps {
   className?: string
 }
 
-export function ConceptsNavigation({ 
+export const ConceptsNavigation = React.memo(function ConceptsNavigationComponent({ 
   concepts, 
   conceptsByCategory, 
   sortedCategories, 
@@ -243,7 +249,7 @@ export function ConceptsNavigation({
 
   // IMPROVED: Enhanced subcategory creation
   const handleAddSubcategory = useCallback((parentCategory: string) => {
-    if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts) {
+    if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isResettingState) {
       toast({
         title: "Operation in Progress",
         description: "Please wait for the current operation to complete.",
@@ -252,13 +258,11 @@ export function ConceptsNavigation({
       })
       return
     }
-    categoryOps.setSelectedParentCategory(parentCategory)
-    categoryOps.setNewSubcategoryName('')
-    categoryOps.setShowAddSubcategoryDialog(true)
+    categoryOps.openAddSubcategoryDialog(parentCategory)
   }, [categoryOps, toast])
 
   const handleAddTopLevelCategory = useCallback(() => {
-    if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts) {
+    if (categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isResettingState) {
       toast({
         title: "Operation in Progress", 
         description: "Please wait for the current operation to complete.",
@@ -267,9 +271,7 @@ export function ConceptsNavigation({
       })
       return
     }
-    categoryOps.setSelectedParentCategory('')
-    categoryOps.setNewSubcategoryName('')
-    categoryOps.setShowAddSubcategoryDialog(true)
+    categoryOps.openAddSubcategoryDialog('')
   }, [categoryOps, toast])
 
   // IMPROVED: Enhanced category drop handling
@@ -290,12 +292,11 @@ export function ConceptsNavigation({
       ? targetCategoryPath.split(' > ').pop() || 'Unknown'
       : 'Root Level'
     
-    categoryOps.setDragDropData({
+    categoryOps.openDragDropDialog({
       draggedCategoryPath,
       targetCategoryPath,
       targetCategoryName: targetName
     })
-    categoryOps.setShowDragDropDialog(true)
   }, [toast, categoryOps])
 
   // IMPROVED: Enhanced category move execution
@@ -454,8 +455,9 @@ export function ConceptsNavigation({
           onStartInlineEdit={startInlineEdit}
           onSaveInlineEdit={saveInlineEdit}
           onCancelInlineEdit={cancelInlineEdit}
-          onSetTransferConcepts={categoryOps.setTransferConcepts}
-          onShowTransferDialog={categoryOps.setShowTransferDialog}
+          onSetTransferConcepts={(concepts: Concept[]) => {
+            categoryOps.openTransferDialog(concepts)
+          }}
           inlineEditValue={inlineEditValue}
           onSetInlineEditValue={setInlineEditValue}
           isCreatingCategory={categoryOps.isCreatingCategory}
@@ -481,6 +483,21 @@ export function ConceptsNavigation({
     saveInlineEdit, cancelInlineEdit, handleCategoryDrop, handleDragStart, handleDragEnd,
     isDraggingAny, categoryOps
   ])
+
+  // Enhanced cancel handler with proper error handling
+  const handleCancel = useCallback(async () => {
+    try {
+      await categoryOps.handleCancel()
+    } catch (error) {
+      console.error('Error during cancel operation:', error)
+      toast({
+        title: "Reset Error",
+        description: "There was an issue resetting the dialogs. Please refresh if problems persist.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    }
+  }, [categoryOps, toast])
 
   // EMERGENCY: Force close all dialogs if normal cancel fails
   const emergencyClose = useCallback(() => {
@@ -519,8 +536,41 @@ export function ConceptsNavigation({
     return () => window.removeEventListener('keydown', handleEscape)
   }, [emergencyClose])
 
+  // Determine loading message based on current operation
+  const getLoadingMessage = () => {
+    if (categoryOps.isCreatingCategory) return "Creating category..."
+    if (categoryOps.isMovingConcepts) return "Moving concepts..."
+    if (categoryOps.isRenamingCategory) return "Renaming category..."
+    if (categoryOps.isResettingState) return "Resetting dialogs..."
+    return "Processing operation..."
+  }
+
+  // Check if any operation is in progress for loading overlay
+  const isAnyOperationInProgress = categoryOps.isCreatingCategory || 
+    categoryOps.isMovingConcepts || 
+    categoryOps.isRenamingCategory || 
+    categoryOps.isResettingState
+
   return (
-    <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
+    <div className={`h-full flex flex-col bg-background ${className}`}>
+      {/* Performance monitoring for debugging */}
+      {isAnyOperationInProgress && (
+        <PerformanceMonitor 
+          operationName={getLoadingMessage()} 
+          onComplete={(duration) => {
+            if (duration > 1000) {
+              console.warn(`⚠️ Slow operation detected: ${getLoadingMessage()} took ${duration.toFixed(2)}ms`)
+            }
+          }}
+        />
+      )}
+
+      {/* Loading overlay for operations */}
+      <LoadingOverlay 
+        isVisible={isAnyOperationInProgress}
+        message={getLoadingMessage()}
+      />
+
       {/* Header */}
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-semibold mb-2 flex items-center">
@@ -633,44 +683,52 @@ export function ConceptsNavigation({
 
       {/* All Dialogs */}
       <CategoryDialogs
-        // Add Subcategory Dialog
+        // State values
         showAddSubcategoryDialog={categoryOps.showAddSubcategoryDialog}
-        setShowAddSubcategoryDialog={categoryOps.setShowAddSubcategoryDialog}
+        showTransferDialog={categoryOps.showTransferDialog}
+        showEditCategoryDialog={categoryOps.showEditCategoryDialog}
+        showDragDropDialog={categoryOps.showDragDropDialog}
         selectedParentCategory={categoryOps.selectedParentCategory}
         newSubcategoryName={categoryOps.newSubcategoryName}
-        setNewSubcategoryName={categoryOps.setNewSubcategoryName}
-        isCreatingCategory={categoryOps.isCreatingCategory}
-        handleCreateSubcategory={categoryOps.handleCreateSubcategory}
-        
-        // Transfer Concepts Dialog
-        showTransferDialog={categoryOps.showTransferDialog}
-        setShowTransferDialog={categoryOps.setShowTransferDialog}
-        transferConcepts={categoryOps.transferConcepts}
-        selectedConceptsForTransfer={categoryOps.selectedConceptsForTransfer}
-        setSelectedConceptsForTransfer={categoryOps.setSelectedConceptsForTransfer}
-        isMovingConcepts={categoryOps.isMovingConcepts}
-        conceptsByCategory={conceptsByCategory}
-        handleTransferConcepts={categoryOps.handleTransferConcepts}
-        createPlaceholderConcept={categoryOps.createPlaceholderConcept}
-        resetDialogState={categoryOps.resetDialogState}
-        
-        // Edit Category Dialog
-        showEditCategoryDialog={categoryOps.showEditCategoryDialog}
-        setShowEditCategoryDialog={categoryOps.setShowEditCategoryDialog}
         editingCategoryPath={categoryOps.editingCategoryPath}
         newCategoryName={categoryOps.newCategoryName}
-        setNewCategoryName={categoryOps.setNewCategoryName}
+        transferConcepts={categoryOps.transferConcepts}
+        selectedConceptsForTransfer={categoryOps.selectedConceptsForTransfer}
+        isCreatingCategory={categoryOps.isCreatingCategory}
+        isMovingConcepts={categoryOps.isMovingConcepts}
         isRenamingCategory={categoryOps.isRenamingCategory}
-        handleRenameCategoryConfirm={() => {}} // TODO: implement this
-        
-        // Drag Drop Dialog
-        showDragDropDialog={categoryOps.showDragDropDialog}
-        setShowDragDropDialog={categoryOps.setShowDragDropDialog}
+        isResettingState={categoryOps.isResettingState}
         dragDropData={categoryOps.dragDropData}
+        
+        // Action dispatchers
+        setNewSubcategoryName={categoryOps.setNewSubcategoryName}
+        setNewCategoryName={categoryOps.setNewCategoryName}
+        setSelectedConceptsForTransfer={categoryOps.setSelectedConceptsForTransfer}
+        
+        // Handlers
+        handleCreateSubcategory={categoryOps.handleCreateSubcategory}
+        handleTransferConcepts={categoryOps.handleTransferConcepts}
+        handleCancel={handleCancel}
+        createPlaceholderConcept={categoryOps.createPlaceholderConcept}
+        
+        // Data
+        conceptsByCategory={conceptsByCategory}
+        
+        // Legacy handlers (for drag drop functionality)
         isDraggingCategory={false}
-        executeCategoryMove={executeCategoryMove}
-        moveConceptsToCategory={moveConceptsToCategory}
+        executeCategoryMove={async (draggedPath: string, targetPath: string | null) => {
+          // Implementation will be added later
+          console.log('Execute category move:', draggedPath, 'to', targetPath)
+        }}
+        moveConceptsToCategory={async (sourcePath: string, targetPath: string) => {
+          // Implementation will be added later
+          console.log('Move concepts from', sourcePath, 'to', targetPath)
+        }}
+        handleRenameCategoryConfirm={() => {
+          // Implementation will be added later
+          console.log('Rename category confirm')
+        }}
       />
     </div>
   )
-} 
+}) 

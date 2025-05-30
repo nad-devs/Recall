@@ -53,7 +53,6 @@ interface CategoryNodeProps {
   onSaveInlineEdit: () => void
   onCancelInlineEdit: () => void
   onSetTransferConcepts: (concepts: Concept[]) => void
-  onShowTransferDialog: (show: boolean) => void
   inlineEditValue: string
   onSetInlineEditValue: (value: string) => void
   isCreatingCategory: boolean
@@ -88,7 +87,6 @@ export const CategoryNodeComponent = React.memo(({
   onSaveInlineEdit,
   onCancelInlineEdit,
   onSetTransferConcepts,
-  onShowTransferDialog,
   inlineEditValue,
   onSetInlineEditValue,
   isCreatingCategory,
@@ -281,7 +279,6 @@ export const CategoryNodeComponent = React.memo(({
                   <DropdownMenuItem 
                     onClick={() => {
                       onSetTransferConcepts(node.concepts)
-                      onShowTransferDialog(true)
                     }}
                     disabled={isCreatingCategory || isMovingConcepts || isRenamingCategory}
                   >

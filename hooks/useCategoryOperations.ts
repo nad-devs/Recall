@@ -1,15 +1,13 @@
-import { useState } from 'react'
+import { useState, useReducer } from 'react'
 import { useToast } from "@/hooks/use-toast"
 
 interface Concept {
   id: string
   title: string
-  category: string
-  notes?: string
   summary?: string
-  discussedInConversations?: string[]
-  needsReview?: boolean
+  category: string
   isPlaceholder?: boolean
+  needsReview?: boolean
 }
 
 interface UseCategoryOperationsProps {
@@ -19,6 +17,213 @@ interface UseCategoryOperationsProps {
   onConceptsMove?: (conceptIds: string[], newCategory: string) => void
 }
 
+// State interface for the reducer
+interface CategoryOperationsState {
+  // Dialog states
+  showAddSubcategoryDialog: boolean
+  showTransferDialog: boolean
+  showEditCategoryDialog: boolean
+  showDragDropDialog: boolean
+  
+  // Form states
+  selectedParentCategory: string
+  newSubcategoryName: string
+  editingCategoryPath: string
+  newCategoryName: string
+  transferConcepts: Concept[]
+  selectedConceptsForTransfer: Set<string>
+  
+  // Loading states
+  isCreatingCategory: boolean
+  isMovingConcepts: boolean
+  isRenamingCategory: boolean
+  isResettingState: boolean
+  
+  // Drag and drop state
+  dragDropData: {
+    draggedCategoryPath: string
+    targetCategoryPath: string | null
+    targetCategoryName: string
+  } | null
+}
+
+// Action types for the reducer
+type CategoryOperationsAction =
+  | { type: 'SHOW_ADD_SUBCATEGORY_DIALOG'; payload: { parentCategory: string } }
+  | { type: 'SHOW_TRANSFER_DIALOG'; payload: { concepts: Concept[] } }
+  | { type: 'SHOW_EDIT_CATEGORY_DIALOG'; payload: { categoryPath: string; currentName: string } }
+  | { type: 'SHOW_DRAG_DROP_DIALOG'; payload: { dragDropData: CategoryOperationsState['dragDropData'] } }
+  | { type: 'SET_NEW_SUBCATEGORY_NAME'; payload: string }
+  | { type: 'SET_NEW_CATEGORY_NAME'; payload: string }
+  | { type: 'SET_SELECTED_CONCEPTS_FOR_TRANSFER'; payload: Set<string> }
+  | { type: 'SET_DRAG_DROP_DATA'; payload: CategoryOperationsState['dragDropData'] }
+  | { type: 'START_CREATING_CATEGORY' }
+  | { type: 'FINISH_CREATING_CATEGORY' }
+  | { type: 'START_MOVING_CONCEPTS' }
+  | { type: 'FINISH_MOVING_CONCEPTS' }
+  | { type: 'START_RENAMING_CATEGORY' }
+  | { type: 'FINISH_RENAMING_CATEGORY' }
+  | { type: 'START_RESETTING_STATE' }
+  | { type: 'RESET_ALL_STATE' }
+  | { type: 'CLOSE_ALL_DIALOGS' }
+
+// Initial state
+const initialState: CategoryOperationsState = {
+  showAddSubcategoryDialog: false,
+  showTransferDialog: false,
+  showEditCategoryDialog: false,
+  showDragDropDialog: false,
+  selectedParentCategory: '',
+  newSubcategoryName: '',
+  editingCategoryPath: '',
+  newCategoryName: '',
+  transferConcepts: [],
+  selectedConceptsForTransfer: new Set(),
+  isCreatingCategory: false,
+  isMovingConcepts: false,
+  isRenamingCategory: false,
+  isResettingState: false,
+  dragDropData: null,
+}
+
+// Reducer function
+function categoryOperationsReducer(
+  state: CategoryOperationsState,
+  action: CategoryOperationsAction
+): CategoryOperationsState {
+  switch (action.type) {
+    case 'SHOW_ADD_SUBCATEGORY_DIALOG':
+      return {
+        ...state,
+        showAddSubcategoryDialog: true,
+        selectedParentCategory: action.payload.parentCategory,
+        newSubcategoryName: '',
+        // Close other dialogs
+        showTransferDialog: false,
+        showEditCategoryDialog: false,
+        showDragDropDialog: false,
+      }
+
+    case 'SHOW_TRANSFER_DIALOG':
+      return {
+        ...state,
+        showTransferDialog: true,
+        transferConcepts: action.payload.concepts,
+        selectedConceptsForTransfer: new Set(action.payload.concepts.map(c => c.id)),
+        // Close other dialogs
+        showAddSubcategoryDialog: false,
+        showEditCategoryDialog: false,
+        showDragDropDialog: false,
+      }
+
+    case 'SHOW_EDIT_CATEGORY_DIALOG':
+      return {
+        ...state,
+        showEditCategoryDialog: true,
+        editingCategoryPath: action.payload.categoryPath,
+        newCategoryName: action.payload.currentName,
+        // Close other dialogs
+        showAddSubcategoryDialog: false,
+        showTransferDialog: false,
+        showDragDropDialog: false,
+      }
+
+    case 'SHOW_DRAG_DROP_DIALOG':
+      return {
+        ...state,
+        showDragDropDialog: true,
+        dragDropData: action.payload.dragDropData,
+        // Close other dialogs
+        showAddSubcategoryDialog: false,
+        showTransferDialog: false,
+        showEditCategoryDialog: false,
+      }
+
+    case 'SET_NEW_SUBCATEGORY_NAME':
+      return {
+        ...state,
+        newSubcategoryName: action.payload,
+      }
+
+    case 'SET_NEW_CATEGORY_NAME':
+      return {
+        ...state,
+        newCategoryName: action.payload,
+      }
+
+    case 'SET_SELECTED_CONCEPTS_FOR_TRANSFER':
+      return {
+        ...state,
+        selectedConceptsForTransfer: action.payload,
+      }
+
+    case 'SET_DRAG_DROP_DATA':
+      return {
+        ...state,
+        dragDropData: action.payload,
+      }
+
+    case 'START_CREATING_CATEGORY':
+      return {
+        ...state,
+        isCreatingCategory: true,
+      }
+
+    case 'FINISH_CREATING_CATEGORY':
+      return {
+        ...state,
+        isCreatingCategory: false,
+      }
+
+    case 'START_MOVING_CONCEPTS':
+      return {
+        ...state,
+        isMovingConcepts: true,
+      }
+
+    case 'FINISH_MOVING_CONCEPTS':
+      return {
+        ...state,
+        isMovingConcepts: false,
+      }
+
+    case 'START_RENAMING_CATEGORY':
+      return {
+        ...state,
+        isRenamingCategory: true,
+      }
+
+    case 'FINISH_RENAMING_CATEGORY':
+      return {
+        ...state,
+        isRenamingCategory: false,
+      }
+
+    case 'START_RESETTING_STATE':
+      return {
+        ...state,
+        isResettingState: true,
+      }
+
+    case 'CLOSE_ALL_DIALOGS':
+      return {
+        ...state,
+        showAddSubcategoryDialog: false,
+        showTransferDialog: false,
+        showEditCategoryDialog: false,
+        showDragDropDialog: false,
+      }
+
+    case 'RESET_ALL_STATE':
+      return {
+        ...initialState,
+      }
+
+    default:
+      return state
+  }
+}
+
 export const useCategoryOperations = ({
   conceptsByCategory,
   onDataRefresh,
@@ -26,111 +231,65 @@ export const useCategoryOperations = ({
   onConceptsMove
 }: UseCategoryOperationsProps) => {
   const { toast } = useToast()
-  
-  // Simple dialog states - no complex tracking
-  const [showAddSubcategoryDialog, setShowAddSubcategoryDialog] = useState(false)
-  const [showTransferDialog, setShowTransferDialog] = useState(false)
-  const [showEditCategoryDialog, setShowEditCategoryDialog] = useState(false)
-  const [showDragDropDialog, setShowDragDropDialog] = useState(false)
-  
-  // Simple form states
-  const [selectedParentCategory, setSelectedParentCategory] = useState('')
-  const [newSubcategoryName, setNewSubcategoryName] = useState('')
-  const [editingCategoryPath, setEditingCategoryPath] = useState('')
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [transferConcepts, setTransferConcepts] = useState<Concept[]>([])
-  const [selectedConceptsForTransfer, setSelectedConceptsForTransfer] = useState<Set<string>>(new Set())
-  
-  // Simple loading states
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
-  const [isMovingConcepts, setIsMovingConcepts] = useState(false)
-  const [isRenamingCategory, setIsRenamingCategory] = useState(false)
-  
-  // Drag and drop state
-  const [dragDropData, setDragDropData] = useState<{
-    draggedCategoryPath: string
-    targetCategoryPath: string | null
-    targetCategoryName: string
-  } | null>(null)
+  const [state, dispatch] = useReducer(categoryOperationsReducer, initialState)
 
-  // Simple reset function - no complex dependencies
-  const resetDialogState = () => {
-    setShowAddSubcategoryDialog(false)
-    setShowTransferDialog(false)
-    setShowEditCategoryDialog(false)
-    setShowDragDropDialog(false)
-    setSelectedParentCategory('')
-    setNewSubcategoryName('')
-    setEditingCategoryPath('')
-    setNewCategoryName('')
-    setTransferConcepts([])
-    setSelectedConceptsForTransfer(new Set())
-    setDragDropData(null)
-    setIsCreatingCategory(false)
-    setIsMovingConcepts(false)
-    setIsRenamingCategory(false)
+  // Improved dialog lifecycle management with batched state updates
+  const resetDialogState = async () => {
+    console.log('🔵 Starting dialog state reset with loading indicator')
+    
+    dispatch({ type: 'START_RESETTING_STATE' })
+    
+    // Small delay to ensure UI shows loading state
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    // Close all dialogs first
+    dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+    
+    // Small delay between UI updates
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    // Reset all state atomically
+    dispatch({ type: 'RESET_ALL_STATE' })
+    
+    console.log('🔵 Dialog state reset complete')
   }
 
-  // Simple API helper
-  const makeApiCall = async (url: string, options: any = {}) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    }
+  // Enhanced cancel handler with proper sequencing
+  const handleCancel = async () => {
+    console.log('🔵 Canceling operation - enhanced single state update')
     
-    // Add auth headers if available
-    if (typeof window !== 'undefined') {
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      if (userEmail && userId) {
-        headers['x-user-email'] = userEmail
-        headers['x-user-id'] = userId
+    try {
+      // First, show that we're processing the cancel
+      dispatch({ type: 'START_RESETTING_STATE' })
+      
+      // Wait for current operations to complete
+      if (state.isCreatingCategory || state.isMovingConcepts || state.isRenamingCategory) {
+        console.log('🔵 Waiting for current operation to complete before cancel')
+        // Give operations time to complete
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
+      
+      // Batch all dialog closes
+      dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+      
+      // Small delay to ensure UI updates are processed
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      // Complete reset
+      dispatch({ type: 'RESET_ALL_STATE' })
+      
+    } catch (error) {
+      console.error('Error during cancel operation:', error)
+      // Force reset as fallback
+      dispatch({ type: 'RESET_ALL_STATE' })
     }
-    
-    const response = await fetch(url, {
-      ...options,
-      headers
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
-      try {
-        const errorData = JSON.parse(errorText)
-        errorMessage = errorData.error || errorMessage
-      } catch (e) {
-        errorMessage = errorText || errorMessage
-      }
-      throw new Error(errorMessage)
-    }
-    
-    return response.json()
   }
 
-  // Simple placeholder creation
-  const createPlaceholderConcept = async (category: string) => {
-    const requestBody = {
-      title: `📌 Add Concepts Here`,
-      category: category,
-      summary: 'This is a placeholder concept created to organize your knowledge. You can delete this once you have real concepts in this category.',
-      details: 'Click "Add Concept" or move concepts from other categories to get started. This placeholder will disappear once you have real content.',
-      notes: '',
-      isPlaceholder: true,
-      isManualCreation: true
-    }
-    
-    return await makeApiCall('/api/concepts', {
-      method: 'POST',
-      body: JSON.stringify(requestBody)
-    })
-  }
-
-  // Simple category creation
+  // Enhanced category creation with separated data and UI operations
   const handleCreateSubcategory = async () => {
-    if (isCreatingCategory || isMovingConcepts) return
+    if (state.isCreatingCategory || state.isMovingConcepts || state.isResettingState) return
     
-    if (!newSubcategoryName || !newSubcategoryName.trim()) {
+    if (!state.newSubcategoryName || !state.newSubcategoryName.trim()) {
       toast({
         title: "Invalid Name",
         description: "Category name cannot be empty. Please enter a valid name.",
@@ -140,15 +299,16 @@ export const useCategoryOperations = ({
       return
     }
     
-    const trimmedName = newSubcategoryName.trim()
-    const newCategoryPath = selectedParentCategory 
-      ? `${selectedParentCategory} > ${trimmedName}`
+    const trimmedName = state.newSubcategoryName.trim()
+    const newCategoryPath = state.selectedParentCategory 
+      ? `${state.selectedParentCategory} > ${trimmedName}`
       : trimmedName
     
     try {
-      setIsCreatingCategory(true)
+      // Step 1: Start loading state
+      dispatch({ type: 'START_CREATING_CATEGORY' })
       
-      // Check if category already exists
+      // Step 2: Check if category already exists (data operation)
       if (conceptsByCategory[newCategoryPath]) {
         toast({
           title: "Category Exists",
@@ -156,39 +316,47 @@ export const useCategoryOperations = ({
           variant: "destructive",
           duration: 3000,
         })
+        dispatch({ type: 'FINISH_CREATING_CATEGORY' })
         return
       }
       
-      // If parent has concepts, show transfer dialog
-      if (selectedParentCategory) {
-        const parentConcepts = conceptsByCategory[selectedParentCategory] || []
+      // Step 3: Handle parent concepts transfer if needed (data operation)
+      if (state.selectedParentCategory) {
+        const parentConcepts = conceptsByCategory[state.selectedParentCategory] || []
         if (parentConcepts.length > 0) {
-          setTransferConcepts(parentConcepts)
-          setShowTransferDialog(true)
-          setShowAddSubcategoryDialog(false)
-          setIsCreatingCategory(false)
+          // Show transfer dialog instead of creating immediately
+          dispatch({ type: 'SHOW_TRANSFER_DIALOG', payload: { concepts: parentConcepts } })
+          dispatch({ type: 'FINISH_CREATING_CATEGORY' })
           return
         }
       }
       
-      // Create category with placeholder
+      // Step 4: Create category (data operation)
       await createPlaceholderConcept(newCategoryPath)
       
-      // Refresh data
+      // Step 5: Wait for data operation to complete before UI updates
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Step 6: Refresh data (data operation)
       if (onDataRefresh) {
         await onDataRefresh()
       }
       
-      // Select new category
+      // Step 7: UI updates after data operations are complete
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      // Step 8: Select new category (UI operation)
       onCategorySelect(newCategoryPath)
       
+      // Step 9: Show success message
       toast({
         title: "Category Created",
         description: `Successfully created "${newCategoryPath}"`,
         duration: 2000,
       })
       
-      resetDialogState()
+      // Step 10: Reset dialog state
+      await resetDialogState()
       
     } catch (error: any) {
       console.error('Error creating category:', error)
@@ -199,36 +367,46 @@ export const useCategoryOperations = ({
         duration: 3000,
       })
     } finally {
-      setIsCreatingCategory(false)
+      dispatch({ type: 'FINISH_CREATING_CATEGORY' })
     }
   }
 
-  // Simple concept transfer
+  // Enhanced concept transfer with separated data and UI operations
   const handleTransferConcepts = async (conceptsToMove: Concept[], targetCategory: string) => {
-    if (isMovingConcepts || conceptsToMove.length === 0) return
+    if (state.isMovingConcepts || conceptsToMove.length === 0 || state.isResettingState) return
     
     try {
-      setIsMovingConcepts(true)
+      // Step 1: Start loading state
+      dispatch({ type: 'START_MOVING_CONCEPTS' })
       
+      // Step 2: Data operation - move concepts
       if (onConceptsMove) {
         const conceptIds = conceptsToMove.map(c => c.id)
         await onConceptsMove(conceptIds, targetCategory)
         
-        // Refresh data
+        // Step 3: Wait for move operation to complete
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Step 4: Refresh data (data operation)
         if (onDataRefresh) {
           await onDataRefresh()
         }
         
-        // Select target category
+        // Step 5: UI updates after data operations are complete
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        // Step 6: Select target category (UI operation)
         onCategorySelect(targetCategory)
         
+        // Step 7: Show success message
         toast({
           title: "Concepts Moved",
           description: `Successfully moved ${conceptsToMove.length} concept(s) to "${targetCategory}"`,
           duration: 2000,
         })
         
-        resetDialogState()
+        // Step 8: Reset dialog state
+        await resetDialogState()
       }
       
     } catch (error: any) {
@@ -240,44 +418,87 @@ export const useCategoryOperations = ({
         duration: 3000,
       })
     } finally {
-      setIsMovingConcepts(false)
+      dispatch({ type: 'FINISH_MOVING_CONCEPTS' })
     }
   }
 
+  // Utility function for creating placeholder concepts
+  const createPlaceholderConcept = async (category: string) => {
+    const response = await fetch('/api/concepts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `${category} Placeholder`,
+        summary: `This is a placeholder concept for the ${category} category.`,
+        category: category,
+        isPlaceholder: true,
+      }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to create placeholder concept')
+    }
+    
+    return response.json()
+  }
+
   return {
-    // States
-    showAddSubcategoryDialog,
-    showTransferDialog,
-    showEditCategoryDialog,
-    showDragDropDialog,
-    selectedParentCategory,
-    newSubcategoryName,
-    editingCategoryPath,
-    newCategoryName,
-    transferConcepts,
-    selectedConceptsForTransfer,
-    isCreatingCategory,
-    isMovingConcepts,
-    isRenamingCategory,
-    dragDropData,
+    // State values
+    ...state,
     
-    // Setters
-    setShowAddSubcategoryDialog,
-    setShowTransferDialog,
-    setShowEditCategoryDialog,
-    setShowDragDropDialog,
-    setSelectedParentCategory,
-    setNewSubcategoryName,
-    setEditingCategoryPath,
-    setNewCategoryName,
-    setTransferConcepts,
-    setSelectedConceptsForTransfer,
-    setDragDropData,
+    // Action dispatchers for showing dialogs
+    openAddSubcategoryDialog: (parentCategory: string) => 
+      dispatch({ type: 'SHOW_ADD_SUBCATEGORY_DIALOG', payload: { parentCategory } }),
     
-    // Handlers
+    openTransferDialog: (concepts: Concept[]) => 
+      dispatch({ type: 'SHOW_TRANSFER_DIALOG', payload: { concepts } }),
+    
+    openEditCategoryDialog: (categoryPath: string, currentName: string) => 
+      dispatch({ type: 'SHOW_EDIT_CATEGORY_DIALOG', payload: { categoryPath, currentName } }),
+    
+    openDragDropDialog: (dragDropData: CategoryOperationsState['dragDropData']) => 
+      dispatch({ type: 'SHOW_DRAG_DROP_DIALOG', payload: { dragDropData } }),
+    
+    // Setter functions for form data
+    setNewSubcategoryName: (name: string) => 
+      dispatch({ type: 'SET_NEW_SUBCATEGORY_NAME', payload: name }),
+    
+    setNewCategoryName: (name: string) => 
+      dispatch({ type: 'SET_NEW_CATEGORY_NAME', payload: name }),
+    
+    setSelectedConceptsForTransfer: (concepts: Set<string>) => 
+      dispatch({ type: 'SET_SELECTED_CONCEPTS_FOR_TRANSFER', payload: concepts }),
+    
+    setDragDropData: (data: CategoryOperationsState['dragDropData']) => 
+      dispatch({ type: 'SET_DRAG_DROP_DATA', payload: data }),
+    
+    // Enhanced handlers
     handleCreateSubcategory,
     handleTransferConcepts,
     resetDialogState,
-    createPlaceholderConcept
+    handleCancel,
+    createPlaceholderConcept,
+    
+    // Backward compatibility setters
+    setShowAddSubcategoryDialog: (show: boolean) => {
+      if (!show) dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+    },
+    setShowTransferDialog: (show: boolean) => {
+      if (!show) dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+    },
+    setShowEditCategoryDialog: (show: boolean) => {
+      if (!show) dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+    },
+    setShowDragDropDialog: (show: boolean) => {
+      if (!show) dispatch({ type: 'CLOSE_ALL_DIALOGS' })
+    },
+    setSelectedParentCategory: (category: string) => {
+      // This will be handled by the show dialog actions
+    },
+    setTransferConcepts: (concepts: Concept[]) => {
+      // This will be handled by the show transfer dialog action
+    },
   }
 } 
