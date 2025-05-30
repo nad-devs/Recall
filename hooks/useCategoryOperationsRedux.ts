@@ -124,17 +124,16 @@ export const useCategoryOperationsRedux = ({
         parentCategory: categoryState.selectedParentCategory || ''
       }) as any)
 
-      // Success - NON-BLOCKING data refresh and navigation
+      // Success - STRATEGIC PAGE REFRESH (No loading screen!)
       onCategorySelect(newCategoryPath)
       
-      // Refresh data in background without blocking UI
-      if (onDataRefresh) {
-        setTimeout(() => {
-          onDataRefresh().catch(error => {
-            console.error('Background data refresh failed:', error)
-          })
-        }, 100)
-      }
+      // Set flag to skip loading screen on refresh
+      sessionStorage.setItem('skipLoadingScreen', 'true')
+      
+      // Strategic page refresh - most reliable way to update everything
+      setTimeout(() => {
+        window.location.reload()
+      }, 500) // Small delay to ensure navigation completes
       
       toast({
         title: "Category Created",
@@ -192,17 +191,16 @@ export const useCategoryOperationsRedux = ({
         targetCategory
       }) as any)
 
-      // Success - NON-BLOCKING data refresh and navigation
+      // Success - STRATEGIC PAGE REFRESH (No loading screen!)
       onCategorySelect(targetCategory)
       
-      // Refresh data in background without blocking UI
-      if (onDataRefresh) {
-        setTimeout(() => {
-          onDataRefresh().catch(error => {
-            console.error('Background data refresh failed:', error)
-          })
-        }, 100)
-      }
+      // Set flag to skip loading screen on refresh
+      sessionStorage.setItem('skipLoadingScreen', 'true')
+      
+      // Strategic page refresh - most reliable way to update everything
+      setTimeout(() => {
+        window.location.reload()
+      }, 500) // Small delay to ensure navigation completes
       
       toast({
         title: "Concepts Moved",
@@ -247,21 +245,20 @@ export const useCategoryOperationsRedux = ({
         newName
       }) as any)
 
-      // Success - NON-BLOCKING data refresh and navigation
+      // Success - STRATEGIC PAGE REFRESH (No loading screen!)
       // Calculate new path for selection
       const newPath = categoryPath.length > 1 
         ? `${categoryPath.slice(0, -1).join(' > ')} > ${newName}`
         : newName
       onCategorySelect(newPath)
       
-      // Refresh data in background without blocking UI
-      if (onDataRefresh) {
-        setTimeout(() => {
-          onDataRefresh().catch(error => {
-            console.error('Background data refresh failed:', error)
-          })
-        }, 100)
-      }
+      // Set flag to skip loading screen on refresh
+      sessionStorage.setItem('skipLoadingScreen', 'true')
+      
+      // Strategic page refresh - most reliable way to update everything
+      setTimeout(() => {
+        window.location.reload()
+      }, 500) // Small delay to ensure navigation completes
       
       toast({
         title: "Category Renamed",

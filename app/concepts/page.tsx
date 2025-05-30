@@ -71,7 +71,17 @@ export default function ConceptsPage() {
   const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
   const [sortedCategories, setSortedCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true)
+  const [showLoadingScreen, setShowLoadingScreen] = useState(() => {
+    // Check if we should skip loading screen (after Redux operations)
+    if (typeof window !== 'undefined') {
+      const shouldSkip = sessionStorage.getItem('skipLoadingScreen')
+      if (shouldSkip) {
+        sessionStorage.removeItem('skipLoadingScreen') // Clear flag
+        return false // Skip loading screen
+      }
+    }
+    return true // Show loading screen normally
+  })
   const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
