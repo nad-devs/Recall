@@ -73,28 +73,6 @@ export const useCategoryOperations = ({
   const abortControllerRef = useRef<AbortController | null>(null)
   const isResettingRef = useRef(false) // Add guard to prevent infinite resets
 
-  // Enhanced state setters with debug logging
-  const setIsCreatingCategoryWithLogging = useCallback((value: boolean) => {
-    debug.logStateChange('isCreatingCategory', isCreatingCategory, value)
-    debug.trackStateUpdate('useCategoryOperations', 'isCreatingCategory', value)
-    debug.logEventLoop('setIsCreatingCategory')
-    setIsCreatingCategory(value)
-  }, [debug, isCreatingCategory])
-
-  const setIsMovingConceptsWithLogging = useCallback((value: boolean) => {
-    debug.logStateChange('isMovingConcepts', isMovingConcepts, value)
-    debug.trackStateUpdate('useCategoryOperations', 'isMovingConcepts', value)
-    debug.logEventLoop('setIsMovingConcepts')
-    setIsMovingConcepts(value)
-  }, [debug, isMovingConcepts])
-
-  const setShowAddSubcategoryDialogWithLogging = useCallback((value: boolean) => {
-    debug.logStateChange('showAddSubcategoryDialog', showAddSubcategoryDialog, value)
-    debug.trackDialogTransition('AddSubcategory', showAddSubcategoryDialog ? 'open' : 'closed', value ? 'open' : 'closed', 'manual')
-    debug.logEventLoop('setShowAddSubcategoryDialog')
-    setShowAddSubcategoryDialog(value)
-  }, [debug, showAddSubcategoryDialog])
-  
   // Enhanced API call wrapper with abort support and debug logging
   const makeApiCall = useCallback(async (url: string, options: RequestInit = {}) => {
     const operationId = `api-call-${url}-${Date.now()}`
@@ -569,7 +547,7 @@ export const useCategoryOperations = ({
     dragDropData,
     
     // Setters
-    setShowAddSubcategoryDialog: setShowAddSubcategoryDialogWithLogging,
+    setShowAddSubcategoryDialog,
     setShowTransferDialog,
     setShowEditCategoryDialog,
     setShowDragDropDialog,
