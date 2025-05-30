@@ -111,12 +111,24 @@ export function CategoryDialogs({
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
 
-  // Simple cancel handler
+  // ULTRA-SIMPLE cancel handler to prevent React freeze
   const handleCancel = () => {
-    console.log('🔵 Simple cancel - closing dialogs')
+    console.log('🔵 Ultra-simple cancel - minimal state changes')
+    
+    // Close dialogs one by one with small delays to prevent React batching issues
+    setTimeout(() => setShowAddSubcategoryDialog(false), 0)
+    setTimeout(() => setShowTransferDialog(false), 10)
+    setTimeout(() => setShowEditCategoryDialog(false), 20)
+    setTimeout(() => setShowDragDropDialog(false), 30)
+    
+    // Reset local state
     setTargetCategory('')
     setCreateNewCategory(false)
-    resetDialogState()
+    
+    // Delay the heavy reset to prevent freeze
+    setTimeout(() => {
+      resetDialogState()
+    }, 100)
   }
 
   // ENHANCED: Create category with optional concept transfer
@@ -347,20 +359,27 @@ export function CategoryDialogs({
                 </div>
                 
                 {!createNewCategory && (
-                  <div className="ml-6">
+                  <div className="ml-6 space-y-2">
+                    <Label className="text-xs text-muted-foreground">Select destination category</Label>
                     <select
                       value={targetCategory}
                       onChange={(e) => setTargetCategory(e.target.value)}
-                      className="w-full p-2 border rounded-md text-sm"
+                      className="w-full p-3 border rounded-lg text-sm bg-background hover:bg-accent focus:bg-background focus:ring-2 focus:ring-primary transition-colors"
                       disabled={isMovingConcepts}
                     >
-                      <option value="">Select a category...</option>
+                      <option value="">Choose a category...</option>
                       {availableCategories.map(category => (
                         <option key={category} value={category}>
-                          {category} ({conceptsByCategory[category]?.length || 0} concepts)
+                          📁 {category} ({conceptsByCategory[category]?.length || 0} concepts)
                         </option>
                       ))}
                     </select>
+                    
+                    {targetCategory && (
+                      <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded text-xs">
+                        ✅ Will move {selectedConceptsForTransfer.size || transferConcepts.length} concept(s) to "<strong>{targetCategory}</strong>"
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

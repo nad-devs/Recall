@@ -482,6 +482,43 @@ export function ConceptsNavigation({
     isDraggingAny, categoryOps
   ])
 
+  // EMERGENCY: Force close all dialogs if normal cancel fails
+  const emergencyClose = useCallback(() => {
+    console.log('🚨 EMERGENCY CLOSE - Force closing all dialogs')
+    
+    // Force close everything immediately
+    categoryOps.setShowAddSubcategoryDialog(false)
+    categoryOps.setShowTransferDialog(false) 
+    categoryOps.setShowEditCategoryDialog(false)
+    categoryOps.setShowDragDropDialog(false)
+    
+    // Reset inline editing
+    setInlineEditingCategory(null)
+    setInlineEditValue('')
+    
+    // Clear all selection state
+    onCategorySelect(null)
+    
+    toast({
+      title: "Dialog Reset",
+      description: "All dialogs have been force-closed.",
+      duration: 2000,
+    })
+  }, [categoryOps, onCategorySelect, toast])
+
+  // Listen for Escape key as emergency exit
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (e.ctrlKey || e.metaKey)) {
+        console.log('🚨 Emergency escape key detected')
+        emergencyClose()
+      }
+    }
+    
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [emergencyClose])
+
   return (
     <div className={`w-80 bg-card border-r border-border h-full flex flex-col ${className}`}>
       {/* Header */}
