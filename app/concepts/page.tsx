@@ -242,8 +242,44 @@ export default function ConceptsPage() {
       isRefreshingRef.current = false
     }
   }, [fetchConcepts])
+
+  // ✨ SILENT REFRESH - No loading animation, no loading states!
+  const silentRefreshData = useCallback(async () => {
+    if (isRefreshingRef.current) {
+      return
+    }
+    
+    isRefreshingRef.current = true
+    console.log('🤫 Silent refresh: Updating data without loading animation')
+    
+    try {
+      const headers = getAuthHeaders()
+      const response = await fetch('/api/concepts', { headers })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch concepts')
+      }
+      
+      const data = await response.json()
+      
+      if (data.concepts && Array.isArray(data.concepts)) {
+        // Update data silently - no loading states changed!
+        formatAndOrganizeConcepts(data.concepts)
+        console.log('✅ Silent refresh completed - no loading animation shown')
+      } else {
+        console.warn('Silent refresh: Invalid response format')
+        formatAndOrganizeConcepts([])
+      }
+      
+    } catch (error) {
+      console.error('Silent refresh error:', error)
+      // Don't change error state - just log it
+    } finally {
+      isRefreshingRef.current = false
+    }
+  }, [formatAndOrganizeConcepts])
   
-  // Store refreshData in ref
+  // Store both refresh functions in refs
   refreshDataRef.current = refreshData
 
   // Auto-refresh event listener
@@ -638,7 +674,7 @@ export default function ConceptsPage() {
                 showNeedsReview={showNeedsReview}
                 onNeedsReviewToggle={handleNeedsReviewToggle}
                 onConceptsMove={handleConceptsMove}
-                onDataRefresh={refreshData}
+                onDataRefresh={silentRefreshData}
                 className="hidden md:flex"
               />
             )}
