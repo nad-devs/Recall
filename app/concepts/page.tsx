@@ -978,6 +978,7 @@ export default function ConceptsPage() {
                           onClick={() => {
                             const conceptsToMove = concepts.filter(c => selectedConcepts.has(c.id))
                             setTransferConcepts(conceptsToMove)
+                            setSelectedConceptsForTransfer(new Set(selectedConcepts))
                             setShowTransferDialog(true)
                           }}
                         >
