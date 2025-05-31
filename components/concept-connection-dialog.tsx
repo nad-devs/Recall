@@ -150,7 +150,8 @@ export function ConceptConnectionDialog({
       })
 
       if (!generateResponse.ok) {
-        throw new Error('Failed to generate concept content')
+        const errorData = await generateResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to generate concept content (${generateResponse.status})`)
       }
 
       const generateData = await generateResponse.json()
@@ -164,13 +165,13 @@ export function ConceptConnectionDialog({
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
-          title: generateData.concept.title,
-          category: generateData.concept.category,
-          summary: generateData.concept.summary,
-          details: generateData.concept.details,
-          keyPoints: generateData.concept.keyPoints,
-          examples: generateData.concept.examples,
-          relatedConcepts: generateData.concept.relatedConcepts,
+          title: generateData.concept.title || title,
+          category: generateData.concept.category || 'General',
+          summary: generateData.concept.summary || '',
+          details: generateData.concept.details || '',
+          keyPoints: generateData.concept.keyPoints || [],
+          examples: generateData.concept.examples || [],
+          relatedConcepts: generateData.concept.relatedConcepts || [],
           isAIGenerated: true
         }),
       })
@@ -179,10 +180,16 @@ export function ConceptConnectionDialog({
         if (createResponse.status === 401) {
           throw new Error('Authentication failed - please make sure you are logged in')
         }
-        throw new Error('Failed to create concept')
+        const errorData = await createResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to create concept (${createResponse.status})`)
       }
 
       const createData = await createResponse.json()
+      
+      if (!createData.concept || !createData.concept.id) {
+        throw new Error('Invalid response from concept creation API')
+      }
+      
       return createData.concept.id
     } catch (error) {
       console.error('Error generating and creating concept:', error)
@@ -209,9 +216,15 @@ export function ConceptConnectionDialog({
       toast({
         title: "Generating concept...",
         description: `AI is creating and analyzing "${searchTerm.trim()}"`,
+        variant: "default"
       })
       
       const newConceptId = await generateAndCreateConcept(searchTerm.trim())
+      
+      if (!newConceptId) {
+        throw new Error('Failed to get valid concept ID from creation')
+      }
+      
       setSelectedConceptId(newConceptId)
       setSelectedConceptTitle(searchTerm.trim())
       setShowDropdown(false)
@@ -220,13 +233,19 @@ export function ConceptConnectionDialog({
       toast({
         title: "Success",
         description: `AI generated concept: "${searchTerm.trim()}" with proper category and details`,
+        variant: "success"
       })
     } catch (error) {
+      console.error('Error in handleCreateAndSelect:', error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to generate new concept",
         variant: "destructive",
       })
+      
+      // Reset states on error
+      setSelectedConceptId("")
+      setSelectedConceptTitle("")
     } finally {
       setIsLoading(false)
     }
@@ -244,11 +263,14 @@ export function ConceptConnectionDialog({
     
     setIsLoading(true)
     try {
+      console.log(`Attempting to connect ${sourceConcept.id} to ${selectedConceptId}`)
+      
       await onConnect(selectedConceptId)
       
       toast({
         title: "Success",
         description: `Successfully connected "${sourceConcept.title}" to "${selectedConceptTitle}"`,
+        variant: "success"
       })
       
       onOpenChange(false)
@@ -256,10 +278,11 @@ export function ConceptConnectionDialog({
     } catch (error) {
       console.error('Error connecting concepts:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to connect concepts",
+        title: "Connection Failed",
+        description: error instanceof Error ? error.message : "Failed to connect concepts. Please try again.",
         variant: "destructive",
       })
+      // Don't close dialog on error so user can retry
     } finally {
       setIsLoading(false)
     }
