@@ -96,9 +96,13 @@ export function ConceptConnectionDialog({
       
       // Check if we should show "create new" option
       const exactMatch = filtered.some(concept => 
-        concept.title.toLowerCase() === searchTerm.toLowerCase()
+        concept.title.toLowerCase().trim() === searchTerm.toLowerCase().trim()
       )
-      setWillCreateNew(!exactMatch && searchTerm.trim().length > 0)
+      const shouldCreateNew = !exactMatch && searchTerm.trim().length > 0
+      
+      console.log(`🔍 Connect Dialog Search: "${searchTerm}" - filtered: ${filtered.length}, exactMatch: ${exactMatch}, shouldCreateNew: ${shouldCreateNew}`)
+      
+      setWillCreateNew(shouldCreateNew)
     }
   }, [searchTerm, availableConcepts])
   
@@ -139,6 +143,8 @@ export function ConceptConnectionDialog({
     try {
       setIsGeneratingConcept(true)
       
+      console.log(`🤖 Starting AI concept generation for: "${title}"`)
+      
       // First, generate the concept using AI
       const generateResponse = await fetch('/api/concepts/generate', {
         method: 'POST',
@@ -149,50 +155,66 @@ export function ConceptConnectionDialog({
         }),
       })
 
+      console.log(`🔧 Generate API response status: ${generateResponse.status}`)
+
       if (!generateResponse.ok) {
         const errorData = await generateResponse.json().catch(() => ({}))
+        console.error('❌ Generate API error:', errorData)
         throw new Error(errorData.error || `Failed to generate concept content (${generateResponse.status})`)
       }
 
       const generateData = await generateResponse.json()
+      
+      console.log('✅ Generated concept data:', generateData)
       
       if (!generateData.success) {
         throw new Error(generateData.error || 'Failed to generate concept')
       }
 
       // Now create the concept with the AI-generated content
+      const createPayload = {
+        title: generateData.concept.title || title,
+        category: generateData.concept.category || 'General',
+        summary: generateData.concept.summary || '',
+        details: generateData.concept.details || '',
+        keyPoints: generateData.concept.keyPoints || [],
+        examples: generateData.concept.examples || [],
+        relatedConcepts: generateData.concept.relatedConcepts || [],
+        isAIGenerated: true
+      }
+      
+      console.log('🔧 Creating concept with payload:', createPayload)
+      
       const createResponse = await fetch('/api/concepts', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          title: generateData.concept.title || title,
-          category: generateData.concept.category || 'General',
-          summary: generateData.concept.summary || '',
-          details: generateData.concept.details || '',
-          keyPoints: generateData.concept.keyPoints || [],
-          examples: generateData.concept.examples || [],
-          relatedConcepts: generateData.concept.relatedConcepts || [],
-          isAIGenerated: true
-        }),
+        body: JSON.stringify(createPayload),
       })
+
+      console.log(`🔧 Create API response status: ${createResponse.status}`)
 
       if (!createResponse.ok) {
         if (createResponse.status === 401) {
           throw new Error('Authentication failed - please make sure you are logged in')
         }
         const errorData = await createResponse.json().catch(() => ({}))
+        console.error('❌ Create API error:', errorData)
         throw new Error(errorData.error || `Failed to create concept (${createResponse.status})`)
       }
 
       const createData = await createResponse.json()
       
+      console.log('✅ Created concept data:', createData)
+      
       if (!createData.concept || !createData.concept.id) {
         throw new Error('Invalid response from concept creation API')
       }
       
+      console.log(`🎉 Successfully created concept with ID: ${createData.concept.id}`)
+      
       return createData.concept.id
     } catch (error) {
-      console.error('Error generating and creating concept:', error)
+      console.error('❌ Error generating and creating concept:', error)
       throw error
     } finally {
       setIsGeneratingConcept(false)
@@ -272,6 +294,13 @@ export function ConceptConnectionDialog({
         description: `Successfully connected "${sourceConcept.title}" to "${selectedConceptTitle}"`,
         variant: "success"
       })
+      
+      // Trigger refresh of concepts page if this was a newly created concept
+      // This ensures the new concept appears in browse concepts
+      console.log('🔄 Triggering concepts page refresh after successful connection')
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('refreshConcepts'))
+      }, 300)
       
       onOpenChange(false)
       
