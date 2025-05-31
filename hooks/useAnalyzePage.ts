@@ -475,7 +475,9 @@ export function useAnalyzePage() {
     setIsAnalyzing(true)
     setShowAnimation(true)
     
-    // Clear any previous discovered concepts and set initial stage
+    // Clear any previous analysis results and discovered concepts
+    setAnalysisResult(null)
+    setSelectedConcept(null)
     setDiscoveredConcepts([])
     setAnalysisStage("Initializing analysis...")
 
@@ -502,6 +504,8 @@ export function useAnalyzePage() {
           setShowApiKeyModal(true)
           setIsAnalyzing(false)
           setShowAnimation(false)
+          setAnalysisResult(null)
+          setSelectedConcept(null)
           setDiscoveredConcepts([])
           setAnalysisStage("Initializing...")
           return
@@ -540,6 +544,8 @@ export function useAnalyzePage() {
           
           setIsAnalyzing(false)
           setShowAnimation(false)
+          setAnalysisResult(null)
+          setSelectedConcept(null)
           setDiscoveredConcepts([])
           setAnalysisStage("Initializing...")
           return
@@ -554,6 +560,8 @@ export function useAnalyzePage() {
         console.error("Analysis failed:", errorMessage)
         setIsAnalyzing(false)
         setShowAnimation(false)
+        setAnalysisResult(null)
+        setSelectedConcept(null)
         setDiscoveredConcepts([])
         setAnalysisStage("Initializing...")
         return
@@ -578,19 +586,19 @@ export function useAnalyzePage() {
       
       // Proceed normally - concept matching will happen during save
       setAnalysisResult(analysis)
-      setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
       
       if (analysis.concepts.length > 0) {
         setSelectedConcept(analysis.concepts[0])
         setSelectedTab("summary")
+        setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
       }
 
       console.log("Analysis completed successfully")
-      // Set analysis states immediately for smooth transition
+      // Set analysis states for smooth transition - but keep discovered concepts
       setIsAnalyzing(false)
       setShowAnimation(false)
-      setDiscoveredConcepts([])
-      setAnalysisStage("Initializing...")
+      // Don't clear discoveredConcepts here - they should show the final results
+      setAnalysisStage("Analysis complete")
     } catch (error) {
       console.error('Error during analysis:', error)
       toast({
@@ -598,8 +606,11 @@ export function useAnalyzePage() {
         description: "An error occurred while analyzing the conversation. Please try again.",
         variant: "destructive",
       })
+      // Reset to initial state when analysis fails
       setIsAnalyzing(false)
       setShowAnimation(false)
+      setAnalysisResult(null)
+      setSelectedConcept(null)
       setDiscoveredConcepts([])
       setAnalysisStage("Initializing...")
     }
