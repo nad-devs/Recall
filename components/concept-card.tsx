@@ -894,7 +894,7 @@ export const ConceptCard = React.memo(function ConceptCard({
         {/* Linked to source indicator and unlink button */}
         {isLinkedToSource() && selectedSourceConceptForLinking && !isSourceForLinking && (
           <button
-            className="absolute top-0 right-0 m-2 bg-white/80 hover:bg-red-100 text-red-600 border border-red-200 rounded-full p-1 z-20 shadow"
+            className="absolute top-0 right-0 m-2 bg-background/90 hover:bg-destructive/10 text-destructive border border-destructive/30 rounded-full p-1 z-20 shadow-md backdrop-blur-sm"
             title={`Unlink from ${selectedSourceConceptForLinking.title}`}
             onClick={(e) => {
               e.preventDefault();
@@ -913,7 +913,7 @@ export const ConceptCard = React.memo(function ConceptCard({
         
         {/* Right-click to link indicator */}
         {enableRightClickLinking && !isSourceForLinking && selectedSourceConceptForLinking && (
-          <div className="absolute top-0 right-0 p-1.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 rounded-bl-md">
+          <div className="absolute top-0 right-0 p-1.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 rounded-bl-md border border-blue-200 dark:border-blue-700">
             <span className="flex items-center">
               <span className="mr-1">Right-click to link</span>
               <LinkIcon className="h-3 w-3" />
@@ -928,7 +928,7 @@ export const ConceptCard = React.memo(function ConceptCard({
                 type="checkbox"
                 checked={isSelected}
                 onChange={handleCheckboxChange}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary flex-shrink-0"
+                className="mt-1 h-4 w-4 rounded border-2 border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-background flex-shrink-0 accent-primary"
                 title="Select concept for bulk operations"
               />
             )}
@@ -1079,20 +1079,8 @@ export const ConceptCard = React.memo(function ConceptCard({
             ) : (
               <div className="flex items-center">
                 <Badge 
-                  onClick={async () => {
-                    // Fetch categories when starting to edit
-                    await fetchCategories();
-                    
-                    // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
-                    if (category === "Algorithms") {
-                      setSelectedCategory("Data Structures and Algorithms");
-                    } else {
-                      setSelectedCategory(category || "General");
-                    }
-                    setIsEditingCategory(true);
-                  }} 
-                  className="cursor-pointer hover:bg-primary/20 transition-colors"
-                  title="Click to edit category (🧠 = learned from your patterns)"
+                  className="hover:bg-primary/20 transition-colors"
+                  title="Category - concepts can now be moved using checkboxes and move functionality"
                 >
                   {category || "General"}
                   {/* Show learning indicator if this category was learned */}
@@ -1100,26 +1088,6 @@ export const ConceptCard = React.memo(function ConceptCard({
                     <span className="ml-1" title="This category was learned from your usage patterns">🧠</span>
                   )}
                 </Badge>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-6 w-6 ml-1" 
-                  onClick={async () => {
-                    // Fetch categories when starting to edit
-                    await fetchCategories();
-                    
-                    // If the current category is "Algorithms", preselect "Data Structures and Algorithms"
-                    if (category === "Algorithms") {
-                      setSelectedCategory("Data Structures and Algorithms");
-                    } else {
-                      setSelectedCategory(category || "General");
-                    }
-                    setIsEditingCategory(true);
-                  }}
-                  title="Edit category"
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
               </div>
             )}
           </div>
