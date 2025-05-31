@@ -187,7 +187,7 @@ export default function ConceptsPage() {
     console.log('🔧 CONCEPTS PAGE: Formatting concepts, received data:', conceptsData.length, 'concepts')
     
     const formattedConcepts = conceptsData.map(concept => {
-      const needsReview = concept.confidenceScore < 0.7
+      const needsReview = concept.confidenceScore && concept.confidenceScore < 0.7
       console.log(`🔧 CONCEPT: "${concept.title}" - confidenceScore: ${concept.confidenceScore}, needsReview: ${needsReview}`)
       
       return {

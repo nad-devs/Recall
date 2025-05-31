@@ -166,12 +166,12 @@ export default function Dashboard() {
       // Get concepts that need review (lower confidence score)
       const conceptsToReview = safeConcepts
         .filter((c: any) => c.confidenceScore && c.confidenceScore < 0.7)
-        .slice(0, 3)
+        .slice(0, 5)
       
       // Get recent concepts (sorted by creation date)
       const recentConcepts = safeConcepts
         .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 8) // Show more recent concepts
+        .slice(0, 5) // Show 5 recent concepts instead of 8
       
       setDashboardData({
         conceptsCount,
