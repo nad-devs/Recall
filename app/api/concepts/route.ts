@@ -1111,22 +1111,18 @@ export async function POST(request: Request) {
 
     let conversationId = data.conversationId;
     
-    // Create a dummy conversation for ALL concept types if no conversationId is provided
-    if (!conversationId) {
+    // Create a dummy conversation ONLY for non-placeholder concepts if no conversationId is provided
+    if (!conversationId && !isPlaceholder) {
       try {
-        console.log('🔧 POST /api/concepts - Creating dummy conversation for concept type:', {
+        console.log('🔧 POST /api/concepts - Creating dummy conversation for non-placeholder concept type:', {
           isManualCreation,
-          isPlaceholder,
           title
         })
         
         let conversationText = '';
         let conversationSummary = '';
         
-        if (isPlaceholder) {
-          conversationText = `Placeholder conversation for category: ${data.category || title}. This category was created to organize concepts.`;
-          conversationSummary = `Category placeholder: ${data.category || title}`;
-        } else if (isManualCreation) {
+        if (isManualCreation) {
           conversationText = context 
             ? `${context}\n\nManual concept creation for: ${title}`
             : `Manual concept creation for: ${title}. Please explain this concept in detail.`;
@@ -1169,8 +1165,8 @@ export async function POST(request: Request) {
 
     console.log('🔧 POST /api/concepts - Creating concept with category:', formattedInitialCategory)
 
-    // Create the concept - conversationId is now always available
-    const conceptData = {
+    // Create the concept - only include conversationId for non-placeholder concepts
+    const conceptData: any = {
       title,
       category: formattedInitialCategory,
       summary: data.summary || "",
@@ -1182,9 +1178,13 @@ export async function POST(request: Request) {
       confidenceScore: isPlaceholder ? 0.1 : (isManualCreation ? 0.4 : 0.5), // Lower score for manual creations to ensure they need review
       isPlaceholder: isPlaceholder,
       lastUpdated: new Date(),
-      userId: user.id,
-      conversationId: conversationId // Always include conversationId
+      userId: user.id
     };
+
+    // Only add conversationId for non-placeholder concepts
+    if (!isPlaceholder && conversationId) {
+      conceptData.conversationId = conversationId;
+    }
 
     console.log('🔧 POST /api/concepts - Concept data to create:', JSON.stringify(conceptData, null, 2))
 
@@ -1194,8 +1194,9 @@ export async function POST(request: Request) {
 
     console.log('🔧 POST /api/concepts - Successfully created concept:', concept.id)
 
-    // If this is a placeholder concept, return early without generating content
+    // If this is a placeholder concept, return early without generating content or creating occurrences
     if (isPlaceholder) {
+      console.log('🔧 POST /api/concepts - Placeholder concept created, skipping content generation and occurrences')
       return NextResponse.json({ concept }, { status: 201 });
     }
 

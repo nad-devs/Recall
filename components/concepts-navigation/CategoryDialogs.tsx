@@ -271,7 +271,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
       <Dialog open={showTransferDialog} onOpenChange={(open) => {
         if (!open) handleDialogCancel()
       }}>
-        <DialogContent className="sm:max-w-3xl max-h-[80vh]">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] w-[95vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <ArrowRight className="mr-2 h-5 w-5" />
@@ -282,25 +282,25 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6">
+          <div className="space-y-8 py-4">
             {/* Concept Selection */}
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-medium">Select Concepts to Move</Label>
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-base font-medium">Select Concepts to Move</Label>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleToggleAll}
-                  className="h-7 text-xs"
+                  className="h-8 text-sm px-4"
                 >
                   {getSelectedCount() === transferConcepts.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
               
-              <div className="max-h-48 overflow-y-auto border rounded-lg">
-                <div className="space-y-1 p-2">
+              <div className="max-h-64 overflow-y-auto border rounded-lg bg-muted/20">
+                <div className="space-y-2 p-4">
                   {transferConcepts.map((concept) => (
-                    <div key={concept.id} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded">
+                    <div key={concept.id} className="flex items-center space-x-4 p-3 hover:bg-muted/50 rounded-lg border bg-background">
                       <input
                         type="checkbox"
                         id={`concept-${concept.id}`}
@@ -314,7 +314,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                           }
                           setSelectedConceptsForTransfer(newSelected)
                         }}
-                        className="w-4 h-4"
+                        className="w-5 h-5"
                       />
                       <div className="flex-1 min-w-0">
                         <label htmlFor={`concept-${concept.id}`} className="text-sm font-medium cursor-pointer block truncate">
@@ -326,7 +326,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-2">
                         {concept.needsReview && (
                           <Badge variant="outline" className="text-orange-600 border-orange-200 text-xs">
                             Review
@@ -345,12 +345,12 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
             </div>
 
             {/* Destination Selection */}
-            <div className="space-y-4">
-              <Label className="text-sm font-medium">Choose Destination</Label>
+            <div className="space-y-6">
+              <Label className="text-base font-medium">Choose Destination</Label>
               
               {/* Option 1: Move to existing category */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
                   <input
                     type="radio"
                     id="existing"
@@ -363,24 +363,24 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                 </div>
                 
                 {!createNewCategory && (
-                  <div className="ml-6 space-y-2">
-                    <Label className="text-xs text-muted-foreground">Select destination category</Label>
+                  <div className="ml-7 space-y-3">
+                    <Label className="text-sm text-muted-foreground">Select destination category</Label>
                     <Select
                       value={targetCategory}
                       onChange={(e) => setTargetCategory(e.target.value)}
                       disabled={isMovingConcepts}
-                      className="w-full p-3"
+                      className="w-full text-base py-3 min-h-[44px]"
                     >
                       <SelectOption value="">Choose a category...</SelectOption>
                       {availableCategories.map(category => (
-                        <SelectOption key={category} value={category}>
+                        <SelectOption key={category} value={category} className="py-2">
                           📁 {category} ({conceptsByCategory[category]?.length || 0} concepts)
                         </SelectOption>
                       ))}
                     </Select>
                     
                     {targetCategory && (
-                      <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded text-xs">
+                      <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg text-sm">
                         ✅ Will move {getSelectedCount()} concept(s) to "<strong>{targetCategory}</strong>"
                       </div>
                     )}
@@ -389,8 +389,8 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
               </div>
 
               {/* Option 2: Create new category */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
                   <input
                     type="radio"
                     id="new"
@@ -435,17 +435,23 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
             </div>
           </div>
           
-          <div className="flex justify-between items-center pt-4 border-t">
-            <div className="text-sm text-muted-foreground">
-              Moving {getSelectedCount()} of {transferConcepts.length} concept(s)
+          <div className="flex justify-between items-center pt-6 border-t">
+            <div className="text-sm text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
+              Moving <strong>{getSelectedCount()}</strong> of <strong>{transferConcepts.length}</strong> concept(s)
             </div>
-            <div className="space-x-2">
-              <Button variant="outline" onClick={handleDialogCancel} disabled={isMovingConcepts}>
+            <div className="space-x-3">
+              <Button 
+                variant="outline" 
+                onClick={handleDialogCancel} 
+                disabled={isMovingConcepts}
+                className="px-6"
+              >
                 Cancel
               </Button>
               <Button 
                 onClick={handleTransferToExisting}
-                disabled={isMovingConcepts || createNewCategory || !targetCategory}
+                disabled={isMovingConcepts || createNewCategory || !targetCategory || getSelectedCount() === 0}
+                className="px-6 min-w-[140px]"
               >
                 {isMovingConcepts ? 'Moving...' : `Move to ${targetCategory || '...'}`}
               </Button>

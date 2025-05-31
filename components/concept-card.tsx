@@ -646,26 +646,26 @@ export const ConceptCard = React.memo(function ConceptCard({
 
   // Handle click for selection and navigation
   const handleClick = (e: React.MouseEvent) => {
-    // Don't navigate if clicking on interactive elements
     const target = e.target as HTMLElement;
-    const isInteractiveElement = target.closest('button, a, input, select, [role="button"]');
+    const isInteractiveElement = target.closest('button, a, input, select, [role="button"], [type="checkbox"]');
     
     if (isInteractiveElement) {
       return; // Let the interactive element handle the click
     }
-    
-    // Handle selection if onSelect is provided and Ctrl/Cmd is pressed
-    if (onSelect && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      onSelect(id);
-      return;
-    }
-    
+
     // Navigate to concept view on normal click
     if (!isLoading && !isDragging) {
       e.preventDefault();
       // Use Next.js router for client-side navigation
       router.push(`/concept/${id}`);
+    }
+  };
+
+  // Handle checkbox selection
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // Prevent card click
+    if (onSelect) {
+      onSelect(id);
     }
   };
 
@@ -922,6 +922,17 @@ export const ConceptCard = React.memo(function ConceptCard({
         )}
         <CardHeader className="pb-4">
           <div className="flex justify-between items-start gap-4 mb-3">
+            {/* Selection checkbox - only show when onSelect is provided */}
+            {onSelect && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={handleCheckboxChange}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary flex-shrink-0"
+                title="Select concept for bulk operations"
+              />
+            )}
+            
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
