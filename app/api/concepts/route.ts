@@ -1017,10 +1017,14 @@ export async function POST(request: Request) {
     // Check if this is a manual concept creation (not from conversation analysis)
     const isManualCreation = data.isManualCreation || false;
     
+    // Check if this should bypass similarity checking (e.g., from connect dialog)
+    const bypassSimilarityCheck = data.bypassSimilarityCheck || data.isAIGenerated || false;
+    
     console.log('🔧 SERVER: Step 3 - Processing concept with params:', {
       title,
       isPlaceholder,
       isManualCreation,
+      bypassSimilarityCheck,
       category: data.category,
       hasContext: !!context,
       step: operationStep,
@@ -1040,8 +1044,8 @@ export async function POST(request: Request) {
       }
     }
     
-    // Check for similar concepts (skip for placeholder concepts)
-    if (!isPlaceholder) {
+    // Check for similar concepts (skip for placeholder concepts AND when bypassing similarity check)
+    if (!isPlaceholder && !bypassSimilarityCheck) {
       operationStep = 'checking similar concepts'
       console.log('🔧 SERVER: Step 5 - Checking for similar concepts...')
       try {
@@ -1107,6 +1111,8 @@ export async function POST(request: Request) {
         console.error('🔧 SERVER: ❌ Error checking similar concepts:', similarError)
         // Continue anyway - this shouldn't block concept creation
       }
+    } else if (bypassSimilarityCheck) {
+      console.log('🔧 SERVER: Step 5 - Skipping similar concept check (bypass flag set)')
     }
 
     let conversationId = data.conversationId;
