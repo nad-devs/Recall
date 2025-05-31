@@ -17,6 +17,7 @@ interface AutocompleteProps {
   disabled?: boolean
   maxSuggestions?: number
   filterFunction?: (options: AutocompleteOption[], query: string) => AutocompleteOption[]
+  autoSelectOnFocus?: boolean
 }
 
 export function Autocomplete({
@@ -28,7 +29,8 @@ export function Autocomplete({
   className,
   disabled = false,
   maxSuggestions = 5,
-  filterFunction
+  filterFunction,
+  autoSelectOnFocus = false
 }: AutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -130,6 +132,9 @@ export function Autocomplete({
   }
 
   const handleFocus = () => {
+    if (autoSelectOnFocus && inputRef.current) {
+      inputRef.current.select()
+    }
     if (filteredOptions.length > 0) {
       setIsOpen(true)
     }
