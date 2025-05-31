@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut } from "lucide-react"
-import { ConversationCard } from "@/components/conversation-card"
 import { DashboardConceptCard } from "@/components/dashboard-concept-card"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { PageTransition } from "@/components/page-transition"
@@ -22,11 +21,10 @@ export default function Dashboard() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedName, setEditedName] = useState("")
   const [dashboardData, setDashboardData] = useState({
-    conversationsCount: 0,
     conceptsCount: 0,
     categoriesCount: 0,
     conceptsToReview: [] as any[],
-    recentConversations: [] as any[]
+    recentConcepts: [] as any[]
   })
   const [loading, setLoading] = useState(true)
   const [showLoadingScreen, setShowLoadingScreen] = useState(true)
@@ -142,10 +140,6 @@ export default function Dashboard() {
         headers['x-user-id'] = session.user.id || ''
       }
       
-      // Fetch conversations
-      const conversationsResponse = await fetch('/api/conversations', { headers })
-      const conversations = await conversationsResponse.json()
-      
       // Fetch concepts
       const conceptsResponse = await fetch('/api/concepts', { headers })
       const conceptsData = await conceptsResponse.json()
@@ -154,12 +148,6 @@ export default function Dashboard() {
       const concepts = conceptsData.concepts || conceptsData || []
       
       // Check if we got error responses and provide fallbacks
-      if (!Array.isArray(conversations)) {
-        if (conversations && typeof conversations === 'object' && conversations.error) {
-          console.error('Conversations API error:', conversations.error)
-        }
-      }
-      
       if (!Array.isArray(concepts)) {
         if (concepts && typeof concepts === 'object' && concepts.error) {
           console.error('Concepts API error:', concepts.error)
@@ -167,10 +155,8 @@ export default function Dashboard() {
       }
       
       // Process data - use safe arrays
-      const safeConversations = Array.isArray(conversations) ? conversations : []
       const safeConcepts = Array.isArray(concepts) ? concepts : []
       
-      const conversationsCount = safeConversations.length
       const conceptsCount = safeConcepts.length
       
       // Count unique categories
@@ -182,15 +168,16 @@ export default function Dashboard() {
         .filter((c: any) => c.confidenceScore && c.confidenceScore < 0.7)
         .slice(0, 3)
       
-      // Get recent conversations (already sorted by API)
-      const recentConversations = safeConversations.slice(0, 5)
+      // Get recent concepts (sorted by creation date)
+      const recentConcepts = safeConcepts
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 8) // Show more recent concepts
       
       setDashboardData({
-        conversationsCount,
         conceptsCount,
         categoriesCount,
         conceptsToReview,
-        recentConversations
+        recentConcepts
       })
       
       // Mark data as loaded AFTER setting dashboard data
@@ -245,12 +232,6 @@ export default function Dashboard() {
               <Link href="/concepts">
                 <BookOpen className="mr-2 h-4 w-4" />
                 Browse Concepts
-              </Link>
-            </Button>
-            <Button variant="outline" asChild className="shadow-sm">
-              <Link href="/conversations">
-                <ArrowRight className="mr-2 h-4 w-4" />
-                Conversations
               </Link>
             </Button>
               <Button 
@@ -329,17 +310,17 @@ export default function Dashboard() {
                 )}
               </div>
               <p className="text-muted-foreground mb-4">
-                You've analyzed {dashboardData.conversationsCount} conversations and learned about {dashboardData.conceptsCount} concepts across {dashboardData.categoriesCount} categories.
+                You've learned about {dashboardData.conceptsCount} concepts across {dashboardData.categoriesCount} categories through conversation analysis.
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
                 <Badge variant="secondary" className="px-2 py-1">
                   <BookOpen className="mr-1 h-3 w-3" /> {dashboardData.conceptsCount} Concepts
                 </Badge>
                 <Badge variant="secondary" className="px-2 py-1">
-                  <svg className="mr-1 h-3 w-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 9h8m-8 4h6m-6 4h4M5 7C5 5.89543 5.89543 5 7 5H17C18.1046 5 19 5.89543 19 7V19C19 20.1046 18.1046 21 17 21H7C5.89543 21 5 20.1046 5 19V7Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg className="mr-1 h-3 w-3 text-purple-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  {dashboardData.conversationsCount} Conversations
+                  {dashboardData.categoriesCount} Categories
                 </Badge>
                 <Badge variant="secondary" className="px-2 py-1">
                   <svg className="mr-1 h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -359,72 +340,51 @@ export default function Dashboard() {
 
         {/* Main content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Conversations */}
+          {/* Recent Concepts - Now takes 2 columns */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold flex items-center">
-                <svg className="mr-2 h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-                  <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                Recent Conversations
+                <BookOpen className="mr-2 h-5 w-5 text-primary" />
+                Recent Concepts
               </h2>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/conversations">
+                <Link href="/concepts">
                   View all
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Link>
               </Button>
             </div>
 
-            <div className="space-y-4">
-              {dashboardData.recentConversations.length === 0 && !loading ? (
-                <Card className="bg-card border-border">
-                  <CardContent className="py-8 text-center">
-                    <div className="space-y-4">
-                      <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto">
-                        <Brain className="w-8 h-8 text-blue-500" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dashboardData.recentConcepts.length === 0 && !loading ? (
+                <div className="md:col-span-2">
+                  <Card className="bg-card border-border">
+                    <CardContent className="py-8 text-center">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto">
+                          <Brain className="w-8 h-8 text-blue-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start learning?</h3>
+                          <p className="text-muted-foreground mb-4">
+                            You haven't analyzed any conversations yet. Upload your first conversation to extract concepts and build your knowledge base!
+                          </p>
+                          <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                            <Link href="/analyze">
+                              <Brain className="mr-2 h-4 w-4" />
+                              Analyze Your First Conversation
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start learning?</h3>
-                        <p className="text-muted-foreground mb-4">
-                          You haven't analyzed any conversations yet. Upload your first conversation to extract concepts and build your knowledge base!
-                        </p>
-                        <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                          <Link href="/analyze">
-                            <Brain className="mr-2 h-4 w-4" />
-                            Analyze Your First Conversation
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
               ) : (
-                dashboardData.recentConversations.map((conversation: any) => {
-                // Use the title directly from the API (which now includes LLM-generated titles)
-                const title = conversation.title || 'Untitled Conversation';
-                const summary = conversation.summary || '';
-                
-                // Ensure concepts is always an array
-                const concepts = Array.isArray(conversation.concepts) ? conversation.concepts : [];
-                
-                // Format conversation data for ConversationCard
-                const conversationData = {
-                  id: conversation.id,
-                  title: title,
-                  summary: summary,
-                  date: conversation.createdAt,
-                  concepts: concepts.map((concept: any) => ({
-                    id: concept.id,
-                    title: concept.title
-                  }))
-                };
-                
-                return (
-                  <ConversationCard key={conversation.id} conversation={conversationData} />
-                );
-              }))}
+                dashboardData.recentConcepts.map((concept: any) => (
+                  <ConceptCard key={concept.id} concept={concept} />
+                ))
+              )}
             </div>
           </div>
 
@@ -501,4 +461,80 @@ export default function Dashboard() {
       </div>
     </PageTransition>
   );
+}
+
+// Concept card component for displaying recent concepts with more details
+function ConceptCard({ concept }: { concept: any }) {
+  const router = useRouter()
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    const isInteractiveElement = target.closest('button, a, [role="button"]');
+    
+    if (isInteractiveElement) {
+      return; // Let the interactive element handle the click
+    }
+    
+    // Navigate to concept view on normal click
+    e.preventDefault();
+    router.push(`/concept/${concept.id}`);
+  }
+
+  // Parse key points if they exist
+  let keyPoints: string[] = []
+  try {
+    if (concept.keyPoints) {
+      keyPoints = Array.isArray(concept.keyPoints) 
+        ? concept.keyPoints 
+        : JSON.parse(concept.keyPoints)
+    }
+  } catch {
+    keyPoints = []
+  }
+
+  return (
+    <Card 
+      className="hover:shadow-md transition-shadow cursor-pointer"
+      onClick={handleClick}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-lg line-clamp-1">{concept.title}</CardTitle>
+          <Badge variant="secondary" className="text-xs">
+            {concept.category}
+          </Badge>
+        </div>
+        <CardDescription className="line-clamp-2">{concept.summary}</CardDescription>
+      </CardHeader>
+      {keyPoints.length > 0 && (
+        <CardContent className="pt-0">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Key Points:</p>
+            <ul className="text-sm space-y-1">
+              {keyPoints.slice(0, 2).map((point, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <span className="text-primary mt-1.5 block w-1 h-1 rounded-full bg-current flex-shrink-0" />
+                  <span className="line-clamp-1">{point}</span>
+                </li>
+              ))}
+              {keyPoints.length > 2 && (
+                <li className="text-xs text-muted-foreground italic">
+                  +{keyPoints.length - 2} more points...
+                </li>
+              )}
+            </ul>
+          </div>
+        </CardContent>
+      )}
+      <CardFooter className="pt-2">
+        <Button variant="ghost" size="sm" asChild className="w-full">
+          <Link href={`/concept/${concept.id}`}>
+            View Details
+            <ArrowRight className="ml-1 h-3 w-3" />
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  )
 } 

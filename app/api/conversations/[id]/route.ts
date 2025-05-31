@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
     
-    // Validate session - but make it optional
+    // Validate session - but be more flexible with authentication
     const user = await validateSession(request);
     console.log(`🔍 [Conversation Details] validateSession result:`, {
       hasUser: !!user,
@@ -27,17 +27,7 @@ export async function GET(
       isEmailBased: user?.isEmailBased
     });
     
-    if (!user) {
-      console.log(`❌ [Conversation Details] No authenticated user - returning not found`);
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
-    }
-
-    console.log(`🔍 [Conversation Details] Looking for conversation with:`, {
-      conversationId: id,
-      userId: user.id
-    });
-
-    // First, let's check if the conversation exists at all (without user filter)
+    // First, let's check if the conversation exists at all
     const conversationExists = await prisma.conversation.findUnique({
       where: { id: id }
     });
@@ -45,16 +35,65 @@ export async function GET(
     console.log(`🔍 [Conversation Details] Conversation exists check:`, {
       exists: !!conversationExists,
       actualUserId: conversationExists?.userId,
-      requestedUserId: user.id,
-      userMatch: conversationExists?.userId === user.id
+      requestedUserId: user?.id,
+      userMatch: conversationExists?.userId === user?.id
     });
+
+    if (!conversationExists) {
+      console.log(`❌ [Conversation Details] Conversation not found in database`);
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // If we have a user, check if they own this conversation
+    if (user && conversationExists.userId !== user.id) {
+      console.log(`❌ [Conversation Details] User doesn't own this conversation`);
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // If no user session but conversation exists, try to get user from localStorage headers
+    if (!user) {
+      // Check for localStorage-based authentication headers
+      const userEmail = request.headers.get('x-user-email');
+      const userId = request.headers.get('x-user-id');
+      
+      console.log(`🔍 [Conversation Details] localStorage headers:`, {
+        userEmail: userEmail ? 'present' : 'missing',
+        userId: userId ? 'present' : 'missing',
+        actualUserEmail: userEmail,
+        actualUserId: userId
+      });
+      
+      if (userEmail && userId) {
+        // Verify this user owns the conversation
+        const conversationOwner = await prisma.user.findUnique({
+          where: { id: conversationExists.userId }
+        });
+        
+        console.log(`🔍 [Conversation Details] Conversation owner lookup:`, {
+          conversationOwnerId: conversationExists.userId,
+          ownerFound: !!conversationOwner,
+          ownerEmail: conversationOwner?.email,
+          headerEmail: userEmail,
+          headerUserId: userId,
+          emailMatch: conversationOwner?.email === userEmail,
+          idMatch: conversationOwner?.id === userId
+        });
+        
+        if (conversationOwner && (conversationOwner.email === userEmail || conversationOwner.id === userId)) {
+          console.log(`✅ [Conversation Details] Authorized via localStorage headers`);
+        } else {
+          console.log(`❌ [Conversation Details] Unauthorized access attempt - owner mismatch`);
+          return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+        }
+      } else {
+        console.log(`❌ [Conversation Details] No authentication found`);
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+    }
 
     // Fetch the conversation with its concepts and code snippets
     const conversation = await prisma.conversation.findUnique({
-      where: {
-        id: id,
-        userId: user.id // Ensure the user can only access their own conversations
-      },
+      where: { id: id },
       include: {
         concepts: {
           include: {
@@ -72,7 +111,7 @@ export async function GET(
     });
 
     if (!conversation) {
-      console.log(`❌ [Conversation Details] Conversation not found after user filter`);
+      console.log(`❌ [Conversation Details] Conversation not found in final query`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
