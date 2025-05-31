@@ -11,17 +11,43 @@ export async function GET(
   try {
     const { id } = await params;
     
+    console.log(`🔍 [Conversation Details] Starting request for conversation ID: ${id}`);
+    
     if (!id) {
+      console.log(`❌ [Conversation Details] No conversation ID provided`);
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
     
     // Validate session - but make it optional
     const user = await validateSession(request);
+    console.log(`🔍 [Conversation Details] validateSession result:`, {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      isEmailBased: user?.isEmailBased
+    });
+    
     if (!user) {
-      // Return a not found response for unauthenticated users instead of 401
-      console.log('No authenticated user - returning not found for conversation');
+      console.log(`❌ [Conversation Details] No authenticated user - returning not found`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
+
+    console.log(`🔍 [Conversation Details] Looking for conversation with:`, {
+      conversationId: id,
+      userId: user.id
+    });
+
+    // First, let's check if the conversation exists at all (without user filter)
+    const conversationExists = await prisma.conversation.findUnique({
+      where: { id: id }
+    });
+    
+    console.log(`🔍 [Conversation Details] Conversation exists check:`, {
+      exists: !!conversationExists,
+      actualUserId: conversationExists?.userId,
+      requestedUserId: user.id,
+      userMatch: conversationExists?.userId === user.id
+    });
 
     // Fetch the conversation with its concepts and code snippets
     const conversation = await prisma.conversation.findUnique({
@@ -39,9 +65,18 @@ export async function GET(
       },
     });
 
+    console.log(`🔍 [Conversation Details] Final conversation query result:`, {
+      found: !!conversation,
+      conversationId: conversation?.id,
+      conceptsCount: conversation?.concepts?.length || 0
+    });
+
     if (!conversation) {
+      console.log(`❌ [Conversation Details] Conversation not found after user filter`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
+
+    console.log(`✅ [Conversation Details] Successfully found conversation, processing response...`);
 
     // Process the conversation for the frontend
     const conceptMap = conversation.concepts.map(concept => concept.title);
@@ -92,9 +127,10 @@ export async function GET(
       createdAt: conversation.createdAt,
     };
 
+    console.log(`✅ [Conversation Details] Returning formatted conversation with ${formattedConversation.concepts.length} concepts`);
     return NextResponse.json(formattedConversation);
   } catch (error) {
-    console.error('Error fetching conversation:', error);
+    console.error('❌ [Conversation Details] Error fetching conversation:', error);
     return NextResponse.json(
       { error: 'Failed to fetch conversation' },
       { status: 500 }
