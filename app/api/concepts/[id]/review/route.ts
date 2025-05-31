@@ -41,59 +41,33 @@ export async function POST(
       );
     }
     
-    // Get current confidence score and review count
-    const currentConfidence = existingConcept.confidenceScore || 0.5;
-    const currentReviewCount = existingConcept.reviewCount || 0;
-    
-    // Calculate new confidence score based on current quiz performance
-    let newQuizConfidence = 0.6; // Default/minimum
-    
-    if (percentageScore === 1) {
-      newQuizConfidence = 0.9; // Perfect score
-    } else if (percentageScore >= 0.8) {
-      newQuizConfidence = 0.85; // Very good
-    } else if (percentageScore >= 0.7) {
-      newQuizConfidence = 0.8; // Good
-    } else if (percentageScore >= 0.6) {
-      newQuizConfidence = 0.75; // Moderate
-    } else if (percentageScore >= 0.5) {
-      newQuizConfidence = 0.7; // Pass
-    } else if (percentageScore >= 0.4) {
-      newQuizConfidence = 0.65; // Below average
-    } else {
-      newQuizConfidence = 0.5; // Poor performance
-    }
-    
-    // Calculate final confidence score using weighted average
-    // Give more weight to recent performance, but consider history
+    // Simple confidence calculation based on 80% threshold
     let finalConfidenceScore;
     
-    if (currentReviewCount === 0) {
-      // First review - use the quiz confidence directly
-      finalConfidenceScore = newQuizConfidence;
+    if (percentageScore >= 0.8) {
+      // 80% or above → Remove "Needs Review" (confidence ≥ 0.7)
+      if (percentageScore === 1) {
+        finalConfidenceScore = 0.95; // Perfect score
+      } else if (percentageScore >= 0.9) {
+        finalConfidenceScore = 0.9;  // Excellent
+      } else {
+        finalConfidenceScore = 0.8;  // Good (above threshold)
+      }
     } else {
-      // Weighted average: 60% current performance, 40% historical performance
-      // This ensures recent poor performance can bring down a previously high score
-      const currentWeight = 0.6;
-      const historicalWeight = 0.4;
-      
-      finalConfidenceScore = (newQuizConfidence * currentWeight) + (currentConfidence * historicalWeight);
-      
-      // If current performance is significantly worse than previous confidence,
-      // apply additional penalty to ensure "needs review" status triggers
-      if (newQuizConfidence < currentConfidence - 0.2) {
-        // Apply penalty for regression in performance
-        finalConfidenceScore = Math.max(finalConfidenceScore - 0.1, 0.3);
+      // Below 80% → Show "Needs Review" (confidence < 0.7)
+      if (percentageScore >= 0.6) {
+        finalConfidenceScore = 0.65; // Moderate but needs review
+      } else if (percentageScore >= 0.4) {
+        finalConfidenceScore = 0.6;  // Below average
+      } else {
+        finalConfidenceScore = 0.5;  // Poor performance
       }
     }
     
-    // Ensure confidence score stays within valid bounds
-    finalConfidenceScore = Math.max(0.3, Math.min(1.0, finalConfidenceScore));
-    
-    console.log('🔧 Review API - Current confidence:', currentConfidence);
-    console.log('🔧 Review API - Quiz confidence:', newQuizConfidence);
+    console.log('🔧 Review API - Percentage score:', (percentageScore * 100).toFixed(1) + '%');
     console.log('🔧 Review API - Final confidence:', finalConfidenceScore);
     console.log('🔧 Review API - Needs review:', finalConfidenceScore < 0.7);
+    console.log('🔧 Review API - Status:', percentageScore >= 0.8 ? 'MASTERED (≥80%)' : 'NEEDS REVIEW (<80%)');
     
     // Use raw SQL for the update to avoid TypeScript issues
     // This ensures we can update all fields regardless of TypeScript definitions
@@ -112,7 +86,8 @@ export async function POST(
     return NextResponse.json({ 
       success: true,
       newConfidenceScore: finalConfidenceScore,
-      needsReview: finalConfidenceScore < 0.7
+      needsReview: finalConfidenceScore < 0.7,
+      status: percentageScore >= 0.8 ? 'mastered' : 'needs_review'
     });
   } catch (error) {
     console.error("Error updating review stats:", error);
