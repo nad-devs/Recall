@@ -67,6 +67,110 @@ class ExtractionResponse(BaseModel):
     metadata: Dict
 
 
+class CategoryLearning:
+    """
+    CATEGORY LEARNING AND MAPPING SYSTEM
+    Handles manual category updates and learning for improved categorization.
+    """
+    def __init__(self, learning_file_path: str = "category_learning.json"):
+        self.learning_file_path = learning_file_path
+        self.learned_mappings = self._load_learned_mappings()
+        logger.info(f"📚 CategoryLearning initialized with {len(self.learned_mappings)} learned mappings")
+    
+    def _load_learned_mappings(self) -> Dict[str, Dict]:
+        """Load learned category mappings from file."""
+        try:
+            if os.path.exists(self.learning_file_path):
+                with open(self.learning_file_path, 'r') as f:
+                    data = json.load(f)
+                    logger.debug(f"Loaded {len(data)} learned mappings from {self.learning_file_path}")
+                    return data
+        except Exception as e:
+            logger.warning(f"Failed to load learned mappings: {e}")
+        return {}
+    
+    def _save_learned_mappings(self):
+        """Save learned category mappings to file."""
+        try:
+            with open(self.learning_file_path, 'w') as f:
+                json.dump(self.learned_mappings, f, indent=2)
+            logger.debug(f"Saved {len(self.learned_mappings)} learned mappings to {self.learning_file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save learned mappings: {e}")
+    
+    def record_manual_update(self, content_snippet: str, old_category: str, new_category: str):
+        """
+        Record a manual category update for future learning.
+        
+        Args:
+            content_snippet: Representative text from the concept
+            old_category: Category that was automatically assigned
+            new_category: Category manually updated by user
+        """
+        # Create a simple hash key from content snippet
+        content_key = hashlib.md5(content_snippet.lower().encode()).hexdigest()[:16]
+        
+        mapping_entry = {
+            "content_preview": content_snippet[:100],  # For debugging
+            "old_category": old_category,
+            "new_category": new_category,
+            "updated_at": datetime.now().isoformat(),
+            "confidence": 1.0  # User manual updates have high confidence
+        }
+        
+        self.learned_mappings[content_key] = mapping_entry
+        self._save_learned_mappings()
+        
+        logger.info(f"📝 Recorded manual category update: '{old_category}' → '{new_category}'")
+    
+    def suggest_category_from_learning(self, content: str) -> Optional[str]:
+        """
+        Suggest a category based on learned mappings.
+        
+        Args:
+            content: Text content to analyze
+            
+        Returns:
+            Suggested category if found, None otherwise
+        """
+        content_lower = content.lower()
+        
+        # Simple keyword matching with learned content
+        for mapping_data in self.learned_mappings.values():
+            content_preview = mapping_data.get("content_preview", "").lower()
+            
+            # Check for keyword overlap (simple approach)
+            if content_preview and len(content_preview) > 20:
+                # Extract key words from learned content
+                learned_words = set(re.findall(r'\b\w{4,}\b', content_preview))
+                current_words = set(re.findall(r'\b\w{4,}\b', content_lower))
+                
+                # If there's significant word overlap, suggest the learned category
+                overlap = len(learned_words.intersection(current_words))
+                if overlap >= 2:  # At least 2 key words in common
+                    suggestion = mapping_data.get("new_category")
+                    logger.debug(f"🎯 Found learned category suggestion: '{suggestion}' (overlap: {overlap} words)")
+                    return suggestion
+        
+        return None
+    
+    def get_learning_stats(self) -> Dict:
+        """Get statistics about learned mappings."""
+        if not self.learned_mappings:
+            return {"total_mappings": 0, "categories": []}
+        
+        categories = [mapping["new_category"] for mapping in self.learned_mappings.values()]
+        category_counts = {}
+        for cat in categories:
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        return {
+            "total_mappings": len(self.learned_mappings),
+            "categories": category_counts,
+            "last_update": max(mapping.get("updated_at", "") for mapping in self.learned_mappings.values())
+        }
+
+
 class ConceptExtractor:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
@@ -74,7 +178,10 @@ class ConceptExtractor:
         self.max_retries = 3
         self.retry_delay = 1
         self.cache = {}
+        # CATEGORY LEARNING SYSTEM - Initialize category learning for manual updates
+        self.category_learning = CategoryLearning()
         logger.info(f"ConceptExtractor initialized with model: {self.model}")
+        logger.info(f"📚 Category learning system ready with {len(self.category_learning.learned_mappings)} learned mappings")
     
     def _get_client(self, custom_api_key: Optional[str] = None) -> AsyncOpenAI:
         """Get OpenAI client - either custom user's client or default server client."""
@@ -104,7 +211,7 @@ class ConceptExtractor:
         """Fetch the list of categories from the Next.js API endpoint. Fallback to default if fails."""
         logger.info("Fetching categories from API...")
         default_categories = [
-            # Core Computer Science
+            # Core Computer Science (PRESERVE EXISTING TECHNICAL CATEGORIES)
             "Data Structures and Algorithms",
             "Data Structures",
             "Algorithms",
@@ -134,10 +241,41 @@ class ConceptExtractor:
             "TypeScript",
             "Python",
             
-            # Other
+            # Technical (preserve existing)
             "System Design",
             "Machine Learning",
-            "General"
+            
+            # NON-TECHNICAL DOMAIN SUPPORT - Add support for non-technical categories
+            "General",  # Fallback category
+            "Finance",
+            "Finance > Investment",
+            "Finance > Personal Finance", 
+            "Finance > Business Finance",
+            "Finance > Stock Analysis",
+            "Psychology",
+            "Psychology > Behavioral",
+            "Psychology > Cognitive",
+            "Business",
+            "Business > Strategy",
+            "Business > Management",
+            "Business > Marketing",
+            "Health",
+            "Health > Nutrition",
+            "Health > Fitness",
+            "Education",
+            "Education > Learning Methods",
+            "Science",
+            "Science > Physics",
+            "Science > Biology",
+            "Philosophy",
+            "History",
+            "Politics",
+            "Economics",
+            "Arts",
+            "Literature",
+            "Travel",
+            "Lifestyle",
+            "Miscellaneous"  # Final fallback
         ]
         try:
             async with httpx.AsyncClient() as client:
@@ -188,7 +326,10 @@ class ConceptExtractor:
             return None
 
     def _normalize_category(self, suggested_category: str, valid_categories: List[str]) -> Optional[str]:
-        """Normalize a suggested category to match the valid categories list."""
+        """
+        ENHANCED CATEGORY NORMALIZATION with Non-Technical Support
+        Normalize a suggested category to match the valid categories list.
+        """
         if not suggested_category or suggested_category.upper() == "UNCATEGORIZED":
             return None
             
@@ -202,9 +343,9 @@ class ConceptExtractor:
             if category.lower() == suggested_lower:
                 return category
                 
-        # Try fuzzy matching for common variations
+        # EXTENDED CATEGORY MAPPING - Enhanced with non-technical keywords
         category_mapping = {
-            # Core Computer Science
+            # Core Computer Science (PRESERVE EXISTING MAPPINGS)
             "dsa": "Data Structures and Algorithms",
             "data structure": "Data Structures", 
             "algorithm": "Algorithms",
@@ -230,28 +371,494 @@ class ConceptExtractor:
             "react": "Frontend Engineering > React",
             "next": "Frontend Engineering > Next.js",
             "css": "Frontend Engineering > CSS",
+            "html": "Frontend Engineering",
+            "javascript": "JavaScript",
+            "typescript": "TypeScript",
             
             # Cloud & DevOps
             "cloud": "Cloud Engineering",
-            "aws": "Cloud Engineering > AWS", 
+            "aws": "Cloud Engineering > AWS",
+            "docker": "DevOps",
+            "kubernetes": "DevOps",
             "devops": "DevOps",
             
             # Programming Languages
             "js": "JavaScript",
-            "typescript": "TypeScript",
+            "ts": "TypeScript",
             "python": "Python",
+            "java": "Programming",
+            "c++": "Programming",
+            "programming": "Programming",
             
-            # Other
+            # System & ML
             "system": "System Design",
             "ml": "Machine Learning",
-            "ai": "Machine Learning"
+            "ai": "Machine Learning",
+            "machine learning": "Machine Learning",
+            "artificial intelligence": "Machine Learning",
+            
+            # NON-TECHNICAL DOMAIN MAPPINGS - Add comprehensive non-technical keyword mapping
+            # Finance
+            "money": "Finance",
+            "investment": "Finance > Investment",
+            "investing": "Finance > Investment",
+            "stock": "Finance > Stock Analysis",
+            "stocks": "Finance > Stock Analysis",
+            "trading": "Finance > Stock Analysis",
+            "portfolio": "Finance > Investment",
+            "budget": "Finance > Personal Finance",
+            "budgeting": "Finance > Personal Finance",
+            "savings": "Finance > Personal Finance",
+            "retirement": "Finance > Personal Finance",
+            "financial planning": "Finance > Personal Finance",
+            "business finance": "Finance > Business Finance",
+            "corporate finance": "Finance > Business Finance",
+            
+            # Psychology
+            "psychology": "Psychology",
+            "behavior": "Psychology > Behavioral",
+            "behavioral": "Psychology > Behavioral",
+            "cognitive": "Psychology > Cognitive",
+            "mental health": "Psychology",
+            "therapy": "Psychology",
+            "mindset": "Psychology",
+            
+            # Business
+            "business": "Business",
+            "strategy": "Business > Strategy",
+            "management": "Business > Management",
+            "marketing": "Business > Marketing",
+            "leadership": "Business > Management",
+            "entrepreneurship": "Business > Strategy",
+            "startup": "Business > Strategy",
+            
+            # Health & Wellness
+            "health": "Health",
+            "nutrition": "Health > Nutrition",
+            "diet": "Health > Nutrition",
+            "fitness": "Health > Fitness",
+            "exercise": "Health > Fitness",
+            "workout": "Health > Fitness",
+            "wellness": "Health",
+            
+            # Education & Learning
+            "learning": "Education > Learning Methods",
+            "education": "Education",
+            "teaching": "Education",
+            "study": "Education > Learning Methods",
+            "academic": "Education",
+            
+            # Sciences
+            "science": "Science",
+            "physics": "Science > Physics",
+            "biology": "Science > Biology",
+            "chemistry": "Science",
+            "research": "Science",
+            
+            # Humanities
+            "philosophy": "Philosophy",
+            "history": "History",
+            "politics": "Politics",
+            "government": "Politics",
+            "economics": "Economics",
+            "economy": "Economics",
+            "literature": "Literature",
+            "art": "Arts",
+            "music": "Arts",
+            
+            # Lifestyle
+            "travel": "Travel",
+            "lifestyle": "Lifestyle",
+            "personal development": "Lifestyle",
+            "self improvement": "Lifestyle",
+            "productivity": "Lifestyle"
         }
         
-        for key, value in category_mapping.items():
-            if key in suggested_lower and value in valid_categories:
-                return value
+        # Try fuzzy matching with enhanced mappings
+        for keyword, mapped_category in category_mapping.items():
+            if keyword in suggested_lower:
+                # Verify the mapped category exists in valid categories
+                for valid_cat in valid_categories:
+                    if mapped_category.lower() == valid_cat.lower():
+                        logger.debug(f"Mapped '{suggested_category}' via keyword '{keyword}' to '{valid_cat}'")
+                        return valid_cat
+        
+        # CATEGORY LEARNING INTEGRATION - Check learned mappings before fallback
+        learned_suggestion = self.category_learning.suggest_category_from_learning(suggested_category)
+        if learned_suggestion and learned_suggestion in valid_categories:
+            logger.info(f"🎯 Using learned category mapping: '{suggested_category}' → '{learned_suggestion}'")
+            return learned_suggestion
+        
+        # Final fallback based on context hints
+        if any(word in suggested_lower for word in ['technical', 'code', 'programming', 'algorithm', 'software']):
+            return "General"  # Technical but unspecified
+        elif any(word in suggested_lower for word in ['business', 'finance', 'money', 'investment']):
+            return "Finance"
+        elif any(word in suggested_lower for word in ['psychology', 'mental', 'behavior', 'cognitive']):
+            return "Psychology"
+        elif any(word in suggested_lower for word in ['health', 'fitness', 'nutrition', 'wellness']):
+            return "Health"
+        else:
+            return "General"  # Ultimate fallback
+
+    async def _detect_domain_type(self, conversation_text: str, custom_api_key: Optional[str] = None) -> str:
+        """
+        DOMAIN TYPE DETECTION - Detect if conversation is technical, non-technical, or mixed
+        
+        Args:
+            conversation_text: The conversation to analyze
+            custom_api_key: Optional custom API key
+            
+        Returns:
+            Domain type: "TECHNICAL", "NON_TECHNICAL", or "MIXED"
+        """
+        logger.info("🔍 === STARTING DOMAIN TYPE DETECTION ===")
+        
+        # First, quick keyword-based detection
+        text_lower = conversation_text.lower()
+        
+        # Technical indicators
+        technical_keywords = {
+            'code', 'programming', 'algorithm', 'function', 'variable', 'api', 'database', 
+            'framework', 'library', 'javascript', 'python', 'react', 'sql', 'html', 'css',
+            'leetcode', 'dsa', 'data structure', 'backend', 'frontend', 'server', 'client',
+            'debugging', 'software', 'development', 'git', 'deployment', 'testing', 'method',
+            'class', 'object', 'array', 'string', 'integer', 'boolean', 'json', 'xml',
+            'aws', 'cloud', 'docker', 'kubernetes', 'microservice', 'optimization'
+        }
+        
+        # Non-technical indicators
+        non_technical_keywords = {
+            'investment', 'finance', 'stock', 'money', 'budget', 'savings', 'portfolio',
+            'psychology', 'behavior', 'mental health', 'therapy', 'mindset', 'emotions',
+            'business', 'strategy', 'management', 'marketing', 'leadership', 'sales',
+            'health', 'nutrition', 'fitness', 'diet', 'exercise', 'wellness', 'medical',
+            'education', 'learning', 'teaching', 'study', 'academic', 'school',
+            'philosophy', 'ethics', 'history', 'politics', 'economics', 'culture',
+            'travel', 'lifestyle', 'personal development', 'relationships', 'family'
+        }
+        
+        # Count keyword occurrences
+        technical_score = sum(1 for keyword in technical_keywords if keyword in text_lower)
+        non_technical_score = sum(1 for keyword in non_technical_keywords if keyword in text_lower)
+        
+        logger.debug(f"Keyword analysis - Technical: {technical_score}, Non-technical: {non_technical_score}")
+        
+        # Quick determination based on clear keyword dominance
+        if technical_score >= 3 and non_technical_score <= 1:
+            logger.info("🔧 Domain detected: TECHNICAL (keyword analysis)")
+            return "TECHNICAL"
+        elif non_technical_score >= 2 and technical_score <= 1:
+            logger.info("📚 Domain detected: NON_TECHNICAL (keyword analysis)")
+            return "NON_TECHNICAL"
+        elif technical_score >= 2 and non_technical_score >= 2:
+            logger.info("🔀 Domain detected: MIXED (keyword analysis)")
+            return "MIXED"
+        
+        # If keyword analysis is inconclusive, use LLM for deeper analysis
+        logger.info("🤖 Using LLM for domain type detection...")
+        
+        domain_detection_prompt = (
+            "Analyze the following conversation and determine if it's primarily about:\n"
+            "1. TECHNICAL topics (programming, software development, computer science, algorithms, etc.)\n"
+            "2. NON_TECHNICAL topics (finance, psychology, business, health, general knowledge, etc.)\n"
+            "3. MIXED (contains significant discussion of both technical and non-technical topics)\n\n"
+            
+            "Respond with only one word: TECHNICAL, NON_TECHNICAL, or MIXED\n\n"
+            
+            f"Conversation:\n\"\"\"\n{conversation_text[:2000]}...\n\"\"\""  # Limit text for efficiency
+        )
+        
+        try:
+            client = self._get_client(custom_api_key)
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": domain_detection_prompt}],
+                temperature=0.0,
+                max_tokens=10
+            )
+            
+            domain_type = response.choices[0].message.content.strip().upper()
+            
+            # Validate response
+            if domain_type in ["TECHNICAL", "NON_TECHNICAL", "MIXED"]:
+                logger.info(f"🎯 LLM detected domain: {domain_type}")
+                return domain_type
+            else:
+                logger.warning(f"⚠️ Invalid LLM response: {domain_type}, falling back to TECHNICAL")
+                return "TECHNICAL"  # Safe fallback
                 
-        return "General"
+        except Exception as e:
+            logger.error(f"❌ LLM domain detection failed: {str(e)}")
+            logger.warning("🔧 Falling back to TECHNICAL domain")
+            return "TECHNICAL"  # Safe fallback to existing behavior
+
+    async def _analyze_non_technical_segment(
+        self, topic: str, segment_text: str, context: Optional[Dict] = None, 
+        category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
+    ) -> Dict:
+        """
+        NON-TECHNICAL SEGMENT ANALYSIS - Specialized analysis for non-technical content
+        Handles conversations about finance, psychology, business, health, etc.
+        """
+        logger.info("=== STARTING NON-TECHNICAL SEGMENT ANALYSIS ===")
+        logger.info(f"📚 Topic: {topic}")
+        logger.info(f"📊 Segment length: {len(segment_text)} characters")
+        logger.debug(f"Segment preview: {segment_text[:200]}...")
+        
+        if context:
+            logger.debug(f"Context provided: {list(context.keys())}")
+        if category_guidance:
+            logger.debug(f"Category guidance provided: {list(category_guidance.keys())}")
+
+        # Handle hierarchical categories for non-technical domains
+        category_instructions = ""
+        if category_guidance and category_guidance.get("use_hierarchical_categories"):
+            existing_categories = category_guidance.get("existing_categories", [])
+            category_keywords = category_guidance.get("category_keywords", {})
+            
+            category_instructions = (
+                "\n\nIMPORTANT - NON-TECHNICAL CATEGORIZATION:\n"
+                f"Use appropriate categories for non-technical content, formatted as arrays: e.g., ['Finance', 'Investment']\n"
+                f"Include the 'categoryPath' field in your response for each concept.\n\n"
+                "NON-TECHNICAL CATEGORIZATION STRATEGY:\n"
+                "1. IDENTIFY DOMAIN: Determine if this is finance, psychology, business, health, etc.\n"
+                "2. USE SPECIFIC SUBCATEGORIES: Prefer specific categories when content clearly matches\n"
+                "3. AVOID TECHNICAL ASSUMPTIONS: Don't force technical categories on non-technical content\n"
+                "4. FALLBACK GRACEFULLY: Use 'General' if no specific category fits\n\n"
+            )
+            
+            # Add existing categories with better formatting
+            if existing_categories:
+                category_instructions += "AVAILABLE CATEGORIES (use these exact paths):\n"
+                for i, path in enumerate(existing_categories[:25]):
+                    path_str = " > ".join(path)
+                    category_instructions += f"- {path_str}\n"
+            
+            category_instructions += (
+                "\nEXAMPLES OF GOOD NON-TECHNICAL CATEGORIZATION:\n"
+                "- Content about 'stock market investing' → categoryPath: ['Finance', 'Investment']\n"
+                "- Content about 'cognitive biases' → categoryPath: ['Psychology', 'Cognitive']\n"
+                "- Content about 'business strategy' → categoryPath: ['Business', 'Strategy']\n"
+                "- Content about 'nutrition planning' → categoryPath: ['Health', 'Nutrition']\n"
+                "- Content about 'general discussion' → categoryPath: ['General']\n\n"
+                "CRITICAL RULES FOR NON-TECHNICAL CONTENT:\n"
+                "- DO NOT use technical categories like 'Programming' or 'Algorithm'\n"
+                "- DO NOT generate code snippets unless specifically requested\n"
+                "- FOCUS on concepts, insights, and practical knowledge\n"
+                "- ALWAYS include categoryPath field in your response\n"
+            )
+
+        # Add JSON format example for non-technical categoryPath
+        categoryPath_example = ',\n            "categoryPath": ["Finance", "Investment"]'
+
+        # NON-TECHNICAL CONTENT FORMAT - Optimized for non-technical domains
+        non_technical_format_guide = """
+NON-TECHNICAL CONCEPT EXTRACTION FORMAT:
+For each concept, provide rich, educational content focused on insights and practical knowledge:
+
+1. SUMMARY: A concise 1-3 sentence overview of the concept or insight.
+   Example: "Discussion of dollar-cost averaging as an investment strategy that reduces the impact 
+   of market volatility by investing fixed amounts at regular intervals regardless of market conditions."
+
+2. INSIGHTS/EXPLANATION: A comprehensive, in-depth explanation (3-6 paragraphs) that MUST be 
+   substantially different from the summary. Include:
+   - Detailed explanation of the concept and its applications
+   - Practical implications and real-world examples
+   - Benefits, drawbacks, and considerations
+   - How this relates to broader principles in the domain
+   - Step-by-step methodology if applicable
+   - Common misconceptions and how to avoid them
+   - Advanced considerations and nuances
+   
+   IMPORTANT: Focus on understanding, insights, and practical knowledge rather than 
+   implementation details.
+   
+   Example: "Dollar-cost averaging represents a systematic investment approach that helps mitigate 
+   the psychological and financial risks associated with market timing. The strategy works by 
+   spreading investment purchases across multiple time periods, which naturally leads to buying 
+   more shares when prices are low and fewer shares when prices are high.
+
+   The conversation explored how this approach addresses the common investor problem of trying to 
+   'time the market' - a practice that even professional investors struggle with consistently. 
+   By removing the emotional decision-making component and focusing on consistent, automated 
+   investing, individuals can avoid the fear and greed cycles that often lead to poor investment 
+   outcomes.
+
+   Advanced considerations discussed included the mathematical principles behind why DCA works 
+   in volatile markets, the importance of maintaining discipline during market downturns, and 
+   how to adapt the strategy for different investment goals and time horizons. The analysis also 
+   covered scenarios where lump-sum investing might be more appropriate, such as when markets 
+   are trending consistently upward over extended periods."
+
+3. KEY INSIGHTS: Instead of code snippets, provide practical insights or actionable takeaways.
+   
+   Example:
+   {
+     "type": "insight",
+     "title": "Implementation Strategy",
+     "description": "Set up automatic monthly investments of $500 into diversified index funds, regardless of market conditions"
+   }
+
+CRITICAL RULE: The 'insights'/'explanation' field must ALWAYS be substantially longer and more 
+detailed than the 'summary' field. Focus on deep understanding rather than surface-level facts."""
+
+        # Build the non-technical analysis prompt
+        base_instructions = (
+            "You are an ELITE knowledge extraction system specialized in NON-TECHNICAL content analysis. "
+            "Your job is to analyze conversations about finance, psychology, business, health, education, "
+            "and other non-technical domains and extract VALUABLE, ACTIONABLE concepts:\n\n"
+            "🎯 NON-TECHNICAL CONCEPT IDENTIFICATION:\n"
+            "1. DOMAIN-SPECIFIC INSIGHTS: Extract key insights, principles, or strategies discussed\n"
+            "2. PRACTICAL KNOWLEDGE: Focus on actionable information and real-world applications\n"
+            "3. CONCEPTUAL UNDERSTANDING: Extract deeper understanding of topics, not just facts\n"
+            "4. METHODOLOGIES: Extract systematic approaches or frameworks discussed\n"
+            "5. BEST PRACTICES: Extract proven techniques and strategies\n\n"
+            "🚫 AVOID THESE FOR NON-TECHNICAL CONTENT:\n"
+            "- Code snippets or programming examples (unless specifically about learning to code)\n"
+            "- Technical implementation details\n"
+            "- Generic concepts like 'Discussion' or 'Conversation'\n"
+            "- Surface-level facts without deeper insights\n\n"
+            "✅ QUALITY STANDARDS FOR NON-TECHNICAL CONTENT:\n"
+            "- Each concept must provide genuine insight or practical value\n"
+            "- Focus on concepts someone would want to review for personal growth or knowledge\n"
+            "- Include the WHY and HOW behind strategies and insights\n"
+            "- Limit to 1-4 HIGH-VALUE concepts maximum\n"
+            "- NO overlapping or duplicate concepts\n\n"
+        )
+        
+        concept_requirements = (
+            "For EACH non-technical concept, provide:\n"
+            "- A clear, specific title focusing on the insight or concept.\n"
+            "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview.\n"
+            "- A different, detailed 'insights' field with comprehensive explanation and practical applications.\n"
+            "- 2-5 key takeaways or action items.\n"
+            "- Related concepts if relevant.\n"
+            "- Practical insights or methodologies instead of code examples.\n"
+        )
+        
+        quality_requirements = (
+            "IMPORTANT: Each concept MUST have unique content - do not copy between concepts.\n"
+            "CRITICAL: The 'insights' field must be 3-5x longer than 'summary' and focus on understanding.\n"
+            "NO CODE SNIPPETS: Focus on insights, strategies, and practical knowledge instead.\n\n"
+        )
+        
+        context_info = (
+            f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
+            f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
+            "ANALYZE THIS NON-TECHNICAL CONVERSATION SEGMENT according to the guidelines above.\n\n"
+        )
+        
+        json_format = (
+            "Respond in this JSON format:\n"
+            "{\n"
+            '    "concepts": [\n'
+            "        {\n"
+            '            "title": "Main Concept or Insight",\n'
+            '            "summary": "A unique, concise summary specific to this concept only.",\n'
+            '            "insights": "A comprehensive 3-6 paragraph explanation focusing on understanding, applications, and practical value rather than technical implementation.",\n'
+            '            "keyPoints": ["Key takeaway 1", "Key takeaway 2"],\n'
+            '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
+            '            "practicalInsights": [\n'
+            "                {\n"
+            '                    "type": "insight",\n'
+            '                    "title": "Practical application or methodology",\n'
+            '                    "description": "Actionable insight or step-by-step approach"\n'
+            "                }\n"
+            "            ],\n"
+            '            "category": "Finance"' + f"{categoryPath_example},\n" + 
+            '            "subcategories": ["Investment"]\n' + 
+            "        }\n" + 
+            "    ],\n" + 
+            '    "conversation_title": "A short, descriptive title for this conversation",\n' + 
+            '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation."\n' + 
+            '}\n\n' + 
+            f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+        )
+        
+        # Combine all sections for non-technical analysis
+        structured_prompt = (
+            base_instructions +
+            concept_requirements +
+            non_technical_format_guide + "\n" +
+            category_instructions + "\n\n" +
+            quality_requirements +
+            context_info +
+            json_format
+        )
+
+        # COMPREHENSIVE LOGGING
+        logger.info("=== PREPARING NON-TECHNICAL LLM REQUEST ===")
+        logger.info(f"🔧 Prompt length: {len(structured_prompt)} characters")
+        logger.info(f"🎯 Temperature: 0.3, Max tokens: 4000")
+        logger.debug("=== FULL NON-TECHNICAL LLM PROMPT ===")
+        logger.debug(structured_prompt)
+
+        logger.info("📤 Sending non-technical analysis request to LLM...")
+        start_time = datetime.now()
+        
+        client = self._get_client(custom_api_key)
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": structured_prompt}],
+            temperature=0.3,
+            max_tokens=4000,
+            response_format={"type": "json_object"}
+        )
+        
+        end_time = datetime.now()
+        response_time = (end_time - start_time).total_seconds()
+        
+        response_text = response.choices[0].message.content
+        
+        # COMPREHENSIVE RESPONSE LOGGING
+        logger.info("📥 Received non-technical LLM response")
+        logger.info(f"⏱️  Response time: {response_time:.2f} seconds")
+        logger.info(f"📊 Response length: {len(response_text)} characters")
+        logger.debug("=== RAW NON-TECHNICAL LLM RESPONSE ===")
+        logger.debug(response_text)
+        
+        logger.info("🔄 Parsing non-technical LLM response...")
+        parsed_result = self._parse_structured_response(response_text)
+        
+        # FALLBACK CATEGORY ASSIGNMENT - Ensure non-technical concepts get appropriate categories
+        if parsed_result.get("concepts"):
+            for concept in parsed_result["concepts"]:
+                if not concept.get("category") or concept.get("category") in ["Uncategorized", "General"]:
+                    # Try to assign a better category based on content
+                    title = concept.get("title", "")
+                    summary = concept.get("summary", "")
+                    content = f"{title} {summary}".lower()
+                    
+                    # Simple heuristic-based category assignment
+                    if any(word in content for word in ['money', 'investment', 'finance', 'stock', 'budget']):
+                        concept["category"] = "Finance"
+                        concept["categoryPath"] = ["Finance"]
+                    elif any(word in content for word in ['psychology', 'mental', 'behavior', 'cognitive']):
+                        concept["category"] = "Psychology"  
+                        concept["categoryPath"] = ["Psychology"]
+                    elif any(word in content for word in ['business', 'strategy', 'management', 'marketing']):
+                        concept["category"] = "Business"
+                        concept["categoryPath"] = ["Business"]
+                    elif any(word in content for word in ['health', 'fitness', 'nutrition', 'wellness']):
+                        concept["category"] = "Health"
+                        concept["categoryPath"] = ["Health"]
+                    else:
+                        concept["category"] = "General"
+                        concept["categoryPath"] = ["General"]
+                    
+                    logger.info(f"🎯 Assigned fallback category '{concept['category']}' to concept '{concept.get('title')}'")
+        
+        # Log parsing results
+        if parsed_result.get("concepts"):
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} non-technical concepts")
+            for i, concept in enumerate(parsed_result["concepts"]):
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')} (category: {concept.get('category', 'UNKNOWN')})")
+        else:
+            logger.warning("⚠️  No concepts extracted from non-technical segment")
+        
+        logger.info("=== NON-TECHNICAL SEGMENT ANALYSIS COMPLETED ===")
+        return parsed_result
 
     def _parse_structured_response(self, response_text: str) -> Dict:
         """Parse the structured response from the LLM with comprehensive error handling and logging."""
@@ -484,38 +1091,102 @@ class ConceptExtractor:
         return processed_resources
 
     def _fallback_extraction(self, text: str) -> Dict:
-        """Fallback extraction method using regex patterns."""
-        logger.warning("🔧 Using fallback extraction method")
+        """
+        ENHANCED FALLBACK EXTRACTION with Non-Technical Support
+        Fallback extraction method using regex patterns and domain-aware categorization.
+        """
+        logger.warning("🔧 Using enhanced fallback extraction method")
         concepts = []
         concept_pattern = r"Title:\s*(.*?)(?=Title:|$)"
         matches = re.finditer(concept_pattern, text, re.DOTALL)
+        
+        # FALLBACK CATEGORY DETECTION - Try to determine appropriate fallback category
+        text_lower = text.lower()
+        fallback_category = "General"  # Default fallback
+        
+        # Simple keyword-based category detection for fallback
+        if any(word in text_lower for word in ['investment', 'finance', 'money', 'stock', 'budget']):
+            fallback_category = "Finance"
+        elif any(word in text_lower for word in ['psychology', 'mental', 'behavior', 'cognitive']):
+            fallback_category = "Psychology"
+        elif any(word in text_lower for word in ['business', 'strategy', 'management', 'marketing']):
+            fallback_category = "Business"
+        elif any(word in text_lower for word in ['health', 'fitness', 'nutrition', 'wellness']):
+            fallback_category = "Health"
+        elif any(word in text_lower for word in ['programming', 'code', 'algorithm', 'software', 'development']):
+            fallback_category = "General"  # Technical but unspecified
+        
+        logger.info(f"🎯 Fallback category detection: '{fallback_category}'")
         
         for match in matches:
             concept_text = match.group(1).strip()
             if concept_text:
                 title_match = re.search(r"Title:\s*(.*?)(?:\n|$)", concept_text)
                 if title_match:
+                    title = title_match.group(1).strip()
+                    
+                    # ENHANCED FALLBACK CONCEPT CREATION with better categorization
                     concepts.append({
-                        "title": title_match.group(1).strip(),
-                        "category": "Uncategorized",
+                        "title": title,
+                        "category": fallback_category,
+                        "categoryPath": [fallback_category],
                         "summary": concept_text[:200] + "..." if len(concept_text) > 200 else concept_text,
                         "details": concept_text,
-                        "keyPoints": [],
+                        "keyPoints": [
+                            "Extracted via fallback method",
+                            "May require manual categorization"
+                        ],
                         "relatedConcepts": [],
                         "confidence_score": 0.5,
                         "last_updated": datetime.now().isoformat()
                     })
         
-        logger.info(f"Fallback extraction found {len(concepts)} concepts")
+        # If no structured concepts found, try to extract basic insights
+        if not concepts:
+            logger.warning("⚠️ No structured concepts found, attempting basic insight extraction")
+            
+            # Extract sentences that might contain insights
+            sentences = text.split('. ')
+            insights = []
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                # Look for sentences that might contain valuable insights
+                if (len(sentence) > 50 and 
+                    any(word in sentence.lower() for word in [
+                        'important', 'key', 'note', 'remember', 'crucial', 'essential',
+                        'strategy', 'approach', 'method', 'technique', 'insight',
+                        'learn', 'understand', 'concept', 'principle'
+                    ])):
+                    insights.append(sentence)
+            
+            if insights:
+                # Create a general concept from insights
+                insights_text = '. '.join(insights[:3])  # Limit to first 3 insights
+                concepts.append({
+                    "title": "Key Insights",
+                    "category": fallback_category,
+                    "categoryPath": [fallback_category],
+                    "summary": "Key insights extracted from the conversation.",
+                    "details": insights_text,
+                    "keyPoints": insights[:5],  # Up to 5 key points
+                    "relatedConcepts": [],
+                    "confidence_score": 0.3,
+                    "last_updated": datetime.now().isoformat()
+                })
+        
+        logger.info(f"Enhanced fallback extraction found {len(concepts)} concepts")
+        
         return {
             "concepts": concepts,
-            "summary": "Extracted from unstructured response",
-            "conversation_summary": "Discussion about programming concepts",
+            "summary": "Extracted using enhanced fallback method with domain-aware categorization",
+            "conversation_summary": f"Discussion covering {fallback_category.lower()} concepts",
             "metadata": {
                 "extraction_time": datetime.now().isoformat(),
                 "model_used": self.model,
                 "concept_count": len(concepts),
-                "extraction_method": "fallback"
+                "extraction_method": "enhanced_fallback",
+                "detected_domain": fallback_category
             }
         }
 
@@ -677,9 +1348,11 @@ class ConceptExtractor:
         self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
     ) -> Dict:
         """
+        ENHANCED SEGMENT ANALYSIS WITH DOMAIN ROUTING
         Analyze a single conversation segment with comprehensive logging and analysis.
+        Routes to appropriate analysis method based on content domain (technical vs non-technical).
         """
-        logger.info("=== STARTING SEGMENT ANALYSIS ===")
+        logger.info("=== STARTING ENHANCED SEGMENT ANALYSIS ===")
         logger.info(f"📝 Topic: {topic}")
         logger.info(f"📊 Segment length: {len(segment_text)} characters")
         logger.debug(f"Segment preview: {segment_text[:200]}...")
@@ -689,6 +1362,30 @@ class ConceptExtractor:
         if category_guidance:
             logger.debug(f"Category guidance provided: {list(category_guidance.keys())}")
 
+        # DOMAIN TYPE DETECTION - Determine if content is technical, non-technical, or mixed
+        try:
+            domain_type = await self._detect_domain_type(segment_text, custom_api_key)
+            logger.info(f"🎯 Detected domain type: {domain_type}")
+        except Exception as e:
+            logger.error(f"❌ Domain detection failed: {str(e)}")
+            domain_type = "TECHNICAL"  # Safe fallback to preserve existing behavior
+            logger.warning("🔧 Falling back to TECHNICAL domain analysis")
+
+        # ROUTING LOGIC - Route to appropriate analysis method based on domain
+        if domain_type == "NON_TECHNICAL":
+            logger.info("📚 Routing to non-technical analysis method")
+            return await self._analyze_non_technical_segment(
+                topic, segment_text, context, category_guidance, custom_api_key
+            )
+        elif domain_type == "MIXED":
+            logger.info("🔀 Mixed domain detected - using technical analysis with enhanced categories")
+            # For mixed content, use technical analysis but with expanded category support
+            # This ensures technical concepts are extracted properly while non-technical
+            # concepts get basic extraction through the technical pipeline
+        else:  # domain_type == "TECHNICAL" or fallback
+            logger.info("🔧 Using technical analysis method (preserving existing functionality)")
+
+        # EXISTING TECHNICAL ANALYSIS LOGIC (PRESERVED UNCHANGED)
         # Determine segment type from topic tag
         segment_type = "EXPLORATORY_LEARNING"
         if topic.strip().upper().startswith("[PROBLEM_SOLVING]"):
@@ -702,6 +1399,7 @@ class ConceptExtractor:
             existing_categories = category_guidance.get("existing_categories", [])
             category_keywords = category_guidance.get("category_keywords", {})
             
+            # ENHANCED CATEGORIZATION with non-technical support for mixed content
             category_instructions = (
                 "\n\nIMPORTANT - SMART HIERARCHICAL CATEGORIZATION:\n"
                 f"Use hierarchical category paths for each concept, formatted as arrays: e.g., ['Cloud Computing', 'AWS']\n"
@@ -710,7 +1408,8 @@ class ConceptExtractor:
                 "1. ANALYZE CONTENT: Look for specific technologies, services, and concepts mentioned\n"
                 "2. MATCH TO SPECIFIC SUBCATEGORIES: Prefer more specific categories when content clearly matches\n"
                 "3. USE LEARNED PATTERNS: The system has learned from previous categorizations\n"
-                "4. FALLBACK GRACEFULLY: If no specific match, use appropriate parent category\n\n"
+                "4. FALLBACK GRACEFULLY: If no specific match, use appropriate parent category\n"
+                "5. SUPPORT NON-TECHNICAL CONTENT: Use appropriate non-technical categories when needed\n\n"
                 "EXISTING CATEGORY HIERARCHY (use these exact paths):\n"
             )
             
@@ -737,12 +1436,15 @@ class ConceptExtractor:
                 "- Content about 'AWS Lambda functions' → categoryPath: ['Cloud Computing', 'AWS']\n"
                 "- Content about 'React hooks and state' → categoryPath: ['Frontend Engineering', 'React']\n"
                 "- Content about 'SQL indexing strategies' → categoryPath: ['Backend Engineering', 'Databases']\n"
-                "- Content about 'general programming concepts' → categoryPath: ['Programming']\n\n"
+                "- Content about 'general programming concepts' → categoryPath: ['Programming']\n"
+                "- Content about 'investment strategies' → categoryPath: ['Finance', 'Investment']\n"
+                "- Content about 'business planning' → categoryPath: ['Business', 'Strategy']\n\n"
                 "CRITICAL RULES:\n"
                 "- ONLY use categories that exist in the hierarchy above\n"
                 "- PREFER the most specific appropriate category\n"
                 "- If unsure, use the parent category rather than guessing\n"
                 "- ALWAYS include categoryPath field in your response\n"
+                "- For non-technical content, avoid forcing technical categories\n"
             )
 
         # Add JSON format example for categoryPath
@@ -770,39 +1472,19 @@ For each concept, provide rich, educational content across three sections:
    IMPORTANT: The details section should be educational and comprehensive - think of it as a 
    mini-tutorial or technical deep-dive that goes far beyond what's in the summary.
    
-   Example: "SQL query optimization involves multiple layers of strategy that work together to 
-   minimize execution time and resource consumption. The conversation explored advanced indexing 
-   strategies, including the critical importance of composite index column ordering based on query 
-   selectivity patterns. When creating composite indexes, the most selective columns should 
-   typically be placed first, as this allows the database engine to quickly eliminate the largest 
-   number of rows.
-
-   The discussion covered query execution plan analysis and how to interpret key metrics like cost 
-   estimates, row counts, and seek vs scan operations. Understanding these plans is essential for 
-   identifying bottlenecks - for instance, a table scan on a large table often indicates missing 
-   or ineffective indexes. The conversation also addressed query restructuring techniques, such as 
-   breaking complex queries into smaller parts, using CTEs for readability, and avoiding 
-   correlated subqueries that can cause performance degradation.
-
-   Advanced topics included partitioning strategies for very large tables, the trade-offs between 
-   covering indexes and regular indexes, and how database statistics affect the query optimizer's 
-   decisions. The implementation also covered monitoring and profiling techniques to identify slow 
-   queries in production environments."
+   For non-technical concepts in mixed content, focus on insights, practical applications, 
+   and understanding rather than implementation details.
 
 3. CODE SNIPPETS: Provide 2-3 practical code examples with:
    - Appropriate language tag (e.g., "language": "Python", "SQL", "JavaScript")
    - Brief description of what the snippet demonstrates
    - Well-formatted, commented code showing implementation
    
-   Example code snippet:
-   {
-     "language": "SQL",
-     "description": "Creating an efficient composite index",
-     "code": "CREATE INDEX idx_users_status_created ON users(status, created_at);\\n\\n-- This query can now use the index efficiently\\nSELECT * FROM users\\nWHERE status = 'active'\\nAND created_at > '2023-01-01';"
-   }
+   NOTE: For non-technical concepts in mixed content, you may skip code snippets or provide 
+   conceptual examples instead.
 
 CRITICAL RULE: The 'details'/'implementation' field must ALWAYS be substantially longer and more 
-technical than the 'summary' field. If they are similar in length or content, you are doing it wrong."""
+comprehensive than the 'summary' field."""
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
@@ -975,7 +1657,8 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "2. ARCHITECTURAL PATTERNS: Extract design patterns, system architectures, or methodologies\n"
                 "3. TECHNICAL CONCEPTS: Extract core computer science or engineering principles\n"
                 "4. IMPLEMENTATION STRATEGIES: Extract specific approaches to solving technical challenges\n"
-                "5. BEST PRACTICES: Extract proven techniques and methodologies\n\n"
+                "5. BEST PRACTICES: Extract proven techniques and methodologies\n"
+                "6. NON-TECHNICAL INSIGHTS: For mixed content, extract valuable insights from non-technical domains\n\n"
                 "QUALITY STANDARDS:\n"
                 "- Each concept must be SPECIFIC and ACTIONABLE\n"
                 "- Avoid generic concepts like 'Programming' or 'Development'\n"
@@ -983,22 +1666,24 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "- Include practical applications and real-world context\n"
                 "- Extract the INSIGHTS and UNDERSTANDING gained, not just facts\n"
                 "- Limit to 1-5 HIGH-VALUE concepts maximum\n"
-                "- NO overlapping or duplicate concepts\n\n"
+                "- NO overlapping or duplicate concepts\n"
+                "- For non-technical content, focus on actionable insights and practical knowledge\n\n"
             )
             
             concept_requirements = (
                 "For EACH concept, provide:\n"
                 "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
                 "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
-                "- A different, detailed 'implementation' field with in-depth technical explanation for this specific concept.\n"
+                "- A different, detailed 'implementation' field with in-depth explanation for this specific concept.\n"
                 "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
                 "- Related concepts if relevant.\n"
-                "- Code examples if present in the conversation.\n"
+                "- Code examples if present in the conversation and relevant to the concept.\n"
             )
             
             quality_requirements = (
                 "IMPORTANT: Each concept MUST have its own unique summary and details - do not copy or reuse content between concepts.\n"
-                "CRITICAL: The 'details' field must be 3-5x longer than the 'summary' and contain comprehensive technical information.\n\n"
+                "CRITICAL: The 'details' field must be 3-5x longer than the 'summary' and contain comprehensive information.\n"
+                "NOTE: For non-technical concepts, focus on insights and practical applications rather than code.\n\n"
             )
             
             context_info = (
@@ -1014,7 +1699,7 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "        {\n"
                 '            "title": "Main Concept or Topic",\n'
                 '            "summary": "A unique, concise summary specific to this concept only.",\n'
-                '            "implementation": "A comprehensive 3-6 paragraph technical deep-dive that goes far beyond the summary, including implementation details, methodologies, real-world applications, performance considerations, and advanced concepts.",\n'
+                '            "implementation": "A comprehensive 3-6 paragraph explanation that goes far beyond the summary, including implementation details, methodologies, real-world applications, considerations, and advanced concepts.",\n'
                 '            "keyPoints": ["Key point 1", "Key point 2"],\n'
                 '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
                 '            "codeSnippets": [\n'
@@ -1081,6 +1766,22 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
         logger.info("🔄 Parsing LLM response...")
         parsed_result = self._parse_structured_response(response_text)
         
+        # ENHANCED POST-PROCESSING for mixed content
+        if domain_type == "MIXED" and parsed_result.get("concepts"):
+            logger.info("🔀 Applying enhanced post-processing for mixed content...")
+            for concept in parsed_result["concepts"]:
+                # Use enhanced category normalization
+                if concept.get("category"):
+                    original_category = concept["category"]
+                    valid_categories = await self._fetch_categories()
+                    normalized_category = self._normalize_category(original_category, valid_categories)
+                    if normalized_category and normalized_category != original_category:
+                        logger.info(f"🎯 Enhanced normalization: '{original_category}' → '{normalized_category}'")
+                        concept["category"] = normalized_category
+                        # Update categoryPath if needed
+                        if "categoryPath" not in concept or not concept["categoryPath"]:
+                            concept["categoryPath"] = [normalized_category]
+        
         # Log parsing results
         if parsed_result.get("concepts"):
             logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} concepts")
@@ -1092,7 +1793,7 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
         if parsed_result.get("conversation_summary"):
             logger.debug(f"Summary: {parsed_result['conversation_summary']}")
         
-        logger.info("=== SEGMENT ANALYSIS COMPLETED ===")
+        logger.info("=== ENHANCED SEGMENT ANALYSIS COMPLETED ===")
         return parsed_result
 
     async def analyze_conversation(self, req: ConversationRequest) -> Dict:
@@ -1776,13 +2477,71 @@ def standardize_response_format(result: Dict) -> Dict:
 
 @app.get("/api/v1/health")
 async def health_check():
-    """Check if the service is healthy."""
+    """Health check endpoint."""
+    logger.info("Health check requested")
     return {
-        "status": "ok",
-        "api_key_configured": bool(OPENAI_API_KEY),
-        "cache_size": len(concept_extractor.cache),
-        "service": "Technical Concept Extractor"
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "model": "gpt-4o",
+        "version": "1.0.0"
     }
+
+
+class ManualCategoryUpdateRequest(BaseModel):
+    content_snippet: str
+    old_category: str
+    new_category: str
+
+
+@app.post("/api/v1/manual-category-update")
+async def record_manual_category_update(req: ManualCategoryUpdateRequest):
+    """
+    MANUAL CATEGORY UPDATE ENDPOINT
+    Record a manual category update for learning and future suggestions.
+    """
+    logger.info(f"📝 Manual category update: '{req.old_category}' → '{req.new_category}'")
+    
+    try:
+        # Get the extractor instance to access category learning
+        extractor = ConceptExtractor()
+        extractor.category_learning.record_manual_update(
+            req.content_snippet, 
+            req.old_category, 
+            req.new_category
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Recorded category update: '{req.old_category}' → '{req.new_category}'",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to record manual category update: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to record category update: {str(e)}")
+
+
+@app.get("/api/v1/category-learning-stats")
+async def get_category_learning_stats():
+    """
+    CATEGORY LEARNING STATISTICS ENDPOINT
+    Get statistics about learned category mappings.
+    """
+    logger.info("📊 Category learning statistics requested")
+    
+    try:
+        extractor = ConceptExtractor()
+        stats = extractor.category_learning.get_learning_stats()
+        
+        return {
+            "status": "success",
+            "stats": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get category learning stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get learning stats: {str(e)}")
 
 
 class QuizRequest(BaseModel):
