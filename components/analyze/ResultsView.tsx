@@ -530,10 +530,17 @@ export function ResultsView(props: ResultsViewProps) {
               </div>
             ) : (
               <>
-                {/* Hierarchical Category Builder */}
-                <div className="space-y-4">
+                {/* Enhanced Hierarchical Category Builder */}
+                <div className="space-y-4 sm:space-y-6 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-blue-950 p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Edit Category</label>
+                    <div className="flex items-center space-x-2">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <svg className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                      </div>
+                      <label className="text-base sm:text-lg font-semibold text-foreground">Edit Category</label>
+                    </div>
                     <button
                       onClick={() => {
                         setEditCategoryValue(selectedConcept?.category || "Uncategorized")
@@ -541,53 +548,114 @@ export function ResultsView(props: ResultsViewProps) {
                         setSubCategory("")
                         setIsEditingCategory(false)
                       }}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground transition-colors p-1 hover:bg-white/50 dark:hover:bg-slate-800/50 rounded"
                     >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M18 6 6 18M6 6l12 12"/>
                       </svg>
                     </button>
                   </div>
                   
                   {/* Root Category Selection */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-muted-foreground">Root Category:</label>
-                    <Autocomplete
-                      options={categoryOptions.filter(opt => !opt.value.includes(' > ')).map(opt => ({
-                        ...opt,
-                        label: opt.value,
-                        description: 'Root category'
-                      }))}
-                      value={rootCategory}
-                      onChange={setRootCategory}
-                      placeholder="Select root category..."
-                      className="w-full"
-                      autoSelectOnFocus={true}
-                    />
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Root Category:</label>
+                    <div className="relative">
+                      <Autocomplete
+                        options={[
+                          // Default category options
+                          { value: "Algorithms", label: "Algorithms", description: "Algorithm concepts and techniques" },
+                          { value: "Data Structures", label: "Data Structures", description: "Data organization and storage" },
+                          { value: "System Design", label: "System Design", description: "Architecture and scalability" },
+                          { value: "Backend Engineering", label: "Backend Engineering", description: "Server-side development" },
+                          { value: "Frontend Engineering", label: "Frontend Engineering", description: "Client-side development" },
+                          { value: "Machine Learning", label: "Machine Learning", description: "ML algorithms and models" },
+                          { value: "Database Design", label: "Database Design", description: "Data modeling and queries" },
+                          { value: "DevOps", label: "DevOps", description: "Development operations" },
+                          { value: "Software Engineering", label: "Software Engineering", description: "General programming concepts" },
+                          { value: "Cloud Computing", label: "Cloud Computing", description: "Cloud services and architecture" },
+                          // Filter existing root categories (not subcategories)
+                          ...categoryOptions
+                            .filter(opt => !opt.value.includes(' > '))
+                            .map(opt => ({
+                              ...opt,
+                              label: opt.value,
+                              description: opt.description || 'Existing category'
+                            }))
+                        ].reduce((unique, item) => {
+                          // Remove duplicates based on value
+                          if (!unique.find(u => u.value === item.value)) {
+                            unique.push(item);
+                          }
+                          return unique;
+                        }, [] as any[])}
+                        value={rootCategory}
+                        onChange={setRootCategory}
+                        placeholder="Select or type a root category..."
+                        className="w-full bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 shadow-sm"
+                        autoSelectOnFocus={true}
+                      />
+                    </div>
                   </div>
                   
                   {/* Subcategory Selection */}
                   {rootCategory && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">Subcategory:</label>
-                      <div className="flex items-center space-x-2">
+                    <div className="space-y-3 bg-white/70 dark:bg-slate-800/70 p-3 sm:p-4 rounded-lg border border-slate-200 dark:border-slate-600">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Subcategory (Optional):</label>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                         <Autocomplete
-                          options={categoryOptions
-                            .filter(opt => opt.value.startsWith(rootCategory + ' > '))
-                            .map(opt => ({
-                              ...opt,
-                              label: opt.value.split(' > ')[1],
-                              value: opt.value.split(' > ')[1],
-                              description: 'Subcategory'
-                            }))
-                            .concat([
-                              { value: '', label: 'No subcategory', description: 'Use root category only' },
-                              { value: 'LeetCode Problems', label: 'LeetCode Problems', description: 'Algorithm problems from LeetCode' }
-                            ])}
+                          options={[
+                            // Show existing subcategories for this root
+                            ...categoryOptions
+                              .filter(opt => opt.value.startsWith(rootCategory + ' > '))
+                              .map(opt => ({
+                                ...opt,
+                                label: opt.value.split(' > ')[1],
+                                value: opt.value.split(' > ')[1],
+                                description: 'Existing subcategory'
+                              })),
+                            // Common subcategories based on root category
+                            ...(rootCategory === 'Algorithms' ? [
+                              { value: 'Sorting', label: 'Sorting', description: 'Sorting algorithms' },
+                              { value: 'Graph Algorithms', label: 'Graph Algorithms', description: 'Graph traversal and algorithms' },
+                              { value: 'Dynamic Programming', label: 'Dynamic Programming', description: 'DP techniques and patterns' },
+                              { value: 'Greedy Algorithms', label: 'Greedy Algorithms', description: 'Greedy approach algorithms' },
+                              { value: 'Binary Search', label: 'Binary Search', description: 'Binary search variations' }
+                            ] : rootCategory === 'Data Structures' ? [
+                              { value: 'Arrays', label: 'Arrays', description: 'Array-based structures' },
+                              { value: 'Linked Lists', label: 'Linked Lists', description: 'Linked list variations' },
+                              { value: 'Trees', label: 'Trees', description: 'Tree structures' },
+                              { value: 'Hash Tables', label: 'Hash Tables', description: 'Hash-based structures' },
+                              { value: 'Heaps', label: 'Heaps', description: 'Heap and priority queue' }
+                            ] : rootCategory === 'System Design' ? [
+                              { value: 'Scalability', label: 'Scalability', description: 'Scaling strategies' },
+                              { value: 'Load Balancing', label: 'Load Balancing', description: 'Load distribution' },
+                              { value: 'Caching', label: 'Caching', description: 'Caching strategies' },
+                              { value: 'Microservices', label: 'Microservices', description: 'Service architecture' },
+                              { value: 'Database Sharding', label: 'Database Sharding', description: 'Data distribution' }
+                            ] : rootCategory === 'Backend Engineering' ? [
+                              { value: 'APIs', label: 'APIs', description: 'API design and development' },
+                              { value: 'Authentication', label: 'Authentication', description: 'Auth and security' },
+                              { value: 'Performance', label: 'Performance', description: 'Backend optimization' },
+                              { value: 'Testing', label: 'Testing', description: 'Backend testing strategies' },
+                              { value: 'Deployment', label: 'Deployment', description: 'Deployment strategies' }
+                            ] : rootCategory === 'Frontend Engineering' ? [
+                              { value: 'React', label: 'React', description: 'React framework' },
+                              { value: 'State Management', label: 'State Management', description: 'Application state' },
+                              { value: 'Performance', label: 'Performance', description: 'Frontend optimization' },
+                              { value: 'UI/UX', label: 'UI/UX', description: 'User interface design' },
+                              { value: 'Testing', label: 'Testing', description: 'Frontend testing' }
+                            ] : [
+                              { value: 'General', label: 'General', description: 'General concepts' },
+                              { value: 'Best Practices', label: 'Best Practices', description: 'Best practices' },
+                              { value: 'Tools', label: 'Tools', description: 'Tools and utilities' }
+                            ]),
+                            // Always include option for no subcategory
+                            { value: '', label: 'No subcategory', description: 'Use root category only' }
+                          ]}
                           value={subCategory}
                           onChange={setSubCategory}
-                          placeholder="Select or type new subcategory..."
-                          className="flex-1"
+                          placeholder="Select or type a subcategory..."
+                          className="flex-1 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                         />
                         {subCategory && subCategory !== '' && !categoryOptions.some(opt => opt.value === `${rootCategory} > ${subCategory}`) && (
                           <button
@@ -608,12 +676,13 @@ export function ResultsView(props: ResultsViewProps) {
                                 description: `"${subCategory}" added as a new subcategory under "${rootCategory}"`,
                               })
                             }}
-                            className="inline-flex items-center justify-center rounded-md bg-green-600 text-white px-3 py-2 text-sm font-medium hover:bg-green-700"
+                            className="inline-flex items-center justify-center rounded-lg bg-green-600 text-white px-3 py-2 text-sm font-medium hover:bg-green-700 transition-colors shadow-sm w-full sm:w-auto"
                             title="Add new subcategory"
                           >
-                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <svg className="h-4 w-4 sm:mr-0 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M12 5v14M5 12h14"/>
                             </svg>
+                            <span className="sm:hidden">Add Subcategory</span>
                           </button>
                         )}
                       </div>
@@ -622,17 +691,17 @@ export function ResultsView(props: ResultsViewProps) {
                   
                   {/* Preview */}
                   {rootCategory && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">Preview:</label>
-                      <div className="text-sm bg-muted px-3 py-2 rounded border">
+                    <div className="space-y-2 bg-blue-50 dark:bg-blue-950/50 p-3 sm:p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <label className="text-sm font-medium text-blue-700 dark:text-blue-300">Preview:</label>
+                      <div className="text-base sm:text-lg font-semibold bg-white dark:bg-slate-800 px-3 sm:px-4 py-2 sm:py-3 rounded-lg border border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-100 break-words">
                         {subCategory ? `${rootCategory} > ${subCategory}` : rootCategory}
                       </div>
                     </div>
                   )}
                   
                   {/* Alternative: Direct Input */}
-                  <div className="border-t pt-4 space-y-2">
-                    <label className="text-xs text-muted-foreground">Or enter custom category path:</label>
+                  <div className="border-t border-slate-200 dark:border-slate-600 pt-4 space-y-3">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Or enter custom category path:</label>
                     <Autocomplete
                       options={categoryOptions}
                       value={editCategoryValue}
@@ -649,14 +718,14 @@ export function ResultsView(props: ResultsViewProps) {
                         }
                       }}
                       placeholder="e.g., Data Structures > Hash Tables"
-                      className="w-full"
+                      className="w-full bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
                       autoSelectOnFocus={true}
                     />
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
-                <div className="flex items-center justify-end space-x-3 mt-6 pt-4 border-t">
+                {/* Enhanced Action Buttons */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <button 
                     onClick={() => {
                       setEditCategoryValue(selectedConcept?.category || "Uncategorized")
@@ -665,7 +734,7 @@ export function ResultsView(props: ResultsViewProps) {
                       setIsEditingCategory(false)
                     }}
                     disabled={isSaving || isLoadingCategories}
-                    className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                   >
                     Cancel
                   </button>
@@ -677,7 +746,7 @@ export function ResultsView(props: ResultsViewProps) {
                       handleCategoryUpdate(finalCategory)
                     }}
                     disabled={isSaving || isLoadingCategories || (!rootCategory && !editCategoryValue)}
-                    className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     {isSaving ? (
                       <>
@@ -687,7 +756,14 @@ export function ResultsView(props: ResultsViewProps) {
                         Saving...
                       </>
                     ) : (
-                      'Save Category'
+                      <>
+                        <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                          <polyline points="17,21 17,13 7,13 7,21"/>
+                          <polyline points="7,3 7,8 15,8"/>
+                        </svg>
+                        Save Category
+                      </>
                     )}
                   </button>
                 </div>
