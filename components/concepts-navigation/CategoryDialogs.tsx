@@ -114,19 +114,19 @@ const SearchableSelect = ({
       </button>
       
       {isOpen && (
-        <div className="absolute z-[100] w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
-          <div className="p-2 border-b border-border bg-popover">
+        <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-xl overflow-hidden">
+          <div className="p-2 border-b-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
             <Input
               placeholder="Type to search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-sm h-8 bg-background border-input"
+              className="text-sm h-8 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
               autoFocus
             />
           </div>
-          <div className="max-h-48 overflow-y-auto bg-popover">
+          <div className="max-h-48 overflow-y-auto bg-white dark:bg-gray-800">
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-3 text-sm text-muted-foreground text-center">
+              <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 text-center bg-white dark:bg-gray-800">
                 No categories found
               </div>
             ) : (
@@ -135,12 +135,12 @@ const SearchableSelect = ({
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
-                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none transition-colors border-b border-border/50 last:border-b-0"
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/50 focus:outline-none transition-colors border-b border-gray-200 dark:border-gray-700 last:border-b-0 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{option.label}</span>
                     {option.description && (
-                      <span className="text-xs text-muted-foreground ml-2 shrink-0">{option.description}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 shrink-0">{option.description}</span>
                     )}
                   </div>
                 </button>
