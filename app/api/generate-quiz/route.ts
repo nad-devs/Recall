@@ -68,25 +68,54 @@ export async function POST(request: NextRequest) {
           return null;
         }
         
-        // Validate the answer field more carefully
+        // Handle answer field - backend now provides both correctAnswer (index) and answer (text)
         let validAnswer = question.answer;
         
-        // Check if the answer exists in the options
+        // If backend provided correctAnswer index but no answer text, convert it
+        if (!validAnswer && typeof question.correctAnswer === 'number' && question.options.length > question.correctAnswer) {
+          validAnswer = question.options[question.correctAnswer];
+          console.log(`🔧 Question ${index + 1}: Using correctAnswer index ${question.correctAnswer} to set answer: "${validAnswer}"`);
+        }
+        
+        // Final validation: Check if the answer exists in the options
         if (!validAnswer || !question.options.includes(validAnswer)) {
           console.warn(`🔧 Question ${index + 1} has invalid answer field: "${validAnswer}"`);
           console.warn(`🔧 Available options:`, question.options);
           
-          // Try to find a reasonable answer from the options instead of defaulting to first
-          // Look for the option that seems most correct based on content length or specificity
+          // Try to find a reasonable answer from the options
           if (question.options.length > 0) {
-            // Find the longest option as it's likely to be the correct detailed answer
-            validAnswer = question.options.reduce((prev: string, current: string) => 
-              current.length > prev.length ? current : prev
-            );
-            console.log(`🔧 Selected best answer candidate: "${validAnswer}"`);
+            // If we have a correctAnswer index, use that
+            if (typeof question.correctAnswer === 'number' && question.correctAnswer >= 0 && question.correctAnswer < question.options.length) {
+              validAnswer = question.options[question.correctAnswer];
+              console.log(`🔧 Using correctAnswer index to fix answer: "${validAnswer}"`);
+            } else {
+              // Fallback: Find the longest option as it's likely to be the correct detailed answer
+              validAnswer = question.options.reduce((prev: string, current: string) => 
+                current.length > prev.length ? current : prev
+              );
+              console.log(`🔧 Selected best answer candidate based on length: "${validAnswer}"`);
+            }
           } else {
             console.error(`🔧 No options available for question ${index + 1}`);
             return null;
+          }
+        }
+        
+        // Validate explanation
+        const explanation = question.explanation || `This relates to the concept: ${concept.title}`;
+        
+        // Additional validation: For negative questions, ensure answer makes sense
+        if (question.question.toLowerCase().includes('not') && question.question.toLowerCase().includes('nlp')) {
+          const answerLower = validAnswer.toLowerCase();
+          // Check if answer is actually not related to NLP
+          const nlpRelatedTerms = ['speech', 'text', 'language', 'translation', 'sentiment', 'parsing'];
+          const imageRelatedTerms = ['image', 'visual', 'photo', 'picture', 'graphics'];
+          
+          const isNlpRelated = nlpRelatedTerms.some(term => answerLower.includes(term));
+          const isImageRelated = imageRelatedTerms.some(term => answerLower.includes(term));
+          
+          if (isNlpRelated && !isImageRelated) {
+            console.warn(`🔧 Warning: Question ${index + 1} asks what's NOT part of NLP but answer "${validAnswer}" appears to be NLP-related`);
           }
         }
         
@@ -96,7 +125,7 @@ export async function POST(request: NextRequest) {
           question: question.question,
           answer: validAnswer,
           options: question.options,
-          explanation: question.explanation || `This relates to the concept: ${concept.title}`
+          explanation: explanation
         };
       }).filter(Boolean); // Remove any null questions
       
@@ -105,6 +134,12 @@ export async function POST(request: NextRequest) {
       if (validatedQuestions.length === 0) {
         throw new Error('No valid questions were generated');
       }
+      
+      // Log final validation summary
+      console.log('🔧 Final validated questions summary:');
+      validatedQuestions.forEach((q: any, index: number) => {
+        console.log(`🔧 Question ${index + 1}: "${q.question.substring(0, 50)}..." -> Answer: "${q.answer}"`);
+      });
       
       return NextResponse.json({ questions: validatedQuestions });
     } else {
