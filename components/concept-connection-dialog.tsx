@@ -177,10 +177,11 @@ export function ConceptConnectionDialog({
         category: generateData.concept.category || 'General',
         summary: generateData.concept.summary || '',
         details: generateData.concept.details || '',
-        keyPoints: generateData.concept.keyPoints || [],
-        examples: generateData.concept.examples || [],
-        relatedConcepts: generateData.concept.relatedConcepts || [],
-        isAIGenerated: true
+        keyPoints: JSON.stringify(generateData.concept.keyPoints || []),  // Stringify array
+        examples: JSON.stringify(generateData.concept.examples || []),    // Stringify array
+        relatedConcepts: JSON.stringify(generateData.concept.relatedConcepts || []), // Stringify array
+        isAIGenerated: true,
+        bypassSimilarityCheck: true  // Skip similarity checking for connect dialog concepts
       }
       
       console.log('🔧 Creating concept with payload:', createPayload)
