@@ -249,11 +249,19 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
       if (response.ok) {
         const responseData = await response.json()
         console.log('🔧 Review update successful:', responseData)
+        console.log('🔧 API returned needsReview:', responseData.needsReview)
+        console.log('🔧 API returned newConfidenceScore:', responseData.newConfidenceScore)
+        console.log('🔧 API returned status:', responseData.status)
         
         // Trigger refresh of concepts list to show updated status
         if (typeof window !== 'undefined') {
           console.log('🔧 Dispatching refreshConcepts event to update concept status')
           window.dispatchEvent(new CustomEvent('refreshConcepts'))
+          
+          // Add a small delay and check if event was fired
+          setTimeout(() => {
+            console.log('🔧 RefreshConcepts event should have been processed by now')
+          }, 1000)
         }
         
         // Show success toast with appropriate feedback

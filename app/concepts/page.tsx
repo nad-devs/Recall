@@ -184,14 +184,21 @@ export default function ConceptsPage() {
 
   // Simple format and organize function
   const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
-    const formattedConcepts = conceptsData.map(concept => ({
-      id: concept.id,
-      title: concept.title,
-      category: concept.category,
-      notes: concept.summary,
-      discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
-      needsReview: concept.confidenceScore < 0.7
-    }))
+    console.log('🔧 CONCEPTS PAGE: Formatting concepts, received data:', conceptsData.length, 'concepts')
+    
+    const formattedConcepts = conceptsData.map(concept => {
+      const needsReview = concept.confidenceScore < 0.7
+      console.log(`🔧 CONCEPT: "${concept.title}" - confidenceScore: ${concept.confidenceScore}, needsReview: ${needsReview}`)
+      
+      return {
+        id: concept.id,
+        title: concept.title,
+        category: concept.category,
+        notes: concept.summary,
+        discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
+        needsReview: needsReview
+      }
+    })
 
     // Group concepts by category
     const byCategory: Record<string, Concept[]> = {}
@@ -213,6 +220,9 @@ export default function ConceptsPage() {
     setConcepts(formattedConcepts)
     setConceptsByCategory(byCategory)
     setSortedCategories(sortedCategoryList)
+    
+    console.log('🔧 CONCEPTS PAGE: Formatting complete, total concepts with needsReview:', 
+      formattedConcepts.filter(c => c.needsReview).length)
   }, [])
 
   // Simple fetch concepts function
@@ -320,18 +330,25 @@ export default function ConceptsPage() {
   // Auto-refresh event listener
   useEffect(() => {
     const handleRefreshConcepts = async () => {
+      console.log('🔧 CONCEPTS PAGE: Received refreshConcepts event!')
       try {
         if (refreshDataRef.current) {
+          console.log('🔧 CONCEPTS PAGE: Calling refreshData function...')
           await refreshDataRef.current()
+          console.log('🔧 CONCEPTS PAGE: RefreshData completed successfully')
+        } else {
+          console.warn('🔧 CONCEPTS PAGE: refreshDataRef.current is null')
         }
       } catch (error) {
-        console.error('Error in auto-refresh:', error)
+        console.error('🔧 CONCEPTS PAGE: Error in auto-refresh:', error)
       }
     }
 
+    console.log('🔧 CONCEPTS PAGE: Setting up refreshConcepts event listener')
     window.addEventListener('refreshConcepts', handleRefreshConcepts)
     
     return () => {
+      console.log('🔧 CONCEPTS PAGE: Cleaning up refreshConcepts event listener')
       window.removeEventListener('refreshConcepts', handleRefreshConcepts)
     }
   }, [])
