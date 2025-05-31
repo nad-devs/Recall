@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import { Search, BookOpen } from 'lucide-react'
+import { Search, BookOpen, Plus } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useCategoryHierarchy } from '@/hooks/useCategoryHierarchy'
@@ -28,6 +28,7 @@ interface ConceptsNavigationProps {
   onNeedsReviewToggle: () => void
   onConceptsMove?: (conceptIds: string[], newCategory: string) => void
   onDataRefresh?: () => Promise<void>
+  onAddSubcategory?: (parentCategory: string) => void
   className?: string
 }
 
@@ -38,6 +39,7 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
   onSearchChange, 
   onCategorySelect, 
   selectedCategory,
+  onAddSubcategory,
   className = ""
 }: ConceptsNavigationProps) {
   
@@ -171,7 +173,7 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
           isInlineEditing={false}
           onToggleCategory={toggleCategory}
           onCategorySelect={onCategorySelect}
-          onAddSubcategory={() => {}}
+          onAddSubcategory={onAddSubcategory || (() => {})}
           onStartInlineEdit={() => {}}
           onSaveInlineEdit={() => {}}
           onCancelInlineEdit={() => {}}
@@ -197,29 +199,26 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         )}
       </React.Fragment>
     )
-  }, [filteredConceptsByCategory, expandedCategories, selectedCategory, toggleCategory, onCategorySelect])
+  }, [filteredConceptsByCategory, expandedCategories, selectedCategory, toggleCategory, onCategorySelect, onAddSubcategory])
 
   return (
-    <div className={`h-full flex flex-col bg-background border-r border-border ${className}`}>
-      {/* Header with better alignment */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold flex items-center">
-            <BookOpen className="mr-2 h-5 w-5" />
-            Navigate Concepts
-          </h2>
-          <Badge variant="secondary" className="text-xs">
+    <div className={`w-80 border-r bg-card flex flex-col h-full ${className}`}>
+      {/* Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-secondary/5">
+        <h2 className="text-lg font-semibold mb-3 flex items-center">
+          <BookOpen className="mr-2 h-5 w-5 text-primary" />
+          Navigate Concepts
+          <Badge variant="secondary" className="ml-auto text-xs">
             {Object.values(filteredConceptsByCategory).flat().length}
           </Badge>
-        </div>
-        
+        </h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search concepts..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-background/50 border-primary/20 focus:border-primary/40"
           />
         </div>
       </div>
@@ -229,17 +228,37 @@ export const ConceptsNavigation = React.memo(function ConceptsNavigationComponen
         <div className="space-y-1">
           {Object.values(filteredHierarchy).length > 0 ? (
             Object.values(filteredHierarchy)
-              .sort((a: any, b: any) => a.name.localeCompare(b.name))
-              .map((node: any) => renderCategoryNode(node, 0))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(node => renderCategoryNode(node, 0))
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <BookOpen className="mx-auto h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">
-                {searchQuery ? 'No concepts match your search' : 'No concepts found'}
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                <BookOpen className="h-8 w-8 text-primary/50" />
+              </div>
+              <p className="text-sm font-medium mb-1">
+                {searchQuery ? 'No concepts match your search' : 'No concepts yet'}
+              </p>
+              <p className="text-xs">
+                {searchQuery ? 'Try a different search term' : 'Start analyzing conversations to build your knowledge base'}
               </p>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Add Category Button */}
+      <div className="p-4 border-t bg-gradient-to-r from-primary/5 to-secondary/5">
+        <button
+          onClick={() => onAddSubcategory && onAddSubcategory("")}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md"
+          title="Create a new top-level category"
+        >
+          <Plus className="h-4 w-4" />
+          Add Top-Level Category
+        </button>
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          Hover over categories above to add subcategories
+        </p>
       </div>
     </div>
   )

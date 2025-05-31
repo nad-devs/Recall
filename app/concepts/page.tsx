@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConceptCard } from "@/components/concept-card"
 import { ConceptsNavigation } from "@/components/concepts-navigation"
-import { BookOpen, Search, ArrowLeft, Tag, Plus, X, PanelLeftClose, PanelLeftOpen, AlertTriangle } from "lucide-react"
+import { CategoryDialogs } from "@/components/concepts-navigation/CategoryDialogs"
+import { BookOpen, Search, ArrowLeft, Tag, Plus, X, PanelLeftClose, PanelLeftOpen, AlertTriangle, FolderPlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DndProvider, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
@@ -105,6 +106,24 @@ export default function ConceptsPage() {
   const FETCH_RATE_LIMIT = 1000
   const refreshDataRef = useRef<(() => Promise<void>) | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
+
+  // Add category management state
+  const [showAddSubcategoryDialog, setShowAddSubcategoryDialog] = useState(false)
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [showEditCategoryDialog, setShowEditCategoryDialog] = useState(false)
+  const [showDragDropDialog, setShowDragDropDialog] = useState(false)
+  const [selectedParentCategory, setSelectedParentCategory] = useState("")
+  const [newSubcategoryName, setNewSubcategoryName] = useState("")
+  const [editingCategoryPath, setEditingCategoryPath] = useState("")
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [transferConcepts, setTransferConcepts] = useState<Concept[]>([])
+  const [selectedConceptsForTransfer, setSelectedConceptsForTransfer] = useState<Set<string>>(new Set())
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+  const [isMovingConcepts, setIsMovingConcepts] = useState(false)
+  const [isRenamingCategory, setIsRenamingCategory] = useState(false)
+  const [isResettingState, setIsResettingState] = useState(false)
+  const [dragDropData, setDragDropData] = useState<any>(null)
+  const [isDraggingCategory, setIsDraggingCategory] = useState(false)
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -669,6 +688,108 @@ export default function ConceptsPage() {
     }
   }
 
+  // Add category management handlers
+  const handleAddSubcategory = (parentCategory: string) => {
+    setSelectedParentCategory(parentCategory)
+    setNewSubcategoryName("")
+    setShowAddSubcategoryDialog(true)
+  }
+
+  const handleCreateSubcategory = async () => {
+    if (!newSubcategoryName.trim()) return
+    
+    setIsCreatingCategory(true)
+    try {
+      const fullCategoryPath = selectedParentCategory ? 
+        `${selectedParentCategory} > ${newSubcategoryName.trim()}` : 
+        newSubcategoryName.trim()
+      
+      // Create a placeholder concept in the new category
+      const response = await fetch('/api/concepts', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title: `Placeholder for ${newSubcategoryName.trim()}`,
+          category: fullCategoryPath,
+          summary: "This is a placeholder concept. Add real concepts to this category.",
+          keyPoints: ["Placeholder concept"],
+          isPlaceholder: true
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to create subcategory')
+      }
+      
+      await refreshData()
+      setShowAddSubcategoryDialog(false)
+      setNewSubcategoryName("")
+      setSelectedParentCategory("")
+      
+      toast({
+        title: "Subcategory created",
+        description: `Created "${newSubcategoryName}" subcategory`,
+      })
+    } catch (error) {
+      console.error('Error creating subcategory:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create subcategory",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreatingCategory(false)
+    }
+  }
+
+  const handleTransferConcepts = async (concepts: Concept[], targetCategory: string) => {
+    setIsMovingConcepts(true)
+    try {
+      await handleConceptsMove(concepts.map(c => c.id), targetCategory)
+      setShowTransferDialog(false)
+      setTransferConcepts([])
+      setSelectedConceptsForTransfer(new Set())
+    } catch (error) {
+      console.error('Error transferring concepts:', error)
+    } finally {
+      setIsMovingConcepts(false)
+    }
+  }
+
+  const handleCancelDialogs = async () => {
+    setShowAddSubcategoryDialog(false)
+    setShowTransferDialog(false)
+    setShowEditCategoryDialog(false)
+    setShowDragDropDialog(false)
+    setNewSubcategoryName("")
+    setNewCategoryName("")
+    setSelectedParentCategory("")
+    setEditingCategoryPath("")
+    setTransferConcepts([])
+    setSelectedConceptsForTransfer(new Set())
+    setDragDropData(null)
+  }
+
+  const createPlaceholderConcept = async (category: string) => {
+    // Implementation for creating placeholder concepts if needed
+    return null
+  }
+
+  const executeCategoryMove = async (draggedPath: string, targetPath: string | null) => {
+    // Implementation for category drag and drop
+    console.log('Moving category:', draggedPath, 'to:', targetPath)
+  }
+
+  const moveConceptsToCategory = async (sourcePath: string, targetPath: string) => {
+    // Implementation for moving concepts between categories
+    console.log('Moving concepts from:', sourcePath, 'to:', targetPath)
+  }
+
+  const handleRenameCategoryConfirm = () => {
+    // Implementation for renaming categories
+    console.log('Renaming category')
+  }
+
   // Show skeleton loading screen only for Redux operations
   if ((showLoadingScreen || loading) && showSkeletonOnly) {
     console.log('🦴 Showing SKELETON loading screen (Redux operation)')
@@ -768,9 +889,41 @@ export default function ConceptsPage() {
                 onNeedsReviewToggle={handleNeedsReviewToggle}
                 onConceptsMove={handleConceptsMove}
                 onDataRefresh={silentRefreshData}
+                onAddSubcategory={handleAddSubcategory}
                 className="hidden md:flex"
               />
             )}
+
+            {/* Category Management Dialogs */}
+            <CategoryDialogs
+              showAddSubcategoryDialog={showAddSubcategoryDialog}
+              showTransferDialog={showTransferDialog}
+              showEditCategoryDialog={showEditCategoryDialog}
+              showDragDropDialog={showDragDropDialog}
+              selectedParentCategory={selectedParentCategory}
+              newSubcategoryName={newSubcategoryName}
+              editingCategoryPath={editingCategoryPath}
+              newCategoryName={newCategoryName}
+              transferConcepts={transferConcepts}
+              selectedConceptsForTransfer={selectedConceptsForTransfer}
+              isCreatingCategory={isCreatingCategory}
+              isMovingConcepts={isMovingConcepts}
+              isRenamingCategory={isRenamingCategory}
+              isResettingState={isResettingState}
+              dragDropData={dragDropData}
+              setNewSubcategoryName={setNewSubcategoryName}
+              setNewCategoryName={setNewCategoryName}
+              setSelectedConceptsForTransfer={setSelectedConceptsForTransfer}
+              handleCreateSubcategory={handleCreateSubcategory}
+              handleTransferConcepts={handleTransferConcepts}
+              handleCancel={handleCancelDialogs}
+              createPlaceholderConcept={createPlaceholderConcept}
+              conceptsByCategory={conceptsByCategory}
+              isDraggingCategory={isDraggingCategory}
+              executeCategoryMove={executeCategoryMove}
+              moveConceptsToCategory={moveConceptsToCategory}
+              handleRenameCategoryConfirm={handleRenameCategoryConfirm}
+            />
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-h-0">
@@ -798,21 +951,58 @@ export default function ConceptsPage() {
                     >
                       {showNavigation ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
                     </Button>
-                    <div>
-                      <h1 className="text-3xl font-bold tracking-tight">
-                        {selectedCategory ? selectedCategory : showNeedsReview ? "Concepts Needing Review" : "All Concepts"}
-                      </h1>
-                      <p className="text-muted-foreground mb-4">
-                        {selectedCategory 
-                          ? `Browse concepts in ${selectedCategory}${showNeedsReview ? ' that need review' : ''}`
-                          : showNeedsReview
-                            ? "Focus on concepts with low confidence scores"
-                            : "Browse your knowledge base"
-                        }
+                    <div className="flex flex-col">
+                      <h1 className="text-2xl font-bold">Knowledge Base</h1>
+                      <p className="text-sm text-muted-foreground">
+                        {filteredConcepts.length} of {concepts.length} concepts
+                        {selectedCategory && ` in ${selectedCategory}`}
+                        {searchQuery && ` matching "${searchQuery}"`}
                       </p>
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-2">
+                    <div className="hidden sm:flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedConcepts(new Set())}
+                        disabled={selectedConcepts.size === 0}
+                      >
+                        Clear Selection ({selectedConcepts.size})
+                      </Button>
+                      {selectedConcepts.size > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const conceptsToMove = concepts.filter(c => selectedConcepts.has(c.id))
+                            setTransferConcepts(conceptsToMove)
+                            setShowTransferDialog(true)
+                          }}
+                        >
+                          Move Selected ({selectedConcepts.size})
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <Button
+                      variant={showNeedsReview ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowNeedsReview(!showNeedsReview)}
+                      className="hidden sm:flex"
+                    >
+                      <AlertTriangle className="mr-1 h-4 w-4" />
+                      Needs Review
+                    </Button>
+                    
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/analyze">
+                        <Plus className="mr-1 h-4 w-4" />
+                        Analyze
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Show selected filters */}

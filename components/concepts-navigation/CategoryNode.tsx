@@ -10,7 +10,8 @@ import {
   Code,
   Database,
   Globe,
-  Layers
+  Layers,
+  Plus
 } from "lucide-react"
 import { CategoryNode as CategoryNodeType } from '@/hooks/useCategoryHierarchy'
 
@@ -65,7 +66,8 @@ export const CategoryNodeComponent = React.memo(({
   isExpanded, 
   isSelected, 
   onToggleCategory,
-  onCategorySelect
+  onCategorySelect,
+  onAddSubcategory
 }: CategoryNodeProps) => {
   const hasSubcategories = Object.keys(node.subcategories).length > 0
   const hasDirectConcepts = node.concepts.length > 0
@@ -161,6 +163,20 @@ export const CategoryNodeComponent = React.memo(({
                 <span className="truncate">{node.name}</span>
                 {getCountDisplay()}
               </Button>
+              
+              {/* Add Subcategory Button - shown on hover */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6 w-6 p-0 ml-1"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onAddSubcategory(node.fullPath)
+                }}
+                title="Add subcategory"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
             </div>
           </div>
         </Collapsible>
@@ -168,18 +184,34 @@ export const CategoryNodeComponent = React.memo(({
     )
   } else {
     return (
-      <Button
-        variant={isSelected ? "secondary" : "ghost"}
-        className={`w-full justify-start h-auto hover:bg-muted/30 ${
-          depth === 0 ? 'font-medium p-2' : 'font-normal text-sm p-1.5'
-        }`}
-        style={{ paddingLeft: `${(depth * 16) + 8}px` }}
-        onClick={() => onCategorySelect(node.fullPath)}
-      >
-        <Icon className="mr-2 h-4 w-4" />
-        <span className="truncate">{node.name}</span>
-        {getCountDisplay()}
-      </Button>
+      <div className="flex items-center group">
+        <Button
+          variant={isSelected ? "secondary" : "ghost"}
+          className={`flex-1 justify-start h-auto hover:bg-muted/30 ${
+            depth === 0 ? 'font-medium p-2' : 'font-normal text-sm p-1.5'
+          }`}
+          style={{ paddingLeft: `${(depth * 16) + 8}px` }}
+          onClick={() => onCategorySelect(node.fullPath)}
+        >
+          <Icon className="mr-2 h-4 w-4" />
+          <span className="truncate">{node.name}</span>
+          {getCountDisplay()}
+        </Button>
+        
+        {/* Add Subcategory Button - shown on hover */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6 w-6 p-0 ml-1 mr-2"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddSubcategory(node.fullPath)
+          }}
+          title="Add subcategory"
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
+      </div>
     )
   }
 }) 

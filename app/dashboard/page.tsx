@@ -355,9 +355,9 @@ export default function Dashboard() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {dashboardData.recentConcepts.length === 0 && !loading ? (
-                <div className="md:col-span-2">
+                <div>
                   <Card className="bg-card border-border">
                     <CardContent className="py-8 text-center">
                       <div className="space-y-4">

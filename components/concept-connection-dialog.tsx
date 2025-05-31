@@ -323,7 +323,7 @@ export function ConceptConnectionDialog({
           <AlertDialogAction
             onClick={handleConnect}
             disabled={isLoading || !selectedConceptId}
-            className="bg-primary text-primary-foreground"
+            className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 shadow-sm"
           >
             {isLoading ? "Connecting..." : "Connect Concepts"}
           </AlertDialogAction>

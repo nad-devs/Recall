@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, MessageSquare, Code, BookOpen, Book, Tag, Bug } from "lucide-react"
+import { ArrowLeft, Calendar, MessageSquare, Code, BookOpen, Book, Tag } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // Import only what we need from the ConversationCard component
 import { ConversationCard } from "@/components/conversation-card"
@@ -48,26 +48,6 @@ interface CodeSnippetData {
   conceptId?: string;
 }
 
-interface DebugInfo {
-  localStorage: {
-    userEmail: string;
-    userId: string;
-    hasEmail: boolean;
-    hasUserId: boolean;
-  };
-  conversationId: string;
-  timestamp: string;
-  response?: {
-    status: number;
-    statusText: string;
-    ok: boolean;
-  };
-  error?: {
-    message: string;
-    stack?: string;
-  };
-}
-
 export default function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params promise with React.use()
   const resolvedParams = use(params);
@@ -76,33 +56,19 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
   const [conversation, setConversation] = useState<ConversationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     const fetchConversation = async () => {
       try {
         setIsLoading(true);
         
-        // Get authentication headers and store debug info
+        // Get authentication headers
         const getAuthHeaders = (): HeadersInit => {
           const userEmail = localStorage.getItem('userEmail')
           const userId = localStorage.getItem('userId')
           const headers: HeadersInit = {
             'Content-Type': 'application/json'
           }
-          
-          // Store debug info for UI display
-          setDebugInfo({
-            localStorage: {
-              userEmail: userEmail ? userEmail : 'missing',
-              userId: userId ? userId : 'missing',
-              hasEmail: !!userEmail,
-              hasUserId: !!userId
-            },
-            conversationId: conversationId,
-            timestamp: new Date().toISOString()
-          });
           
           // For email-based sessions
           if (userEmail && userId) {
@@ -117,47 +83,20 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
           headers: getAuthHeaders()
         });
         
-        // Update debug info with response details
-        setDebugInfo((prev: DebugInfo | null) => ({
-          ...(prev || {} as DebugInfo),
-          response: {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok
-          }
-        }));
-        
         if (response.status === 401) {
-          // Authentication error
-          setError('🔐 Authentication Error: You need to be logged in to view this conversation');
-          setShowDebug(true); // Auto-show debug for auth errors
+          setError('You need to be logged in to view this conversation');
         } else if (response.status === 404) {
-          // Not found error
-          setError('🚫 Access Denied: Conversation not found or you do not have access to it');
-          setShowDebug(true); // Auto-show debug for access errors
+          setError('Conversation not found or you do not have access to it');
         } else if (!response.ok) {
-          // Generic error
-          setError(`⚠️ Server Error: Failed to fetch conversation (Status: ${response.status})`);
-          setShowDebug(true);
+          setError('Failed to fetch conversation');
         } else {
-          // Success
           const data = await response.json();
           setConversation(data);
           setError(null);
         }
       } catch (error) {
-        setError('💥 Network Error: An error occurred while loading the conversation');
-        setShowDebug(true);
+        setError('An error occurred while loading the conversation');
         console.error('Error fetching conversation:', error);
-        
-        // Update debug info with error details
-        setDebugInfo((prev: DebugInfo | null) => ({
-          ...(prev || {} as DebugInfo),
-          error: {
-            message: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : undefined
-          }
-        }));
       } finally {
         setIsLoading(false);
       }
@@ -179,7 +118,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  // If error or conversation not found, show error state with debug info
+  // If error or conversation not found, show error state
   if (error || !conversation) {
     return (
       <PageTransition>
@@ -187,70 +126,6 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
           <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md">
             <div className="font-medium">{error || 'Conversation not found'}</div>
           </div>
-
-          {/* Debug Panel */}
-          <Card className="border-orange-200 bg-orange-50">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center">
-                  <Bug className="mr-2 h-5 w-5 text-orange-600" />
-                  Debug Information
-                </CardTitle>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowDebug(!showDebug)}
-                >
-                  {showDebug ? 'Hide' : 'Show'} Details
-                </Button>
-              </div>
-            </CardHeader>
-            {showDebug && (
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <h4 className="font-medium text-orange-800 mb-2">Authentication Status:</h4>
-                    <div className="space-y-1 font-mono text-xs">
-                      <div>Email: <span className={debugInfo?.localStorage?.hasEmail ? 'text-green-600' : 'text-red-600'}>
-                        {debugInfo?.localStorage?.userEmail || 'Missing'}
-                      </span></div>
-                      <div>User ID: <span className={debugInfo?.localStorage?.hasUserId ? 'text-green-600' : 'text-red-600'}>
-                        {debugInfo?.localStorage?.userId || 'Missing'}
-                      </span></div>
-                      <div>Conversation ID: <span className="text-blue-600">{debugInfo?.conversationId}</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-orange-800 mb-2">Server Response:</h4>
-                    <div className="space-y-1 font-mono text-xs">
-                      <div>Status: <span className={debugInfo?.response?.ok ? 'text-green-600' : 'text-red-600'}>
-                        {debugInfo?.response?.status}
-                      </span></div>
-                      <div>Status Text: {debugInfo?.response?.statusText}</div>
-                      <div>Time: {debugInfo?.timestamp ? new Date(debugInfo.timestamp).toLocaleTimeString() : 'Unknown'}</div>
-                    </div>
-                  </div>
-                </div>
-                
-                {debugInfo?.error && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
-                    <h4 className="font-medium text-red-800 mb-1">Error Details:</h4>
-                    <div className="text-xs font-mono text-red-700">{debugInfo.error.message}</div>
-                  </div>
-                )}
-
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                  <h4 className="font-medium text-blue-800 mb-2">Troubleshooting:</h4>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Make sure you're logged in and have analyzed conversations</li>
-                    <li>• Try refreshing the page or logging out and back in</li>
-                    <li>• This conversation might belong to a different user account</li>
-                    <li>• Check that the conversation ID is correct in the URL</li>
-                  </ul>
-                </div>
-              </CardContent>
-            )}
-          </Card>
 
           <div className="flex gap-2">
             <Button variant="ghost" asChild>
