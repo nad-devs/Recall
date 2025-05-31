@@ -508,6 +508,16 @@ export function ResultsView(props: ResultsViewProps) {
 
   return (
     <div className="flex flex-col space-y-4">
+      {/* Background overlay for category editing - positioned outside main content */}
+      {isEditingCategory && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => {
+          setEditCategoryValue(selectedConcept?.category || "Uncategorized")
+          setRootCategory("")
+          setSubCategory("")
+          setIsEditingCategory(false)
+        }} />
+      )}
+
       {/* Save button at the top */}
       {analysisResult && (
         <div className="flex justify-end mb-4">
@@ -737,176 +747,165 @@ export function ResultsView(props: ResultsViewProps) {
                 {/* Category editing */}
                 <div className="flex items-center text-xs text-muted-foreground mb-4">
                   {isEditingCategory ? (
-                    <div className="space-y-4">
-                      {/* Background overlay */}
-                      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={() => {
-                        setEditCategoryValue(selectedConcept.category || "Uncategorized")
-                        setRootCategory("")
-                        setSubCategory("")
-                        setIsEditingCategory(false)
-                      }} />
-                      
-                      {/* Category editing dialog */}
-                      <div className="relative z-50 bg-card border border-border rounded-lg p-4 shadow-lg">
-                        {isLoadingCategories ? (
-                          <div className="flex items-center space-x-2">
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                              <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
-                            </svg>
-                            <span className="text-xs text-muted-foreground">Loading categories...</span>
-                          </div>
-                        ) : (
-                          <>
-                            {/* Hierarchical Category Builder */}
-                            <div className="space-y-2">
-                              <label className="text-xs font-medium text-foreground">Category Structure:</label>
-                              
-                              {/* Root Category Selection */}
-                              <div className="flex items-center space-x-2">
-                                <label className="text-xs text-muted-foreground min-w-[80px]">Root Category:</label>
-                                <Autocomplete
-                                  options={categoryOptions.filter(opt => !opt.value.includes(' > ')).map(opt => ({
-                                    ...opt,
-                                    label: opt.value,
-                                    description: 'Root category'
-                                  }))}
-                                  value={rootCategory}
-                                  onChange={setRootCategory}
-                                  placeholder="Select root category..."
-                                  className="flex-1"
-                                  autoSelectOnFocus={true}
-                                />
-                              </div>
-                              
-                              {/* Subcategory Selection */}
-                              {rootCategory && (
-                                <div className="flex items-center space-x-2">
-                                  <label className="text-xs text-muted-foreground min-w-[80px]">Subcategory:</label>
-                                  <div className="flex-1 flex items-center space-x-2">
-                                    <Autocomplete
-                                      options={categoryOptions
-                                        .filter(opt => opt.value.startsWith(rootCategory + ' > '))
-                                        .map(opt => ({
-                                          ...opt,
-                                          label: opt.value.split(' > ')[1],
-                                          value: opt.value.split(' > ')[1],
-                                          description: 'Subcategory'
-                                        }))
-                                        .concat([
-                                          { value: '', label: 'No subcategory', description: 'Use root category only' },
-                                          { value: 'LeetCode Problems', label: 'LeetCode Problems', description: 'Algorithm problems from LeetCode' }
-                                        ])}
-                                      value={subCategory}
-                                      onChange={setSubCategory}
-                                      placeholder="Select or type new subcategory..."
-                                      className="flex-1"
-                                    />
-                                    {subCategory && subCategory !== '' && !categoryOptions.some(opt => opt.value === `${rootCategory} > ${subCategory}`) && (
-                                      <button
-                                        onClick={() => {
-                                          // Add the new subcategory to options for future use
-                                          const newCategoryPath = `${rootCategory} > ${subCategory}`
-                                          setCategoryOptions(prev => [
-                                            ...prev,
-                                            {
-                                              value: newCategoryPath,
-                                              label: newCategoryPath,
-                                              description: 'Custom subcategory'
-                                            }
-                                          ])
-                                          
-                                          toast({
-                                            title: "Subcategory Added",
-                                            description: `"${subCategory}" added as a new subcategory under "${rootCategory}"`,
-                                          })
-                                        }}
-                                        className="inline-flex items-center justify-center rounded-md bg-green-600 text-white px-2 py-1 text-sm font-medium hover:bg-green-700"
-                                        title="Add new subcategory"
-                                      >
-                                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M12 5v14M5 12h14"/>
-                                        </svg>
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* Preview */}
-                              {rootCategory && (
-                                <div className="flex items-center space-x-2">
-                                  <label className="text-xs text-muted-foreground min-w-[80px]">Preview:</label>
-                                  <span className="text-xs bg-muted px-2 py-1 rounded">
-                                    {subCategory ? `${rootCategory} > ${subCategory}` : rootCategory}
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {/* Alternative: Direct Input */}
-                              <div className="border-t pt-2">
-                                <label className="text-xs text-muted-foreground">Or enter custom category path:</label>
-                                <Autocomplete
-                                  options={categoryOptions}
-                                  value={editCategoryValue}
-                                  onChange={(value) => {
-                                    setEditCategoryValue(value)
-                                    // Parse the value to update root and sub category
-                                    if (value.includes(' > ')) {
-                                      const parts = value.split(' > ')
-                                      setRootCategory(parts[0])
-                                      setSubCategory(parts[1] || '')
-                                    } else {
-                                      setRootCategory(value)
-                                      setSubCategory('')
-                                    }
-                                  }}
-                                  placeholder="e.g., Data Structures > Hash Tables"
-                                  className="mt-1"
-                                  autoSelectOnFocus={true}
-                                />
-                              </div>
+                    <div className="relative z-50 bg-card border border-border rounded-lg p-4 shadow-lg">
+                      {isLoadingCategories ? (
+                        <div className="flex items-center space-x-2">
+                          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                          <span className="text-xs text-muted-foreground">Loading categories...</span>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Hierarchical Category Builder */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-foreground">Category Structure:</label>
+                            
+                            {/* Root Category Selection */}
+                            <div className="flex items-center space-x-2">
+                              <label className="text-xs text-muted-foreground min-w-[80px]">Root Category:</label>
+                              <Autocomplete
+                                options={categoryOptions.filter(opt => !opt.value.includes(' > ')).map(opt => ({
+                                  ...opt,
+                                  label: opt.value,
+                                  description: 'Root category'
+                                }))}
+                                value={rootCategory}
+                                onChange={setRootCategory}
+                                placeholder="Select root category..."
+                                className="flex-1"
+                                autoSelectOnFocus={true}
+                              />
                             </div>
                             
-                            {/* Action Buttons */}
-                            <div className="flex items-center space-x-2 mt-4">
-                              <button 
-                                onClick={() => {
-                                  const finalCategory = subCategory 
-                                    ? `${rootCategory} > ${subCategory}` 
-                                    : rootCategory || editCategoryValue
-                                  handleCategoryUpdate(finalCategory)
+                            {/* Subcategory Selection */}
+                            {rootCategory && (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-xs text-muted-foreground min-w-[80px]">Subcategory:</label>
+                                <div className="flex-1 flex items-center space-x-2">
+                                  <Autocomplete
+                                    options={categoryOptions
+                                      .filter(opt => opt.value.startsWith(rootCategory + ' > '))
+                                      .map(opt => ({
+                                        ...opt,
+                                        label: opt.value.split(' > ')[1],
+                                        value: opt.value.split(' > ')[1],
+                                        description: 'Subcategory'
+                                      }))
+                                      .concat([
+                                        { value: '', label: 'No subcategory', description: 'Use root category only' },
+                                        { value: 'LeetCode Problems', label: 'LeetCode Problems', description: 'Algorithm problems from LeetCode' }
+                                      ])}
+                                    value={subCategory}
+                                    onChange={setSubCategory}
+                                    placeholder="Select or type new subcategory..."
+                                    className="flex-1"
+                                  />
+                                  {subCategory && subCategory !== '' && !categoryOptions.some(opt => opt.value === `${rootCategory} > ${subCategory}`) && (
+                                    <button
+                                      onClick={() => {
+                                        // Add the new subcategory to options for future use
+                                        const newCategoryPath = `${rootCategory} > ${subCategory}`
+                                        setCategoryOptions(prev => [
+                                          ...prev,
+                                          {
+                                            value: newCategoryPath,
+                                            label: newCategoryPath,
+                                            description: 'Custom subcategory'
+                                          }
+                                        ])
+                                        
+                                        toast({
+                                          title: "Subcategory Added",
+                                          description: `"${subCategory}" added as a new subcategory under "${rootCategory}"`,
+                                        })
+                                      }}
+                                      className="inline-flex items-center justify-center rounded-md bg-green-600 text-white px-2 py-1 text-sm font-medium hover:bg-green-700"
+                                      title="Add new subcategory"
+                                    >
+                                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M12 5v14M5 12h14"/>
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Preview */}
+                            {rootCategory && (
+                              <div className="flex items-center space-x-2">
+                                <label className="text-xs text-muted-foreground min-w-[80px]">Preview:</label>
+                                <span className="text-xs bg-muted px-2 py-1 rounded">
+                                  {subCategory ? `${rootCategory} > ${subCategory}` : rootCategory}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Alternative: Direct Input */}
+                            <div className="border-t pt-2">
+                              <label className="text-xs text-muted-foreground">Or enter custom category path:</label>
+                              <Autocomplete
+                                options={categoryOptions}
+                                value={editCategoryValue}
+                                onChange={(value) => {
+                                  setEditCategoryValue(value)
+                                  // Parse the value to update root and sub category
+                                  if (value.includes(' > ')) {
+                                    const parts = value.split(' > ')
+                                    setRootCategory(parts[0])
+                                    setSubCategory(parts[1] || '')
+                                  } else {
+                                    setRootCategory(value)
+                                    setSubCategory('')
+                                  }
                                 }}
-                                disabled={isSaving || isLoadingCategories || (!rootCategory && !editCategoryValue)}
-                                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-                              >
-                                {isSaving ? (
-                                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
-                                  </svg>
-                                ) : (
-                                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                  </svg>
-                                )}
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  setEditCategoryValue(selectedConcept.category || "Uncategorized")
-                                  setRootCategory("")
-                                  setSubCategory("")
-                                  setIsEditingCategory(false)
-                                }}
-                                disabled={isSaving || isLoadingCategories}
-                                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
-                              >
-                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M18 6 6 18M6 6l12 12"/>
-                                </svg>
-                              </button>
+                                placeholder="e.g., Data Structures > Hash Tables"
+                                className="mt-1"
+                                autoSelectOnFocus={true}
+                              />
                             </div>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-2 mt-4">
+                            <button 
+                              onClick={() => {
+                                const finalCategory = subCategory 
+                                  ? `${rootCategory} > ${subCategory}` 
+                                  : rootCategory || editCategoryValue
+                                handleCategoryUpdate(finalCategory)
+                              }}
+                              disabled={isSaving || isLoadingCategories || (!rootCategory && !editCategoryValue)}
+                              className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {isSaving ? (
+                                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                                  <path d="M21 12a9 9 0 1 1-6.219-8.56" fill="none" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                              ) : (
+                                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                              )}
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setEditCategoryValue(selectedConcept?.category || "Uncategorized")
+                                setRootCategory("")
+                                setSubCategory("")
+                                setIsEditingCategory(false)
+                              }}
+                              disabled={isSaving || isLoadingCategories}
+                              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6 6 18M6 6l12 12"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center space-x-2 group">
