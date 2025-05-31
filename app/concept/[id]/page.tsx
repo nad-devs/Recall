@@ -32,6 +32,7 @@ import { HTML5Backend } from "react-dnd-html5-backend"
 import { PageTransition } from "@/components/page-transition"
 import { disconnectConcepts, connectConcepts } from "@/lib/concept-utils"
 import { ConceptConnectionDialog } from "@/components/concept-connection-dialog"
+import { SuggestedRelatedConcepts } from "@/components/suggested-related-concepts"
 
 export default function ConceptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -357,7 +358,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
           <div className="grid grid-cols-1 lg:grid-cols-[65%_30%] gap-[5%]">
             {/* Left Column - Concept Notes (65% width) */}
             <div className="space-y-6">
-              {/* Concept Notes Card */}
+              {/* Concept Notes Card - LIMITED HEIGHT */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center">
@@ -366,7 +367,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   </div>
                   <CardDescription>Your consolidated understanding of this concept</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 max-h-[500px] overflow-y-auto">
                   {concept.summary && (
                     <div className="text-base">{concept.summary}</div>
                   )}
@@ -385,7 +386,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   {concept.details && (
                     <div>
                       <h3 className="text-lg font-semibold mb-4 text-primary">Detailed Information</h3>
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {formatDetailsText(concept.details)}
                       </div>
                     </div>
@@ -393,524 +394,402 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                 </CardContent>
               </Card>
 
-              {/* Code Examples Section */}
+              {/* Code Examples Section - LIMITED HEIGHT */}
               {concept.codeSnippets && concept.codeSnippets.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[400px] overflow-y-auto">
                   <div className="flex items-center mb-4">
                     <Code className="mr-2 h-5 w-5" />
                     <h2 className="text-xl font-semibold">Code Examples</h2>
                   </div>
-                  
-                  <div className="space-y-6">
-                    {concept.codeSnippets.map((snippet, index) => (
-                      <Card key={index} className="overflow-hidden">
-                        <CardHeader className="pb-2 bg-muted/50">
-                          <div className="flex justify-between items-center">
-                            <Badge variant="outline">{snippet.language}</Badge>
-                            <div className="flex items-center gap-2">
-                              {snippet.description && (
-                                <span className="text-sm text-muted-foreground">{snippet.description}</span>
-                              )}
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  if (!snippet.id) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Cannot delete: missing snippet ID",
-                                      variant: "destructive",
-                                      duration: 3000,
-                                    });
-                                    return;
-                                  }
-                                  
-                                  if (window.confirm('Are you sure you want to delete this code snippet?')) {
-                                    deleteCodeSnippet(snippet.id);
-                                  }
-                                }}
-                                title="Delete code snippet"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                          <pre className="p-4 overflow-x-auto">
-                            <code>{snippet.code}</code>
-                          </pre>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Right Column - Learning Enhancements (30% width) */}
-            {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
-              <div className="space-y-6">
-                <Card className="h-fit sticky top-6">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <StickyNote className="mr-2 h-5 w-5" />
-                        <CardTitle>Learning Enhancements</CardTitle>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/concept/${concept.id}/enhance`}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </Link>
-                      </Button>
-                    </div>
-                    <CardDescription>Additional resources and insights</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Video Resources */}
-                    {concept.videoResources && (() => {
-                      try {
-                        const videos = JSON.parse(concept.videoResources);
-                        if (Array.isArray(videos) && videos.length > 0) {
-                          return (
-                            <div>
-                              <div className="flex items-center mb-3">
-                                <Video className="mr-2 h-4 w-4 text-blue-600" />
-                                <h4 className="text-sm font-semibold">Video Resources</h4>
-                              </div>
-                              <ul className="space-y-2">
-                                {videos.map((video, index) => (
-                                  <li key={index} className="flex items-start text-sm">
-                                    <span className="text-blue-600 mr-2 mt-1">▶</span>
-                                    {video.startsWith('http') ? (
-                                      <a 
-                                        href={video} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 underline break-all"
-                                      >
-                                        {video}
-                                      </a>
-                                    ) : (
-                                      <span className="break-words">{video}</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        }
-                      } catch (e) {
-                        return null;
-                      }
-                      return null;
-                    })()}
-
-                    {/* Common Mistakes */}
-                    {concept.commonMistakes && (() => {
-                      try {
-                        const mistakes = JSON.parse(concept.commonMistakes);
-                        if (Array.isArray(mistakes) && mistakes.length > 0) {
-                          return (
-                            <div>
-                              <div className="flex items-center mb-3">
-                                <AlertTriangle className="mr-2 h-4 w-4 text-orange-600" />
-                                <h4 className="text-sm font-semibold">Common Mistakes</h4>
-                              </div>
-                              <ul className="space-y-2">
-                                {mistakes.map((mistake, index) => (
-                                  <li key={index} className="flex items-start text-sm">
-                                    <span className="text-orange-600 mr-2 mt-1">×</span>
-                                    <span className="break-words">{mistake}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        }
-                      } catch (e) {
-                        return null;
-                      }
-                      return null;
-                    })()}
-
-                    {/* Personal Notes */}
-                    {concept.personalNotes && (() => {
-                      // Handle both string and JSON array formats
-                      let notesToDisplay = [];
-                      
-                      if (typeof concept.personalNotes === 'string') {
-                        try {
-                          // Try to parse as JSON first
-                          const parsed = JSON.parse(concept.personalNotes);
-                          if (Array.isArray(parsed)) {
-                            notesToDisplay = parsed;
-                          } else {
-                            // If it's not an array, treat the whole string as a single note
-                            notesToDisplay = [concept.personalNotes];
-                          }
-                        } catch (e) {
-                          // If JSON parsing fails, treat as plain string
-                          notesToDisplay = [concept.personalNotes];
-                        }
-                      }
-                      
-                      if (notesToDisplay.length > 0 && notesToDisplay.some(note => note && note.trim())) {
-                        return (
-                          <div>
-                            <div className="flex items-center mb-3">
-                              <StickyNote className="mr-2 h-4 w-4 text-green-600" />
-                              <h4 className="text-sm font-semibold">Additional Notes</h4>
-                            </div>
-                            <div className="space-y-2">
-                              {notesToDisplay.map((note, index) => {
-                                if (!note || !note.trim()) return null;
-                                return (
-                                  <div key={index} className="flex items-start text-sm">
-                                    <span className="text-green-600 mr-2 mt-1">•</span>
-                                    <div className="break-words whitespace-pre-wrap">{note.trim()}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </div>
-
-          {/* Related Concepts Section */}
-          {hasRelatedConcepts && (
-            <div className="space-y-4">
-              <div className="flex items-center mb-4">
-                <ExternalLink className="mr-2 h-5 w-5" />
-                <h2 className="text-xl font-semibold">Related Concepts</h2>
-              </div>
-              
-              {relatedConcepts && relatedConcepts.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {relatedConcepts.map((relatedConcept) => (
-                    <Card key={relatedConcept.id} className="hover:shadow-md transition-shadow group relative">
+                  {concept.codeSnippets.map((snippet: any) => (
+                    <Card key={snippet.id} className="group">
                       <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start">
-                          <CardTitle className="text-lg">{relatedConcept.title}</CardTitle>
-                          <div className="flex gap-2 items-center">
-                            {relatedConcept.category && <Badge>{relatedConcept.category}</Badge>}
-                            {/* Delete relationship button */}
-                            <Button
-                              variant="ghost"
+                        <div className="flex justify-between items-center">
+                          <CardTitle className="text-lg">{snippet.description}</CardTitle>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline">{snippet.language}</Badge>
+                            <Button 
+                              variant="ghost" 
                               size="icon"
                               className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                // Show confirmation toast instead of dialog
-                                toast({
-                                  title: "Remove Relationship?",
-                                  description: `Click confirm to remove relationship with "${relatedConcept.title}"`,
-                                  action: (
-                                    <div className="flex gap-2">
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-md bg-destructive text-destructive-foreground text-xs font-medium h-8 px-3 hover:bg-destructive/90"
-                                        onClick={async () => {
-                                          try {
-                                            await disconnectConcepts(concept.id, relatedConcept.id);
-                                            
-                                            toast({
-                                              title: "Relationship Removed",
-                                              description: `Removed relationship with "${relatedConcept.title}"`,
-                                            });
-                                            
-                                            // Refresh the concept data
-                                            await refreshConcept();
-                                          } catch (error) {
-                                            console.error('Error removing relationship:', error);
-                                            toast({
-                                              title: "Error",
-                                              description: "Failed to remove relationship",
-                                              variant: "destructive",
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        Confirm
-                                      </button>
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-md border border-input bg-background text-xs font-medium h-8 px-3 hover:bg-accent"
-                                        onClick={() => {
-                                          // Toast will auto-dismiss
-                                        }}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ),
-                                  duration: 5000,
-                                });
-                              }}
-                              title={`Remove relationship with ${relatedConcept.title}`}
+                              onClick={() => deleteCodeSnippet(snippet.id)}
+                              title="Delete code snippet"
                             >
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
-                        {relatedConcept.summary && (
-                          <CardDescription className="line-clamp-2">{relatedConcept.summary.substring(0, 120)}...</CardDescription>
-                        )}
                       </CardHeader>
-                      <CardFooter className="pt-2">
-                        <Button variant="ghost" size="sm" asChild className="ml-auto">
-                          <Link href={`/concept/${relatedConcept.id}`}>
-                            View concept
-                            <ArrowRight className="ml-1 h-3 w-3" />
-                          </Link>
-                        </Button>
-                      </CardFooter>
+                      <CardContent>
+                        <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm max-h-[200px] overflow-y-auto">
+                          <code>{snippet.code}</code>
+                        </pre>
+                      </CardContent>
                     </Card>
                   ))}
                 </div>
-              ) : validRelatedConcepts.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground mb-2">These concepts are related:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {validRelatedConcepts.map((related, idx) => {
-                      let displayTitle: string;
-                      let conceptId: string | undefined;
-                      
-                      // Handle different formats of related concepts
-                      if (typeof related === 'string') {
-                        displayTitle = related;
-                        conceptId = related;
-                      } else if (typeof related === 'object' && related !== null) {
-                        // If we have an ID but no title, this is likely a broken reference
-                        displayTitle = related.title || 
-                          (related.id ? `[Missing Concept: ${related.id.substring(0, 8)}...]` : 'Unknown Concept');
-                        conceptId = related.id || related.title;
-                      } else {
-                        displayTitle = 'Unknown Concept';
-                        conceptId = undefined;
-                      }
-                      
-                      return (
-                        <Badge key={idx} className={`text-sm group relative pr-8 ${
-                          // Style broken references differently
-                          (typeof related === 'object' && related?.id && !related?.title) 
-                            ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10' 
-                            : ''
-                        }`}>
-                          {conceptId ? (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  // First check if concept exists by ID
-                                  let conceptExists = false;
-                                  let realConceptId = conceptId;
-                                  
-                                  // If conceptId looks like an ID, try to fetch directly
-                                  if (conceptId && conceptId.length > 10 && conceptId.includes('-')) {
-                                    try {
-                                      const directResponse = await fetch(`/api/concepts/${conceptId}`);
-                                      if (directResponse.ok) {
-                                        conceptExists = true;
-                                      }
-                                    } catch (e) {
-                                      // Continue to title-based lookup
-                                    }
-                                  }
-                                  
-                                  // If not found by ID, try by title
-                                  if (!conceptExists) {
-                                    try {
-                                      const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
-                                      if (titleResponse.ok) {
-                                        const conceptData = await titleResponse.json();
-                                        if (conceptData && conceptData.id) {
-                                          conceptExists = true;
-                                          realConceptId = conceptData.id;
-                                        }
-                                      }
-                                    } catch (e) {
-                                      // Concept doesn't exist
-                                    }
-                                  }
-                                  
-                                  if (conceptExists && realConceptId) {
-                                    // Navigate to existing concept
-                                    window.location.href = `/concept/${realConceptId}`;
-                                  } else {
-                                    // Concept doesn't exist - show toast to add it
-                                    toast({
-                                      title: "Add as New Concept",
-                                      description: `"${displayTitle}" doesn't exist yet. Do you want to analyze and create it?`,
-                                      action: (
-                                        <div className="flex gap-2">
-                                          <button
-                                            className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-medium h-8 px-3 hover:bg-primary/90"
-                                            onClick={() => {
-                                              // Store context for later linking
-                                              localStorage.setItem('linkBackToConcept', JSON.stringify({
-                                                id: concept.id,
-                                                title: concept.title,
-                                                relatedConceptTitle: displayTitle
-                                              }));
-                                              // Redirect to analyze page
-                                              window.location.href = `/analyze?concept=${encodeURIComponent(displayTitle)}`;
-                                            }}
-                                          >
-                                            Yes
-                                          </button>
-                                          <button
-                                            className="inline-flex items-center justify-center rounded-md border border-input bg-background text-xs font-medium h-8 px-3 hover:bg-accent"
-                                            onClick={() => {
-                                              // Just dismiss the toast
-                                            }}
-                                          >
-                                            No
-                                          </button>
-                                        </div>
-                                      ),
-                                      duration: 5000,
-                                    });
-                                  }
-                                } catch (error) {
-                                  console.error('Error checking/creating concept:', error);
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to process concept. Please try again.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
-                              className="hover:underline"
-                            >
-                              {displayTitle}
-                            </button>
-                          ) : (
-                            <span>{displayTitle}</span>
-                          )}
-                          
-                          {/* Delete relationship button for all related concepts */}
-                          {conceptId && (
-                            <button 
-                              className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity h-4 w-4 rounded-full hover:bg-destructive/20 flex items-center justify-center text-destructive"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                // Show confirmation toast instead of dialog
-                                toast({
-                                  title: "Remove Relationship?",
-                                  description: `Click confirm to remove relationship with "${displayTitle}"`,
-                                  action: (
-                                    <div className="flex gap-2">
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-md bg-destructive text-destructive-foreground text-xs font-medium h-8 px-3 hover:bg-destructive/90"
-                                        onClick={async () => {
-                                          try {
-                                            // Get the actual concept ID for disconnection
-                                            let actualConceptId = conceptId;
-                                            
-                                            // If conceptId is a title, try to get the actual ID
-                                            if (typeof related === 'string' || (typeof related === 'object' && !related?.id)) {
-                                              try {
-                                                const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
-                                                if (titleResponse.ok) {
-                                                  const conceptData = await titleResponse.json();
-                                                  if (conceptData && conceptData.id) {
-                                                    actualConceptId = conceptData.id;
-                                                  }
-                                                }
-                                              } catch (e) {
-                                                // Use the original conceptId
-                                              }
-                                            } else if (typeof related === 'object' && related?.id) {
-                                              actualConceptId = related.id;
-                                            }
-                                            
-                                            await disconnectConcepts(concept.id, actualConceptId);
-                                            
-                                            toast({
-                                              title: "Relationship Removed",
-                                              description: `Removed relationship with "${displayTitle}"`,
-                                            });
-                                            
-                                            // Refresh the concept data
-                                            await refreshConcept();
-                                          } catch (error) {
-                                            console.error('Error removing relationship:', error);
-                                            toast({
-                                              title: "Error",
-                                              description: "Failed to remove relationship",
-                                              variant: "destructive",
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        Confirm
-                                      </button>
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-md border border-input bg-background text-xs font-medium h-8 px-3 hover:bg-accent"
-                                        onClick={() => {
-                                          // Toast will auto-dismiss
-                                        }}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ),
-                                  duration: 5000,
-                                });
-                              }}
-                              title={`Remove relationship with ${displayTitle}`}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No related concepts found.</p>
               )}
             </div>
-          )}
 
-          {/* Related Conversations Section */}
-          {relatedConversations && relatedConversations.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center mb-4">
-                <MessageSquare className="mr-2 h-5 w-5 text-primary" />
-                <h2 className="text-xl font-semibold">Conversations where this concept was discussed</h2>
-              </div>
+            {/* Right Column - Related Concepts & Info (30% width) */}
+            <div className="space-y-6">
+              {/* Category and Actions Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={`/review/${concept.id}`}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Review & Practice
+                    </Link>
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setIsConnectionDialogOpen(true)}
+                    className="w-full"
+                  >
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Connect to Concept
+                  </Button>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={`/concept/${concept.id}/enhance`}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Enhance Concept
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
 
-              <div className="grid gap-4">
-                {relatedConversations.map((conv) => (
-                  <ConversationCard 
-                    key={conv.id} 
-                    conversation={{
-                      id: conv.id,
-                      title: conv.title,
-                      summary: conv.summary,
-                      date: conv.date,
-                      concepts: [],
-                      conceptMap: [],
-                      keyPoints: []
-                    }} 
+              {/* Related Concepts Card - with suggested concepts */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center">
+                    <ExternalLink className="mr-2 h-5 w-5" />
+                    <CardTitle>Related Concepts</CardTitle>
+                  </div>
+                  <CardDescription>Concepts linked to this one</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
+                  {/* Existing Related Concepts */}
+                  {relatedConcepts && relatedConcepts.length > 0 ? (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-muted-foreground">Connected Concepts</h4>
+                      {relatedConcepts.map((relatedConcept) => (
+                        <Card key={relatedConcept.id} className="hover:shadow-md transition-shadow group relative">
+                          <CardHeader className="pb-2">
+                            <div className="flex justify-between items-start">
+                              <CardTitle className="text-sm">{relatedConcept.title}</CardTitle>
+                              <div className="flex gap-2 items-center">
+                                {relatedConcept.category && <Badge variant="outline" className="text-xs">{relatedConcept.category}</Badge>}
+                                {/* Delete relationship button */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    try {
+                                      await disconnectConcepts(concept.id, relatedConcept.id);
+                                      toast({
+                                        title: "Relationship Removed",
+                                        description: `Removed relationship with "${relatedConcept.title}"`,
+                                      });
+                                      await refreshConcept();
+                                    } catch (error) {
+                                      console.error('Error removing relationship:', error);
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to remove relationship",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  title={`Remove relationship with ${relatedConcept.title}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            {relatedConcept.summary && (
+                              <CardDescription className="line-clamp-2 text-xs">{relatedConcept.summary.substring(0, 100)}...</CardDescription>
+                            )}
+                          </CardHeader>
+                          <CardFooter className="pt-2">
+                            <Button variant="ghost" size="sm" asChild className="ml-auto">
+                              <Link href={`/concept/${relatedConcept.id}`}>
+                                View concept
+                                <ArrowRight className="ml-1 h-3 w-3" />
+                              </Link>
+                            </Button>
+                          </CardFooter>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : validRelatedConcepts.length > 0 ? (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">Related Concept Names</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {validRelatedConcepts.map((related, idx) => {
+                          let displayTitle: string;
+                          let conceptId: string | undefined;
+                          
+                          // Handle different formats of related concepts
+                          if (typeof related === 'string') {
+                            displayTitle = related;
+                            conceptId = related;
+                          } else if (typeof related === 'object' && related !== null) {
+                            // If we have an ID but no title, this is likely a broken reference
+                            displayTitle = related.title || 
+                              (related.id ? `[Missing Concept: ${related.id.substring(0, 8)}...]` : 'Unknown Concept');
+                            conceptId = related.id || related.title;
+                          } else {
+                            displayTitle = 'Unknown Concept';
+                            conceptId = undefined;
+                          }
+                          
+                          return (
+                            <Badge key={idx} className={`text-sm group relative pr-8 ${
+                              // Style broken references differently
+                              (typeof related === 'object' && related?.id && !related?.title) 
+                                ? 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10' 
+                                : ''
+                            }`}>
+                              {conceptId ? (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      // First check if concept exists by ID
+                                      let conceptExists = false;
+                                      let realConceptId = conceptId;
+                                      
+                                      // If conceptId looks like an ID, try to fetch directly
+                                      if (conceptId && conceptId.length > 10 && conceptId.includes('-')) {
+                                        try {
+                                          const directResponse = await fetch(`/api/concepts/${conceptId}`);
+                                          if (directResponse.ok) {
+                                            conceptExists = true;
+                                          }
+                                        } catch (e) {
+                                          // Continue to title-based lookup
+                                        }
+                                      }
+                                      
+                                      // If not found by ID, try by title
+                                      if (!conceptExists) {
+                                        try {
+                                          const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
+                                          if (titleResponse.ok) {
+                                            const conceptData = await titleResponse.json();
+                                            if (conceptData && conceptData.id) {
+                                              conceptExists = true;
+                                              realConceptId = conceptData.id;
+                                            }
+                                          }
+                                        } catch (e) {
+                                          // Concept doesn't exist
+                                        }
+                                      }
+                                      
+                                      if (conceptExists && realConceptId) {
+                                        // Navigate to existing concept
+                                        window.location.href = `/concept/${realConceptId}`;
+                                      } else {
+                                        // Concept doesn't exist - show toast to add it
+                                        toast({
+                                          title: "Create and Link Concept",
+                                          description: `"${displayTitle}" doesn't exist. Create it with AI and link to this concept?`,
+                                          action: (
+                                            <div className="flex gap-2">
+                                              <button
+                                                className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-medium h-8 px-3 hover:bg-primary/90"
+                                                onClick={async () => {
+                                                  try {
+                                                    // Generate concept with AI
+                                                    const generateResponse = await fetch('/api/concepts/generate', {
+                                                      method: 'POST',
+                                                      headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'x-user-email': localStorage.getItem('userEmail') || '',
+                                                        'x-user-id': localStorage.getItem('userId') || '',
+                                                      },
+                                                      body: JSON.stringify({
+                                                        conceptName: displayTitle,
+                                                        context: `Generate a concept for "${displayTitle}" that relates to "${concept.title}" in the category "${concept.category}". Base it on this context: ${concept.summary || concept.details || 'No additional context'}`,
+                                                        sourceConcept: {
+                                                          id: concept.id,
+                                                          title: concept.title,
+                                                          category: concept.category
+                                                        }
+                                                      }),
+                                                    });
+                                                    
+                                                    if (!generateResponse.ok) {
+                                                      throw new Error('Failed to generate concept');
+                                                    }
+                                                    
+                                                    const newConcept = await generateResponse.json();
+                                                    
+                                                    // Link the new concept to current concept
+                                                    await connectConcepts(concept.id, newConcept.concept.id);
+                                                    
+                                                    toast({
+                                                      title: "Concept Created & Linked!",
+                                                      description: `"${displayTitle}" has been created and linked to this concept`,
+                                                    });
+                                                    
+                                                    // Refresh to show the new connection
+                                                    await refreshConcept();
+                                                  } catch (error) {
+                                                    console.error('Error creating concept:', error);
+                                                    toast({
+                                                      title: "Error",
+                                                      description: "Failed to create concept. Please try again.",
+                                                      variant: "destructive",
+                                                    });
+                                                  }
+                                                }}
+                                              >
+                                                Create & Link
+                                              </button>
+                                              <button
+                                                className="inline-flex items-center justify-center rounded-md border border-input bg-background text-xs font-medium h-8 px-3 hover:bg-accent"
+                                                onClick={() => {
+                                                  // Just dismiss the toast
+                                                }}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          ),
+                                          duration: 8000,
+                                        });
+                                      }
+                                    } catch (error) {
+                                      console.error('Error checking/creating concept:', error);
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to process concept. Please try again.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  className="hover:underline"
+                                >
+                                  {displayTitle}
+                                </button>
+                              ) : (
+                                <span>{displayTitle}</span>
+                              )}
+                              
+                              {/* Delete relationship button for all related concepts */}
+                              {conceptId && (
+                                <button 
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity h-4 w-4 rounded-full hover:bg-destructive/20 flex items-center justify-center text-destructive"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    try {
+                                      // Get the actual concept ID for disconnection
+                                      let actualConceptId = conceptId;
+                                      
+                                      // If conceptId is a title, try to get the actual ID
+                                      if (typeof related === 'string' || (typeof related === 'object' && !related?.id)) {
+                                        try {
+                                          const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
+                                          if (titleResponse.ok) {
+                                            const conceptData = await titleResponse.json();
+                                            if (conceptData && conceptData.id) {
+                                              actualConceptId = conceptData.id;
+                                            }
+                                          }
+                                        } catch (e) {
+                                          // Use the original conceptId
+                                        }
+                                      } else if (typeof related === 'object' && related?.id) {
+                                        actualConceptId = related.id;
+                                      }
+                                      
+                                      await disconnectConcepts(concept.id, actualConceptId);
+                                      
+                                      toast({
+                                        title: "Relationship Removed",
+                                        description: `Removed relationship with "${displayTitle}"`,
+                                      });
+                                      
+                                      // Refresh the concept data
+                                      await refreshConcept();
+                                    } catch (error) {
+                                      console.error('Error removing relationship:', error);
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to remove relationship",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  title={`Remove relationship with ${displayTitle}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No related concepts found.</p>
+                  )}
+
+                  {/* Suggested Related Concepts - NEW FEATURE */}
+                  <SuggestedRelatedConcepts 
+                    currentConcept={concept}
+                    existingRelatedIds={new Set([
+                      ...(relatedConcepts || []).map(r => r.id),
+                      ...validRelatedConcepts.map(r => typeof r === 'object' && r?.id ? r.id : '')
+                    ])}
+                    onConceptCreated={async () => {
+                      await refreshConcept();
+                    }}
                   />
-                ))}
-              </div>
+                </CardContent>
+              </Card>
+
+              {/* Related Conversations Section */}
+              {relatedConversations && relatedConversations.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center">
+                      <MessageSquare className="mr-2 h-5 w-5" />
+                      <CardTitle>Related Conversations</CardTitle>
+                    </div>
+                    <CardDescription>Conversations discussing this concept</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {relatedConversations.map((conv) => (
+                      <ConversationCard 
+                        key={conv.id} 
+                        conversation={{
+                          id: conv.id,
+                          title: conv.title,
+                          summary: conv.summary,
+                          date: conv.date,
+                          concepts: [],
+                          conceptMap: [],
+                          keyPoints: []
+                        }} 
+                      />
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </DndProvider>
       
