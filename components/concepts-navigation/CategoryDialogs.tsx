@@ -110,6 +110,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
   const [localSelectedParentCategory, setLocalSelectedParentCategory] = useState('')
+  const [categorySearchQuery, setCategorySearchQuery] = useState('')
 
   console.log('🚀 CategoryDialogs: Redux-only mode - no loading context conflicts!')
   
@@ -121,6 +122,7 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
     setTargetCategory('')
     setCreateNewCategory(false)
     setLocalSelectedParentCategory('')
+    setCategorySearchQuery('')
     console.log('✅ Redux: Dialog state reset instantly')
     
     // Call Redux cancel immediately - no loading system interference
@@ -176,11 +178,42 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
     }
   }
 
-  // Get available categories for transfer (excluding current category)
-  const availableCategories = Object.keys(conceptsByCategory).filter(cat => 
-    cat !== (transferConcepts[0]?.category || '') && 
-    conceptsByCategory[cat].some(c => !c.isPlaceholder)
-  ).sort()
+  // Get available categories for transfer (excluding current category) - includes both parents and subcategories
+  const getAllAvailableCategories = () => {
+    const currentCategory = transferConcepts[0]?.category || ''
+    const allCategories = new Set<string>()
+    
+    // Add all existing categories
+    Object.keys(conceptsByCategory).forEach(cat => {
+      if (cat !== currentCategory && conceptsByCategory[cat].some(c => !c.isPlaceholder)) {
+        allCategories.add(cat)
+        
+        // If this is a subcategory, also add its parent
+        if (cat.includes(' > ')) {
+          const parentParts = cat.split(' > ')
+          for (let i = 1; i < parentParts.length; i++) {
+            const parentPath = parentParts.slice(0, i).join(' > ')
+            allCategories.add(parentPath)
+          }
+        }
+      }
+    })
+    
+    return Array.from(allCategories).sort()
+  }
+
+  // Filter categories based on search query
+  const getFilteredCategories = () => {
+    const allCategories = getAllAvailableCategories()
+    if (!categorySearchQuery.trim()) {
+      return allCategories
+    }
+    
+    const query = categorySearchQuery.toLowerCase()
+    return allCategories.filter(category => 
+      category.toLowerCase().includes(query)
+    )
+  }
 
   // Toggle select all/none
   const handleToggleAll = () => {
@@ -386,19 +419,32 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                 {!createNewCategory && (
                   <div className="ml-7 space-y-2">
                     <Label className="text-sm text-muted-foreground">Select destination category</Label>
-                    <select
-                      value={targetCategory}
-                      onChange={(e) => setTargetCategory(e.target.value)}
-                      disabled={isMovingConcepts}
-                      className="w-full text-sm py-2 px-3 border rounded-md bg-background"
-                    >
-                      <option value="">Choose a category...</option>
-                      {availableCategories.map(category => (
-                        <option key={category} value={category}>
-                          📁 {category} ({conceptsByCategory[category]?.length || 0} concepts)
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Search categories..."
+                        value={categorySearchQuery}
+                        onChange={(e) => setCategorySearchQuery(e.target.value)}
+                        className="text-sm"
+                      />
+                      <select
+                        value={targetCategory}
+                        onChange={(e) => setTargetCategory(e.target.value)}
+                        disabled={isMovingConcepts}
+                        className="w-full text-sm py-2 px-3 border rounded-md bg-background"
+                      >
+                        <option value="">Choose a category...</option>
+                        {getFilteredCategories().map(category => {
+                          const conceptCount = conceptsByCategory[category]?.length || 0
+                          const isParentCategory = !conceptsByCategory[category] && Object.keys(conceptsByCategory).some(cat => cat.startsWith(category + ' > '))
+                          
+                          return (
+                            <option key={category} value={category}>
+                              📁 {category} {isParentCategory ? '(parent category)' : `(${conceptCount} concepts)`}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
                     
                     {targetCategory && (
                       <div className="p-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded text-sm">
@@ -427,19 +473,27 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                   <div className="ml-7 space-y-3">
                     <div>
                       <Label className="text-sm text-muted-foreground">Select parent category</Label>
-                      <select
-                        value={localSelectedParentCategory}
-                        onChange={(e) => setLocalSelectedParentCategory(e.target.value)}
-                        disabled={isMovingConcepts}
-                        className="w-full text-sm py-2 px-3 border rounded-md bg-background mt-1"
-                      >
-                        <option value="">Create as top-level category</option>
-                        {availableCategories.map(category => (
-                          <option key={category} value={category}>
-                            📁 {category}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="space-y-2 mt-1">
+                        <Input
+                          placeholder="Search parent categories..."
+                          value={categorySearchQuery}
+                          onChange={(e) => setCategorySearchQuery(e.target.value)}
+                          className="text-sm"
+                        />
+                        <select
+                          value={localSelectedParentCategory}
+                          onChange={(e) => setLocalSelectedParentCategory(e.target.value)}
+                          disabled={isMovingConcepts}
+                          className="w-full text-sm py-2 px-3 border rounded-md bg-background"
+                        >
+                          <option value="">Create as top-level category</option>
+                          {getFilteredCategories().map(category => (
+                            <option key={category} value={category}>
+                              📁 {category}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     
                     <div>
