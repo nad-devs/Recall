@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { FolderPlus, ArrowRight, AlertTriangle, Folder } from "lucide-react"
+import { FolderPlus, ArrowRight, AlertTriangle, Folder, ChevronDown } from "lucide-react"
 import { Select, SelectOption } from "@/components/ui/select"
 
 interface Concept {
@@ -67,6 +67,102 @@ interface CategoryDialogsProps {
   handleRenameCategoryConfirm: () => void
 }
 
+// Custom searchable select component
+const SearchableSelect = ({ 
+  value, 
+  onChange, 
+  options, 
+  placeholder, 
+  disabled = false,
+  className = ""
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: Array<{ value: string; label: string; description?: string }>
+  placeholder: string
+  disabled?: boolean
+  className?: string
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    option.value.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  
+  const selectedOption = options.find(opt => opt.value === value)
+  
+  const handleSelect = (optionValue: string) => {
+    onChange(optionValue)
+    setIsOpen(false)
+    setSearchQuery('')
+  }
+  
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left py-2 px-3 border rounded-md bg-background text-sm flex items-center justify-between hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <span className={selectedOption ? "text-foreground" : "text-muted-foreground"}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-hidden">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Type to search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="text-sm"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No categories found
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleSelect(option.value)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{option.label}</span>
+                    {option.description && (
+                      <span className="text-xs text-muted-foreground">{option.description}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => {
+            setIsOpen(false)
+            setSearchQuery('')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 export const CategoryDialogs = React.memo(function CategoryDialogs({
   // State values
   showAddSubcategoryDialog,
@@ -110,7 +206,6 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
   const [targetCategory, setTargetCategory] = useState('')
   const [createNewCategory, setCreateNewCategory] = useState(false)
   const [localSelectedParentCategory, setLocalSelectedParentCategory] = useState('')
-  const [categorySearchQuery, setCategorySearchQuery] = useState('')
 
   console.log('🚀 CategoryDialogs: Redux-only mode - no loading context conflicts!')
   
@@ -122,7 +217,6 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
     setTargetCategory('')
     setCreateNewCategory(false)
     setLocalSelectedParentCategory('')
-    setCategorySearchQuery('')
     console.log('✅ Redux: Dialog state reset instantly')
     
     // Call Redux cancel immediately - no loading system interference
@@ -200,19 +294,6 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
     })
     
     return Array.from(allCategories).sort()
-  }
-
-  // Filter categories based on search query
-  const getFilteredCategories = () => {
-    const allCategories = getAllAvailableCategories()
-    if (!categorySearchQuery.trim()) {
-      return allCategories
-    }
-    
-    const query = categorySearchQuery.toLowerCase()
-    return allCategories.filter(category => 
-      category.toLowerCase().includes(query)
-    )
   }
 
   // Toggle select all/none
@@ -420,30 +501,22 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                   <div className="ml-7 space-y-2">
                     <Label className="text-sm text-muted-foreground">Select destination category</Label>
                     <div className="space-y-2">
-                      <Input
-                        placeholder="Search categories..."
-                        value={categorySearchQuery}
-                        onChange={(e) => setCategorySearchQuery(e.target.value)}
-                        className="text-sm"
-                      />
-                      <select
+                      <SearchableSelect
                         value={targetCategory}
-                        onChange={(e) => setTargetCategory(e.target.value)}
-                        disabled={isMovingConcepts}
-                        className="w-full text-sm py-2 px-3 border rounded-md bg-background"
-                      >
-                        <option value="">Choose a category...</option>
-                        {getFilteredCategories().map(category => {
+                        onChange={setTargetCategory}
+                        options={getAllAvailableCategories().map(category => {
                           const conceptCount = conceptsByCategory[category]?.length || 0
                           const isParentCategory = !conceptsByCategory[category] && Object.keys(conceptsByCategory).some(cat => cat.startsWith(category + ' > '))
                           
-                          return (
-                            <option key={category} value={category}>
-                              📁 {category} {isParentCategory ? '(parent category)' : `(${conceptCount} concepts)`}
-                            </option>
-                          )
+                          return {
+                            value: category,
+                            label: `📁 ${category}`,
+                            description: isParentCategory ? '(parent category)' : `(${conceptCount} concepts)`
+                          }
                         })}
-                      </select>
+                        placeholder="Choose a category..."
+                        disabled={isMovingConcepts}
+                      />
                     </div>
                     
                     {targetCategory && (
@@ -474,25 +547,20 @@ export const CategoryDialogs = React.memo(function CategoryDialogs({
                     <div>
                       <Label className="text-sm text-muted-foreground">Select parent category</Label>
                       <div className="space-y-2 mt-1">
-                        <Input
-                          placeholder="Search parent categories..."
-                          value={categorySearchQuery}
-                          onChange={(e) => setCategorySearchQuery(e.target.value)}
-                          className="text-sm"
-                        />
-                        <select
+                        <SearchableSelect
                           value={localSelectedParentCategory}
-                          onChange={(e) => setLocalSelectedParentCategory(e.target.value)}
+                          onChange={setLocalSelectedParentCategory}
+                          options={[
+                            { value: '', label: 'Create as top-level category', description: '(no parent)' },
+                            ...getAllAvailableCategories().map(category => ({
+                              value: category,
+                              label: `📁 ${category}`,
+                              description: conceptsByCategory[category]?.length ? `(${conceptsByCategory[category].length} concepts)` : undefined
+                            }))
+                          ]}
+                          placeholder="Select parent category..."
                           disabled={isMovingConcepts}
-                          className="w-full text-sm py-2 px-3 border rounded-md bg-background"
-                        >
-                          <option value="">Create as top-level category</option>
-                          {getFilteredCategories().map(category => (
-                            <option key={category} value={category}>
-                              📁 {category}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     </div>
                     
