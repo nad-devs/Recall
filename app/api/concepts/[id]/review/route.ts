@@ -69,19 +69,25 @@ export async function POST(
     console.log('🔧 Review API - Needs review:', finalConfidenceScore < 0.7);
     console.log('🔧 Review API - Status:', percentageScore >= 0.8 ? 'MASTERED (≥80%)' : 'NEEDS REVIEW (<80%)');
     
-    // Use raw SQL for the update to avoid TypeScript issues
-    // This ensures we can update all fields regardless of TypeScript definitions
-    await prisma.$executeRaw`
-      UPDATE "Concept" 
-      SET 
-        "confidenceScore" = ${finalConfidenceScore},
-        "lastReviewed" = ${new Date().toISOString()},
-        "reviewCount" = "reviewCount" + 1,
-        "nextReviewDate" = ${new Date(Date.now() + (percentageScore >= 0.8 ? 14 : 7) * 24 * 60 * 60 * 1000).toISOString()}
-      WHERE "id" = ${id}
-    `;
+    // Update using Prisma's safer update method instead of raw SQL
+    try {
+      const updatedConcept = await prisma.concept.update({
+        where: { id },
+        data: {
+          confidenceScore: finalConfidenceScore,
+          lastReviewed: new Date(),
+          reviewCount: (existingConcept.reviewCount || 0) + 1,
+          nextReviewDate: new Date(Date.now() + (percentageScore >= 0.8 ? 14 : 7) * 24 * 60 * 60 * 1000)
+        }
+      });
+      
+      console.log('🔧 Review API - Update successful, new confidence:', updatedConcept.confidenceScore);
+    } catch (updateError) {
+      console.error('🔧 Review API - Update failed:', updateError);
+      throw updateError;
+    }
     
-    console.log('🔧 Review API - Update successful');
+    console.log('🔧 Review API - Operation completed successfully');
     
     return NextResponse.json({ 
       success: true,
