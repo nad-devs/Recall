@@ -227,7 +227,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
   return (
     <PageTransition>
       <DndProvider backend={HTML5Backend}>
-        <div className="container mx-auto py-6 space-y-6">
+        <div className="container mx-auto py-6 px-4 space-y-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2 mb-2">
@@ -542,7 +542,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Related Concepts Section - Improved Grid Layout */}
           {hasRelatedConcepts && (
-            <div className="mt-8">
+            <div className="mt-8 px-2">
               <h2 className="text-xl font-semibold mb-6 flex items-center">
                 <ExternalLink className="mr-2 h-5 w-5" />
                 Related Concepts
@@ -618,7 +618,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Related Conversations Section - At the Bottom */}
           {relatedConversations && relatedConversations.length > 0 && (
-            <div className="mt-8">
+            <div className="mt-8 px-2">
               <h2 className="text-xl font-semibold mb-4 flex items-center">
                 <MessageSquare className="mr-2 h-5 w-5" />
                 Related Conversations
