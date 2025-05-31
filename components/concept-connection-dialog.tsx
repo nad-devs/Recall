@@ -16,7 +16,7 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
-import { Check, Link as LinkIcon, X, Plus } from "lucide-react"
+import { Check, Link as LinkIcon, X, Plus, Brain } from "lucide-react"
 
 interface ConceptConnectionDialogProps {
   isOpen: boolean
@@ -64,6 +64,7 @@ export function ConceptConnectionDialog({
   const [showDropdown, setShowDropdown] = useState<boolean>(false)
   const [filteredConcepts, setFilteredConcepts] = useState<Array<{ id: string; title: string }>>([])
   const [willCreateNew, setWillCreateNew] = useState<boolean>(false)
+  const [isGeneratingConcept, setIsGeneratingConcept] = useState<boolean>(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   
@@ -76,6 +77,7 @@ export function ConceptConnectionDialog({
       setSelectedConceptTitle("")
       setShowDropdown(false)
       setWillCreateNew(false)
+      setIsGeneratingConcept(false)
     }
   }, [isOpen])
 
@@ -133,29 +135,60 @@ export function ConceptConnectionDialog({
     }
   }
 
-  const createNewConcept = async (title: string) => {
+  const generateAndCreateConcept = async (title: string) => {
     try {
-      const response = await fetch('/api/concepts', {
+      setIsGeneratingConcept(true)
+      
+      // First, generate the concept using AI
+      const generateResponse = await fetch('/api/concepts/generate', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
-          title,
-          isManualCreation: true // Mark as manual creation so it gets lower confidence score
+          conceptName: title,
+          context: `Generate a concept that could be related to "${sourceConcept.title}"`
         }),
       })
 
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!generateResponse.ok) {
+        throw new Error('Failed to generate concept content')
+      }
+
+      const generateData = await generateResponse.json()
+      
+      if (!generateData.success) {
+        throw new Error(generateData.error || 'Failed to generate concept')
+      }
+
+      // Now create the concept with the AI-generated content
+      const createResponse = await fetch('/api/concepts', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ 
+          title: generateData.concept.title,
+          category: generateData.concept.category,
+          summary: generateData.concept.summary,
+          details: generateData.concept.details,
+          keyPoints: generateData.concept.keyPoints,
+          examples: generateData.concept.examples,
+          relatedConcepts: generateData.concept.relatedConcepts,
+          isAIGenerated: true
+        }),
+      })
+
+      if (!createResponse.ok) {
+        if (createResponse.status === 401) {
           throw new Error('Authentication failed - please make sure you are logged in')
         }
         throw new Error('Failed to create concept')
       }
 
-      const data = await response.json()
-      return data.concept.id
+      const createData = await createResponse.json()
+      return createData.concept.id
     } catch (error) {
-      console.error('Error creating concept:', error)
+      console.error('Error generating and creating concept:', error)
       throw error
+    } finally {
+      setIsGeneratingConcept(false)
     }
   }
 
@@ -172,7 +205,13 @@ export function ConceptConnectionDialog({
     
     try {
       setIsLoading(true)
-      const newConceptId = await createNewConcept(searchTerm.trim())
+      
+      toast({
+        title: "Generating concept...",
+        description: `AI is creating and analyzing "${searchTerm.trim()}"`,
+      })
+      
+      const newConceptId = await generateAndCreateConcept(searchTerm.trim())
       setSelectedConceptId(newConceptId)
       setSelectedConceptTitle(searchTerm.trim())
       setShowDropdown(false)
@@ -180,12 +219,12 @@ export function ConceptConnectionDialog({
       
       toast({
         title: "Success",
-        description: `Created new concept: "${searchTerm.trim()}"`,
+        description: `AI generated concept: "${searchTerm.trim()}" with proper category and details`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create new concept",
+        description: error instanceof Error ? error.message : "Failed to generate new concept",
         variant: "destructive",
       })
     } finally {
@@ -209,7 +248,7 @@ export function ConceptConnectionDialog({
       
       toast({
         title: "Success",
-        description: `Successfully connected to "${selectedConceptTitle}"`,
+        description: `Successfully connected "${sourceConcept.title}" to "${selectedConceptTitle}"`,
       })
       
       onOpenChange(false)
@@ -239,65 +278,66 @@ export function ConceptConnectionDialog({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center">
+      <AlertDialogContent className="max-w-md bg-background/95 backdrop-blur-sm border-2">
+        <AlertDialogHeader className="bg-muted/30 p-4 rounded-lg">
+          <AlertDialogTitle className="flex items-center text-foreground">
             <LinkIcon className="h-4 w-4 mr-2" />
             Connect Concepts
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            Search for a concept to connect with <Badge variant="outline">{sourceConcept.title}</Badge>, or type a new concept name to create it.
+          <AlertDialogDescription className="text-muted-foreground bg-background/60 p-2 rounded">
+            Search for a concept to connect with <Badge variant="outline" className="bg-primary/10">{sourceConcept.title}</Badge>, or type a new concept name to have AI create it.
           </AlertDialogDescription>
         </AlertDialogHeader>
         
-        <div className="py-4 relative">
-          <Label htmlFor="concept-search">Search or create concept</Label>
+        <div className="py-4 relative bg-muted/20 p-4 rounded-lg">
+          <Label htmlFor="concept-search" className="text-foreground font-medium">Search or create concept</Label>
           <Input
             ref={inputRef}
             id="concept-search"
             type="text"
-            placeholder={availableConcepts.length === 0 ? "Type concept name to create..." : "Search concepts or type to create new..."}
+            placeholder={availableConcepts.length === 0 ? "Type concept name for AI to create..." : "Search concepts or type to create new..."}
             value={searchTerm}
             onChange={handleInputChange}
             onFocus={() => searchTerm && setShowDropdown(true)}
-            disabled={isLoading}
-            className="mt-2"
+            disabled={isLoading || isGeneratingConcept}
+            className="mt-2 bg-background/80 border-2"
           />
           
           {/* Dropdown with search results */}
           {showDropdown && (
-            <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-50 w-full mt-1 bg-background/95 backdrop-blur-sm border-2 rounded-md shadow-lg max-h-48 overflow-y-auto">
               {filteredConcepts.length > 0 && (
                 <>
                   {filteredConcepts.map((concept) => (
                     <button
                       key={concept.id}
-                      className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between"
+                      className="w-full px-3 py-2 text-left hover:bg-muted/60 flex items-center justify-between border-b border-muted/30"
                       onClick={() => handleSelectConcept(concept)}
                     >
-                      <span>{concept.title}</span>
+                      <span className="text-foreground">{concept.title}</span>
                       {selectedConceptId === concept.id && (
                         <Check className="h-4 w-4 text-primary" />
                       )}
                     </button>
                   ))}
-                  {willCreateNew && <div className="border-t" />}
+                  {willCreateNew && <div className="border-t-2 border-muted/50" />}
                 </>
               )}
               
               {willCreateNew && (
                 <button
-                  className="w-full px-3 py-2 text-left hover:bg-muted flex items-center text-primary"
+                  className="w-full px-3 py-2 text-left hover:bg-primary/10 flex items-center text-primary font-medium"
                   onClick={handleCreateAndSelect}
-                  disabled={isLoading}
+                  disabled={isLoading || isGeneratingConcept}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create "{searchTerm}"
+                  <Brain className="h-4 w-4 mr-2" />
+                  AI Generate "{searchTerm}"
+                  {isGeneratingConcept && <span className="ml-2 text-xs">(Generating...)</span>}
                 </button>
               )}
               
               {filteredConcepts.length === 0 && !willCreateNew && searchTerm && (
-                <div className="px-3 py-2 text-muted-foreground text-sm">
+                <div className="px-3 py-2 text-muted-foreground text-sm bg-muted/30">
                   No concepts found
                 </div>
               )}
@@ -306,23 +346,30 @@ export function ConceptConnectionDialog({
           
           {/* Status messages */}
           {availableConcepts.length === 0 && !isLoading && (
-            <p className="text-sm text-muted-foreground mt-2">
-              No existing concepts available. Type a concept name to create a new one.
+            <p className="text-sm text-muted-foreground mt-2 bg-background/60 p-2 rounded">
+              No existing concepts available. Type a concept name for AI to create a new one.
             </p>
           )}
           
           {selectedConceptTitle && (
-            <p className="text-sm text-green-600 mt-2">
+            <p className="text-sm text-green-600 mt-2 bg-green-50 dark:bg-green-900/20 p-2 rounded font-medium">
               Selected: {selectedConceptTitle}
+            </p>
+          )}
+          
+          {isGeneratingConcept && (
+            <p className="text-sm text-blue-600 mt-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded font-medium flex items-center">
+              <Brain className="h-4 w-4 mr-2 animate-pulse" />
+              AI is generating concept content...
             </p>
           )}
         </div>
         
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+        <AlertDialogFooter className="bg-muted/20 p-4 rounded-lg">
+          <AlertDialogCancel disabled={isLoading || isGeneratingConcept}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConnect}
-            disabled={isLoading || !selectedConceptId}
+            disabled={isLoading || isGeneratingConcept || !selectedConceptId}
             className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 shadow-sm"
           >
             {isLoading ? "Connecting..." : "Connect Concepts"}
