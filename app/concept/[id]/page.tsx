@@ -21,7 +21,8 @@ import {
   StickyNote,
   Edit,
   Check,
-  Link as LinkIcon
+  Link as LinkIcon,
+  FileText
 } from "lucide-react"
 import { ConversationCard } from "@/components/conversation-card"
 import { useConceptDetail } from "@/hooks/useConceptDetail"
@@ -430,101 +431,184 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
 
-            {/* Right Column - Quick Actions & Enhancement (30% width) */}
+            {/* Right Column - Enhanced Concepts (30% width) */}
             <div className="space-y-6">
-              {/* Quick Actions Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href={`/review/${concept.id}`}>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      Review & Practice
-                    </Link>
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setIsConnectionDialogOpen(true)}
-                    className="w-full"
-                  >
-                    <LinkIcon className="mr-2 h-4 w-4" />
-                    Connect to Concept
-                  </Button>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href={`/concept/${concept.id}/enhance`}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Enhance Concept
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
+              {/* Enhanced Concepts Card */}
+              {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
+                    <CardDescription>Additional resources and notes</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Video Resources */}
+                    {concept.videoResources && (() => {
+                      try {
+                        const videos = JSON.parse(concept.videoResources);
+                        return videos.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center text-sm font-medium text-muted-foreground">
+                              <Video className="mr-2 h-4 w-4" />
+                              Video Resources ({videos.length})
+                            </div>
+                            <div className="space-y-2">
+                              {videos.map((url: string, index: number) => (
+                                <a 
+                                  key={index}
+                                  href={url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block text-sm text-blue-600 hover:underline break-words"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={url}
+                                >
+                                  {url}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      } catch {
+                        return null;
+                      }
+                    })()}
+                    
+                    {/* Common Mistakes */}
+                    {concept.commonMistakes && (() => {
+                      try {
+                        const mistakes = JSON.parse(concept.commonMistakes);
+                        return mistakes.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center text-sm font-medium text-muted-foreground">
+                              <AlertTriangle className="mr-2 h-4 w-4" />
+                              Common Mistakes ({mistakes.length})
+                            </div>
+                            <div className="space-y-2">
+                              {mistakes.map((mistake: string, index: number) => (
+                                <div key={index} className="text-sm text-amber-700 dark:text-amber-300 break-words">
+                                  • {mistake}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      } catch {
+                        return null;
+                      }
+                    })()}
+                    
+                    {/* Personal Notes */}
+                    {concept.personalNotes && (
+                      <div className="space-y-3">
+                        <div className="flex items-center text-sm font-medium text-muted-foreground">
+                          <FileText className="mr-2 h-4 w-4" />
+                          Additional Notes
+                        </div>
+                        <div className="text-sm text-muted-foreground break-words">
+                          {concept.personalNotes}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter className="pt-3 border-t">
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href={`/concept/${concept.id}/enhance`}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit Enhancements
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
+              
+              {/* Show edit button even if no enhancements exist */}
+              {!(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
+                    <CardDescription>Add resources and notes to enhance this concept</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href={`/concept/${concept.id}/enhance`}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Add Enhancements
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 
-          {/* Related Concepts Section - Simple List Below Main Content */}
+          {/* Related Concepts Section - Improved Grid Layout */}
           {hasRelatedConcepts && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <h2 className="text-xl font-semibold mb-6 flex items-center">
                 <ExternalLink className="mr-2 h-5 w-5" />
                 Related Concepts
               </h2>
               
-              <div className="space-y-4">
+              <div className="space-y-8">
                 {/* Database-linked concepts */}
                 {relatedConcepts && relatedConcepts.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                    <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
                       🔗 Connected Concepts
-                      <Badge variant="outline" className="text-xs bg-green-50 border-green-300">
+                      <Badge variant="outline" className="text-sm bg-green-50 border-green-300">
                         {relatedConcepts.length} linked
                       </Badge>
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {relatedConcepts.map((relatedConcept) => (
-                        <div key={relatedConcept.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow group">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-medium text-sm">{relatedConcept.title}</h4>
-                            <div className="flex gap-1 items-center">
-                              {relatedConcept.category && <Badge variant="outline" className="text-xs">{relatedConcept.category}</Badge>}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  try {
-                                    await disconnectConcepts(concept.id, relatedConcept.id);
-                                    toast({
-                                      title: "Relationship Removed",
-                                      description: `Removed relationship with "${relatedConcept.title}"`,
-                                    });
-                                    await refreshConcept();
-                                  } catch (error) {
-                                    console.error('Error removing relationship:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to remove relationship",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                        <Card key={relatedConcept.id} className="hover:shadow-lg transition-shadow group">
+                          <CardHeader className="pb-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <CardTitle className="text-lg font-semibold">{relatedConcept.title}</CardTitle>
+                              <div className="flex gap-2 items-center">
+                                {relatedConcept.category && <Badge variant="outline" className="text-xs">{relatedConcept.category}</Badge>}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                      await disconnectConcepts(concept.id, relatedConcept.id);
+                                      toast({
+                                        title: "Relationship Removed",
+                                        description: `Removed relationship with "${relatedConcept.title}"`,
+                                      });
+                                      await refreshConcept();
+                                    } catch (error) {
+                                      console.error('Error removing relationship:', error);
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to remove relationship",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          {relatedConcept.summary && (
-                            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{relatedConcept.summary.substring(0, 100)}...</p>
-                          )}
-                          <Button variant="ghost" size="sm" asChild className="w-full justify-start">
-                            <Link href={`/concept/${relatedConcept.id}`}>
-                              View concept
-                              <ArrowRight className="ml-1 h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </div>
+                            {relatedConcept.summary && (
+                              <CardDescription className="line-clamp-3 text-sm">
+                                {relatedConcept.summary.substring(0, 150)}...
+                              </CardDescription>
+                            )}
+                          </CardHeader>
+                          <CardFooter className="pt-0">
+                            <Button variant="outline" size="sm" asChild className="w-full">
+                              <Link href={`/concept/${relatedConcept.id}`}>
+                                View Concept
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </CardFooter>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -533,13 +617,13 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                 {/* Name-only references */}
                 {validRelatedConcepts && validRelatedConcepts.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                    <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
                       📝 Referenced Concepts
-                      <Badge variant="outline" className="text-xs bg-blue-50 border-blue-300">
+                      <Badge variant="outline" className="text-sm bg-blue-50 border-blue-300">
                         {validRelatedConcepts.length} mentioned
                       </Badge>
                     </h3>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {validRelatedConcepts.map((related, idx) => {
                         let displayTitle: string;
                         let conceptId: string | undefined;
@@ -556,7 +640,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                         }
                         
                         return (
-                          <Badge key={idx} className="text-sm group relative pr-8">
+                          <Badge key={idx} className="text-sm group relative pr-8 py-2 px-3">
                             {conceptId ? (
                               <button
                                 onClick={async () => {
