@@ -11,42 +11,24 @@ export async function GET(
   try {
     const { id } = await params;
     
-    console.log(`🔍 [Conversation Details] Starting request for conversation ID: ${id}`);
-    
     if (!id) {
-      console.log(`❌ [Conversation Details] No conversation ID provided`);
       return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
     }
     
     // Validate session - but be more flexible with authentication
     const user = await validateSession(request);
-    console.log(`🔍 [Conversation Details] validateSession result:`, {
-      hasUser: !!user,
-      userId: user?.id,
-      userEmail: user?.email,
-      isEmailBased: user?.isEmailBased
-    });
     
     // First, let's check if the conversation exists at all
     const conversationExists = await prisma.conversation.findUnique({
       where: { id: id }
     });
-    
-    console.log(`🔍 [Conversation Details] Conversation exists check:`, {
-      exists: !!conversationExists,
-      actualUserId: conversationExists?.userId,
-      requestedUserId: user?.id,
-      userMatch: conversationExists?.userId === user?.id
-    });
 
     if (!conversationExists) {
-      console.log(`❌ [Conversation Details] Conversation not found in database`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
     // If we have a user, check if they own this conversation
     if (user && conversationExists.userId !== user.id) {
-      console.log(`❌ [Conversation Details] User doesn't own this conversation`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
@@ -56,37 +38,18 @@ export async function GET(
       const userEmail = request.headers.get('x-user-email');
       const userId = request.headers.get('x-user-id');
       
-      console.log(`🔍 [Conversation Details] localStorage headers:`, {
-        userEmail: userEmail ? 'present' : 'missing',
-        userId: userId ? 'present' : 'missing',
-        actualUserEmail: userEmail,
-        actualUserId: userId
-      });
-      
       if (userEmail && userId) {
         // Verify this user owns the conversation
         const conversationOwner = await prisma.user.findUnique({
           where: { id: conversationExists.userId }
         });
         
-        console.log(`🔍 [Conversation Details] Conversation owner lookup:`, {
-          conversationOwnerId: conversationExists.userId,
-          ownerFound: !!conversationOwner,
-          ownerEmail: conversationOwner?.email,
-          headerEmail: userEmail,
-          headerUserId: userId,
-          emailMatch: conversationOwner?.email === userEmail,
-          idMatch: conversationOwner?.id === userId
-        });
-        
         if (conversationOwner && (conversationOwner.email === userEmail || conversationOwner.id === userId)) {
-          console.log(`✅ [Conversation Details] Authorized via localStorage headers`);
+          // Authorized via localStorage headers
         } else {
-          console.log(`❌ [Conversation Details] Unauthorized access attempt - owner mismatch`);
           return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
         }
       } else {
-        console.log(`❌ [Conversation Details] No authentication found`);
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
       }
     }
@@ -104,18 +67,9 @@ export async function GET(
       },
     });
 
-    console.log(`🔍 [Conversation Details] Final conversation query result:`, {
-      found: !!conversation,
-      conversationId: conversation?.id,
-      conceptsCount: conversation?.concepts?.length || 0
-    });
-
     if (!conversation) {
-      console.log(`❌ [Conversation Details] Conversation not found in final query`);
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
-
-    console.log(`✅ [Conversation Details] Successfully found conversation, processing response...`);
 
     // Process the conversation for the frontend
     const conceptMap = conversation.concepts.map(concept => concept.title);
@@ -139,7 +93,6 @@ export async function GET(
     try {
       summary = await generateSummaryWithLLM(conversation.text, conceptMap);
     } catch (error) {
-      console.error('Error generating summary with LLM:', error);
       // Fallback to simple summary if LLM fails
       summary = generateSimpleSummary(conversation.text, conceptMap);
     }
@@ -166,10 +119,8 @@ export async function GET(
       createdAt: conversation.createdAt,
     };
 
-    console.log(`✅ [Conversation Details] Returning formatted conversation with ${formattedConversation.concepts.length} concepts`);
     return NextResponse.json(formattedConversation);
   } catch (error) {
-    console.error('❌ [Conversation Details] Error fetching conversation:', error);
     return NextResponse.json(
       { error: 'Failed to fetch conversation' },
       { status: 500 }
@@ -282,8 +233,6 @@ export async function DELETE(
       message: 'Conversation and related concepts deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting conversation:', error);
-    
     // Provide more specific error messages based on the error type
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
