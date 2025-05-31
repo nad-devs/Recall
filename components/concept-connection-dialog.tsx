@@ -180,6 +180,8 @@ export function ConceptConnectionDialog({
         keyPoints: JSON.stringify(generateData.concept.keyPoints || []),  // Stringify array
         examples: JSON.stringify(generateData.concept.examples || []),    // Stringify array
         relatedConcepts: JSON.stringify(generateData.concept.relatedConcepts || []), // Stringify array
+        needsReview: true,      // Mark AI-generated concepts for review
+        confidenceScore: 0.7,   // Set confidence score for AI-generated concepts
         isAIGenerated: true,
         bypassSimilarityCheck: true  // Skip similarity checking for connect dialog concepts
       }
@@ -411,10 +413,10 @@ export function ConceptConnectionDialog({
           )}
           
           {isGeneratingConcept && (
-            <p className="text-sm text-blue-600 mt-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded font-medium flex items-center">
+            <div className="text-sm text-blue-600 mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 font-medium flex items-center">
               <Brain className="h-4 w-4 mr-2 animate-pulse" />
               AI is generating concept content...
-            </p>
+            </div>
           )}
         </div>
         
@@ -423,9 +425,19 @@ export function ConceptConnectionDialog({
           <AlertDialogAction
             onClick={handleConnect}
             disabled={isLoading || isGeneratingConcept || !selectedConceptId}
-            className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 shadow-sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? "Connecting..." : "Connect Concepts"}
+            {isLoading ? (
+              <div className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Connecting...
+              </div>
+            ) : (
+              "Connect Concepts"
+            )}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
