@@ -172,7 +172,25 @@ class QuizGenerator:
                 for i, question in enumerate(quiz_data["questions"]):
                     is_valid, error_msg = self._validate_quiz_question(question)
                     if is_valid:
-                        validated_questions.append(question)
+                        # Transform question to include both correctAnswer (index) and answer (text)
+                        correct_answer_index = question.get('correctAnswer', 0)
+                        options = question.get('options', [])
+                        
+                        # Ensure the correct answer index is valid
+                        if 0 <= correct_answer_index < len(options):
+                            answer_text = options[correct_answer_index]
+                        else:
+                            print(f"Warning: Invalid correctAnswer index {correct_answer_index} for question {i+1}")
+                            answer_text = options[0] if options else "Unknown"
+                        
+                        validated_question = {
+                            "question": question.get("question", ""),
+                            "options": options,
+                            "correctAnswer": correct_answer_index,  # Index for backend validation
+                            "answer": answer_text,  # Text for frontend compatibility
+                            "explanation": question.get("explanation", "")
+                        }
+                        validated_questions.append(validated_question)
                     else:
                         print(f"Question {i+1} validation failed: {error_msg}")
                         print(f"Question: {question.get('question', 'N/A')}")
