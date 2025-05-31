@@ -144,9 +144,8 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     return false;
   });
   
-  // Check if there are any related concepts (using cleaned and deduplicated list)
-  const hasRelatedConcepts = (validRelatedConcepts && validRelatedConcepts.length > 0) || 
-                             (relatedConcepts && relatedConcepts.length > 0);
+  // Check if there are any related concepts (only database-linked concepts now)
+  const hasRelatedConcepts = relatedConcepts && relatedConcepts.length > 0;
 
   // Handle concept connection
   const handleConnectConcept = async (targetConceptId: string) => {
@@ -555,7 +554,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   <div>
                     <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
                       🔗 Connected Concepts
-                      <Badge variant="outline" className="text-sm bg-green-50 border-green-300">
+                      <Badge variant="secondary" className="text-sm">
                         {relatedConcepts.length} linked
                       </Badge>
                     </h3>
@@ -610,142 +609,6 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                           </CardFooter>
                         </Card>
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Name-only references */}
-                {validRelatedConcepts && validRelatedConcepts.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                      📝 Referenced Concepts
-                      <Badge variant="outline" className="text-sm bg-blue-50 border-blue-300">
-                        {validRelatedConcepts.length} mentioned
-                      </Badge>
-                    </h3>
-                    <div className="flex flex-wrap gap-3">
-                      {validRelatedConcepts.map((related, idx) => {
-                        let displayTitle: string;
-                        let conceptId: string | undefined;
-                        
-                        if (typeof related === 'string') {
-                          displayTitle = related;
-                          conceptId = related;
-                        } else if (typeof related === 'object' && related !== null) {
-                          displayTitle = related.title || `[Missing Concept: ${related.id.substring(0, 8)}...]`;
-                          conceptId = related.id || related.title;
-                        } else {
-                          displayTitle = 'Unknown Concept';
-                          conceptId = undefined;
-                        }
-                        
-                        return (
-                          <Badge key={idx} className="text-sm group relative pr-8 py-2 px-3">
-                            {conceptId ? (
-                              <button
-                                onClick={async () => {
-                                  // Navigate to concept or show creation dialog
-                                  try {
-                                    let conceptExists = false;
-                                    let realConceptId = conceptId;
-                                    
-                                    if (conceptId && conceptId.length > 10 && conceptId.includes('-')) {
-                                      try {
-                                        const directResponse = await fetch(`/api/concepts/${conceptId}`);
-                                        if (directResponse.ok) {
-                                          conceptExists = true;
-                                        }
-                                      } catch (e) {
-                                        // Continue to title-based lookup
-                                      }
-                                    }
-                                    
-                                    if (!conceptExists) {
-                                      try {
-                                        const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
-                                        if (titleResponse.ok) {
-                                          const conceptData = await titleResponse.json();
-                                          if (conceptData && conceptData.id) {
-                                            conceptExists = true;
-                                            realConceptId = conceptData.id;
-                                          }
-                                        }
-                                      } catch (e) {
-                                        // Concept doesn't exist
-                                      }
-                                    }
-                                    
-                                    if (conceptExists && realConceptId) {
-                                      window.location.href = `/concept/${realConceptId}`;
-                                    } else {
-                                      toast({
-                                        title: "Concept Not Found",
-                                        description: `"${displayTitle}" doesn't exist yet.`,
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  } catch (error) {
-                                    console.error('Error checking concept:', error);
-                                  }
-                                }}
-                                className="hover:underline"
-                              >
-                                {displayTitle}
-                              </button>
-                            ) : (
-                              <span>{displayTitle}</span>
-                            )}
-                            
-                            {conceptId && (
-                              <button 
-                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity h-4 w-4 rounded-full hover:bg-destructive/20 flex items-center justify-center text-destructive"
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  
-                                  try {
-                                    let actualConceptId = conceptId;
-                                    
-                                    if (typeof related === 'string' || (typeof related === 'object' && !related?.id)) {
-                                      try {
-                                        const titleResponse = await fetch(`/api/concepts-by-title/${encodeURIComponent(displayTitle)}`);
-                                        if (titleResponse.ok) {
-                                          const conceptData = await titleResponse.json();
-                                          if (conceptData && conceptData.id) {
-                                            actualConceptId = conceptData.id;
-                                          }
-                                        }
-                                      } catch (e) {
-                                        // Use the original conceptId
-                                      }
-                                    } else if (typeof related === 'object' && related?.id) {
-                                      actualConceptId = related.id;
-                                    }
-                                    
-                                    await disconnectConcepts(concept.id, actualConceptId);
-                                    
-                                    toast({
-                                      title: "Relationship Removed",
-                                      description: `Removed relationship with "${displayTitle}"`,
-                                    });
-                                    
-                                    await refreshConcept();
-                                  } catch (error) {
-                                    console.error('Error removing relationship:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to remove relationship",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            )}
-                          </Badge>
-                        );
-                      })}
                     </div>
                   </div>
                 )}
