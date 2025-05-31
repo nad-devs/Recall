@@ -97,110 +97,276 @@ export function SuggestedRelatedConcepts({
       const conceptSuggestions = []
       console.log('🧠 [SuggestedConcepts] Analyzing concept patterns for category:', currentConcept.category)
       
+      // Universal concepts that relate to most technical concepts
+      const universalSuggestions = []
+      if (currentConcept.category.includes('Algorithm') || currentConcept.category.includes('Data Structure')) {
+        universalSuggestions.push(
+          { title: 'Time Complexity Analysis', reason: 'Performance analysis for any algorithm/data structure' },
+          { title: 'Space Complexity Analysis', reason: 'Memory usage analysis' },
+          { title: 'Big O Notation', reason: 'Complexity representation standard' }
+        )
+      }
+      
       if (currentConcept.category.includes('Algorithm') || currentConcept.category.includes('Data Structure')) {
         const baseTitle = currentConcept.title.toLowerCase()
         console.log('🔤 [SuggestedConcepts] Analyzing algorithm/data structure title:', baseTitle)
         
-        if (baseTitle.includes('hash')) {
-          console.log('🔑 [SuggestedConcepts] Hash-related concept detected, adding hash suggestions')
+        // Hash Table / HashMap / Dictionary relationships
+        if (baseTitle.includes('hash') || baseTitle.includes('dictionary') || baseTitle.includes('map')) {
+          console.log('🔑 [SuggestedConcepts] Hash/Dictionary/Map concept detected, adding related suggestions')
           conceptSuggestions.push(
-            { title: 'Hash Collision Resolution', reason: 'Related hashing technique' },
-            { title: 'Bloom Filter', reason: 'Uses hashing for membership testing' },
+            { title: 'Hash Collision Resolution', reason: 'Handling hash conflicts' },
+            { title: 'Hash Functions', reason: 'Core hashing mechanism' },
+            { title: 'Dictionary Implementation', reason: 'Alternative name for hash tables' },
+            { title: 'HashMap vs HashSet', reason: 'Related hash-based data structures' },
+            { title: 'Load Factor', reason: 'Hash table performance metric' },
+            { title: 'Open Addressing', reason: 'Hash collision resolution technique' },
+            { title: 'Chaining', reason: 'Hash collision resolution technique' },
+            { title: 'Bloom Filter', reason: 'Probabilistic hash-based structure' },
             { title: 'Consistent Hashing', reason: 'Advanced hashing strategy' }
           )
         }
         
-        if (baseTitle.includes('tree')) {
-          console.log('🌳 [SuggestedConcepts] Tree-related concept detected, adding tree suggestions')
-          conceptSuggestions.push(
-            { title: 'Tree Traversal Methods', reason: 'Fundamental tree operations' },
-            { title: 'Balanced Tree Properties', reason: 'Tree optimization concepts' },
-            { title: 'Binary Search Tree', reason: 'Core tree data structure' }
-          )
-        }
-        
+        // Array / List relationships
         if (baseTitle.includes('array') || baseTitle.includes('list')) {
-          console.log('📊 [SuggestedConcepts] Array/list-related concept detected, adding array suggestions')
+          console.log('📊 [SuggestedConcepts] Array/list concept detected, adding related suggestions')
           conceptSuggestions.push(
             { title: 'Two Pointer Technique', reason: 'Common array manipulation pattern' },
             { title: 'Sliding Window Pattern', reason: 'Efficient array processing method' },
-            { title: 'Dynamic Array Resizing', reason: 'Array implementation detail' }
+            { title: 'Dynamic Array Resizing', reason: 'Array implementation detail' },
+            { title: 'Array vs Linked List', reason: 'Fundamental data structure comparison' },
+            { title: 'Contiguous Memory Layout', reason: 'Array storage principle' },
+            { title: 'Array Indexing', reason: 'Random access mechanism' },
+            { title: 'ArrayList vs LinkedList', reason: 'Implementation trade-offs' }
           )
         }
         
+        // Tree relationships
+        if (baseTitle.includes('tree')) {
+          console.log('🌳 [SuggestedConcepts] Tree concept detected, adding tree suggestions')
+          conceptSuggestions.push(
+            { title: 'Tree Traversal Methods', reason: 'Fundamental tree operations' },
+            { title: 'Binary Search Tree', reason: 'Core tree data structure' },
+            { title: 'Balanced Tree Properties', reason: 'Tree optimization concepts' },
+            { title: 'Tree Height and Depth', reason: 'Tree structural properties' },
+            { title: 'AVL Tree', reason: 'Self-balancing tree implementation' },
+            { title: 'Red-Black Tree', reason: 'Self-balancing tree implementation' },
+            { title: 'Tree Rotation', reason: 'Balancing mechanism' },
+            { title: 'Heap Data Structure', reason: 'Specialized tree structure' }
+          )
+        }
+        
+        // Graph relationships
         if (baseTitle.includes('graph')) {
-          console.log('🕸️ [SuggestedConcepts] Graph-related concept detected, adding graph suggestions')
+          console.log('🕸️ [SuggestedConcepts] Graph concept detected, adding graph suggestions')
           conceptSuggestions.push(
             { title: 'Graph Traversal Algorithms', reason: 'Essential graph operations' },
+            { title: 'Depth-First Search (DFS)', reason: 'Fundamental graph traversal' },
+            { title: 'Breadth-First Search (BFS)', reason: 'Fundamental graph traversal' },
             { title: 'Shortest Path Algorithms', reason: 'Common graph problem category' },
-            { title: 'Topological Sorting', reason: 'Important graph algorithm' }
+            { title: 'Topological Sorting', reason: 'Important graph algorithm' },
+            { title: 'Graph Representation', reason: 'Adjacency list vs matrix' },
+            { title: 'Directed vs Undirected Graphs', reason: 'Graph type distinction' },
+            { title: 'Graph Cycles', reason: 'Important graph property' }
           )
         }
         
+        // Sorting relationships
         if (baseTitle.includes('sort')) {
-          console.log('🔄 [SuggestedConcepts] Sort-related concept detected, adding sorting suggestions')
+          console.log('🔄 [SuggestedConcepts] Sort concept detected, adding sorting suggestions')
           conceptSuggestions.push(
-            { title: 'Time Complexity Analysis', reason: 'Important for sorting algorithms' },
+            { title: 'Comparison-based Sorting', reason: 'Sorting algorithm category' },
+            { title: 'Non-comparison Sorting', reason: 'Alternative sorting approaches' },
             { title: 'Stable vs Unstable Sorting', reason: 'Sorting algorithm property' },
-            { title: 'In-place Sorting', reason: 'Memory optimization technique' }
+            { title: 'In-place Sorting', reason: 'Memory optimization technique' },
+            { title: 'Merge Sort', reason: 'Divide and conquer sorting' },
+            { title: 'Quick Sort', reason: 'Efficient comparison sort' },
+            { title: 'Heap Sort', reason: 'Heap-based sorting algorithm' },
+            { title: 'Radix Sort', reason: 'Non-comparison sorting' }
+          )
+        }
+        
+        // Search relationships
+        if (baseTitle.includes('search')) {
+          console.log('🔍 [SuggestedConcepts] Search concept detected, adding search suggestions')
+          conceptSuggestions.push(
+            { title: 'Binary Search', reason: 'Fundamental search algorithm' },
+            { title: 'Linear Search', reason: 'Basic search method' },
+            { title: 'Search Space Optimization', reason: 'Search efficiency techniques' },
+            { title: 'Search vs Sort Trade-offs', reason: 'Algorithm design decisions' }
+          )
+        }
+        
+        // Stack relationships
+        if (baseTitle.includes('stack')) {
+          console.log('📚 [SuggestedConcepts] Stack concept detected, adding stack suggestions')
+          conceptSuggestions.push(
+            { title: 'LIFO Principle', reason: 'Stack operating principle' },
+            { title: 'Stack vs Queue', reason: 'Fundamental data structure comparison' },
+            { title: 'Call Stack', reason: 'Stack application in programming' },
+            { title: 'Stack Overflow', reason: 'Stack limitation concept' },
+            { title: 'Expression Evaluation', reason: 'Common stack application' }
+          )
+        }
+        
+        // Queue relationships
+        if (baseTitle.includes('queue')) {
+          console.log('🚶 [SuggestedConcepts] Queue concept detected, adding queue suggestions')
+          conceptSuggestions.push(
+            { title: 'FIFO Principle', reason: 'Queue operating principle' },
+            { title: 'Priority Queue', reason: 'Enhanced queue variant' },
+            { title: 'Circular Queue', reason: 'Efficient queue implementation' },
+            { title: 'Deque (Double-ended Queue)', reason: 'Flexible queue variant' },
+            { title: 'Queue vs Stack', reason: 'Fundamental data structure comparison' }
+          )
+        }
+        
+        // Heap relationships
+        if (baseTitle.includes('heap')) {
+          conceptSuggestions.push(
+            { title: 'Min Heap vs Max Heap', reason: 'Heap variants' },
+            { title: 'Heap Sort', reason: 'Heap-based sorting algorithm' },
+            { title: 'Priority Queue Implementation', reason: 'Heap application' },
+            { title: 'Heapify Operation', reason: 'Heap construction method' }
+          )
+        }
+        
+        // Dynamic Programming relationships
+        if (baseTitle.includes('dynamic') || baseTitle.includes('dp') || baseTitle.includes('memoization')) {
+          conceptSuggestions.push(
+            { title: 'Memoization', reason: 'DP optimization technique' },
+            { title: 'Tabulation', reason: 'Bottom-up DP approach' },
+            { title: 'Optimal Substructure', reason: 'DP requirement' },
+            { title: 'Overlapping Subproblems', reason: 'DP characteristic' }
           )
         }
       }
       
+      // System Design and Architecture relationships
       if (currentConcept.category.includes('System Design') || currentConcept.category.includes('Architecture') || currentConcept.category.includes('Backend')) {
         const baseTitle = currentConcept.title.toLowerCase()
         console.log('🏗️ [SuggestedConcepts] System design concept detected, analyzing:', baseTitle)
         
+        // Universal system design concepts
+        universalSuggestions.push(
+          { title: 'Scalability Patterns', reason: 'System growth considerations' },
+          { title: 'Performance Optimization', reason: 'System efficiency techniques' },
+          { title: 'Reliability and Fault Tolerance', reason: 'System robustness' }
+        )
+        
+        // Cache relationships
         if (baseTitle.includes('cache') || baseTitle.includes('caching')) {
-          console.log('💾 [SuggestedConcepts] Cache-related concept detected, adding cache suggestions')
+          console.log('💾 [SuggestedConcepts] Cache concept detected, adding cache suggestions')
           conceptSuggestions.push(
             { title: 'Cache Eviction Policies', reason: 'Cache management strategy' },
+            { title: 'LRU Cache', reason: 'Popular eviction policy' },
+            { title: 'LFU Cache', reason: 'Frequency-based eviction' },
             { title: 'Cache Coherence', reason: 'Distributed caching concern' },
-            { title: 'Write-Through vs Write-Back', reason: 'Cache writing strategies' }
+            { title: 'Write-Through vs Write-Back', reason: 'Cache writing strategies' },
+            { title: 'Cache Miss vs Cache Hit', reason: 'Cache performance metrics' },
+            { title: 'Distributed Caching', reason: 'Scalable caching approach' },
+            { title: 'Redis Implementation', reason: 'Popular cache technology' }
           )
         }
         
+        // Database relationships
         if (baseTitle.includes('database') || baseTitle.includes('db')) {
-          console.log('🗄️ [SuggestedConcepts] Database-related concept detected, adding DB suggestions')
+          console.log('🗄️ [SuggestedConcepts] Database concept detected, adding DB suggestions')
           conceptSuggestions.push(
             { title: 'Database Indexing', reason: 'Database performance optimization' },
             { title: 'ACID Properties', reason: 'Database transaction guarantees' },
-            { title: 'Database Sharding', reason: 'Database scaling technique' }
+            { title: 'Database Sharding', reason: 'Database scaling technique' },
+            { title: 'SQL vs NoSQL', reason: 'Database paradigm comparison' },
+            { title: 'Database Normalization', reason: 'Data organization principle' },
+            { title: 'CAP Theorem', reason: 'Distributed database constraints' },
+            { title: 'Database Replication', reason: 'Data redundancy strategy' },
+            { title: 'Query Optimization', reason: 'Database performance tuning' }
           )
         }
         
+        // Load Balancer relationships
         if (baseTitle.includes('load') || baseTitle.includes('balancer')) {
           console.log('⚖️ [SuggestedConcepts] Load balancer concept detected, adding related suggestions')
           conceptSuggestions.push(
+            { title: 'Load Balancing Algorithms', reason: 'Distribution strategies' },
+            { title: 'Round Robin Algorithm', reason: 'Simple load balancing strategy' },
+            { title: 'Weighted Round Robin', reason: 'Advanced distribution method' },
+            { title: 'Least Connections', reason: 'Dynamic load balancing' },
             { title: 'Health Check Mechanisms', reason: 'Load balancer monitoring' },
-            { title: 'Round Robin Algorithm', reason: 'Load balancing strategy' },
-            { title: 'Sticky Sessions', reason: 'Load balancer session management' }
+            { title: 'Sticky Sessions', reason: 'Session affinity management' },
+            { title: 'Layer 4 vs Layer 7 Load Balancing', reason: 'Load balancer types' },
+            { title: 'Auto Scaling', reason: 'Dynamic capacity management' }
           )
         }
         
+        // CDN relationships
         if (baseTitle.includes('cdn') || baseTitle.includes('content delivery')) {
           console.log('🌐 [SuggestedConcepts] CDN concept detected, adding CDN suggestions')
           conceptSuggestions.push(
             { title: 'Edge Computing', reason: 'CDN edge optimization' },
             { title: 'Cache Invalidation', reason: 'CDN cache management' },
-            { title: 'Geographic Load Distribution', reason: 'CDN routing strategy' }
+            { title: 'Geographic Load Distribution', reason: 'CDN routing strategy' },
+            { title: 'Origin Server', reason: 'CDN source concept' },
+            { title: 'Edge Caching', reason: 'CDN performance technique' },
+            { title: 'Global Server Load Balancing', reason: 'CDN traffic management' }
+          )
+        }
+        
+        // API relationships
+        if (baseTitle.includes('api') || baseTitle.includes('rest') || baseTitle.includes('graphql')) {
+          conceptSuggestions.push(
+            { title: 'API Rate Limiting', reason: 'API protection mechanism' },
+            { title: 'REST vs GraphQL', reason: 'API paradigm comparison' },
+            { title: 'API Versioning', reason: 'API evolution strategy' },
+            { title: 'API Gateway', reason: 'API management layer' },
+            { title: 'Authentication and Authorization', reason: 'API security' }
+          )
+        }
+        
+        // Microservices relationships
+        if (baseTitle.includes('microservice') || baseTitle.includes('service')) {
+          conceptSuggestions.push(
+            { title: 'Service Discovery', reason: 'Microservice coordination' },
+            { title: 'Circuit Breaker Pattern', reason: 'Service resilience' },
+            { title: 'Event-Driven Architecture', reason: 'Service communication pattern' },
+            { title: 'Monolith vs Microservices', reason: 'Architecture comparison' }
           )
         }
       }
       
+      // Frontend and Web Development relationships
       if (currentConcept.category.includes('Frontend') || currentConcept.category.includes('Web')) {
         const baseTitle = currentConcept.title.toLowerCase()
         console.log('🖥️ [SuggestedConcepts] Frontend concept detected, analyzing:', baseTitle)
         
+        // React relationships
         if (baseTitle.includes('react') || baseTitle.includes('component')) {
-          console.log('⚛️ [SuggestedConcepts] React-related concept detected, adding React suggestions')
+          console.log('⚛️ [SuggestedConcepts] React concept detected, adding React suggestions')
           conceptSuggestions.push(
             { title: 'React Hooks Patterns', reason: 'Modern React development' },
             { title: 'Component Lifecycle', reason: 'Component behavior management' },
-            { title: 'State Management Patterns', reason: 'Application state handling' }
+            { title: 'State Management Patterns', reason: 'Application state handling' },
+            { title: 'Props vs State', reason: 'React data concepts' },
+            { title: 'Virtual DOM', reason: 'React rendering optimization' },
+            { title: 'React Context API', reason: 'State sharing mechanism' },
+            { title: 'useEffect Hook', reason: 'Side effect management' },
+            { title: 'useState Hook', reason: 'State management hook' }
+          )
+        }
+        
+        // Performance relationships
+        if (baseTitle.includes('performance') || baseTitle.includes('optimization')) {
+          conceptSuggestions.push(
+            { title: 'Code Splitting', reason: 'Performance optimization technique' },
+            { title: 'Lazy Loading', reason: 'Resource loading optimization' },
+            { title: 'Bundle Optimization', reason: 'Asset delivery efficiency' },
+            { title: 'Caching Strategies', reason: 'Client-side performance' }
           )
         }
       }
+      
+      // Add universal suggestions for relevant categories
+      conceptSuggestions.push(...universalSuggestions)
       
       console.log('💡 [SuggestedConcepts] Generated concept suggestions:', conceptSuggestions.length)
       
