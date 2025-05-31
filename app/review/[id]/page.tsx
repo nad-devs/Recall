@@ -250,6 +250,12 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
         const responseData = await response.json()
         console.log('🔧 Review update successful:', responseData)
         
+        // Trigger refresh of concepts list to show updated status
+        if (typeof window !== 'undefined') {
+          console.log('🔧 Dispatching refreshConcepts event to update concept status')
+          window.dispatchEvent(new CustomEvent('refreshConcepts'))
+        }
+        
         // Show success toast with appropriate feedback
         toast({
           title: "Quiz Completed!",
