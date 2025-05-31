@@ -163,7 +163,7 @@ export function Autocomplete({
       {isOpen && filteredOptions.length > 0 && (
         <ul
           ref={listRef}
-          className="absolute z-[60] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+          className="absolute z-[10001] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
         >
           {filteredOptions.map((option, index) => (
             <li
