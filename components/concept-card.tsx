@@ -653,19 +653,18 @@ export const ConceptCard = React.memo(function ConceptCard({
       return; // Let the interactive element handle the click
     }
 
+    // Handle Ctrl+Click for selection
+    if (onSelect && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      onSelect(id);
+      return;
+    }
+
     // Navigate to concept view on normal click
     if (!isLoading && !isDragging) {
       e.preventDefault();
       // Use Next.js router for client-side navigation
       router.push(`/concept/${id}`);
-    }
-  };
-
-  // Handle checkbox selection
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation(); // Prevent card click
-    if (onSelect) {
-      onSelect(id);
     }
   };
 
@@ -860,7 +859,7 @@ export const ConceptCard = React.memo(function ConceptCard({
       <Card 
         ref={cardRef}
         className={`group transition-all duration-200 overflow-hidden min-h-[320px] flex flex-col ${
-          isSelected ? "ring-2 ring-primary" : ""
+          isSelected ? "ring-2 ring-primary bg-primary/5" : ""
         } ${
           selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
         } ${
@@ -873,10 +872,13 @@ export const ConceptCard = React.memo(function ConceptCard({
           isPlaceholder ? "border-dashed border-2 border-muted-foreground/30 bg-muted/20 opacity-75" : ""
         } ${
           needsReview ? "border-2 border-amber-400 bg-amber-50/50 dark:border-amber-500 dark:bg-amber-950/20" : ""
+        } ${
+          onSelect ? "hover:ring-1 hover:ring-muted-foreground/20" : ""
         }`}
         style={{ cursor: isLoading ? 'wait' : (isDragging ? 'grabbing' : 'pointer') }}
         onClick={handleClick}
         onContextMenu={enableRightClickLinking ? handleContextMenu : undefined}
+        title={onSelect ? (isSelected ? "Selected (Ctrl+Click to deselect)" : "Ctrl+Click to select for bulk operations") : "Click to view concept"}
       >
         {isLoading && (
           <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10 rounded-md">
@@ -922,17 +924,6 @@ export const ConceptCard = React.memo(function ConceptCard({
         )}
         <CardHeader className="pb-4">
           <div className="flex justify-between items-start gap-4 mb-3">
-            {/* Selection checkbox - only show when onSelect is provided */}
-            {onSelect && (
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={handleCheckboxChange}
-                className="mt-1 h-4 w-4 rounded border-2 border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-1 focus:ring-offset-background flex-shrink-0 accent-primary"
-                title="Select concept for bulk operations"
-              />
-            )}
-            
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input

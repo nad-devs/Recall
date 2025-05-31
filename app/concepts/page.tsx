@@ -749,6 +749,8 @@ export default function ConceptsPage() {
       setShowTransferDialog(false)
       setTransferConcepts([])
       setSelectedConceptsForTransfer(new Set())
+      // Clear the main selection as well
+      setSelectedConcepts(new Set())
     } catch (error) {
       console.error('Error transferring concepts:', error)
     } finally {
@@ -984,6 +986,11 @@ export default function ConceptsPage() {
                         >
                           Move Selected ({selectedConcepts.size})
                         </Button>
+                      )}
+                      {selectedConcepts.size === 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Ctrl+Click concepts to select
+                        </div>
                       )}
                     </div>
                     
