@@ -858,7 +858,7 @@ export const ConceptCard = React.memo(function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group transition-all duration-200 overflow-hidden min-h-[320px] flex flex-col ${
+        className={`group transition-all duration-200 overflow-hidden min-h-[320px] max-h-[600px] flex flex-col ${
           isSelected ? "ring-2 ring-primary bg-primary/5" : ""
         } ${
           selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
@@ -1068,17 +1068,32 @@ export const ConceptCard = React.memo(function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center">
+              <div className="flex items-center space-x-1">
                 <Badge 
                   className="hover:bg-primary/20 transition-colors"
-                  title="Category - concepts can now be moved using checkboxes and move functionality"
+                  title="Category - click edit button to change"
                 >
+                  <Tag className="mr-1 h-3 w-3" />
                   {category || "General"}
                   {/* Show learning indicator if this category was learned */}
                   {availableCategories.some(cat => cat.value === category && cat.isLearned) && (
                     <span className="ml-1" title="This category was learned from your usage patterns">🧠</span>
                   )}
                 </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    fetchCategories();
+                    setIsEditingCategory(true);
+                  }}
+                  title="Edit category"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
               </div>
             )}
           </div>
@@ -1089,7 +1104,7 @@ export const ConceptCard = React.memo(function ConceptCard({
             </CardDescription>
           )}
         </CardHeader>
-        <CardContent className="pb-4 space-y-4 flex-1">
+        <CardContent className="pb-4 space-y-4 flex-1 overflow-y-auto">
           {/* Show enhancements if they exist */}
           {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
             <div className="space-y-3 pt-3 border-t">
@@ -1280,7 +1295,7 @@ export const ConceptCard = React.memo(function ConceptCard({
             </div>
           )}
         </CardContent>
-        <CardFooter className="pt-3 flex justify-between border-t bg-muted/20">
+        <CardFooter className="pt-3 flex justify-between border-t bg-muted/20 flex-shrink-0">
           {isPlaceholder ? (
             <div className="flex space-x-2">
               <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
