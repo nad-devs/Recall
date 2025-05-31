@@ -11,24 +11,14 @@ export function getAuthHeaders(): Record<string, string> {
     'Content-Type': 'application/json',
   };
   
-  // Check if we're in browser environment
   if (typeof window !== 'undefined') {
     const userEmail = localStorage.getItem('userEmail');
     const userId = localStorage.getItem('userId');
     
-    console.log('🔧 Auth Utils - Getting headers:', { 
-      userEmail: userEmail ? 'present' : 'missing', 
-      userId: userId ? 'present' : 'missing' 
-    });
-    
     if (userEmail && userId) {
       headers['x-user-email'] = userEmail;
       headers['x-user-id'] = userId;
-    } else {
-      console.warn('🔧 Auth Utils - No authentication data found in localStorage');
     }
-  } else {
-    console.log('🔧 Auth Utils - Server-side environment, no localStorage available');
   }
   
   return headers;

@@ -147,9 +147,6 @@ export function ResultsView(props: ResultsViewProps) {
         // Get authentication headers
         const headers = getAuthHeaders()
         
-        console.log('🔧 ResultsView - Fetching categories with auth headers')
-        
-        // Try to fetch categories - handle potential auth errors gracefully
         try {
           const categoriesRes = await fetch("/api/categories", { headers })
           
