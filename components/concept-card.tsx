@@ -466,25 +466,39 @@ export const ConceptCard = React.memo(function ConceptCard({
     setIsDeleting(true);
     
     try {
+      console.log(`🗑️ Starting deletion of concept: ${id} - "${title}"`);
+      
       // Just call the callback - let the parent handle the API call
       if (onDelete) {
+        console.log(`🔄 Using parent onDelete callback for concept: ${id}`);
         await onDelete(id);
+        console.log(`✅ Parent onDelete completed for concept: ${id}`);
       } else {
         // Fallback: only if no onDelete prop is provided, make the API call directly
+        console.log(`🌐 Making direct API call to delete concept: ${id}`);
+        
         const response = await fetch(`/api/concepts/${id}`, {
           method: 'DELETE',
           headers: getAuthHeaders(),
         });
 
+        console.log(`📡 Delete API response status: ${response.status}`);
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error(`❌ Delete API error:`, errorData);
+          
           if (response.status === 401) {
             throw new Error('Authentication failed - please make sure you are logged in')
           }
-          throw new Error(errorData.error || 'Failed to delete concept');
+          if (response.status === 404) {
+            throw new Error('Concept not found - it may have already been deleted')
+          }
+          throw new Error(errorData.error || `Failed to delete concept (${response.status})`);
         }
         
         const result = await response.json();
+        console.log(`✅ Delete API result:`, result);
 
         // Check if the conversation was also deleted due to having no concepts
         if (result.conversationDeleted) {
@@ -497,7 +511,10 @@ export const ConceptCard = React.memo(function ConceptCard({
           
           // If we're on a conversation page, redirect to the conversations list
           if (window.location.pathname.includes('/conversation/')) {
-            window.location.href = '/conversation';
+            console.log(`🔄 Redirecting to conversations list after deleting last concept`);
+            setTimeout(() => {
+              window.location.href = '/conversation';
+            }, 1000);
           }
         } else {
           toast({
@@ -507,17 +524,30 @@ export const ConceptCard = React.memo(function ConceptCard({
             className: "border-green-200 bg-green-50 text-green-900",
           });
         }
+        
+        // Trigger a page refresh or navigation after successful deletion
+        console.log(`🔄 Triggering refresh after successful deletion`);
+        setTimeout(() => {
+          if (window.location.pathname.includes('/concept/')) {
+            // If we're on the concept page itself, go back to concepts list
+            window.location.href = '/concepts';
+          } else {
+            // Otherwise, just refresh the current page
+            window.location.reload();
+          }
+        }, 1500);
       }
     } catch (error) {
-      console.error('Error deleting concept:', error);
+      console.error('❌ Error deleting concept:', error);
       toast({
         title: "❌ Error",
-        description: error instanceof Error ? error.message : "Failed to delete concept",
+        description: error instanceof Error ? error.message : "Failed to delete concept. Please try again.",
         variant: "destructive",
         duration: 5000,
       });
     } finally {
       setIsDeleting(false);
+      console.log(`🏁 Deletion process completed for concept: ${id}`);
     }
   };
 
