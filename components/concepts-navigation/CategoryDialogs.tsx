@@ -105,28 +105,28 @@ const SearchableSelect = ({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left py-2 px-3 border rounded-md bg-background text-sm flex items-center justify-between hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full text-left py-2 px-3 border rounded-md bg-background text-sm flex items-center justify-between hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <span className={selectedOption ? "text-foreground" : "text-muted-foreground"}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-hidden">
-          <div className="p-2 border-b">
+        <div className="absolute z-[100] w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-border bg-popover">
             <Input
               placeholder="Type to search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-sm"
+              className="text-sm h-8 bg-background border-input"
               autoFocus
             />
           </div>
-          <div className="max-h-48 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto bg-popover">
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-muted-foreground">
+              <div className="px-3 py-3 text-sm text-muted-foreground text-center">
                 No categories found
               </div>
             ) : (
@@ -135,12 +135,12 @@ const SearchableSelect = ({
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none transition-colors border-b border-border/50 last:border-b-0"
                 >
                   <div className="flex items-center justify-between">
-                    <span>{option.label}</span>
+                    <span className="font-medium">{option.label}</span>
                     {option.description && (
-                      <span className="text-xs text-muted-foreground">{option.description}</span>
+                      <span className="text-xs text-muted-foreground ml-2 shrink-0">{option.description}</span>
                     )}
                   </div>
                 </button>
@@ -152,7 +152,7 @@ const SearchableSelect = ({
       
       {isOpen && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-[90]" 
           onClick={() => {
             setIsOpen(false)
             setSearchQuery('')
