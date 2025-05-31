@@ -58,7 +58,11 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
     setIsCorrect(correct)
     
     if (correct) {
-      setScore(score + 1)
+      const newScore = score + 1
+      setScore(newScore)
+      console.log(`🔧 Quiz - Question ${currentIndex + 1}: CORRECT! Score updated from ${score} to ${newScore}`)
+    } else {
+      console.log(`🔧 Quiz - Question ${currentIndex + 1}: INCORRECT. Score remains ${score}`)
     }
     
     console.log(`🔧 Quiz - Question: "${currentQuestion.question}"`)
@@ -69,7 +73,10 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
 
   const handleNext = () => {
     if (isLastQuestion) {
-      onComplete(score + (isCorrect ? 1 : 0))
+      // The score state already includes all correct answers up to and including the current question
+      // because handleAnswerSelect updates score immediately when an answer is selected
+      console.log(`🔧 Quiz - Final score: ${score} out of ${validQuestions.length}`)
+      onComplete(score)
     } else {
       setCurrentIndex(currentIndex + 1)
       setSelectedAnswer(null)
