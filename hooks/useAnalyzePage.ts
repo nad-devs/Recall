@@ -318,13 +318,23 @@ export function useAnalyzePage() {
     
     // Count how many concepts were processed
     const processedCount = conceptMatches.length
-    setUpdatedConceptsCount(processedCount)
     setConceptMatches([])
 
-    // Show the conversation save dialog
-    setShowConversationSaveDialog(true)
+    // Show success message and go directly to concepts page
+    toast({
+      title: "Concepts Updated Successfully!",
+      description: `${processedCount} concept${processedCount !== 1 ? 's have' : ' has'} been updated with new information`,
+      duration: 4000,
+    })
 
-    console.log("Concept matching completed, showing save dialog")
+    // Auto-refresh concepts before redirecting
+    console.log('🔄 Auto-refreshing concepts before redirect...')
+    window.dispatchEvent(new CustomEvent('refreshConcepts'))
+    
+    // Redirect to concepts page after a short delay to allow refresh
+    setTimeout(() => {
+      window.location.href = '/concepts'
+    }, 1000)
   }
 
   // Handle conversation save decision
