@@ -54,7 +54,14 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
     if (selectedAnswer !== null) return // Prevent multiple selections
     
     setSelectedAnswer(answer)
-    const correct = answer === currentQuestion.answer
+    
+    // Normalize strings for comparison - trim whitespace and handle case sensitivity
+    const normalizeString = (str: string) => str.trim().replace(/\s+/g, ' ');
+    const normalizedSelected = normalizeString(answer);
+    const normalizedCorrect = normalizeString(currentQuestion.answer);
+    
+    // Use case-insensitive comparison for better matching
+    const correct = normalizedSelected.toLowerCase() === normalizedCorrect.toLowerCase();
     setIsCorrect(correct)
     
     if (correct) {
@@ -66,8 +73,9 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
     }
     
     console.log(`🔧 Quiz - Question: "${currentQuestion.question}"`)
-    console.log(`🔧 Quiz - Selected: "${answer}"`)
-    console.log(`🔧 Quiz - Correct Answer: "${currentQuestion.answer}"`)
+    console.log(`🔧 Quiz - Selected: "${answer}" (normalized: "${normalizedSelected}")`)
+    console.log(`🔧 Quiz - Correct Answer: "${currentQuestion.answer}" (normalized: "${normalizedCorrect}")`)
+    console.log(`🔧 Quiz - Normalized match check: "${normalizedSelected.toLowerCase()}" === "${normalizedCorrect.toLowerCase()}"`)
     console.log(`🔧 Quiz - Is Correct: ${correct}`)
   }
 

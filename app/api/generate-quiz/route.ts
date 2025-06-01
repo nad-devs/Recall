@@ -77,10 +77,22 @@ export async function POST(request: NextRequest) {
           console.log(`🔧 Question ${index + 1}: Using correctAnswer index ${question.correctAnswer} to set answer: "${validAnswer}"`);
         }
         
-        // Final validation: Check if the answer exists in the options
-        if (!validAnswer || !question.options.includes(validAnswer)) {
+        // Normalize strings for comparison - trim whitespace and handle case sensitivity
+        const normalizeString = (str: string) => str.trim().replace(/\s+/g, ' ');
+        
+        // Normalize all options and the answer
+        const normalizedOptions = question.options.map((opt: string) => normalizeString(opt));
+        const normalizedAnswer = validAnswer ? normalizeString(validAnswer) : '';
+        
+        // Final validation: Check if the answer exists in the options (case-insensitive and whitespace-normalized)
+        const answerIndex = normalizedOptions.findIndex((opt: string) => 
+          opt.toLowerCase() === normalizedAnswer.toLowerCase()
+        );
+        
+        if (answerIndex === -1 || !validAnswer) {
           console.warn(`🔧 Question ${index + 1} has invalid answer field: "${validAnswer}"`);
           console.warn(`🔧 Available options:`, question.options);
+          console.warn(`🔧 Normalized options:`, normalizedOptions);
           
           // Try to find a reasonable answer from the options
           if (question.options.length > 0) {
@@ -99,6 +111,10 @@ export async function POST(request: NextRequest) {
             console.error(`🔧 No options available for question ${index + 1}`);
             return null;
           }
+        } else {
+          // Use the exact option string to ensure perfect matching
+          validAnswer = question.options[answerIndex];
+          console.log(`🔧 Question ${index + 1}: Answer normalized and matched to option at index ${answerIndex}: "${validAnswer}"`);
         }
         
         // Validate explanation
