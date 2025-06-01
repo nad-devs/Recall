@@ -40,19 +40,34 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('📺 Extracting transcript from YouTube...')
+    console.log('📺 Testing youtube-transcript library with URL:', youtube_url)
     
     // Extract transcript locally using youtube-transcript library
     let transcript;
     try {
+      console.log('📺 Calling YoutubeTranscript.fetchTranscript...')
       const transcriptData = await YoutubeTranscript.fetchTranscript(youtube_url);
+      console.log('📺 Raw transcript data received:', {
+        isArray: Array.isArray(transcriptData),
+        length: transcriptData?.length,
+        firstItem: transcriptData?.[0],
+        hasText: transcriptData?.[0]?.text ? 'yes' : 'no'
+      });
+      
       transcript = transcriptData.map(item => item.text).join(' ');
       console.log('📺 Successfully extracted transcript, length:', transcript.length);
+      console.log('📺 First 200 characters:', transcript.substring(0, 200) + '...');
       
       if (!transcript || transcript.trim().length === 0) {
         throw new Error('Empty transcript received');
       }
     } catch (transcriptError: any) {
-      console.error('📺 Transcript extraction failed:', transcriptError.message);
+      console.error('📺 DETAILED transcript error:', {
+        message: transcriptError.message,
+        name: transcriptError.name,
+        stack: transcriptError.stack,
+        url: youtube_url
+      });
       
       // Provide more helpful error message
       let userFriendlyMessage = 'Failed to extract YouTube transcript.';
@@ -66,7 +81,14 @@ export async function POST(request: NextRequest) {
       }
       
       return NextResponse.json(
-        { error: userFriendlyMessage },
+        { 
+          error: userFriendlyMessage,
+          debug: {
+            originalError: transcriptError.message,
+            url: youtube_url,
+            libraryWorking: true // We got a response from the library
+          }
+        },
         { status: 400 }
       );
     }
