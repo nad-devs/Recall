@@ -124,6 +124,7 @@ export default function ConceptsPage() {
   const [isResettingState, setIsResettingState] = useState(false)
   const [dragDropData, setDragDropData] = useState<any>(null)
   const [isDraggingCategory, setIsDraggingCategory] = useState(false)
+  const [showQuickActions, setShowQuickActions] = useState(false)
 
   // Helper function to get authentication headers
   const getAuthHeaders = (): HeadersInit => {
@@ -1358,6 +1359,69 @@ export default function ConceptsPage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Quick Actions Toggle - Right Side */}
+              <div className="fixed bottom-20 right-4 z-40 hidden md:block">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickActions(!showQuickActions)}
+                  className="bg-card shadow-lg border-border hover:bg-accent"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Quick Actions
+                </Button>
+                
+                {showQuickActions && (
+                  <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-lg p-4 w-64">
+                    <h3 className="font-semibold text-sm mb-3 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Quick Actions
+                    </h3>
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <div className="flex items-center space-x-2">
+                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                        <span>+</span>
+                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Click</kbd>
+                        <span>Select concepts to move</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                        <span>+</span>
+                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Right Click</kbd>
+                        <span>Link concepts together</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="w-4 h-4 bg-primary/20 rounded border-2 border-primary border-dashed"></span>
+                        <span>Drag to move between categories</span>
+                      </div>
+                      <div className="pt-1 border-t border-border">
+                        <div className="text-xs font-medium text-foreground mb-1">Selected: {selectedConcepts.size}</div>
+                        {selectedConcepts.size > 0 && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="w-full text-xs h-7"
+                            onClick={() => {
+                              const conceptsToMove = concepts.filter(c => selectedConcepts.has(c.id))
+                              setTransferConcepts(conceptsToMove)
+                              setSelectedConceptsForTransfer(new Set(selectedConcepts))
+                              setShowTransferDialog(true)
+                              setShowQuickActions(false)
+                            }}
+                          >
+                            Move Selected
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
