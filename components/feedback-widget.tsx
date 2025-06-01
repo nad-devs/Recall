@@ -138,8 +138,8 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
         toast({
           title: "Feedback submitted!",
           description: screenshots.length > 0 
-            ? "Thank you for your feedback and screenshots. We'll review it soon."
-            : "Thank you for your feedback. We'll review it soon.",
+            ? "Thank you for your feedback and screenshots. I'll review it soon."
+            : "Thank you for your feedback. I'll review it soon.",
         })
         
         // Reset form
@@ -205,37 +205,37 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
         <DialogHeader>
           <DialogTitle>Share Your Feedback</DialogTitle>
           <DialogDescription>
-            Help us improve by sharing your thoughts, reporting bugs, or suggesting features.
-            You can also upload screenshots to help us understand issues better.
+            Hey! I'd love to hear from you! Found a bug? Have an idea? Just want to share your thoughts? 
+            Feel free to upload screenshots too - they really help me understand what's going on!
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="feedback-type">Feedback Type</Label>
+            <Label htmlFor="feedback-type">What would you like to tell me?</Label>
             <Select value={type} onChange={(e) => setType(e.target.value)}>
-              <SelectOption value="">Select feedback type</SelectOption>
-              <SelectOption value="bug">🐛 Bug Report</SelectOption>
-              <SelectOption value="feature">💡 Feature Request</SelectOption>
-              <SelectOption value="rating">⭐ Rating & Review</SelectOption>
-              <SelectOption value="general">💬 General Feedback</SelectOption>
+              <SelectOption value="">Choose what you'd like to share</SelectOption>
+              <SelectOption value="bug">🐛 I found a bug or something's not working</SelectOption>
+              <SelectOption value="feature">💡 I have an idea for a new feature</SelectOption>
+              <SelectOption value="rating">⭐ I want to rate my experience</SelectOption>
+              <SelectOption value="general">💬 Just some general thoughts</SelectOption>
             </Select>
           </div>
 
           {type === 'bug' && (
             <div className="space-y-2">
-              <Label>Priority Level</Label>
+              <Label>How bad is it?</Label>
               <Select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                <SelectOption value="low">🟢 Low - Minor issue</SelectOption>
-                <SelectOption value="medium">🟡 Medium - Affects functionality</SelectOption>
-                <SelectOption value="high">🔴 High - Blocks usage</SelectOption>
+                <SelectOption value="low">🟢 Annoying but I can work around it</SelectOption>
+                <SelectOption value="medium">🟡 It's affecting how I use the app</SelectOption>
+                <SelectOption value="high">🔴 I can't use the app at all</SelectOption>
               </Select>
             </div>
           )}
 
           {type === 'rating' && (
             <div className="space-y-2">
-              <Label>Rating</Label>
+              <Label>How's your experience been?</Label>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -252,19 +252,35 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
                   </button>
                 ))}
               </div>
+              {rating > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {rating === 5 && "Awesome! ⭐"}
+                  {rating === 4 && "Great! 👍"}
+                  {rating === 3 && "Not bad 👌"}
+                  {rating === 2 && "Could be better 😕"}
+                  {rating === 1 && "Needs work 😞"}
+                </p>
+              )}
             </div>
           )}
 
           <div className="space-y-2">
             <Label htmlFor="message">
-              {type === 'bug' ? 'Describe the problem' : 'Message'}
+              {type === 'bug' ? 'Tell me what happened' : 
+               type === 'feature' ? 'What feature are you thinking of?' :
+               type === 'rating' ? 'What did you like or what could be better?' :
+               'What\'s on your mind?'}
             </Label>
             <Textarea
               id="message"
               placeholder={
                 type === 'bug' 
-                  ? "Please describe what happened, what you expected to happen, and any steps to reproduce the issue..."
-                  : "Tell us more about your experience..."
+                  ? "What were you doing when it broke? What did you expect to happen? Can you make it happen again?"
+                  : type === 'feature'
+                  ? "What would you like to see? How would it help you? Any ideas on how it should work?"
+                  : type === 'rating'
+                  ? "Let me know what you loved or what could be improved!"
+                  : "Any thoughts, ideas, or feedback you want to share? I read everything!"
               }
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -272,13 +288,13 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
               maxLength={1000}
             />
             <div className="text-xs text-gray-500 text-right">
-              {message.length}/1000
+              {message.length}/1000 characters
             </div>
           </div>
 
           {/* Screenshot Upload Section */}
           <div className="space-y-2">
-            <Label>Screenshots (optional)</Label>
+            <Label>Upload screenshots {type === 'bug' ? '(super helpful for bugs!)' : '(if you want)'}</Label>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -288,7 +304,9 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
                 disabled={screenshots.length >= 3}
               >
                 <Upload className="w-4 h-4 mr-2" />
-                {screenshots.length === 0 ? 'Upload Screenshots' : `Add More (${screenshots.length}/3)`}
+                {screenshots.length === 0 ? 
+                  (type === 'bug' ? 'Show Me the Problem' : 'Upload Images') : 
+                  `Add More (${screenshots.length}/3)`}
               </Button>
               <input
                 ref={fileInputRef}
@@ -303,7 +321,7 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
             {screenshots.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Uploaded screenshots ({screenshots.length}/3):
+                  Your screenshots ({screenshots.length}/3):
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {screenshots.map((file, index) => (
@@ -315,6 +333,7 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
                           type="button"
                           onClick={() => removeScreenshot(index)}
                           className="ml-auto p-1 hover:bg-destructive hover:text-destructive-foreground rounded"
+                          title="Remove this screenshot"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -329,7 +348,7 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
           {/* Browser Info Display */}
           {(type === 'bug' || type === 'general') && (
             <div className="space-y-2">
-              <Label>Browser Information</Label>
+              <Label>Browser info (helps me debug)</Label>
               <div className="text-sm text-muted-foreground bg-muted p-2 rounded">
                 {browserInfo}
               </div>
@@ -350,11 +369,11 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
               className="flex-1"
             >
               {isSubmitting ? (
-                "Submitting..."
+                "Sending..."
               ) : (
                 <>
                   <Send className="w-4 h-4 mr-2" />
-                  Submit {type === 'bug' && priority === 'high' ? '(Priority)' : ''}
+                  Send to Me {type === 'bug' && priority === 'high' ? '(Urgent)' : ''}
                 </>
               )}
             </Button>
