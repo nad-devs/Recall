@@ -213,12 +213,12 @@ export function ConceptsList({
                     onClick={() => setSelectedConcept(concept)}
                   >
                     <div className="flex items-start">
-                      <div className="mr-3 mt-0.5">
+                      <div className="mr-3 mt-0.5 flex-shrink-0">
                         {getCategoryIcon(concept.category)}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{concept.title}</div>
-                        <div className="text-sm text-muted-foreground truncate mt-1">
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="font-medium truncate pr-2">{concept.title}</div>
+                        <div className="text-sm text-muted-foreground truncate mt-1 pr-2">
                           {concept.summary?.substring(0, 80) || ""}...
                         </div>
                       </div>
