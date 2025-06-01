@@ -951,7 +951,7 @@ export const ConceptCard = React.memo(function ConceptCard({
         
         {/* Fixed header with action buttons - always visible */}
         <CardHeader className="pb-4 flex-shrink-0 relative z-10">
-          <div className="flex justify-between items-start gap-4 mb-3">
+          <div className="flex justify-between items-start gap-2 mb-3">
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <input
@@ -994,7 +994,7 @@ export const ConceptCard = React.memo(function ConceptCard({
               </div>
             ) : (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
+                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight max-w-[200px]">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -1008,11 +1008,11 @@ export const ConceptCard = React.memo(function ConceptCard({
             )}
             
             {/* Action buttons in top right - always visible with higher z-index */}
-            <div className="flex items-center gap-1 flex-shrink-0 z-20">
+            <div className="flex items-center gap-1 flex-shrink-0 z-20 ml-2">
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive/90 hover:bg-destructive/10 bg-background/80 backdrop-blur-sm border border-destructive/20"
+                className="h-7 w-7 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
                 onClick={handleDelete}
                 disabled={isDeleting}
                 title="Delete concept"
