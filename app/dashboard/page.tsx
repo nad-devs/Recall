@@ -234,35 +234,23 @@ export default function Dashboard() {
                 Browse Concepts
               </Link>
             </Button>
-            <Button variant="outline" asChild className="shadow-sm">
-              <Link href="/faq">
-                <BookOpen className="mr-2 h-4 w-4" />
-                FAQ
-              </Link>
+            <Button 
+              variant="ghost" 
+            onClick={() => {
+              // Clear localStorage for email-based sessions
+              localStorage.removeItem('userName')
+              localStorage.removeItem('userEmail')
+              localStorage.removeItem('userId')
+              localStorage.removeItem('userInitials')
+              
+              // Sign out from NextAuth (for OAuth sessions)
+              signOut({ callbackUrl: "/" })
+            }}
+              className="shadow-sm"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out
             </Button>
-            <Button variant="outline" asChild className="shadow-sm">
-              <Link href="/admin/feedback">
-                <MessageSquare className="mr-2 h-4 w-4" />
-                Feedback
-              </Link>
-            </Button>
-              <Button 
-                variant="ghost" 
-              onClick={() => {
-                // Clear localStorage for email-based sessions
-                localStorage.removeItem('userName')
-                localStorage.removeItem('userEmail')
-                localStorage.removeItem('userId')
-                localStorage.removeItem('userInitials')
-                
-                // Sign out from NextAuth (for OAuth sessions)
-                signOut({ callbackUrl: "/" })
-              }}
-                className="shadow-sm"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
-              </Button>
           </div>
         </div>
 

@@ -125,7 +125,7 @@ export default function FeedbackAdminPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Target Email:</span>
                   <Badge variant="secondary">
-                    {systemInfo?.emailTarget || 'arjunnadar0507@gmail.com'}
+                    {systemInfo?.emailTarget || 'arjunnadar2003@gmail.com'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ export default function FeedbackAdminPage() {
                 <div>
                   <h4 className="font-medium">Email Notifications</h4>
                   <p className="text-sm text-muted-foreground">
-                    Check your email inbox at <strong>arjunnadar0507@gmail.com</strong>. Each feedback submission 
+                    Check your email inbox at <strong>arjunnadar2003@gmail.com</strong>. Each feedback submission 
                     will arrive as a formatted email with all details, screenshots, and metadata.
                   </p>
                 </div>

@@ -38,7 +38,7 @@ Sent from Recall Feedback System
 
   // Log to console (visible in Vercel dashboard)
   console.log('\n' + '='.repeat(60))
-  console.log('📧 FEEDBACK EMAIL TO: arjunnadar0507@gmail.com')
+  console.log('📧 FEEDBACK EMAIL TO: arjunnadar2003@gmail.com')
   console.log('='.repeat(60))
   console.log(emailContent)
   console.log('='.repeat(60) + '\n')
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
 
         await resend.emails.send({
           from: 'Recall Feedback <onboarding@resend.dev>',
-          to: ['arjunnadar0507@gmail.com'],
+          to: ['arjunnadar2003@gmail.com'],
           subject: `[Recall] ${feedbackData.type.toUpperCase()} Feedback${feedbackData.priority === 'high' ? ' - HIGH PRIORITY' : ''}`,
           html: emailHtml,
         })
@@ -216,8 +216,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   return NextResponse.json({ 
     success: true,
-    message: 'Feedback is now sent via email. Check your email (arjunnadar0507@gmail.com) and Vercel console logs.',
-    emailTarget: 'arjunnadar0507@gmail.com',
+    message: 'Feedback is now sent via email. Check your email (arjunnadar2003@gmail.com) and Vercel console logs.',
+    emailTarget: 'arjunnadar2003@gmail.com',
     info: 'To view feedback, check your email or Vercel function logs.'
   })
 } 
