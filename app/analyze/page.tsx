@@ -119,7 +119,6 @@ function AnalyzePage() {
             </Link>
             
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold">Analyze Content</h1>
               <ThemeToggle />
             </div>
           </div>
