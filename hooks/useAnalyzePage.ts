@@ -81,6 +81,9 @@ export function useAnalyzePage() {
 
   // Add state for user info modal
   const [showUserInfoModal, setShowUserInfoModal] = useState(false)
+  
+  // Add state to track the last updated concept for navigation
+  const [lastUpdatedConceptId, setLastUpdatedConceptId] = useState<string | null>(null)
 
   const { toast } = useToast()
 
@@ -221,12 +224,27 @@ export function useAnalyzePage() {
         })
         
         const updatePayload = {
-          ...match.newConcept,
-          // Preserve existing enhancements and other fields
-          preserveEnhancements: true
+          title: match.newConcept.title,
+          summary: match.newConcept.summary,
+          category: match.newConcept.category,
+          keyPoints: match.newConcept.keyPoints,
+          details: match.newConcept.details,
+          examples: match.newConcept.examples,
+          codeSnippets: match.newConcept.codeSnippets,
+          relatedConcepts: match.newConcept.relatedConcepts,
+          // Ensure we don't preserve enhancements - we want full update
+          preserveEnhancements: false
         }
         
-        console.log("🔄 Full update payload:", updatePayload)
+        console.log("🔄 Updating existing concept with ALL fields:")
+        console.log("🔄 - Title:", updatePayload.title)
+        console.log("🔄 - Summary:", updatePayload.summary)
+        console.log("🔄 - Category:", updatePayload.category)
+        console.log("🔄 - KeyPoints:", updatePayload.keyPoints?.length || 0, "items")
+        console.log("🔄 - Details:", updatePayload.details ? "✅ Present" : "❌ Missing")
+        console.log("🔄 - Examples:", updatePayload.examples?.length || 0, "items")
+        console.log("🔄 - CodeSnippets:", updatePayload.codeSnippets?.length || 0, "items")
+        console.log("🔄 - RelatedConcepts:", updatePayload.relatedConcepts?.length || 0, "items")
         
         const updateResponse = await makeAuthenticatedRequest(`/api/concepts/${match.existingConcept.id}`, {
           method: 'PUT',
@@ -249,12 +267,18 @@ export function useAnalyzePage() {
           description: `"${match.existingConcept.title}" has been updated with new information`,
           duration: 4000,
         })
+        
+        // Track the updated concept ID for navigation
+        setLastUpdatedConceptId(match.existingConcept.id)
       } else {
         toast({
           title: "Concept Linked",
           description: `"${match.existingConcept.title}" will be linked to this conversation`,
           duration: 4000,
         })
+        
+        // Track the concept ID for navigation (even when keeping as is)
+        setLastUpdatedConceptId(match.existingConcept.id)
       }
 
       // Link the existing concept to the current conversation regardless of update decision
@@ -333,7 +357,12 @@ export function useAnalyzePage() {
     
     // Redirect to concepts page after a short delay to allow refresh
     setTimeout(() => {
-      window.location.href = '/concepts'
+      // If we have an updated concept ID, go to that specific concept
+      if (lastUpdatedConceptId) {
+        window.location.href = `/concept/${lastUpdatedConceptId}`
+      } else {
+        window.location.href = '/concepts'
+      }
     }, 1000)
   }
 
@@ -1365,6 +1394,7 @@ export function useAnalyzePage() {
     showApiKeyModal,
     usageData,
     showUserInfoModal,
+    lastUpdatedConceptId,
 
     // Setters
     setConversationText,
