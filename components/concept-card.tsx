@@ -888,14 +888,10 @@ export const ConceptCard = React.memo(function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group transition-all duration-200 overflow-hidden min-h-[320px] flex flex-col ${
-          isSelected ? "ring-2 ring-primary bg-primary/5" : ""
+        className={`group cursor-pointer transition-all duration-200 hover:shadow-lg flex flex-col ${
+          isSelected ? "ring-2 ring-primary shadow-lg" : ""
         } ${
-          selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
-        } ${
-          isLinkedToSource() ? "ring-2 ring-green-500" : ""
-        } ${
-          enableRightClickLinking && selectedSourceConceptForLinking && selectedSourceConceptForLinking.id !== id ? "cursor-pointer hover:bg-accent/50" : ""
+          isDragging ? "rotate-3 scale-105 shadow-xl z-20" : ""
         } ${
           isDropTarget ? "ring-2 ring-purple-500 bg-purple-50 dark:bg-purple-950/20" : ""
         } ${
@@ -918,7 +914,7 @@ export const ConceptCard = React.memo(function ConceptCard({
         
         {/* Source for linking indicator */}
         {isSourceForLinking && (
-          <div className="absolute top-0 left-0 right-0 p-1 bg-blue-500 text-white text-xs text-center rounded-t-md">
+          <div className="absolute top-0 left-0 right-0 p-1 bg-blue-500 text-white text-xs text-center rounded-t-md z-30">
             Selected for linking. Right-click another concept to connect.
           </div>
         )}
@@ -926,7 +922,7 @@ export const ConceptCard = React.memo(function ConceptCard({
         {/* Linked to source indicator and unlink button */}
         {isLinkedToSource() && selectedSourceConceptForLinking && !isSourceForLinking && (
           <button
-            className="absolute top-0 right-0 m-2 bg-background/90 hover:bg-destructive/10 text-destructive border border-destructive/30 rounded-full p-1 z-20 shadow-md backdrop-blur-sm"
+            className="absolute top-0 right-0 m-2 bg-background/90 hover:bg-destructive/10 text-destructive border border-destructive/30 rounded-full p-1 z-30 shadow-md backdrop-blur-sm"
             title={`Unlink from ${selectedSourceConceptForLinking.title}`}
             onClick={(e) => {
               e.preventDefault();
@@ -945,14 +941,16 @@ export const ConceptCard = React.memo(function ConceptCard({
         
         {/* Right-click to link indicator */}
         {enableRightClickLinking && !isSourceForLinking && selectedSourceConceptForLinking && (
-          <div className="absolute top-0 right-0 p-1.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 rounded-bl-md border border-blue-200 dark:border-blue-700">
+          <div className="absolute top-0 right-0 p-1.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400 rounded-bl-md border border-blue-200 dark:border-blue-700 z-20">
             <span className="flex items-center">
               <span className="mr-1">Right-click to link</span>
               <LinkIcon className="h-3 w-3" />
             </span>
           </div>
         )}
-        <CardHeader className="pb-4">
+        
+        {/* Fixed header with action buttons - always visible */}
+        <CardHeader className="pb-4 flex-shrink-0 relative z-10">
           <div className="flex justify-between items-start gap-4 mb-3">
             {isEditingTitle ? (
               <div className="flex items-center space-x-2 flex-1 min-w-0">
@@ -1009,12 +1007,12 @@ export const ConceptCard = React.memo(function ConceptCard({
               </div>
             )}
             
-            {/* Action buttons in top right */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Action buttons in top right - always visible with higher z-index */}
+            <div className="flex items-center gap-1 flex-shrink-0 z-20">
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                className="h-7 w-7 text-destructive hover:text-destructive/90 hover:bg-destructive/10 bg-background/80 backdrop-blur-sm border border-destructive/20"
                 onClick={handleDelete}
                 disabled={isDeleting}
                 title="Delete concept"
@@ -1134,7 +1132,9 @@ export const ConceptCard = React.memo(function ConceptCard({
             </CardDescription>
           )}
         </CardHeader>
-        <CardContent className="pb-4 space-y-4 flex-1">
+        
+        {/* Content area with scroll if needed */}
+        <CardContent className="pb-4 space-y-4 flex-1 overflow-y-auto max-h-96">
           {/* Show enhancements if they exist */}
           {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
             <div className="space-y-3 pt-3 border-t">
