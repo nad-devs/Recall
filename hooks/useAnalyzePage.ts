@@ -174,18 +174,41 @@ export function useAnalyzePage() {
       
       if (shouldUpdate) {
         // Update the existing concept with new information
+        console.log("🔄 About to update existing concept:", match.existingConcept.id)
+        console.log("🔄 New concept data being sent:", {
+          title: match.newConcept.title,
+          summary: match.newConcept.summary,
+          category: match.newConcept.category,
+          keyPoints: match.newConcept.keyPoints,
+          details: match.newConcept.details,
+          examples: match.newConcept.examples,
+          codeSnippets: match.newConcept.codeSnippets,
+          relatedConcepts: match.newConcept.relatedConcepts
+        })
+        
+        const updatePayload = {
+          ...match.newConcept,
+          // Preserve existing enhancements and other fields
+          preserveEnhancements: true
+        }
+        
+        console.log("🔄 Full update payload:", updatePayload)
+        
         const updateResponse = await makeAuthenticatedRequest(`/api/concepts/${match.existingConcept.id}`, {
           method: 'PUT',
-          body: JSON.stringify({
-            ...match.newConcept,
-            // Preserve existing enhancements and other fields
-            preserveEnhancements: true
-          }),
+          body: JSON.stringify(updatePayload),
         })
 
+        console.log("🔄 Update response status:", updateResponse.status)
+        
         if (!updateResponse.ok) {
+          const errorText = await updateResponse.text()
+          console.error("🔄 Update failed with error:", errorText)
           throw new Error('Failed to update existing concept')
         }
+        
+        const updateResult = await updateResponse.json()
+        console.log("🔄 Update result:", updateResult)
 
         toast({
           title: "Concept Updated",
