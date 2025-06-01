@@ -3,6 +3,40 @@ import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { NextRequest } from 'next/server';
 
+// Enhanced similarity calculation using multiple metrics
+function calculateSimilarity(str1: string, str2: string): number {
+  // Normalize strings
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+  
+  // If strings are identical, return perfect match
+  if (s1 === s2) return 1.0;
+  
+  // Jaccard similarity (shared words / total unique words)
+  const words1 = new Set(s1.split(/\s+/).filter(w => w.length > 2));
+  const words2 = new Set(s2.split(/\s+/).filter(w => w.length > 2));
+  
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+  
+  const jaccardScore = union.size > 0 ? intersection.size / union.size : 0;
+  
+  // Substring containment check (one contains the other)
+  const containmentScore = s1.includes(s2) || s2.includes(s1) ? 0.8 : 0;
+  
+  // Character overlap ratio
+  const chars1 = s1.replace(/\s/g, '');
+  const chars2 = s2.replace(/\s/g, '');
+  const commonChars = [...chars1].filter(c => chars2.includes(c)).length;
+  const charOverlap = Math.max(chars1.length, chars2.length) > 0 
+    ? commonChars / Math.max(chars1.length, chars2.length) : 0;
+  
+  // Combined score with weights
+  const finalScore = (jaccardScore * 0.5) + (containmentScore * 0.3) + (charOverlap * 0.2);
+  
+  return Math.min(finalScore, 1.0);
+}
+
 export async function POST(request: Request) {
   try {
     console.log('📋 CHECK-EXISTING API ROUTE CALLED');
@@ -196,7 +230,14 @@ export async function POST(request: Request) {
             {base: "two sum", variations: ["two sum", "2sum", "two sum problem", "find two sum"]},
             {base: "linked list", variations: ["linked list", "singly linked list", "doubly linked list", "reverse linked list"]},
             {base: "binary search", variations: ["binary search", "binary search algorithm", "binary search implementation"]},
-            {base: "hash table", variations: ["hash table", "hash map", "hash set", "hashtable"]},
+            {
+              base: "hash table", 
+              variations: [
+                "hash table", "hash tables", "hash map", "hash maps", "hash set", "hashtable", "hashtables",
+                "hash table implementation", "hash table optimization", "hash table implementation and optimization",
+                "hash table design", "hash table structure", "hash table algorithm", "hash table data structure"
+              ]
+            },
           ];
           
           const lowerTitle = concept.title.toLowerCase();
@@ -213,9 +254,11 @@ export async function POST(request: Request) {
                   where: {
                     AND: [
                       {
-                        title: {
-                          contains: variation
-                        }
+                        OR: [
+                          { title: { contains: variation } },
+                          // Also check if the variation is contained in the existing concept title
+                          { title: { contains: variantGroup.base } }
+                        ]
                       },
                       { userId: user.id }  // User filtering
                     ]
@@ -229,11 +272,26 @@ export async function POST(request: Request) {
                   }
                 });
                 
-                if (variantMatches.length > 0) {
-                  existingConcepts.push(variantMatches[0]);
-                  console.log(`📋 Found algorithm variant match: "${variantMatches[0].title}" for "${concept.title}"`);
-                  break;
+                // Additional filtering for better matches
+                for (const match of variantMatches) {
+                  const matchTitleLower = match.title.toLowerCase();
+                  
+                  // Check if this is a good match by seeing if:
+                  // 1. The existing concept contains the base term (e.g., "hash table")
+                  // 2. The new concept also contains the base term
+                  // 3. They're not exactly the same title
+                  if (matchTitleLower.includes(variantGroup.base) && 
+                      lowerTitle.includes(variantGroup.base) &&
+                      matchTitleLower !== lowerTitle) {
+                    
+                    existingConcepts.push(match);
+                    console.log(`📋 Found algorithm variant match: "${match.title}" for "${concept.title}"`);
+                    break;
+                  }
                 }
+                
+                // If we found a match, break out of variations loop
+                if (existingConcepts.length > 0) break;
               }
               
               // If we found a match, break out of the outer loop
