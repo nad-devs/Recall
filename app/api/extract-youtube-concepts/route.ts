@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get backend URL from environment
-    const backendUrl = process.env.PYTHON_SERVICE_URL || 'https://recall-p3vg.onrender.com'
+    const backendUrl = process.env.PYTHON_SERVICE_URL || 'https://recall.p3vg.onrender.com'
     const url = `${backendUrl}/api/v1/extract-youtube-concepts`
     
     console.log('📺 Forwarding to backend:', url)
