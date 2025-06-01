@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut } from "lucide-react"
+import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut, MessageSquare } from "lucide-react"
 import { DashboardConceptCard } from "@/components/dashboard-concept-card"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { PageTransition } from "@/components/page-transition"
@@ -234,6 +234,18 @@ export default function Dashboard() {
                 Browse Concepts
               </Link>
             </Button>
+            <Button variant="outline" asChild className="shadow-sm">
+              <Link href="/faq">
+                <BookOpen className="mr-2 h-4 w-4" />
+                FAQ
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="shadow-sm">
+              <Link href="/admin/feedback">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Feedback
+              </Link>
+            </Button>
               <Button 
                 variant="ghost" 
               onClick={() => {
@@ -369,7 +381,7 @@ export default function Dashboard() {
                           <p className="text-muted-foreground mb-4">
                             You haven't analyzed any content yet. Paste your first conversation, transcript, document, or code to extract concepts and build your knowledge base!
                           </p>
-                          <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                          <Button asChild variant="default" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0">
                             <Link href="/analyze">
                               <Brain className="mr-2 h-4 w-4" />
                               Analyze Your First Content
@@ -429,7 +441,7 @@ export default function Dashboard() {
                         <p className="text-sm text-muted-foreground mb-3">
                           Start by analyzing a conversation, transcript, document, or code to extract your first concepts!
                         </p>
-                        <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700">
+                        <Button asChild size="sm" variant="default" className="bg-amber-600 hover:bg-amber-700 text-white border-0">
                           <Link href="/analyze">
                             <Brain className="mr-1 h-3 w-3" />
                             Analyze Content

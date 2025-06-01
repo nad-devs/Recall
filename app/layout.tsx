@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/contexts/ThemeContext"
 import { AuthProvider } from "@/components/auth-provider"
 import { ReduxProvider } from "@/components/redux-provider"
+import { FeedbackWidget } from "@/components/feedback-widget"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({
           <AuthProvider>
             <ThemeProvider>
               {children}
+              <FeedbackWidget />
               <Toaster />
             </ThemeProvider>
           </AuthProvider>

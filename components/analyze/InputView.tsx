@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { getRemainingConversations, getUsageData } from "@/lib/usage-tracker"
+import { Send, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface InputViewProps {
   conversationText: string
@@ -96,50 +98,25 @@ export function InputView({
             />
           </div>
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={handleAnalyze}
               disabled={isAnalyzing || !conversationText.trim()}
-              className="inline-flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-800 text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none dark:!bg-[#1e90ff] dark:hover:!bg-[#63b3ed] dark:!text-white dark:font-bold dark:px-6 dark:py-2 shadow-md"
+              variant="default"
+              size="default"
+              className="shadow-md"
             >
               {isAnalyzing ? (
                 <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mr-2 h-4 w-4 animate-spin"
-                  >
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Analyzing...
                 </>
               ) : (
                 <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mr-2 h-4 w-4"
-                  >
-                    <path d="m22 2-7 20-4-9-9-4Z" />
-                    <path d="M22 2 11 13" />
-                  </svg>
+                  <Send className="mr-2 h-4 w-4" />
                   Analyze Content
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </motion.div>
@@ -214,50 +191,25 @@ export function InputView({
           />
         </div>
         <div className="flex justify-end">
-          <button
+          <Button
             onClick={handleAnalyze}
             disabled={isAnalyzing || !conversationText.trim()}
-            className="inline-flex items-center justify-center rounded-md bg-zinc-700 hover:bg-zinc-800 text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none dark:!bg-[#1e90ff] dark:hover:!bg-[#63b3ed] dark:!text-white dark:font-bold dark:px-6 dark:py-2 shadow-md"
+            variant="default"
+            size="default"
+            className="shadow-md"
           >
             {isAnalyzing ? (
               <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-2 h-4 w-4 animate-spin"
-                >
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Analyzing...
               </>
             ) : (
               <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-2 h-4 w-4"
-                >
-                  <path d="m22 2-7 20-4-9-9-4Z" />
-                  <path d="M22 2 11 13" />
-                </svg>
+                <Send className="mr-2 h-4 w-4" />
                 Analyze Content
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </motion.div>
