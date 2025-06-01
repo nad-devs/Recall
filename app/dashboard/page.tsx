@@ -225,7 +225,7 @@ export default function Dashboard() {
             <Button variant="default" asChild className="shadow-sm">
               <Link href="/analyze">
                 <Brain className="mr-2 h-4 w-4" />
-                Analyze Conversation
+                Analyze Content
               </Link>
             </Button>
             <Button variant="outline" asChild className="shadow-sm">
@@ -310,7 +310,7 @@ export default function Dashboard() {
                 )}
               </div>
               <p className="text-muted-foreground mb-4">
-                You've learned about {dashboardData.conceptsCount} concepts across {dashboardData.categoriesCount} categories through conversation analysis.
+                You've learned about {dashboardData.conceptsCount} concepts across {dashboardData.categoriesCount} categories through analyzing conversations, documents, and code.
               </p>
               <div className="flex flex-wrap gap-2 mb-4">
                 <Badge variant="secondary" className="px-2 py-1">
@@ -367,12 +367,12 @@ export default function Dashboard() {
                         <div>
                           <h3 className="text-lg font-semibold text-foreground mb-2">Ready to start learning?</h3>
                           <p className="text-muted-foreground mb-4">
-                            You haven't analyzed any conversations yet. Upload your first conversation to extract concepts and build your knowledge base!
+                            You haven't analyzed any content yet. Paste your first conversation, transcript, document, or code to extract concepts and build your knowledge base!
                           </p>
                           <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                             <Link href="/analyze">
                               <Brain className="mr-2 h-4 w-4" />
-                              Analyze Your First Conversation
+                              Analyze Your First Content
                             </Link>
                           </Button>
                         </div>
@@ -427,12 +427,12 @@ export default function Dashboard() {
                       <div>
                         <h4 className="font-semibold text-foreground">No concepts yet</h4>
                         <p className="text-sm text-muted-foreground mb-3">
-                          Start by analyzing a conversation to extract your first concepts!
+                          Start by analyzing a conversation, transcript, document, or code to extract your first concepts!
                         </p>
                         <Button asChild size="sm" className="bg-amber-600 hover:bg-amber-700">
                           <Link href="/analyze">
                             <Brain className="mr-1 h-3 w-3" />
-                            Analyze Conversation
+                            Analyze Content
                           </Link>
                         </Button>
                       </div>

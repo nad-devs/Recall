@@ -153,7 +153,7 @@ export function SimpleConceptEnhancer({ concept, onSave, onCancel }: SimpleConce
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Enter video URL (YouTube, etc.)"
+              placeholder="Enter video URL or resource link"
               value={newVideoUrl}
               onChange={(e) => setNewVideoUrl(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addVideoResource()}
