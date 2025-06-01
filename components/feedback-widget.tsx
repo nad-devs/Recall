@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -27,12 +27,12 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Automatically detect browser info when component mounts
-  useState(() => {
+  useEffect(() => {
     const userAgent = navigator.userAgent
     const browserName = getBrowserName(userAgent)
     const osName = getOSName(userAgent)
     setBrowserInfo(`${browserName} on ${osName}`)
-  })
+  }, [])
 
   const getBrowserName = (userAgent: string) => {
     if (userAgent.includes("Chrome")) return "Chrome"
