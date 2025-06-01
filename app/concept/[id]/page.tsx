@@ -33,6 +33,7 @@ import { HTML5Backend } from "react-dnd-html5-backend"
 import { PageTransition } from "@/components/page-transition"
 import { disconnectConcepts, connectConcepts } from "@/lib/concept-utils"
 import { ConceptConnectionDialog } from "@/components/concept-connection-dialog"
+import { AuthGuard } from "@/components/auth-guard"
 
 export default function ConceptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -225,431 +226,435 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <PageTransition>
-      <DndProvider backend={HTML5Backend}>
-        <div className="container mx-auto py-6 px-4 space-y-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2 mb-2">
-                <Button variant="ghost" size="icon" asChild>
-                  <Link href="/concepts">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Link>
-                </Button>
-                {isEditingTitle ? (
-                  <div className="flex items-center space-x-2 flex-1 min-w-0 relative z-10">
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="text-3xl font-bold h-auto py-2 px-3 border-2 border-primary min-w-0 flex-1 bg-white shadow-lg"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleTitleUpdate()
-                        } else if (e.key === 'Escape') {
-                          cancelEditingTitle()
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleTitleUpdate}
-                      className="text-green-600 hover:text-green-700 hover:bg-green-50 flex-shrink-0"
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={cancelEditingTitle}
-                      className="text-gray-500 hover:text-gray-600 hover:bg-gray-50 flex-shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 min-w-0 flex-1">
-                    <h1 className="text-3xl font-bold truncate">{concept.title}</h1>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={startEditingTitle}
-                      className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex-shrink-0"
-                      title="Edit title"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge variant="outline">
-                  {concept.category}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex space-x-2 flex-shrink-0">
-              <Button 
-                variant="outline"
-                onClick={() => setIsConnectionDialogOpen(true)}
-              >
-                <LinkIcon className="mr-2 h-4 w-4" />
-                Connect
-              </Button>
-              <Button asChild variant="outline">
-                <Link href={`/review/${concept.id}`}>
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  Review & Practice
-                </Link>
-              </Button>
-              <Button 
-                variant="outline"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={async () => {
-                  if (!window.confirm(`Are you sure you want to delete "${concept.title}"? This action cannot be undone.`)) {
-                    return;
-                  }
-                  
-                  try {
-                    const response = await fetch(`/api/concepts/${concept.id}`, {
-                      method: 'DELETE',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'x-user-email': localStorage.getItem('userEmail') || '',
-                        'x-user-id': localStorage.getItem('userId') || '',
-                      },
-                    });
-
-                    if (!response.ok) {
-                      throw new Error('Failed to delete concept');
-                    }
-                    
-                    const result = await response.json();
-
-                    toast({
-                      title: "Concept Deleted",
-                      description: `"${concept.title}" has been deleted`,
-                      duration: 3000,
-                    });
-
-                    // Navigate back to concepts page
-                    window.location.href = '/concepts';
-                  } catch (error) {
-                    console.error('Error deleting concept:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to delete concept. Please try again.",
-                      variant: "destructive",
-                      duration: 3000,
-                    });
-                  }
-                }}
-                title="Delete this concept"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </div>
-
-          {/* Two-Column Layout: 65% Left, 30% Right, 5% Gap */}
-          <div className="grid grid-cols-1 lg:grid-cols-[65%_30%] gap-[5%]">
-            {/* Left Column - Concept Notes (65% width) */}
+    <AuthGuard>
+      <PageTransition>
+        <div className="container mx-auto p-6 max-w-7xl">
+          <DndProvider backend={HTML5Backend}>
             <div className="space-y-6">
-              {/* Concept Notes Card - LIMITED HEIGHT */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center">
-                    <BookOpen className="mr-2 h-5 w-5" />
-                    <CardTitle>Concept Notes</CardTitle>
-                  </div>
-                  <CardDescription>Your consolidated understanding of this concept</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6 max-h-[500px] overflow-y-auto">
-                  {concept.summary && (
-                    <div className="text-base">{concept.summary}</div>
-                  )}
-                  {keyPoints.length > 0 && (
-                    <div>
-                      <h3 className="text-md font-semibold mb-2">Key Points:</h3>
-                      <ul className="space-y-1 list-disc pl-5">
-                        {keyPoints.map((point, index) => (
-                          <li key={index}>
-                            {typeof point === 'string' ? point : JSON.stringify(point)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {concept.details && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-primary">Detailed Information</h3>
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                        {formatDetailsText(concept.details)}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Button variant="ghost" size="icon" asChild>
+                      <Link href="/concepts">
+                        <ArrowLeft className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    {isEditingTitle ? (
+                      <div className="flex items-center space-x-2 flex-1 min-w-0 relative z-10">
+                        <Input
+                          value={editedTitle}
+                          onChange={(e) => setEditedTitle(e.target.value)}
+                          className="text-3xl font-bold h-auto py-2 px-3 border-2 border-primary min-w-0 flex-1 bg-white shadow-lg"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleTitleUpdate()
+                            } else if (e.key === 'Escape') {
+                              cancelEditingTitle()
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleTitleUpdate}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50 flex-shrink-0"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={cancelEditingTitle}
+                          className="text-gray-500 hover:text-gray-600 hover:bg-gray-50 flex-shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Code Examples Section - LIMITED HEIGHT */}
-              {concept.codeSnippets && concept.codeSnippets.length > 0 && (
-                <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                  <div className="flex items-center mb-4">
-                    <Code className="mr-2 h-5 w-5" />
-                    <h2 className="text-xl font-semibold">Code Examples</h2>
-                  </div>
-                  {concept.codeSnippets.map((snippet: any) => (
-                    <Card key={snippet.id} className="group">
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-center">
-                          <CardTitle className="text-lg">{snippet.description}</CardTitle>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline">{snippet.language}</Badge>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                              onClick={() => deleteCodeSnippet(snippet.id)}
-                              title="Delete code snippet"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm max-h-[200px] overflow-y-auto">
-                          <code>{snippet.code}</code>
-                        </pre>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right Column - Enhanced Concepts (30% width) */}
-            <div className="space-y-6">
-              {/* Enhanced Concepts Card */}
-              {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
-                    <CardDescription>Additional resources and notes</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Video Resources */}
-                    {concept.videoResources && (() => {
-                      try {
-                        const videos = JSON.parse(concept.videoResources);
-                        return videos.length > 0 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center text-sm font-medium text-muted-foreground">
-                              <Video className="mr-2 h-4 w-4" />
-                              Video Resources ({videos.length})
-                            </div>
-                            <div className="space-y-2">
-                              {videos.map((url: string, index: number) => (
-                                <a 
-                                  key={index}
-                                  href={url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="block text-sm text-blue-600 hover:underline break-words"
-                                  onClick={(e) => e.stopPropagation()}
-                                  title={url}
-                                >
-                                  {url}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      } catch {
-                        return null;
-                      }
-                    })()}
-                    
-                    {/* Common Mistakes */}
-                    {concept.commonMistakes && (() => {
-                      try {
-                        const mistakes = JSON.parse(concept.commonMistakes);
-                        return mistakes.length > 0 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center text-sm font-medium text-muted-foreground">
-                              <AlertTriangle className="mr-2 h-4 w-4" />
-                              Common Mistakes ({mistakes.length})
-                            </div>
-                            <div className="space-y-2">
-                              {mistakes.map((mistake: string, index: number) => (
-                                <div key={index} className="text-sm text-amber-700 dark:text-amber-300 break-words">
-                                  • {mistake}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      } catch {
-                        return null;
-                      }
-                    })()}
-                    
-                    {/* Personal Notes */}
-                    {concept.personalNotes && (
-                      <div className="space-y-3">
-                        <div className="flex items-center text-sm font-medium text-muted-foreground">
-                          <FileText className="mr-2 h-4 w-4" />
-                          Additional Notes
-                        </div>
-                        <div className="text-sm text-muted-foreground break-words">
-                          {concept.personalNotes}
-                        </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 min-w-0 flex-1">
+                        <h1 className="text-3xl font-bold truncate">{concept.title}</h1>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={startEditingTitle}
+                          className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex-shrink-0"
+                          title="Edit title"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       </div>
                     )}
-                  </CardContent>
-                  <CardFooter className="pt-3 border-t">
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href={`/concept/${concept.id}/enhance`}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit Enhancements
-                      </Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              )}
-              
-              {/* Show edit button even if no enhancements exist */}
-              {!(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
-                    <CardDescription>Add resources and notes to enhance this concept</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button asChild variant="outline" className="w-full">
-                      <Link href={`/concept/${concept.id}/enhance`}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Add Enhancements
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline">
+                      {concept.category}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex space-x-2 flex-shrink-0">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setIsConnectionDialogOpen(true)}
+                  >
+                    <LinkIcon className="mr-2 h-4 w-4" />
+                    Connect
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href={`/review/${concept.id}`}>
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Review & Practice
+                    </Link>
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={async () => {
+                      if (!window.confirm(`Are you sure you want to delete "${concept.title}"? This action cannot be undone.`)) {
+                        return;
+                      }
+                      
+                      try {
+                        const response = await fetch(`/api/concepts/${concept.id}`, {
+                          method: 'DELETE',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'x-user-email': localStorage.getItem('userEmail') || '',
+                            'x-user-id': localStorage.getItem('userId') || '',
+                          },
+                        });
 
-          {/* Related Concepts Section - Improved Grid Layout */}
-          {hasRelatedConcepts && (
-            <div className="mt-8 px-2">
-              <h2 className="text-xl font-semibold mb-6 flex items-center">
-                <ExternalLink className="mr-2 h-5 w-5" />
-                Related Concepts
-              </h2>
-              
-              <div className="space-y-8">
-                {/* Database-linked concepts */}
-                {relatedConcepts && relatedConcepts.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                      🔗 Connected Concepts
-                      <Badge variant="secondary" className="text-sm">
-                        {relatedConcepts.length} linked
-                      </Badge>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {relatedConcepts.map((relatedConcept) => (
-                        <Card key={relatedConcept.id} className="hover:shadow-lg transition-shadow group">
-                          <CardHeader className="pb-4">
-                            <div className="flex justify-between items-start mb-2">
-                              <CardTitle className="text-lg font-semibold">{relatedConcept.title}</CardTitle>
-                              <div className="flex gap-2 items-center">
-                                {relatedConcept.category && <Badge variant="outline" className="text-xs">{relatedConcept.category}</Badge>}
-                                <Button
-                                  variant="ghost"
+                        if (!response.ok) {
+                          throw new Error('Failed to delete concept');
+                        }
+                        
+                        const result = await response.json();
+
+                        toast({
+                          title: "Concept Deleted",
+                          description: `"${concept.title}" has been deleted`,
+                          duration: 3000,
+                        });
+
+                        // Navigate back to concepts page
+                        window.location.href = '/concepts';
+                      } catch (error) {
+                        console.error('Error deleting concept:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to delete concept. Please try again.",
+                          variant: "destructive",
+                          duration: 3000,
+                        });
+                      }
+                    }}
+                    title="Delete this concept"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+
+              {/* Two-Column Layout: 60% Left, 35% Right, 5% Gap */}
+              <div className="grid grid-cols-1 lg:grid-cols-[60%_35%] gap-[5%]">
+                {/* Left Column - Concept Notes (60% width) */}
+                <div className="space-y-8">
+                  {/* Concept Notes Card - NO HEIGHT LIMITS */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center">
+                        <BookOpen className="mr-2 h-5 w-5" />
+                        <CardTitle>Concept Notes</CardTitle>
+                      </div>
+                      <CardDescription>Your consolidated understanding of this concept</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8">
+                      {concept.summary && (
+                        <div className="text-base leading-relaxed">{concept.summary}</div>
+                      )}
+                      {keyPoints.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4">Key Points:</h3>
+                          <ul className="space-y-3 list-disc pl-6">
+                            {keyPoints.map((point, index) => (
+                              <li key={index} className="leading-relaxed">
+                                {typeof point === 'string' ? point : JSON.stringify(point)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {concept.details && (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4 text-primary">Detailed Information</h3>
+                          <div className="space-y-4 leading-relaxed">
+                            {formatDetailsText(concept.details)}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Code Examples Section - NO HEIGHT LIMITS */}
+                  {concept.codeSnippets && concept.codeSnippets.length > 0 && (
+                    <div className="space-y-6">
+                      <div className="flex items-center mb-4">
+                        <Code className="mr-2 h-5 w-5" />
+                        <h2 className="text-xl font-semibold">Code Examples</h2>
+                      </div>
+                      {concept.codeSnippets.map((snippet: any) => (
+                        <Card key={snippet.id} className="group">
+                          <CardHeader className="pb-3">
+                            <div className="flex justify-between items-center">
+                              <CardTitle className="text-lg">{snippet.description}</CardTitle>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline">{snippet.language}</Badge>
+                                <Button 
+                                  variant="ghost" 
                                   size="icon"
                                   className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    try {
-                                      await disconnectConcepts(concept.id, relatedConcept.id);
-                                      toast({
-                                        title: "Relationship Removed",
-                                        description: `Removed relationship with "${relatedConcept.title}"`,
-                                      });
-                                      await refreshConcept();
-                                    } catch (error) {
-                                      console.error('Error removing relationship:', error);
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to remove relationship",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
+                                  onClick={() => deleteCodeSnippet(snippet.id)}
+                                  title="Delete code snippet"
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>
                             </div>
-                            {relatedConcept.summary && (
-                              <CardDescription className="line-clamp-3 text-sm">
-                                {relatedConcept.summary.substring(0, 150)}...
-                              </CardDescription>
-                            )}
                           </CardHeader>
-                          <CardFooter className="pt-0">
-                            <Button variant="outline" size="sm" asChild className="w-full">
-                              <Link href={`/concept/${relatedConcept.id}`}>
-                                View Concept
-                                <ArrowRight className="ml-2 h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </CardFooter>
+                          <CardContent>
+                            <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
+                              <code>{snippet.code}</code>
+                            </pre>
+                          </CardContent>
                         </Card>
                       ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                  )}
+                </div>
 
-          {/* Related Conversations Section - At the Bottom */}
-          {relatedConversations && relatedConversations.length > 0 && (
-            <div className="mt-8 px-2">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <MessageSquare className="mr-2 h-5 w-5" />
-                Related Conversations
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {relatedConversations.map((conv) => (
-                  <ConversationCard 
-                    key={conv.id} 
-                    conversation={{
-                      id: conv.id,
-                      title: conv.title,
-                      summary: conv.summary,
-                      date: conv.date,
-                      concepts: [],
-                      conceptMap: [],
-                      keyPoints: []
-                    }} 
-                  />
-                ))}
+                {/* Right Column - Enhanced Concepts (35% width) */}
+                <div className="space-y-6">
+                  {/* Enhanced Concepts Card */}
+                  {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
+                        <CardDescription>Additional resources and notes</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Video Resources */}
+                        {concept.videoResources && (() => {
+                          try {
+                            const videos = JSON.parse(concept.videoResources);
+                            return videos.length > 0 && (
+                              <div className="space-y-3">
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                  <Video className="mr-2 h-4 w-4" />
+                                  Video Resources ({videos.length})
+                                </div>
+                                <div className="space-y-2">
+                                  {videos.map((url: string, index: number) => (
+                                    <a 
+                                      key={index}
+                                      href={url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="block text-sm text-blue-600 hover:underline break-words"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title={url}
+                                    >
+                                      {url}
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          } catch {
+                            return null;
+                          }
+                        })()}
+                        
+                        {/* Common Mistakes */}
+                        {concept.commonMistakes && (() => {
+                          try {
+                            const mistakes = JSON.parse(concept.commonMistakes);
+                            return mistakes.length > 0 && (
+                              <div className="space-y-3">
+                                <div className="flex items-center text-sm font-medium text-muted-foreground">
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Common Mistakes ({mistakes.length})
+                                </div>
+                                <div className="space-y-2">
+                                  {mistakes.map((mistake: string, index: number) => (
+                                    <div key={index} className="text-sm text-amber-700 dark:text-amber-300 break-words">
+                                      • {mistake}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          } catch {
+                            return null;
+                          }
+                        })()}
+                        
+                        {/* Personal Notes */}
+                        {concept.personalNotes && (
+                          <div className="space-y-3">
+                            <div className="flex items-center text-sm font-medium text-muted-foreground">
+                              <FileText className="mr-2 h-4 w-4" />
+                              Additional Notes
+                            </div>
+                            <div className="text-sm text-muted-foreground break-words">
+                              {concept.personalNotes}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter className="pt-3 border-t">
+                        <Button asChild variant="outline" className="w-full">
+                          <Link href={`/concept/${concept.id}/enhance`}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Enhancements
+                          </Link>
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )}
+                  
+                  {/* Show edit button even if no enhancements exist */}
+                  {!(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
+                        <CardDescription>Add resources and notes to enhance this concept</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button asChild variant="outline" className="w-full">
+                          <Link href={`/concept/${concept.id}/enhance`}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Add Enhancements
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
+
+              {/* Related Concepts Section - Improved Grid Layout */}
+              {hasRelatedConcepts && (
+                <div className="mt-8 px-2">
+                  <h2 className="text-xl font-semibold mb-6 flex items-center">
+                    <ExternalLink className="mr-2 h-5 w-5" />
+                    Related Concepts
+                  </h2>
+                  
+                  <div className="space-y-8">
+                    {/* Database-linked concepts */}
+                    {relatedConcepts && relatedConcepts.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                          🔗 Connected Concepts
+                          <Badge variant="secondary" className="text-sm">
+                            {relatedConcepts.length} linked
+                          </Badge>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {relatedConcepts.map((relatedConcept) => (
+                            <Card key={relatedConcept.id} className="hover:shadow-lg transition-shadow group">
+                              <CardHeader className="pb-4">
+                                <div className="flex justify-between items-start mb-2">
+                                  <CardTitle className="text-lg font-semibold">{relatedConcept.title}</CardTitle>
+                                  <div className="flex gap-2 items-center">
+                                    {relatedConcept.category && <Badge variant="outline" className="text-xs">{relatedConcept.category}</Badge>}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                      onClick={async (e) => {
+                                        e.preventDefault();
+                                        try {
+                                          await disconnectConcepts(concept.id, relatedConcept.id);
+                                          toast({
+                                            title: "Relationship Removed",
+                                            description: `Removed relationship with "${relatedConcept.title}"`,
+                                          });
+                                          await refreshConcept();
+                                        } catch (error) {
+                                          console.error('Error removing relationship:', error);
+                                          toast({
+                                            title: "Error",
+                                            description: "Failed to remove relationship",
+                                            variant: "destructive",
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                {relatedConcept.summary && (
+                                  <CardDescription className="line-clamp-3 text-sm">
+                                    {relatedConcept.summary.substring(0, 150)}...
+                                  </CardDescription>
+                                )}
+                              </CardHeader>
+                              <CardFooter className="pt-0">
+                                <Button variant="outline" size="sm" asChild className="w-full">
+                                  <Link href={`/concept/${relatedConcept.id}`}>
+                                    View Concept
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                  </Link>
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Related Conversations Section - At the Bottom */}
+              {relatedConversations && relatedConversations.length > 0 && (
+                <div className="mt-8 px-2">
+                  <h2 className="text-xl font-semibold mb-4 flex items-center">
+                    <MessageSquare className="mr-2 h-5 w-5" />
+                    Related Conversations
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {relatedConversations.map((conv) => (
+                      <ConversationCard 
+                        key={conv.id} 
+                        conversation={{
+                          id: conv.id,
+                          title: conv.title,
+                          summary: conv.summary,
+                          date: conv.date,
+                          concepts: [],
+                          conceptMap: [],
+                          keyPoints: []
+                        }} 
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </DndProvider>
+          
+          <ConceptConnectionDialog
+            isOpen={isConnectionDialogOpen}
+            onOpenChange={setIsConnectionDialogOpen}
+            sourceConcept={{ id: concept.id, title: concept.title }}
+            onConnect={handleConnectConcept}
+          />
         </div>
-      </DndProvider>
-      
-      <ConceptConnectionDialog
-        isOpen={isConnectionDialogOpen}
-        onOpenChange={setIsConnectionDialogOpen}
-        sourceConcept={{ id: concept.id, title: concept.title }}
-        onConnect={handleConnectConcept}
-      />
-    </PageTransition>
+      </PageTransition>
+    </AuthGuard>
   )
 } 

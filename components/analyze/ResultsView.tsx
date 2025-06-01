@@ -929,12 +929,12 @@ export function ResultsView(props: ResultsViewProps) {
         ) : selectedConcept ? (
           // Display selected concept
           <div className="rounded-lg border bg-card text-card-foreground shadow-sm group">
-            <div className="flex flex-col p-6">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex flex-col p-8">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
                 <div className="flex-1">
                   {/* Title editing */}
                   {isEditingTitle ? (
-                    <div className="flex items-center space-x-2 mb-1">
+                    <div className="flex items-center space-x-3 mb-2">
                       <input
                         type="text"
                         value={editingTitleValue}
@@ -947,14 +947,14 @@ export function ResultsView(props: ResultsViewProps) {
                             setIsEditingTitle(false)
                           }
                         }}
-                        className="text-2xl font-bold tracking-tight bg-background border rounded px-2 py-1 flex-1"
+                        className="text-3xl font-bold tracking-tight bg-background border rounded px-3 py-2 flex-1"
                         autoFocus
                         disabled={isSavingTitle}
                       />
                       <button 
                         onClick={handleTitleSave}
                         disabled={isSavingTitle}
-                        className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-2 py-1 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                        className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
                       >
                         {isSavingTitle ? (
                           <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
@@ -972,7 +972,7 @@ export function ResultsView(props: ResultsViewProps) {
                           setIsEditingTitle(false)
                         }}
                         disabled={isSavingTitle}
-                        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-sm font-medium hover:bg-accent"
+                        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M18 6 6 18M6 6l12 12"/>
@@ -980,8 +980,8 @@ export function ResultsView(props: ResultsViewProps) {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center space-x-2 mb-1 group">
-                      <h2 className="text-2xl font-bold tracking-tight">
+                    <div className="flex items-center space-x-3 mb-2 group">
+                      <h2 className="text-3xl font-bold tracking-tight">
                         {selectedConcept.title}
                       </h2>
                       <button
@@ -1001,9 +1001,9 @@ export function ResultsView(props: ResultsViewProps) {
                   )}
                   
                   {/* Category editing */}
-                  <div className="flex items-center text-xs text-muted-foreground mb-4">
-                    <div className="flex items-center space-x-2 group">
-                      <span className="inline-block px-2 py-1 rounded-full bg-muted">
+                  <div className="flex items-center text-sm text-muted-foreground mb-6">
+                    <div className="flex items-center space-x-3 group">
+                      <span className="inline-block px-3 py-1 rounded-full bg-muted">
                         {selectedConcept.category || "Uncategorized"}
                       </span>
                       <button
@@ -1023,7 +1023,7 @@ export function ResultsView(props: ResultsViewProps) {
                           
                           setIsEditingCategory(true)
                         }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md border border-input bg-background px-1 py-1 text-xs font-medium hover:bg-accent"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center justify-center rounded-md border border-input bg-background px-2 py-1 text-xs font-medium hover:bg-accent"
                         title="Edit category"
                       >
                         <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1033,17 +1033,17 @@ export function ResultsView(props: ResultsViewProps) {
                       </button>
                     </div>
                   </div>
-                  <p className="text-base text-card-foreground mb-4">
+                  <p className="text-lg text-card-foreground mb-6 leading-relaxed">
                     {selectedConcept.summary}
                   </p>
                 </div>
                 
                 {/* Action buttons */}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                   <button
                     onClick={() => handleDeleteConcept(selectedConcept.id)}
                     disabled={isDeleting}
-                    className="inline-flex items-center justify-center rounded-md border border-destructive text-destructive px-3 py-2 text-sm font-medium hover:bg-destructive/10 disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-md border border-destructive text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/10 disabled:opacity-50"
                     title="Delete concept"
                   >
                     {isDeleting ? (
@@ -1062,10 +1062,10 @@ export function ResultsView(props: ResultsViewProps) {
               </div>
 
               {/* Tabs for different concept content */}
-              <div className="border-b mb-6">
-                <div className="flex -mb-px space-x-8">
+              <div className="border-b mb-8">
+                <div className="flex -mb-px space-x-12">
                   <button
-                    className={`pb-4 text-sm font-medium ${
+                    className={`pb-4 text-base font-medium transition-colors ${
                       selectedTab === "summary"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1075,7 +1075,7 @@ export function ResultsView(props: ResultsViewProps) {
                     Summary
                   </button>
                   <button
-                    className={`pb-4 text-sm font-medium ${
+                    className={`pb-4 text-base font-medium transition-colors ${
                       selectedTab === "details"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1085,7 +1085,7 @@ export function ResultsView(props: ResultsViewProps) {
                     Details
                   </button>
                   <button
-                    className={`pb-4 text-sm font-medium ${
+                    className={`pb-4 text-base font-medium transition-colors ${
                       selectedTab === "code"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1095,7 +1095,7 @@ export function ResultsView(props: ResultsViewProps) {
                     Code Examples
                   </button>
                   <button
-                    className={`pb-4 text-sm font-medium ${
+                    className={`pb-4 text-base font-medium transition-colors ${
                       selectedTab === "related"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1109,18 +1109,18 @@ export function ResultsView(props: ResultsViewProps) {
 
               {/* Tab content */}
               {selectedTab === "summary" && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Summary</h3>
+                <div className="space-y-6">
+                  <h3 className="font-semibold text-xl">Summary</h3>
                   <div className="prose max-w-none dark:prose-invert">
-                    <p className="text-base leading-relaxed">
+                    <p className="text-base leading-relaxed text-foreground">
                       {selectedConcept.summary || "No summary available."}
                     </p>
                   </div>
                   
                   {selectedConcept.keyPoints && selectedConcept.keyPoints.length > 0 && (
-                    <div className="mt-6">
-                      <h4 className="font-semibold text-base mb-3">Key Points</h4>
-                      <ul className="list-disc pl-5 space-y-2">
+                    <div className="mt-8">
+                      <h4 className="font-semibold text-lg mb-4">Key Points</h4>
+                      <ul className="list-disc pl-6 space-y-3">
                         {selectedConcept.keyPoints.map((point: string, index: number) => (
                           <li key={index} className="text-foreground leading-relaxed">{point}</li>
                         ))}
@@ -1131,11 +1131,11 @@ export function ResultsView(props: ResultsViewProps) {
               )}
 
               {selectedTab === "details" && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Details</h3>
+                <div className="space-y-6">
+                  <h3 className="font-semibold text-xl">Details</h3>
                   <div className="prose max-w-none dark:prose-invert">
                     {selectedConcept.details ? (
-                      <div className="whitespace-pre-line">
+                      <div className="whitespace-pre-line leading-relaxed text-foreground">
                         {typeof selectedConcept.details === 'string' 
                           ? selectedConcept.details 
                           : typeof selectedConcept.details === 'object' && selectedConcept.details.implementation
@@ -1149,11 +1149,11 @@ export function ResultsView(props: ResultsViewProps) {
                   </div>
                   
                   {selectedConcept.keyPoints && selectedConcept.keyPoints.length > 0 && (
-                    <div className="mt-6">
-                      <h3 className="font-semibold text-lg mb-2">Key Points</h3>
-                      <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                    <div className="mt-8">
+                      <h3 className="font-semibold text-xl mb-4">Key Points</h3>
+                      <ul className="list-disc pl-6 space-y-3">
                         {selectedConcept.keyPoints.map((point: string, index: number) => (
-                          <li key={index} className="text-foreground">{point}</li>
+                          <li key={index} className="text-foreground leading-relaxed">{point}</li>
                         ))}
                       </ul>
                     </div>
@@ -1162,25 +1162,25 @@ export function ResultsView(props: ResultsViewProps) {
               )}
 
               {selectedTab === "code" && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Code Examples</h3>
+                <div className="space-y-6">
+                  <h3 className="font-semibold text-xl">Code Examples</h3>
                   {selectedConcept.codeSnippets && selectedConcept.codeSnippets.length > 0 ? (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                       {selectedConcept.codeSnippets.map((snippet: any, index: number) => (
-                        <div key={index} className="rounded-md border bg-muted p-4">
-                          <div className="flex justify-between items-center mb-2">
+                        <div key={index} className="rounded-md border bg-muted p-6">
+                          <div className="flex justify-between items-center mb-4">
                             <div>
-                              <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-1 rounded">
+                              <span className="text-sm font-medium bg-primary/10 text-primary px-3 py-1 rounded">
                                 {snippet.language || "Code"}
                               </span>
                               {snippet.description && (
-                                <span className="ml-2 text-sm text-muted-foreground">
+                                <span className="ml-3 text-base text-muted-foreground">
                                   {snippet.description}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <pre className="overflow-x-auto p-2 text-sm">
+                          <pre className="overflow-x-auto p-4 text-sm bg-background rounded border">
                             <code className="font-mono">{snippet.code}</code>
                           </pre>
                         </div>
@@ -1193,12 +1193,12 @@ export function ResultsView(props: ResultsViewProps) {
               )}
 
               {selectedTab === "related" && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-lg">Related Concepts</h3>
+                    <h3 className="font-semibold text-xl">Related Concepts</h3>
                     <button
                       onClick={() => setShowAddConceptCard(true)}
-                      className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"
+                      className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
                     >
                       <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 5v14M5 12h14"/>
@@ -1209,8 +1209,8 @@ export function ResultsView(props: ResultsViewProps) {
 
                   {/* Suggested Related Concepts */}
                   {(suggestedRelatedConcepts.length > 0 || isLoadingSuggestions) && (
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-base text-muted-foreground">Suggested Related Concepts</h4>
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-lg text-muted-foreground">Suggested Related Concepts</h4>
                       {isLoadingSuggestions ? (
                         <div className="flex items-center space-x-2 text-muted-foreground">
                           <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
@@ -1219,12 +1219,12 @@ export function ResultsView(props: ResultsViewProps) {
                           <span className="text-sm">Finding related concepts...</span>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-3">
                           {suggestedRelatedConcepts.map((suggestion) => (
                             <button
                               key={suggestion.id}
                               onClick={() => handleAddSuggestedConcept(suggestion)}
-                              className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 text-primary px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                              className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 hover:border-primary/30 transition-colors"
                               title={`Add "${suggestion.title}" as related concept`}
                             >
                               <svg className="h-3 w-3 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

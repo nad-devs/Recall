@@ -96,7 +96,7 @@ function AnalyzePage() {
   return (
     <AuthGuard>
       <PageTransition>
-        <div className="container mx-auto p-4 max-w-6xl">
+        <div className="container mx-auto p-4 max-w-7xl">
           {/* Header with back button and title */}
           <div className="flex items-center justify-between mb-6">
             <Link href="/dashboard" className="flex items-center text-sm font-medium">
@@ -146,10 +146,10 @@ function AnalyzePage() {
               )}
             </div>
           ) : (
-            /* Grid layout for analysis results */
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left column - Concepts list */}
-              <div className="lg:col-span-1 space-y-6">
+            /* Grid layout for analysis results - Better proportions */
+            <div className="grid grid-cols-1 lg:grid-cols-[25%_70%] gap-[5%]">
+              {/* Left column - Concepts list (25% width) */}
+              <div className="space-y-6">
                 <ConceptsList
                   filteredConcepts={filteredConcepts}
                   selectedConcept={selectedConcept}
@@ -162,8 +162,8 @@ function AnalyzePage() {
                 />
               </div>
 
-              {/* Right column - Analysis results */}
-              <div className="lg:col-span-2">
+              {/* Right column - Analysis results (70% width) */}
+              <div className="space-y-6">
                 <ResultsView
                   analysisResult={analysisResult}
                   selectedConcept={selectedConcept}

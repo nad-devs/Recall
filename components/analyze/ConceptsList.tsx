@@ -197,80 +197,78 @@ export function ConceptsList({
           </h3>
         </div>
         <div className="p-0">
-          <div className="h-[calc(100vh-300px)] overflow-auto">
-            <div className="space-y-1 p-2">
-              {filteredConcepts.map((concept, index) => (
-                <motion.div
-                  key={concept.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
-                >
-                  <div className="flex items-center">
-                    <button
-                      className={`flex-1 justify-start text-left font-normal py-2 px-3 rounded-md hover:bg-muted ${
-                        selectedConcept?.id === concept.id ? "bg-muted font-medium" : ""
-                      }`}
-                      onClick={() => setSelectedConcept(concept)}
-                    >
-                      <div className="flex items-start">
-                        <div className="mr-2 mt-0.5">
-                          {getCategoryIcon(concept.category)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate max-w-[140px]">{concept.title}</div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                            {concept.summary?.substring(0, 60) || ""}...
-                          </div>
+          <div className="space-y-2 p-3">
+            {filteredConcepts.map((concept, index) => (
+              <motion.div
+                key={concept.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
+              >
+                <div className="flex items-center">
+                  <button
+                    className={`flex-1 justify-start text-left font-normal py-3 px-4 rounded-md hover:bg-muted transition-colors ${
+                      selectedConcept?.id === concept.id ? "bg-muted font-medium" : ""
+                    }`}
+                    onClick={() => setSelectedConcept(concept)}
+                  >
+                    <div className="flex items-start">
+                      <div className="mr-3 mt-0.5">
+                        {getCategoryIcon(concept.category)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{concept.title}</div>
+                        <div className="text-sm text-muted-foreground truncate mt-1">
+                          {concept.summary?.substring(0, 80) || ""}...
                         </div>
                       </div>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedConcept(concept)
-                        setEditConceptMode(true)
-                      }}
-                      className="p-1 ml-1 text-muted-foreground hover:text-primary rounded-md hover:bg-muted flex-shrink-0"
-                      title="Edit concept"
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedConcept(concept)
+                      setEditConceptMode(true)
+                    }}
+                    className="p-1 ml-1 text-muted-foreground hover:text-primary rounded-md hover:bg-muted flex-shrink-0"
+                    title="Edit concept"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-
-              {filteredConcepts.length === 0 && (
-                <div className="px-3 py-6 text-center text-muted-foreground">
-                  No concepts match your search
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </button>
                 </div>
-              )}
+              </motion.div>
+            ))}
 
-              {/* Add concept button */}
-              <div className="border-t mt-2 pt-2">
-                <button
-                  onClick={() => setShowAddConceptCard(true)}
-                  className="w-full justify-start text-left font-normal py-2 px-3 rounded-md hover:bg-muted text-primary"
-                >
-                  <div className="flex items-center">
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    <span>Add Missing Concept</span>
-                  </div>
-                </button>
+            {filteredConcepts.length === 0 && (
+              <div className="px-3 py-6 text-center text-muted-foreground">
+                No concepts match your search
               </div>
+            )}
+
+            {/* Add concept button */}
+            <div className="border-t mt-2 pt-2">
+              <button
+                onClick={() => setShowAddConceptCard(true)}
+                className="w-full justify-start text-left font-normal py-2 px-3 rounded-md hover:bg-muted text-primary"
+              >
+                <div className="flex items-center">
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  <span>Add Missing Concept</span>
+                </div>
+              </button>
             </div>
           </div>
         </div>
