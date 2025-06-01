@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canMakeServerConversation } from '@/lib/usage-tracker-server';
+import { YoutubeTranscript } from 'youtube-transcript';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Server-side usage validation - same as extract-concepts
+    // Server-side usage validation
     const clientIP = request.headers.get('x-forwarded-for') || 
                      request.headers.get('x-real-ip') || 
                      '127.0.0.1';
@@ -38,89 +39,85 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Get backend URL from environment
-    const backendUrl = process.env.PYTHON_SERVICE_URL || 'https://recall.p3vg.onrender.com'
-    const url = `${backendUrl}/api/v1/extract-youtube-concepts`
+    console.log('📺 Extracting transcript from YouTube...')
     
-    console.log('📺 Forwarding to backend:', url)
-    
-    // Configure fetch with SSL handling and retry logic
-    const fetchOptions = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Recall-Frontend/1.0',
-      },
-      body: JSON.stringify({
-        youtube_url,
-        context: otherParams.context,
-        category_guidance: otherParams.category_guidance,
-        custom_api_key: customApiKey,
-        languages: otherParams.languages || ['en']
-      }),
-      // Add timeout
-      signal: AbortSignal.timeout(120000), // 2 minutes timeout
-    }
-    
-    let lastError;
-    const maxRetries = 3;
-    
-    // Retry logic to handle intermittent SSL issues
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`📺 Attempt ${attempt}/${maxRetries} to reach backend`)
-        
-        const response = await fetch(url, fetchOptions)
-        
-        console.log('📺 Backend response status:', response.status)
-        
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('📺 Backend error:', errorText)
-          
-          // Try to parse as JSON for better error handling
-          let errorMessage = 'Failed to analyze YouTube video'
-          try {
-            const errorData = JSON.parse(errorText)
-            errorMessage = errorData.detail || errorData.error || errorMessage
-          } catch {
-            // If not JSON, use the raw text or a default message
-            errorMessage = errorText || errorMessage
-          }
-          
-          return NextResponse.json(
-            { error: errorMessage },
-            { status: response.status || 500 }
-          )
-        }
-        
-        const data = await response.json()
-        console.log('📺 Successfully processed YouTube analysis')
-        console.log('📺 Found', data.concepts?.length || 0, 'concepts')
-        
-        return NextResponse.json(data)
-        
-      } catch (error: any) {
-        lastError = error
-        console.error(`📺 Attempt ${attempt} failed:`, error.message)
-        
-        // If it's not the last attempt, wait before retrying
-        if (attempt < maxRetries) {
-          console.log(`📺 Waiting 2 seconds before retry ${attempt + 1}`)
-          await new Promise(resolve => setTimeout(resolve, 2000))
-        }
+    // Extract transcript locally using youtube-transcript library
+    let transcript;
+    try {
+      const transcriptData = await YoutubeTranscript.fetchTranscript(youtube_url);
+      transcript = transcriptData.map(item => item.text).join(' ');
+      console.log('📺 Successfully extracted transcript, length:', transcript.length);
+      
+      if (!transcript || transcript.trim().length === 0) {
+        throw new Error('Empty transcript received');
       }
+    } catch (transcriptError: any) {
+      console.error('📺 Transcript extraction failed:', transcriptError.message);
+      return NextResponse.json(
+        { error: `Failed to extract YouTube transcript: ${transcriptError.message}. The video might not have captions available.` },
+        { status: 400 }
+      );
     }
     
-    // All retries failed
-    console.error('📺 All retry attempts failed, last error:', lastError?.message)
-    return NextResponse.json(
-      { error: 'Backend connection failed after multiple attempts. Please try again.' },
-      { status: 500 }
-    )
+    console.log('📺 Now analyzing transcript with regular text extraction...')
     
-  } catch (error) {
-    console.error('📺 YouTube analysis error:', error)
+    // Now use the regular text extraction endpoint (which works fine)
+    const textExtractionUrl = `${request.nextUrl.origin}/api/extract-concepts`;
+    
+    try {
+      const analysisResponse = await fetch(textExtractionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Forward auth headers
+          ...Object.fromEntries(
+            ['authorization', 'x-user-id', 'x-user-email'].map(header => [
+              header,
+              request.headers.get(header)
+            ]).filter(([_, value]) => value !== null)
+          )
+        },
+        body: JSON.stringify({
+          conversation_text: `YouTube Video Analysis:\n\nURL: ${youtube_url}\n\nTranscript:\n${transcript}`,
+          customApiKey: customApiKey
+        }),
+      });
+      
+      console.log('📺 Text analysis response status:', analysisResponse.status);
+      
+      if (!analysisResponse.ok) {
+        const errorData = await analysisResponse.json().catch(() => ({}));
+        console.error('📺 Text analysis failed:', errorData);
+        return NextResponse.json(
+          { error: errorData.error || 'Failed to analyze transcript content' },
+          { status: analysisResponse.status }
+        );
+      }
+      
+      const analysisData = await analysisResponse.json();
+      console.log('📺 Successfully analyzed transcript');
+      console.log('📺 Found', analysisData.concepts?.length || 0, 'concepts');
+      
+      // Add YouTube-specific metadata
+      const enhancedData = {
+        ...analysisData,
+        source_type: 'youtube',
+        source_url: youtube_url,
+        transcript_length: transcript.length
+      };
+      
+      return NextResponse.json(enhancedData);
+      
+    } catch (analysisError: any) {
+      console.error('📺 Analysis request failed:', analysisError.message);
+      return NextResponse.json(
+        { error: 'Failed to analyze transcript content' },
+        { status: 500 }
+      );
+    }
+    
+  } catch (error: any) {
+    console.error('📺 YouTube analysis error:', error);
     return NextResponse.json(
       { error: 'Internal server error during YouTube analysis' },
       { status: 500 }
