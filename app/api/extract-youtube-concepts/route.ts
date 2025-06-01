@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canMakeServerConversation } from '@/lib/usage-tracker-server';
-import { YoutubeTranscript } from 'youtube-transcript';
+import ytdl from 'ytdl-core';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,61 +39,64 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    console.log('📺 Extracting transcript from YouTube...')
-    console.log('📺 Testing youtube-transcript library with URL:', youtube_url)
+    console.log('📺 Attempting to get video info with ytdl-core...')
     
-    // Extract transcript locally using youtube-transcript library
-    let transcript;
+    // Try to get video info and description using ytdl-core
+    let videoText = '';
     try {
-      console.log('📺 Calling YoutubeTranscript.fetchTranscript...')
-      const transcriptData = await YoutubeTranscript.fetchTranscript(youtube_url);
-      console.log('📺 Raw transcript data received:', {
-        isArray: Array.isArray(transcriptData),
-        length: transcriptData?.length,
-        firstItem: transcriptData?.[0],
-        hasText: transcriptData?.[0]?.text ? 'yes' : 'no'
+      if (!ytdl.validateURL(youtube_url)) {
+        throw new Error('Invalid YouTube URL format');
+      }
+      
+      console.log('📺 Fetching video info...')
+      const info = await ytdl.getInfo(youtube_url);
+      const videoDetails = info.videoDetails;
+      
+      console.log('📺 Video found:', {
+        title: videoDetails.title,
+        lengthSeconds: videoDetails.lengthSeconds,
+        description: videoDetails.description?.length || 0
       });
       
-      transcript = transcriptData.map(item => item.text).join(' ');
-      console.log('📺 Successfully extracted transcript, length:', transcript.length);
-      console.log('📺 First 200 characters:', transcript.substring(0, 200) + '...');
+      // Extract available text content
+      videoText = `Video Title: ${videoDetails.title}\n\n`;
       
-      if (!transcript || transcript.trim().length === 0) {
-        throw new Error('Empty transcript received');
+      if (videoDetails.description && videoDetails.description.length > 100) {
+        videoText += `Video Description:\n${videoDetails.description}\n\n`;
       }
-    } catch (transcriptError: any) {
-      console.error('📺 DETAILED transcript error:', {
-        message: transcriptError.message,
-        name: transcriptError.name,
-        stack: transcriptError.stack,
+      
+      // Add video metadata
+      if (videoDetails.keywords && videoDetails.keywords.length > 0) {
+        videoText += `Tags: ${videoDetails.keywords.slice(0, 10).join(', ')}\n\n`;
+      }
+      
+      console.log('📺 Extracted text length:', videoText.length);
+      
+      if (videoText.length < 200) {
+        throw new Error('Insufficient video content available for analysis');
+      }
+      
+    } catch (videoError: any) {
+      console.error('📺 Video extraction failed:', {
+        message: videoError.message,
+        name: videoError.name,
         url: youtube_url
       });
       
-      // Provide more helpful error message
-      let userFriendlyMessage = 'Failed to extract YouTube transcript.';
-      
-      if (transcriptError.message.includes('Transcript is disabled')) {
-        userFriendlyMessage = 'This YouTube video has disabled captions/transcripts. Please try a different video that has captions enabled (most educational and tutorial videos have them).';
-      } else if (transcriptError.message.includes('No transcripts were found')) {
-        userFriendlyMessage = 'No captions/transcripts found for this video. Please try a video that has captions available.';
-      } else {
-        userFriendlyMessage = `Failed to extract transcript: ${transcriptError.message}`;
-      }
-      
       return NextResponse.json(
         { 
-          error: userFriendlyMessage,
+          error: `Unable to analyze YouTube video: ${videoError.message}. This could be due to video restrictions, age-gating, or the video being private.`,
           debug: {
-            originalError: transcriptError.message,
+            originalError: videoError.message,
             url: youtube_url,
-            libraryWorking: true // We got a response from the library
+            method: 'ytdl-core'
           }
         },
         { status: 400 }
       );
     }
     
-    console.log('📺 Now analyzing transcript with regular text extraction...')
+    console.log('📺 Now analyzing video content with text extraction...')
     
     // Now use the regular text extraction endpoint (which works fine)
     const textExtractionUrl = `${request.nextUrl.origin}/api/extract-concepts`;
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
           )
         },
         body: JSON.stringify({
-          conversation_text: `YouTube Video Analysis:\n\nURL: ${youtube_url}\n\nTranscript:\n${transcript}`,
+          conversation_text: `YouTube Video Analysis:\n\nURL: ${youtube_url}\n\n${videoText}`,
           customApiKey: customApiKey
         }),
       });
@@ -123,13 +126,13 @@ export async function POST(request: NextRequest) {
         const errorData = await analysisResponse.json().catch(() => ({}));
         console.error('📺 Text analysis failed:', errorData);
         return NextResponse.json(
-          { error: errorData.error || 'Failed to analyze transcript content' },
+          { error: errorData.error || 'Failed to analyze video content' },
           { status: analysisResponse.status }
         );
       }
       
       const analysisData = await analysisResponse.json();
-      console.log('📺 Successfully analyzed transcript');
+      console.log('📺 Successfully analyzed video content');
       console.log('📺 Found', analysisData.concepts?.length || 0, 'concepts');
       
       // Add YouTube-specific metadata
@@ -137,7 +140,8 @@ export async function POST(request: NextRequest) {
         ...analysisData,
         source_type: 'youtube',
         source_url: youtube_url,
-        transcript_length: transcript.length
+        content_length: videoText.length,
+        analysis_method: 'title_and_description'
       };
       
       return NextResponse.json(enhancedData);
@@ -145,7 +149,7 @@ export async function POST(request: NextRequest) {
     } catch (analysisError: any) {
       console.error('📺 Analysis request failed:', analysisError.message);
       return NextResponse.json(
-        { error: 'Failed to analyze transcript content' },
+        { error: 'Failed to analyze video content' },
         { status: 500 }
       );
     }
