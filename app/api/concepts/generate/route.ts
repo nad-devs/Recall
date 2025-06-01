@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       ? `Based on this conversation context:\n\n${context}\n\nPlease provide a comprehensive technical explanation of the concept: "${conceptName}".`
       : `Please provide a comprehensive technical explanation of the concept: "${conceptName}".`;
 
-    // If we have source concept info, add it to the context
+    // If we have source concept info, add it to the context for relationship establishment
     if (sourceConcept) {
       generationPrompt += `\n\nThis concept should relate to "${sourceConcept.title}" in the "${sourceConcept.category}" category. Make sure to explain how "${conceptName}" connects to or builds upon "${sourceConcept.title}".`;
     }
@@ -184,13 +184,14 @@ export async function POST(request: Request) {
 
     // Now save the generated concept to the database
     try {
-      // Use the source concept's category if available, otherwise use the generated category
-      const conceptCategory = sourceConcept?.category || generatedConcept.category || 'General';
+      // Use the AI-generated category, not the source concept's category
+      // This allows the new concept to have its own appropriate category
+      const conceptCategory = generatedConcept.category || 'General';
       
       const savedConcept = await prisma.concept.create({
         data: {
           title: generatedConcept.title,
-          category: conceptCategory,
+          category: conceptCategory, // Use AI-generated category
           summary: generatedConcept.summary || '',
           details: generatedConcept.details || generatedConcept.implementation || '',
           keyPoints: JSON.stringify(generatedConcept.keyPoints || []),
@@ -219,6 +220,77 @@ export async function POST(request: Request) {
             })
           )
         );
+      }
+
+      // IMPORTANT: If this was generated from a connection dialog, establish the relationship
+      if (sourceConcept && sourceConcept.id) {
+        try {
+          console.log(`🔗 Establishing relationship between source concept ${sourceConcept.id} and generated concept ${savedConcept.id}`);
+          
+          // Get the source concept's current relationships
+          const sourceConceptData = await prisma.concept.findUnique({
+            where: { id: sourceConcept.id },
+            select: { relatedConcepts: true, title: true }
+          });
+          
+          if (sourceConceptData) {
+            // Parse existing relationships
+            let existingRelatedConcepts = [];
+            try {
+              existingRelatedConcepts = JSON.parse(sourceConceptData.relatedConcepts || '[]');
+              if (!Array.isArray(existingRelatedConcepts)) existingRelatedConcepts = [];
+            } catch {
+              existingRelatedConcepts = [];
+            }
+            
+            // Add the new generated concept to source concept's relationships
+            const newRelationship = { id: savedConcept.id, title: savedConcept.title };
+            const relationshipExists = existingRelatedConcepts.some((rel: any) => 
+              (typeof rel === 'object' && rel.id === savedConcept.id) ||
+              (typeof rel === 'string' && rel === savedConcept.title)
+            );
+            
+            if (!relationshipExists) {
+              existingRelatedConcepts.push(newRelationship);
+              
+              // Update source concept
+              await prisma.concept.update({
+                where: { id: sourceConcept.id },
+                data: { relatedConcepts: JSON.stringify(existingRelatedConcepts) }
+              });
+            }
+            
+            // Add reverse relationship - source concept to generated concept
+            const reverseRelationship = { id: sourceConcept.id, title: sourceConceptData.title };
+            let generatedConceptRelated = [];
+            try {
+              generatedConceptRelated = JSON.parse(savedConcept.relatedConcepts || '[]');
+              if (!Array.isArray(generatedConceptRelated)) generatedConceptRelated = [];
+            } catch {
+              generatedConceptRelated = [];
+            }
+            
+            const reverseExists = generatedConceptRelated.some((rel: any) => 
+              (typeof rel === 'object' && rel.id === sourceConcept.id) ||
+              (typeof rel === 'string' && rel === sourceConceptData.title)
+            );
+            
+            if (!reverseExists) {
+              generatedConceptRelated.push(reverseRelationship);
+              
+              // Update generated concept
+              await prisma.concept.update({
+                where: { id: savedConcept.id },
+                data: { relatedConcepts: JSON.stringify(generatedConceptRelated) }
+              });
+            }
+            
+            console.log(`✅ Successfully established bidirectional relationship between "${sourceConceptData.title}" and "${savedConcept.title}"`);
+          }
+        } catch (relationshipError) {
+          console.error('❌ Error establishing concept relationship:', relationshipError);
+          // Don't fail the whole operation if relationship creation fails
+        }
       }
 
       console.log(`✅ Successfully created AI-generated concept: "${savedConcept.title}" (ID: ${savedConcept.id})`);
@@ -254,7 +326,7 @@ export async function POST(request: Request) {
     console.error('Error generating concept:', error);
     return NextResponse.json({
       success: false,
-      error: 'Failed to generate concept. Please try again.'
+      error: error instanceof Error ? error.message : 'An unexpected error occurred'
     }, { status: 500 });
   }
 } 
