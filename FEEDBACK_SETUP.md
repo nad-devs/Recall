@@ -1,6 +1,6 @@
 # Feedback System Setup
 
-Your feedback system has been updated to send emails directly to **arjunnadar0507@gmail.com**.
+Your feedback system has been updated to send emails directly to **arjunnadar2003@gmail.com**.
 
 ## Current Status
 ✅ **Working Without Setup**: The system will work immediately, logging to Vercel console  
@@ -42,7 +42,7 @@ Your feedback system has been updated to send emails directly to **arjunnadar050
 4. Look for emoji-formatted feedback entries
 
 ### Method 2: Email (with Resend setup)
-- Check **arjunnadar0507@gmail.com**
+- Check **arjunnadar2003@gmail.com**
 - Emails arrive within 1-2 minutes
 - Subject: `[Recall] BUG Feedback - HIGH PRIORITY` (example)
 

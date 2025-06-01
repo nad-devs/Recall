@@ -1313,6 +1313,52 @@ export default function ConceptsPage() {
                   </TabsContent>
                 </Tabs>
               </div>
+
+              {/* Quick Actions Panel - Bottom Left */}
+              <div className="fixed bottom-4 left-4 z-50 bg-card border border-border rounded-lg shadow-lg p-4 max-w-sm hidden md:block">
+                <h3 className="font-semibold text-sm mb-3 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Quick Actions
+                </h3>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center space-x-2">
+                    <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                    <span>+</span>
+                    <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Click</kbd>
+                    <span>Select concepts to move</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl</kbd>
+                    <span>+</span>
+                    <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Right Click</kbd>
+                    <span>Link concepts together</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 bg-primary/20 rounded border-2 border-primary border-dashed"></span>
+                    <span>Drag to move between categories</span>
+                  </div>
+                  <div className="pt-1 border-t border-border">
+                    <div className="text-xs font-medium text-foreground mb-1">Selected: {selectedConcepts.size}</div>
+                    {selectedConcepts.size > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full text-xs h-7"
+                        onClick={() => {
+                          const conceptsToMove = concepts.filter(c => selectedConcepts.has(c.id))
+                          setTransferConcepts(conceptsToMove)
+                          setSelectedConceptsForTransfer(new Set(selectedConcepts))
+                          setShowTransferDialog(true)
+                        }}
+                      >
+                        Move Selected
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </PageTransition>
