@@ -500,19 +500,96 @@ export function useAnalyzePage() {
       
       // Detect if input is a YouTube URL or regular text
       const isYoutube = isYouTubeUrl(conversationText)
-      const endpoint = isYoutube ? '/api/extract-youtube-concepts' : '/api/extract-concepts'
       
       if (isYoutube) {
         setAnalysisStage("Extracting YouTube transcript...")
         setDiscoveredConcepts(["Getting video transcript..."])
+        
+        // Call backend directly to avoid SSL handshake issues
+        const backendUrl = 'https://recall.p3vg.onrender.com'
+        const response = await fetch(`${backendUrl}/api/v1/extract-youtube-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            youtube_url: conversationText.trim(),
+            custom_api_key: currentUsageData.customApiKey,
+            context: null,
+            category_guidance: null,
+            languages: ['en']
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          // Check if this is a usage limit error
+          if (response.status === 403 && data.requiresApiKey) {
+            console.log("🚫 Server-side usage limit reached, showing API key modal")
+            setShowApiKeyModal(true)
+            setIsAnalyzing(false)
+            setShowAnimation(false)
+            setAnalysisResult(null)
+            setSelectedConcept(null)
+            setDiscoveredConcepts([])
+            setAnalysisStage("Initializing...")
+            return
+          }
+          
+          const errorMessage = data.error || data.detail || 'Failed to analyze YouTube video'
+          toast({
+            title: "YouTube Analysis failed",
+            description: errorMessage,
+            variant: "destructive",
+          })
+          console.error("YouTube Analysis failed:", errorMessage)
+          setIsAnalyzing(false)
+          setShowAnimation(false)
+          setAnalysisResult(null)
+          setSelectedConcept(null)
+          setDiscoveredConcepts([])
+          setAnalysisStage("Initializing...")
+          return
+        }
+
+        console.log("Received YouTube analysis results:", data)
+
+        const normalizedData = {
+          ...data,
+          concepts: data.concepts.map((concept: any) => ({
+            ...concept,
+            keyPoints: Array.isArray(concept.keyPoints) 
+              ? concept.keyPoints 
+              : (concept.keyPoints ? [concept.keyPoints] : ["Extracted from conversation"]),
+            summary: concept.summary || data.conversation_summary || "",
+            category: concept.category || "General",
+            id: concept.id || `temp-${Math.random().toString(36).substring(2, 9)}`
+          }))
+        }
+
+        const analysis = mapBackendResponseToAnalysis(normalizedData)
+        setAnalysisResult(analysis)
+        
+        if (analysis.concepts.length > 0) {
+          setSelectedConcept(analysis.concepts[0])
+          setSelectedTab("summary")
+          setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
+        }
+
+        console.log("YouTube Analysis completed successfully")
+        setIsAnalyzing(false)
+        setShowAnimation(false)
+        setAnalysisStage("Analysis complete")
+        return
       }
+      
+      // Regular text extraction using the Next.js API route
+      const endpoint = '/api/extract-concepts'
       
       const response = await makeAuthenticatedRequest(endpoint, {
         method: 'POST',
-        body: JSON.stringify(isYoutube ? { 
-          youtube_url: conversationText.trim(),
-          customApiKey: currentUsageData.customApiKey
-        } : { 
+        body: JSON.stringify({ 
           conversation_text: conversationText,
           customApiKey: currentUsageData.customApiKey
         }),
