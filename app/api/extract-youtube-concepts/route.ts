@@ -44,11 +44,12 @@ export async function POST(request: NextRequest) {
     
     console.log('📺 Forwarding to backend:', url)
     
-    // Forward the request to the Python backend
-    const response = await fetch(url, {
+    // Configure fetch with SSL handling and retry logic
+    const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Recall-Frontend/1.0',
       },
       body: JSON.stringify({
         youtube_url,
@@ -57,35 +58,66 @@ export async function POST(request: NextRequest) {
         custom_api_key: customApiKey,
         languages: otherParams.languages || ['en']
       }),
-    })
-    
-    console.log('📺 Backend response status:', response.status)
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('📺 Backend error:', errorText)
-      
-      // Try to parse as JSON for better error handling
-      let errorMessage = 'Failed to analyze YouTube video'
-      try {
-        const errorData = JSON.parse(errorText)
-        errorMessage = errorData.detail || errorData.error || errorMessage
-      } catch {
-        // If not JSON, use the raw text or a default message
-        errorMessage = errorText || errorMessage
-      }
-      
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: response.status || 500 }
-      )
+      // Add timeout
+      signal: AbortSignal.timeout(120000), // 2 minutes timeout
     }
     
-    const data = await response.json()
-    console.log('📺 Successfully processed YouTube analysis')
-    console.log('📺 Found', data.concepts?.length || 0, 'concepts')
+    let lastError;
+    const maxRetries = 3;
     
-    return NextResponse.json(data)
+    // Retry logic to handle intermittent SSL issues
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`📺 Attempt ${attempt}/${maxRetries} to reach backend`)
+        
+        const response = await fetch(url, fetchOptions)
+        
+        console.log('📺 Backend response status:', response.status)
+        
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('📺 Backend error:', errorText)
+          
+          // Try to parse as JSON for better error handling
+          let errorMessage = 'Failed to analyze YouTube video'
+          try {
+            const errorData = JSON.parse(errorText)
+            errorMessage = errorData.detail || errorData.error || errorMessage
+          } catch {
+            // If not JSON, use the raw text or a default message
+            errorMessage = errorText || errorMessage
+          }
+          
+          return NextResponse.json(
+            { error: errorMessage },
+            { status: response.status || 500 }
+          )
+        }
+        
+        const data = await response.json()
+        console.log('📺 Successfully processed YouTube analysis')
+        console.log('📺 Found', data.concepts?.length || 0, 'concepts')
+        
+        return NextResponse.json(data)
+        
+      } catch (error: any) {
+        lastError = error
+        console.error(`📺 Attempt ${attempt} failed:`, error.message)
+        
+        // If it's not the last attempt, wait before retrying
+        if (attempt < maxRetries) {
+          console.log(`📺 Waiting 2 seconds before retry ${attempt + 1}`)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      }
+    }
+    
+    // All retries failed
+    console.error('📺 All retry attempts failed, last error:', lastError?.message)
+    return NextResponse.json(
+      { error: 'Backend connection failed after multiple attempts. Please try again.' },
+      { status: 500 }
+    )
     
   } catch (error) {
     console.error('📺 YouTube analysis error:', error)
