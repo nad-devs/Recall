@@ -68,7 +68,7 @@ export function InputView({
             Analyze Content
           </h1>
           <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
-            Paste your ChatGPT conversation, YouTube transcript, document, or code below to extract concepts, analyze code, and get study notes.
+            Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export function InputView({
             </label>
             <textarea
               id="conversation"
-              placeholder="Paste your ChatGPT conversation, YouTube transcript, document, or code here..."
+              placeholder="Paste your ChatGPT conversation, YouTube transcript, or document here..."
               className="w-full min-h-[300px] p-4 rounded-lg border border-zinc-300 dark:!border-[#444] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y bg-white text-zinc-900 placeholder:text-zinc-400 dark:!bg-[#2c2c2c] dark:!text-white dark:!placeholder-[#bbbbbb] shadow-sm"
               style={{
                 backgroundColor: 'var(--textarea-bg, white)',
@@ -161,7 +161,7 @@ export function InputView({
           Analyze Content
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
-          Paste your ChatGPT conversation, YouTube transcript, document, or code below to extract concepts, analyze code, and get study notes.
+          Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
         </p>
         
         {/* Usage Counter */}
@@ -197,7 +197,7 @@ export function InputView({
           </label>
           <textarea
             id="conversation"
-            placeholder="Paste your ChatGPT conversation, YouTube transcript, document, or code here..."
+            placeholder="Paste your ChatGPT conversation, YouTube transcript, or document here..."
             className="w-full min-h-[300px] p-4 rounded-lg border border-zinc-300 dark:!border-[#444] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y bg-white text-zinc-900 placeholder:text-zinc-400 dark:!bg-[#2c2c2c] dark:!text-white dark:!placeholder-[#bbbbbb] shadow-sm"
             style={{
               backgroundColor: 'var(--textarea-bg, white)',
