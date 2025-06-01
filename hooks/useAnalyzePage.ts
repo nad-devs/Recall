@@ -220,31 +220,42 @@ export function useAnalyzePage() {
           details: match.newConcept.details,
           examples: match.newConcept.examples,
           codeSnippets: match.newConcept.codeSnippets,
-          relatedConcepts: match.newConcept.relatedConcepts
+          relatedConcepts: match.newConcept.relatedConcepts,
         })
         
         const updatePayload = {
           title: match.newConcept.title,
           summary: match.newConcept.summary,
           category: match.newConcept.category,
-          keyPoints: match.newConcept.keyPoints,
-          details: match.newConcept.details,
-          examples: match.newConcept.examples,
-          codeSnippets: match.newConcept.codeSnippets,
-          relatedConcepts: match.newConcept.relatedConcepts,
+          // Convert arrays and objects to JSON strings as API expects
+          keyPoints: Array.isArray(match.newConcept.keyPoints) 
+            ? JSON.stringify(match.newConcept.keyPoints) 
+            : match.newConcept.keyPoints,
+          details: typeof match.newConcept.details === 'object' 
+            ? JSON.stringify(match.newConcept.details) 
+            : match.newConcept.details,
+          examples: Array.isArray(match.newConcept.examples) 
+            ? JSON.stringify(match.newConcept.examples) 
+            : match.newConcept.examples,
+          codeSnippets: Array.isArray(match.newConcept.codeSnippets) 
+            ? JSON.stringify(match.newConcept.codeSnippets) 
+            : match.newConcept.codeSnippets,
+          relatedConcepts: Array.isArray(match.newConcept.relatedConcepts) 
+            ? JSON.stringify(match.newConcept.relatedConcepts) 
+            : match.newConcept.relatedConcepts,
           // Ensure we don't preserve enhancements - we want full update
           preserveEnhancements: false
         }
         
-        console.log("🔄 Updating existing concept with ALL fields:")
+        console.log("🔄 Updating existing concept with ALL fields (JSON stringified):")
         console.log("🔄 - Title:", updatePayload.title)
         console.log("🔄 - Summary:", updatePayload.summary)
         console.log("🔄 - Category:", updatePayload.category)
-        console.log("🔄 - KeyPoints:", updatePayload.keyPoints?.length || 0, "items")
-        console.log("🔄 - Details:", updatePayload.details ? "✅ Present" : "❌ Missing")
-        console.log("🔄 - Examples:", updatePayload.examples?.length || 0, "items")
-        console.log("🔄 - CodeSnippets:", updatePayload.codeSnippets?.length || 0, "items")
-        console.log("🔄 - RelatedConcepts:", updatePayload.relatedConcepts?.length || 0, "items")
+        console.log("🔄 - KeyPoints (JSON):", typeof updatePayload.keyPoints, updatePayload.keyPoints?.length || 0, "chars")
+        console.log("🔄 - Details (JSON):", typeof updatePayload.details, updatePayload.details ? "✅ Present" : "❌ Missing")
+        console.log("🔄 - Examples (JSON):", typeof updatePayload.examples, updatePayload.examples?.length || 0, "chars")
+        console.log("🔄 - CodeSnippets (JSON):", typeof updatePayload.codeSnippets, updatePayload.codeSnippets?.length || 0, "chars")
+        console.log("🔄 - RelatedConcepts (JSON):", typeof updatePayload.relatedConcepts, updatePayload.relatedConcepts?.length || 0, "chars")
         
         const updateResponse = await makeAuthenticatedRequest(`/api/concepts/${match.existingConcept.id}`, {
           method: 'PUT',
