@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -25,7 +25,6 @@ import {
 } from "lucide-react"
 import { useDrag, useDrop } from 'react-dnd'
 import { useAppSelector, useAppDispatch } from '@/store/hooks'
-import { toggleCategory, startDragging, endDragging } from '@/store/categorySlice'
 
 interface Concept {
   id: string
@@ -45,6 +44,12 @@ interface CategoryNodeReduxProps {
   onSetTransferConcepts: (concepts: Concept[]) => void
   handleCategoryDrop: (draggedPath: string, targetPath: string | null) => void
   categoryOps: any
+  expandedCategories?: string[]
+  onToggleCategory?: (path: string) => void
+  selectedCategory?: string
+  isDraggingAny?: boolean
+  onStartDragging?: () => void
+  onEndDragging?: () => void
 }
 
 const getCategoryIcon = (category: string) => {
@@ -63,39 +68,44 @@ export const CategoryNodeRedux = React.memo(({
   onAddSubcategory,
   onSetTransferConcepts,
   handleCategoryDrop,
-  categoryOps
+  categoryOps,
+  expandedCategories = [],
+  onToggleCategory,
+  selectedCategory,
+  isDraggingAny = false,
+  onStartDragging,
+  onEndDragging
 }: CategoryNodeReduxProps) => {
   const dispatch = useAppDispatch()
   
-  // Redux state
-  const { expandedCategories, isDraggingAny } = useAppSelector(state => state.categories)
-  const selectedCategory = useAppSelector(state => state.concepts.selectedCategory)
+  // Local state for expansion if not provided via props
+  const [localExpanded, setLocalExpanded] = useState(false)
   
   const hasSubcategories = Object.keys(node.subcategories).length > 0
   const hasDirectConcepts = node.concepts.length > 0
   const Icon = getCategoryIcon(node.name)
-  const isExpanded = expandedCategories.includes(node.fullPath)
+  const isExpanded = expandedCategories.includes(node.fullPath) || localExpanded
   const isSelected = selectedCategory === node.fullPath
 
   // Drag source setup
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'CATEGORY',
     item: () => {
-      if (!isDraggingAny) {
-        dispatch(startDragging())
+      if (!isDraggingAny && onStartDragging) {
+        onStartDragging()
       }
       return { categoryPath: node.fullPath }
     },
     end: () => {
-      if (isDraggingAny) {
-        dispatch(endDragging())
+      if (isDraggingAny && onEndDragging) {
+        onEndDragging()
       }
     },
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
     canDrag: !categoryOps.isCreatingCategory && !categoryOps.isMovingConcepts && !categoryOps.isRenamingCategory,
-  }), [node.fullPath, categoryOps.isCreatingCategory, categoryOps.isMovingConcepts, categoryOps.isRenamingCategory, isDraggingAny, dispatch])
+  }), [node.fullPath, categoryOps.isCreatingCategory, categoryOps.isMovingConcepts, categoryOps.isRenamingCategory, isDraggingAny, onStartDragging, onEndDragging])
 
   // Drop target setup
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
@@ -116,7 +126,11 @@ export const CategoryNodeRedux = React.memo(({
   }), [node.fullPath, handleCategoryDrop])
 
   const handleToggle = () => {
-    dispatch(toggleCategory(node.fullPath))
+    if (onToggleCategory) {
+      onToggleCategory(node.fullPath)
+    } else {
+      setLocalExpanded(!localExpanded)
+    }
   }
 
   const CategoryContent = () => {
@@ -188,50 +202,52 @@ export const CategoryNodeRedux = React.memo(({
         <div className={`flex items-center group ${isOver && canDrop ? 'bg-primary/5' : ''}`}>
           <CategoryContent />
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-6 w-6"
-                disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory || isDragging}
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-background border shadow-md">
-              <DropdownMenuItem 
-                onClick={() => onAddSubcategory(node.fullPath)}
-                disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
-                className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-              >
-                <FolderPlus className="mr-2 h-4 w-4" />
-                Add Subcategory
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => {
-                  // TODO: Implement inline editing with Redux
-                }}
-                disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
-                className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Name
-              </DropdownMenuItem>
-              {hasDirectConcepts && (
+          <div className="flex-shrink-0 ml-1 mr-2 w-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 h-6 w-6"
+                  disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory || isDragging}
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-background border shadow-md">
+                <DropdownMenuItem 
+                  onClick={() => onAddSubcategory(node.fullPath)}
+                  disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
+                  className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                >
+                  <FolderPlus className="mr-2 h-4 w-4" />
+                  Add Subcategory
+                </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => {
-                    onSetTransferConcepts(node.concepts)
+                    // TODO: Implement inline editing with Redux
                   }}
                   disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
                   className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                 >
-                  <ArrowRight className="mr-2 h-4 w-4" />
-                  Move Concepts
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Name
                 </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {hasDirectConcepts && (
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      onSetTransferConcepts(node.concepts)
+                    }}
+                    disabled={categoryOps.isCreatingCategory || categoryOps.isMovingConcepts || categoryOps.isRenamingCategory}
+                    className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Move Concepts
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         
         {/* Render subcategories */}
@@ -249,6 +265,12 @@ export const CategoryNodeRedux = React.memo(({
                     onSetTransferConcepts={onSetTransferConcepts}
                     handleCategoryDrop={handleCategoryDrop}
                     categoryOps={categoryOps}
+                    expandedCategories={expandedCategories}
+                    onToggleCategory={onToggleCategory}
+                    selectedCategory={selectedCategory}
+                    isDraggingAny={isDraggingAny}
+                    onStartDragging={onStartDragging}
+                    onEndDragging={onEndDragging}
                   />
                 ))}
             </div>

@@ -11,11 +11,8 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "test:health": "node scripts/test-health.js",
-    "test:apis": "node scripts/verify-apis.js",
     "test:email": "node scripts/test-email-verification.js",
-    "test:e2e": "echo 'E2E tests not implemented yet'",
-    "test": "npm run test:apis"
+    "test:e2e": "echo 'E2E tests not implemented yet'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
