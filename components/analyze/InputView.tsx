@@ -24,6 +24,7 @@ export function InputView({
   const [mounted, setMounted] = useState(false)
   const [usageData, setUsageData] = useState({ conversationCount: 0, hasCustomApiKey: false, lastReset: '' })
   const [remainingConversations, setRemainingConversations] = useState(25)
+  const [inputMode, setInputMode] = useState<'text' | 'youtube'>('text')
 
   useEffect(() => {
     setMounted(true)
@@ -50,6 +51,12 @@ export function InputView({
       setRemainingConversations(propRemainingConversations)
     }
   }, [propUsageData, propRemainingConversations])
+
+  // Clear text when switching modes
+  const handleModeChange = (newMode: 'text' | 'youtube') => {
+    setInputMode(newMode)
+    setConversationText('')  // Clear the input when switching modes
+  }
 
   // Don't render usage info until mounted (prevents hydration mismatch)
   if (!mounted) {
@@ -161,7 +168,10 @@ export function InputView({
           Analyze Conversation
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
-          Paste your ChatGPT conversation below to extract topics, analyze code, and get study notes.
+          {inputMode === 'text' 
+            ? "Paste your ChatGPT conversation below to extract topics, analyze code, and get study notes."
+            : "Paste a YouTube URL below to analyze the video transcript and extract key concepts."
+          }
         </p>
         
         {/* Usage Counter */}
@@ -191,21 +201,81 @@ export function InputView({
           backgroundColor: 'var(--card-bg, white)',
         }}
       >
+        {/* Mode Toggle */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Input Type:</span>
+          <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+            <button
+              onClick={() => handleModeChange('text')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                inputMode === 'text'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              Text
+            </button>
+            <button
+              onClick={() => handleModeChange('youtube')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                inputMode === 'youtube'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              YouTube URL
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label htmlFor="conversation" className="block text-base font-semibold text-zinc-800 dark:!text-white">
-            Paste your ChatGPT conversation
+            {inputMode === 'text' ? 'Paste your ChatGPT conversation' : 'YouTube URL'}
           </label>
-          <textarea
-            id="conversation"
-            placeholder="Paste your ChatGPT conversation here..."
-            className="w-full min-h-[300px] p-4 rounded-lg border border-zinc-300 dark:!border-[#444] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y bg-white text-zinc-900 placeholder:text-zinc-400 dark:!bg-[#2c2c2c] dark:!text-white dark:!placeholder-[#bbbbbb] shadow-sm"
-            style={{
-              backgroundColor: 'var(--textarea-bg, white)',
-              color: 'var(--textarea-color, #18181b)',
-            }}
-            value={conversationText}
-            onChange={(e) => setConversationText(e.target.value)}
-          />
+          
+          {inputMode === 'text' ? (
+            <textarea
+              id="conversation"
+              placeholder="Paste your ChatGPT conversation here..."
+              className="w-full min-h-[300px] p-4 rounded-lg border border-zinc-300 dark:!border-[#444] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y bg-white text-zinc-900 placeholder:text-zinc-400 dark:!bg-[#2c2c2c] dark:!text-white dark:!placeholder-[#bbbbbb] shadow-sm"
+              style={{
+                backgroundColor: 'var(--textarea-bg, white)',
+                color: 'var(--textarea-color, #18181b)',
+              }}
+              value={conversationText}
+              onChange={(e) => setConversationText(e.target.value)}
+            />
+          ) : (
+            <div className="space-y-3">
+              <input
+                id="conversation"
+                type="url"
+                placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                className="w-full p-4 rounded-lg border border-zinc-300 dark:!border-[#444] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-zinc-900 placeholder:text-zinc-400 dark:!bg-[#2c2c2c] dark:!text-white dark:!placeholder-[#bbbbbb] shadow-sm"
+                style={{
+                  backgroundColor: 'var(--textarea-bg, white)',
+                  color: 'var(--textarea-color, #18181b)',
+                }}
+                value={conversationText}
+                onChange={(e) => setConversationText(e.target.value)}
+              />
+              <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                <div className="flex items-start space-x-2">
+                  <svg className="w-4 h-4 mt-0.5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="font-medium">Supports any YouTube URL format:</p>
+                    <ul className="mt-1 space-y-1 text-xs">
+                      <li>• youtube.com/watch?v=VIDEO_ID</li>
+                      <li>• youtu.be/VIDEO_ID</li>
+                      <li>• youtube.com/embed/VIDEO_ID</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex justify-end">
           <button
@@ -229,7 +299,7 @@ export function InputView({
                 >
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
-                Analyzing...
+                {inputMode === 'youtube' ? 'Getting transcript & analyzing...' : 'Analyzing...'}
               </>
             ) : (
               <>
@@ -248,7 +318,7 @@ export function InputView({
                   <path d="m22 2-7 20-4-9-9-4Z" />
                   <path d="M22 2 11 13" />
                 </svg>
-                Analyze Conversation
+                {inputMode === 'youtube' ? 'Analyze YouTube Video' : 'Analyze Conversation'}
               </>
             )}
           </button>

@@ -84,6 +84,17 @@ export function useAnalyzePage() {
 
   const { toast } = useToast()
 
+  // YouTube URL detection helper
+  const isYouTubeUrl = (text: string): boolean => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=)([^&\n?#]+)/,
+      /(?:youtu\.be\/)([^&\n?#]+)/,
+      /(?:youtube\.com\/embed\/)([^&\n?#]+)/,
+      /(?:youtube\.com\/v\/)([^&\n?#]+)/
+    ]
+    return patterns.some(pattern => pattern.test(text.trim()))
+  }
+
   // Update usage data when component mounts
   useEffect(() => {
     setUsageData(getUsageData())
@@ -487,9 +498,21 @@ export function useAnalyzePage() {
       // Get custom API key if user has one
       const currentUsageData = getUsageData()
       
-      const response = await makeAuthenticatedRequest('/api/extract-concepts', {
+      // Detect if input is a YouTube URL or regular text
+      const isYoutube = isYouTubeUrl(conversationText)
+      const endpoint = isYoutube ? '/api/extract-youtube-concepts' : '/api/extract-concepts'
+      
+      if (isYoutube) {
+        setAnalysisStage("Extracting YouTube transcript...")
+        setDiscoveredConcepts(["Getting video transcript..."])
+      }
+      
+      const response = await makeAuthenticatedRequest(endpoint, {
         method: 'POST',
-        body: JSON.stringify({ 
+        body: JSON.stringify(isYoutube ? { 
+          youtube_url: conversationText.trim(),
+          customApiKey: currentUsageData.customApiKey
+        } : { 
           conversation_text: conversationText,
           customApiKey: currentUsageData.customApiKey
         }),
@@ -551,7 +574,7 @@ export function useAnalyzePage() {
           return
         }
         
-        const errorMessage = data.error || 'Something went wrong during analysis'
+        const errorMessage = data.error || (isYoutube ? 'Failed to analyze YouTube video' : 'Something went wrong during analysis')
         toast({
           title: "Analysis failed",
           description: errorMessage,
@@ -603,7 +626,9 @@ export function useAnalyzePage() {
       console.error('Error during analysis:', error)
       toast({
         title: "Analysis failed",
-        description: "An error occurred while analyzing the conversation. Please try again.",
+        description: isYouTubeUrl(conversationText) 
+          ? "Failed to analyze YouTube video. Please check the URL and try again."
+          : "An error occurred while analyzing the conversation. Please try again.",
         variant: "destructive",
       })
       // Reset to initial state when analysis fails
