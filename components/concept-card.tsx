@@ -1134,7 +1134,7 @@ export const ConceptCard = React.memo(function ConceptCard({
             </CardDescription>
           )}
         </CardHeader>
-        <CardContent className="pb-4 space-y-4 flex-1 overflow-y-auto">
+        <CardContent className="pb-4 space-y-4 flex-1">
           {/* Show enhancements if they exist */}
           {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
             <div className="space-y-3 pt-3 border-t">
@@ -1155,7 +1155,7 @@ export const ConceptCard = React.memo(function ConceptCard({
                             href={url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="block text-xs text-blue-600 hover:underline truncate max-w-full"
+                            className="block text-xs text-blue-600 hover:underline truncate"
                             onClick={(e) => e.stopPropagation()}
                             title={url}
                           >
@@ -1231,18 +1231,18 @@ export const ConceptCard = React.memo(function ConceptCard({
                   const relatedId = typeof related === 'object' && related ? related.id : null;
                   
                   return (
-                    <Badge key={i} variant="outline" className={`text-xs group relative pr-6 max-w-full ${
+                    <Badge key={i} variant="outline" className={`text-xs group relative pr-6 truncate ${
                       // Style broken references differently
                       (typeof related === 'object' && related?.id && !related?.title) 
                         ? 'border-destructive/30 bg-destructive/5 text-destructive' 
                         : ''
                     }`}>
                       {linkPath !== '#' ? (
-                        <Link href={linkPath} className="truncate block max-w-full">
+                        <Link href={linkPath} className="truncate">
                           {displayTitle}
                         </Link>
                       ) : (
-                        <span className="truncate block max-w-full">{displayTitle}</span>
+                        <span className="truncate">{displayTitle}</span>
                       )}
                       
                       {/* Delete relationship button - show for all related concepts */}

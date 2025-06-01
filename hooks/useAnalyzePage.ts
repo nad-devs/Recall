@@ -143,14 +143,48 @@ export function useAnalyzePage() {
           console.log(`🔍 Match ${index+1}: "${match.newConcept.title}" → "${match.existingConcept.title}" (${match.existingConcept.id})`)
         })
         
-        // Force show dialog for testing if we have anagram concepts
-        const hasAnagramConcept = concepts.some(c => 
-          c.title.toLowerCase().includes('anagram')
+        // Filter matches to only show ones that haven't been overused
+        // Skip dialog if the concept has been linked to more than 3 conversations recently
+        const filteredMatches = await Promise.all(
+          data.matches.map(async (match: ConceptMatch) => {
+            try {
+              // Check how many conversations this concept is linked to
+              const conversationCheckResponse = await fetch(`/api/concepts/${match.existingConcept.id}/conversations`, {
+                headers: getAuthHeaders()
+              })
+              
+              if (conversationCheckResponse.ok) {
+                const conversationData = await conversationCheckResponse.json()
+                const conversationCount = conversationData.conversations?.length || 0
+                
+                console.log(`🔍 Concept "${match.existingConcept.title}" linked to ${conversationCount} conversations`)
+                
+                // Only show dialog for concepts linked to 2 or fewer conversations
+                // This prevents spam for commonly discussed topics
+                if (conversationCount <= 2) {
+                  return match
+                } else {
+                  console.log(`🔍 Skipping dialog for "${match.existingConcept.title}" - too many conversations (${conversationCount})`)
+                  return null
+                }
+              }
+              
+              // If we can't check, default to showing the dialog
+              return match
+            } catch (error) {
+              console.error(`🔍 Error checking conversations for concept ${match.existingConcept.id}:`, error)
+              // Default to showing dialog if check fails
+              return match
+            }
+          })
         )
         
-        if (hasAnagramConcept) {
-          console.log('🔍 DEBUG: Anagram concept detected - ensuring dialog will show')
-        }
+        // Remove null values
+        const validMatches = filteredMatches.filter(Boolean) as ConceptMatch[]
+        
+        console.log(`🔍 After filtering: ${validMatches.length} matches will show dialog`)
+        
+        return validMatches
       } else {
         console.log('🔍 No matches found in API response')
       }

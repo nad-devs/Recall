@@ -83,7 +83,7 @@ export function ConceptMatchDialog({
   })
 
   return (
-    <Dialog open={open || (matches?.length > 0)} onOpenChange={(newOpen) => {
+    <Dialog open={open} onOpenChange={(newOpen) => {
       console.log("🔧 ConceptMatchDialog: onOpenChange called with:", newOpen)
       // Don't allow closing the dialog by clicking outside or escape
       // The user must make a decision using the buttons

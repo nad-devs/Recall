@@ -1005,6 +1005,27 @@ export async function DELETE(
   }
 }
 
+// Helper function to check conversation count for a concept
+export async function getConversationCount(conceptId: string, userId: string): Promise<number> {
+  try {
+    const conversationCount = await prisma.conversation.count({
+      where: {
+        userId,
+        concepts: {
+          some: {
+            id: conceptId
+          }
+        }
+      }
+    });
+    
+    return conversationCount;
+  } catch (error) {
+    console.error('Error getting conversation count:', error);
+    return 0;
+  }
+}
+
 // Helper function to extract a meaningful title from conversation text
 function extractMeaningfulTitle(text: string): string {
   // Look for patterns that might indicate a topic name
