@@ -888,7 +888,7 @@ export const ConceptCard = React.memo(function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group transition-all duration-200 overflow-hidden min-h-[320px] max-h-[600px] flex flex-col ${
+        className={`group transition-all duration-200 overflow-hidden min-h-[320px] flex flex-col ${
           isSelected ? "ring-2 ring-primary bg-primary/5" : ""
         } ${
           selectedSourceConceptForLinking && selectedSourceConceptForLinking.id === id ? "ring-2 ring-blue-500" : ""
