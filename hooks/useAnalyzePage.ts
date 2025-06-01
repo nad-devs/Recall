@@ -116,7 +116,12 @@ export function useAnalyzePage() {
           concepts: concepts.map(c => ({
             title: c.title,
             summary: c.summary,
-            category: c.category
+            category: c.category,
+            keyPoints: c.keyPoints,
+            details: c.details,
+            examples: c.examples,
+            codeSnippets: c.codeSnippets,
+            relatedConcepts: c.relatedConcepts
           }))
         }),
       })
