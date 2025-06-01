@@ -123,7 +123,7 @@ export function ConceptMatchDialog({
               className="h-12"
             >
               <Link className="mr-2 h-4 w-4" />
-              Just Link
+              Keep as is
             </Button>
           </div>
           
