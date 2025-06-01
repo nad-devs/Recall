@@ -65,7 +65,7 @@ export function InputView({
         {/* Title and description */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4">
-            Analyze Conversation
+            Analyze Content
           </h1>
           <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
             Paste your ChatGPT conversation, YouTube transcript, document, or code below to extract concepts, analyze code, and get study notes.
@@ -158,7 +158,7 @@ export function InputView({
       {/* Title and description */}
       <div className="text-center mb-8">
         <h1 className="text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4">
-          Analyze Conversation
+          Analyze Content
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
           Paste your ChatGPT conversation, YouTube transcript, document, or code below to extract concepts, analyze code, and get study notes.
