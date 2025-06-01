@@ -1170,7 +1170,7 @@ export default function ConceptsPage() {
                             <CategoryDropZone category={category} onDrop={handleConceptDrop}>
                               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                                 {filteredConceptsByCategory[category].map((concept) => (
-                                  <div key={concept.id} className="h-full">
+                                  <div key={concept.id}>
                                     <ConceptCard 
                                       concept={concept} 
                                       showDescription={true}
@@ -1256,7 +1256,7 @@ export default function ConceptsPage() {
                           {filteredConcepts
                             .sort((a, b) => a.title.localeCompare(b.title))
                             .map((concept) => (
-                              <div key={concept.id} className="h-full">
+                              <div key={concept.id}>
                                 <ConceptCard 
                                   concept={concept} 
                                   showDescription={true}
