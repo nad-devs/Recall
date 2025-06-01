@@ -1,28 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
 
-const feedbackSchema = z.object({
-  type: z.enum(['bug', 'feature', 'general', 'rating']),
-  rating: z.number().min(1).max(5).optional(),
-  message: z.string().min(1).max(1000),
-  page: z.string().optional(),
-  priority: z.enum(['low', 'medium', 'high']).optional(),
-  browserInfo: z.string().optional(),
-  context: z.string().optional(),
-})
-
-// Simple email sending function (you can replace with your preferred service)
-async function sendFeedbackEmail(feedbackData: any, screenshots: string[]) {
-  const emailContent = `
+// Simple logging function
+async function logFeedback(feedbackData: any, screenshots: string[]) {
+  const logContent = `
 🔔 NEW FEEDBACK RECEIVED
 
 Type: ${feedbackData.type.toUpperCase()}
 ${feedbackData.priority ? `Priority: ${feedbackData.priority.toUpperCase()}` : ''}
 ${feedbackData.rating ? `Rating: ${'⭐'.repeat(feedbackData.rating)} (${feedbackData.rating}/5)` : ''}
 
-User: ${feedbackData.userEmail}
 Page: ${feedbackData.page || 'Not specified'}
 Browser: ${feedbackData.browserInfo || 'Not specified'}
 
@@ -40,22 +26,17 @@ File paths: ${screenshots.join(', ')}
 ` : ''}
 
 Timestamp: ${new Date().toISOString()}
+IP: ${feedbackData.ip || 'Unknown'}
 ---
   `.trim()
 
-  // Log to console for now (you can see this in your server logs)
+  // Log to console for immediate visibility
   console.log('\n' + '='.repeat(50))
-  console.log('📧 FEEDBACK EMAIL CONTENT:')
-  console.log(emailContent)
+  console.log('📧 NEW FEEDBACK RECEIVED:')
+  console.log(logContent)
   console.log('='.repeat(50) + '\n')
 
-  // Here you could integrate with email services like:
-  // - Resend
-  // - SendGrid
-  // - Nodemailer with Gmail
-  // - Or even a simple webhook to Zapier/Make.com
-  
-  // For now, we'll also write to a simple log file
+  // Write to log file
   try {
     const fs = require('fs')
     const path = require('path')
@@ -66,26 +47,18 @@ Timestamp: ${new Date().toISOString()}
     }
     
     const logFile = path.join(logDir, 'feedback.log')
-    const logEntry = `\n${new Date().toISOString()} - ${feedbackData.type.toUpperCase()}\n${emailContent}\n${'='.repeat(80)}\n`
+    const logEntry = `\n${new Date().toISOString()} - ${feedbackData.type.toUpperCase()}\n${logContent}\n${'='.repeat(80)}\n`
     
     fs.appendFileSync(logFile, logEntry)
+    console.log('✅ Feedback logged to file:', logFile)
   } catch (error) {
-    console.error('Failed to write to log file:', error)
+    console.error('❌ Failed to write to log file:', error)
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for both NextAuth session and email-based session
-    const session = await getServerSession()
-    const userEmail = request.headers.get('x-user-email') || session?.user?.email
-    
-    if (!userEmail) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
+    console.log('📥 Feedback submission received')
 
     // Parse form data for file uploads
     const formData = await request.formData()
@@ -100,16 +73,15 @@ export async function POST(request: NextRequest) {
     const ratingStr = formData.get('rating') as string
     const rating = ratingStr ? parseInt(ratingStr) : undefined
 
-    // Validate the data
-    const validatedData = feedbackSchema.parse({
-      type,
-      rating,
-      message,
-      page,
-      priority,
-      browserInfo,
-      context
-    })
+    // Basic validation
+    if (!type || !message) {
+      return NextResponse.json(
+        { error: 'Type and message are required' },
+        { status: 400 }
+      )
+    }
+
+    console.log('📝 Feedback data:', { type, message: message.substring(0, 50) + '...', priority })
 
     // Handle screenshot uploads (save to public folder for easy access)
     const screenshots: string[] = []
@@ -119,78 +91,70 @@ export async function POST(request: NextRequest) {
     
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true })
+      console.log('📁 Created upload directory:', uploadDir)
     }
 
     // Process screenshot uploads
     for (let i = 0; i < 3; i++) {
       const file = formData.get(`screenshot_${i}`) as File
       if (file && file.size > 0) {
-        const bytes = await file.arrayBuffer()
-        const buffer = Buffer.from(bytes)
-        
-        // Generate unique filename
-        const timestamp = Date.now()
-        const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-        const filename = `${timestamp}_${i}_${safeName}`
-        const filepath = path.join(uploadDir, filename)
-        
-        fs.writeFileSync(filepath, buffer)
-        screenshots.push(`/uploads/feedback/${filename}`)
+        try {
+          const bytes = await file.arrayBuffer()
+          const buffer = Buffer.from(bytes)
+          
+          // Generate unique filename
+          const timestamp = Date.now()
+          const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+          const filename = `${timestamp}_${i}_${safeName}`
+          const filepath = path.join(uploadDir, filename)
+          
+          fs.writeFileSync(filepath, buffer)
+          screenshots.push(`/uploads/feedback/${filename}`)
+          console.log('📷 Screenshot saved:', filename)
+        } catch (error) {
+          console.error('❌ Failed to save screenshot:', error)
+        }
       }
     }
 
-    // Prepare feedback data for email
+    // Get client IP
+    const ip = request.headers.get('x-forwarded-for') || 
+               request.headers.get('x-real-ip') || 
+               'unknown'
+
+    // Prepare feedback data
     const feedbackData = {
-      ...validatedData,
-      userEmail,
-      timestamp: new Date().toISOString()
+      type,
+      rating,
+      message,
+      page,
+      priority,
+      browserInfo,
+      context,
+      timestamp: new Date().toISOString(),
+      ip
     }
 
-    // Send email notification
-    await sendFeedbackEmail(feedbackData, screenshots)
+    // Log the feedback
+    await logFeedback(feedbackData, screenshots)
 
-    // Store minimal info in database for analytics (optional)
-    try {
-      const user = await prisma.user.findUnique({
-        where: { email: userEmail }
-      })
+    const responseMessage = screenshots.length > 0 
+      ? `Feedback submitted with ${screenshots.length} screenshot(s)!` 
+      : 'Feedback submitted successfully!'
 
-      if (user) {
-        await prisma.feedback.create({
-          data: {
-            userId: user.id,
-            type: validatedData.type,
-            rating: validatedData.rating,
-            message: validatedData.message.substring(0, 200) + '...', // Truncated version
-            page: validatedData.page,
-            userAgent: request.headers.get('user-agent'),
-          }
-        })
-      }
-    } catch (dbError) {
-      console.log('Database logging failed (not critical):', dbError)
-    }
+    console.log('✅ Feedback processed successfully')
 
     return NextResponse.json({ 
       success: true, 
-      message: screenshots.length > 0 
-        ? `Feedback submitted with ${screenshots.length} screenshot(s)!` 
-        : 'Feedback submitted successfully!',
+      message: responseMessage,
       screenshotsUploaded: screenshots.length
     })
 
   } catch (error) {
-    console.error('Feedback submission error:', error)
+    console.error('❌ Feedback submission error:', error)
     
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid input', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to submit feedback. Please try again.' },
       { status: 500 }
     )
   }
@@ -198,53 +162,43 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession()
-    const userEmail = request.headers.get('x-user-email') || session?.user?.email
-    
-    if (!userEmail) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin (you can change this logic)
-    if (userEmail !== 'your-email@example.com') { // Replace with your email
-      return NextResponse.json(
-        { error: 'Admin access required' },
-        { status: 403 }
-      )
-    }
+    console.log('📊 Feedback retrieval requested')
 
     // Read feedback log file
-    try {
-      const fs = require('fs')
-      const path = require('path')
-      const logFile = path.join(process.cwd(), 'logs', 'feedback.log')
+    const fs = require('fs')
+    const path = require('path')
+    const logFile = path.join(process.cwd(), 'logs', 'feedback.log')
+    
+    if (fs.existsSync(logFile)) {
+      const logContent = fs.readFileSync(logFile, 'utf8')
       
-      if (fs.existsSync(logFile)) {
-        const logContent = fs.readFileSync(logFile, 'utf8')
-        return NextResponse.json({ 
-          feedbackLog: logContent,
-          message: 'Feedback log retrieved successfully'
-        })
-      } else {
-        return NextResponse.json({ 
-          feedbackLog: 'No feedback received yet.',
-          message: 'Log file not found'
-        })
-      }
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Failed to read feedback log' },
-        { status: 500 }
-      )
+      // Parse the log content to create a structured response
+      const entries = logContent.split('================================================================================')
+        .filter((entry: string) => entry.trim())
+        .map((entry: string) => entry.trim())
+
+      console.log(`📈 Retrieved ${entries.length} feedback entries`)
+
+      return NextResponse.json({ 
+        success: true,
+        feedbackLog: logContent,
+        entries: entries.length,
+        message: `Retrieved ${entries.length} feedback entries`
+      })
+    } else {
+      console.log('📝 No feedback log file found')
+      return NextResponse.json({ 
+        success: true,
+        feedbackLog: 'No feedback received yet.',
+        entries: 0,
+        message: 'No feedback received yet'
+      })
     }
 
   } catch (error) {
-    console.error('Feedback retrieval error:', error)
+    console.error('❌ Feedback retrieval error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to retrieve feedback' },
       { status: 500 }
     )
   }

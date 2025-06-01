@@ -19,19 +19,19 @@ export default function FeedbackAdminPage() {
   const fetchFeedback = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/feedback', {
-        headers: {
-          'x-user-email': localStorage.getItem('userEmail') || ''
-        }
-      })
+      const response = await fetch('/api/feedback')
       
       if (response.ok) {
         const data = await response.json()
         setFeedbackLog(data.feedbackLog || 'No feedback received yet.')
+        toast({
+          title: "Feedback loaded",
+          description: `Found ${data.entries || 0} feedback entries`,
+        })
       } else {
         toast({
-          title: "Access denied",
-          description: "You need admin access to view feedback.",
+          title: "Error loading feedback",
+          description: "Failed to load feedback log.",
           variant: "destructive"
         })
       }
