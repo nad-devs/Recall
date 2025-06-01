@@ -53,8 +53,20 @@ export async function POST(request: NextRequest) {
       }
     } catch (transcriptError: any) {
       console.error('📺 Transcript extraction failed:', transcriptError.message);
+      
+      // Provide more helpful error message
+      let userFriendlyMessage = 'Failed to extract YouTube transcript.';
+      
+      if (transcriptError.message.includes('Transcript is disabled')) {
+        userFriendlyMessage = 'This YouTube video has disabled captions/transcripts. Please try a different video that has captions enabled (most educational and tutorial videos have them).';
+      } else if (transcriptError.message.includes('No transcripts were found')) {
+        userFriendlyMessage = 'No captions/transcripts found for this video. Please try a video that has captions available.';
+      } else {
+        userFriendlyMessage = `Failed to extract transcript: ${transcriptError.message}`;
+      }
+      
       return NextResponse.json(
-        { error: `Failed to extract YouTube transcript: ${transcriptError.message}. The video might not have captions available.` },
+        { error: userFriendlyMessage },
         { status: 400 }
       );
     }
