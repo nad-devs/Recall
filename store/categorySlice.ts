@@ -75,26 +75,38 @@ export const createCategoryAsync = createAsyncThunk(
     
     console.log('🔄 Redux: Creating category in background...', categoryPath)
     
-    // Step 1: Create placeholder concept (ASYNC - doesn't block UI!)
-    const response = await fetch('/api/concepts', {
+    // Parse the parent path if provided
+    const parentPath = parentCategory ? parentCategory.split(' > ') : []
+    
+    // Extract the category name from the full path
+    const categoryName = categoryPath.split(' > ').pop() || categoryPath
+    
+    // Use the categories API endpoint instead of creating concepts directly
+    const response = await fetch('/api/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        // Add authentication headers if available
+        ...(typeof window !== 'undefined' ? {
+          'x-user-email': localStorage.getItem('userEmail') || '',
+          'x-user-id': localStorage.getItem('userId') || ''
+        } : {})
+      },
       body: JSON.stringify({
-        title: `${categoryPath} Placeholder`,
-        summary: `This is a placeholder concept for the ${categoryPath} category.`,
-        category: categoryPath,
-        isPlaceholder: true,
+        name: categoryName,
+        parentPath: parentPath
       }),
     })
     
     if (!response.ok) {
-      throw new Error('Failed to create category')
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to create category')
     }
     
-    const newConcept = await response.json()
-    console.log('✅ Redux: Category created successfully', newConcept)
+    const result = await response.json()
+    console.log('✅ Redux: Category created successfully', result)
     
-    return { categoryPath, concept: newConcept }
+    return { categoryPath, category: result.category }
   }
 )
 

@@ -718,25 +718,21 @@ export default function ConceptsPage() {
     
     setIsCreatingCategory(true)
     try {
-      const fullCategoryPath = selectedParentCategory ? 
-        `${selectedParentCategory} > ${newSubcategoryName.trim()}` : 
-        newSubcategoryName.trim()
+      const parentPath = selectedParentCategory ? selectedParentCategory.split(' > ') : []
       
-      // Create a placeholder concept in the new category
-      const response = await fetch('/api/concepts', {
+      // Use the categories API endpoint instead of creating concepts directly
+      const response = await fetch('/api/categories', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          title: `Placeholder for ${newSubcategoryName.trim()}`,
-          category: fullCategoryPath,
-          summary: "This is a placeholder concept. Add real concepts to this category.",
-          keyPoints: ["Placeholder concept"],
-          isPlaceholder: true
+          name: newSubcategoryName.trim(),
+          parentPath: parentPath
         })
       })
       
       if (!response.ok) {
-        throw new Error('Failed to create subcategory')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to create subcategory')
       }
       
       await refreshData()
@@ -752,7 +748,7 @@ export default function ConceptsPage() {
       console.error('Error creating subcategory:', error)
       toast({
         title: "Error",
-        description: "Failed to create subcategory",
+        description: error instanceof Error ? error.message : "Failed to create subcategory",
         variant: "destructive",
       })
     } finally {
