@@ -79,15 +79,22 @@ export async function POST(request: NextRequest) {
       console.log('💾 POST /api/categories - Creating category:', { name, parentPath, userId });
     }
     
-    if (!name) {
-      serverLogger.logError('/api/categories POST', 'Category name is required', userId, operationData);
-      return NextResponse.json({ error: 'Category name is required' }, { status: 400 });
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      serverLogger.logError('/api/categories POST', 'Category name is required and must be non-empty', userId, operationData);
+      return NextResponse.json({ error: 'Category name is required and must be non-empty' }, { status: 400 });
+    }
+    
+    // Sanitize the category name
+    const sanitizedName = name.trim();
+    if (sanitizedName.length > 100) {
+      serverLogger.logError('/api/categories POST', 'Category name too long', userId, operationData);
+      return NextResponse.json({ error: 'Category name must be 100 characters or less' }, { status: 400 });
     }
     
     // For concept-based categories, we just need to create the path string
     const newCategoryPath = parentPath && parentPath.length > 0 
-      ? [...parentPath, name].join(' > ')
-      : name;
+      ? [...parentPath, sanitizedName].join(' > ')
+      : sanitizedName;
     
     operationData.newCategoryPath = newCategoryPath;
     if (serverLogger.isDebugEnabled()) {
@@ -115,19 +122,26 @@ export async function POST(request: NextRequest) {
       console.log('💾 POST /api/categories - Creating placeholder conversation...');
     }
     
-    const conversation = await loggedPrismaQuery(
-      'conversation.create (placeholder)',
-      () => prisma.conversation.create({
-        data: {
-          text: `Placeholder conversation for category: ${newCategoryPath}`,
-          summary: `Placeholder for ${newCategoryPath} category`,
-          userId: user.id,
-        }
-      })
-    );
+    let conversation;
+    try {
+      conversation = await loggedPrismaQuery(
+        'conversation.create (placeholder)',
+        () => prisma.conversation.create({
+          data: {
+            text: `Placeholder conversation for category: ${newCategoryPath}`,
+            summary: `Placeholder for ${newCategoryPath} category`,
+            userId: user.id,
+          }
+        })
+      );
 
-    if (serverLogger.isDebugEnabled()) {
-      console.log('💾 POST /api/categories - Created conversation:', conversation.id);
+      if (serverLogger.isDebugEnabled()) {
+        console.log('💾 POST /api/categories - Created conversation:', conversation.id);
+      }
+    } catch (conversationError) {
+      console.error('❌ Error creating placeholder conversation:', conversationError);
+      serverLogger.logError('/api/categories POST', 'Failed to create placeholder conversation', userId, { ...operationData, error: conversationError });
+      return NextResponse.json({ error: 'Failed to create placeholder conversation' }, { status: 500 });
     }
 
     // Create a placeholder concept for the new category
@@ -135,38 +149,61 @@ export async function POST(request: NextRequest) {
       console.log('💾 POST /api/categories - Creating placeholder concept...');
     }
     
-    const concept = await loggedPrismaQuery(
-      'concept.create (placeholder)',
-      () => prisma.concept.create({
-        data: {
-          title: "📌 Add Concepts Here",
-          category: newCategoryPath,
-          summary: "This is a placeholder concept. It will be automatically removed when you add your first real concept to this category.",
-          details: "Click 'Add Concept' or move concepts from other categories to get started. This placeholder will disappear once you have real content.",
-          keyPoints: JSON.stringify([]),
-          examples: "",
-          relatedConcepts: JSON.stringify([]),
-          relationships: "",
-          confidenceScore: 0.1,
-          isPlaceholder: true,
-          lastUpdated: new Date(),
-          userId: user.id, // Associate with the user
-          conversationId: conversation.id, // Link to the minimal conversation
-        }
-      })
-    );
+    let concept;
+    try {
+      concept = await loggedPrismaQuery(
+        'concept.create (placeholder)',
+        () => prisma.concept.create({
+          data: {
+            title: "📌 Add Concepts Here",
+            category: newCategoryPath,
+            summary: "This is a placeholder concept. It will be automatically removed when you add your first real concept to this category.",
+            details: "Click 'Add Concept' or move concepts from other categories to get started. This placeholder will disappear once you have real content.",
+            keyPoints: JSON.stringify([]),
+            examples: JSON.stringify([]), // Changed from empty string to JSON array
+            relatedConcepts: JSON.stringify([]),
+            relationships: JSON.stringify({}), // Changed from empty string to JSON object
+            confidenceScore: 0.1,
+            isPlaceholder: true,
+            lastUpdated: new Date(),
+            userId: user.id, // Associate with the user
+            conversationId: conversation.id, // Link to the minimal conversation
+          }
+        })
+      );
 
-    if (serverLogger.isDebugEnabled()) {
-      console.log('💾 POST /api/categories - Created concept:', concept.id);
+      if (serverLogger.isDebugEnabled()) {
+        console.log('💾 POST /api/categories - Created concept:', concept.id);
+      }
+    } catch (conceptError) {
+      console.error('❌ Error creating placeholder concept:', conceptError);
+      
+      // Clean up the conversation we created
+      try {
+        await prisma.conversation.delete({
+          where: { id: conversation.id }
+        });
+      } catch (cleanupError) {
+        console.error('❌ Error cleaning up conversation after concept creation failure:', cleanupError);
+      }
+      
+      serverLogger.logError('/api/categories POST', 'Failed to create placeholder concept', userId, { ...operationData, error: conceptError });
+      return NextResponse.json({ error: 'Failed to create placeholder concept' }, { status: 500 });
     }
     
     serverLogger.logApiCall('/api/categories', 'POST', startTime, userId);
     
     return NextResponse.json({ category: { name: newCategoryPath, id: concept.id } });
   } catch (error) {
+    console.error('❌ Unexpected error creating category:', error);
     serverLogger.logError('/api/categories POST', error, userId, { ...operationData, startTime, duration: Date.now() - startTime });
-    console.error('Error creating category:', error);
-    return NextResponse.json({ error: 'Failed to create category' }, { status: 500 });
+    
+    // Return a more detailed error message for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return NextResponse.json({ 
+      error: 'Failed to create category',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    }, { status: 500 });
   }
 }
 

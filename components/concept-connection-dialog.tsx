@@ -24,6 +24,7 @@ interface ConceptConnectionDialogProps {
   sourceConcept: {
     id: string
     title: string
+    category?: string
   }
   onConnect: (targetConceptId: string) => Promise<void>
 }
@@ -151,7 +152,12 @@ export function ConceptConnectionDialog({
         headers: getAuthHeaders(),
         body: JSON.stringify({ 
           conceptName: title,
-          context: `Generate a concept that could be related to "${sourceConcept.title}"`
+          context: `Generate a concept that could be related to "${sourceConcept.title}"`,
+          sourceConcept: {
+            id: sourceConcept.id,
+            title: sourceConcept.title,
+            category: sourceConcept.category || 'General'
+          }
         }),
       })
 
@@ -171,51 +177,11 @@ export function ConceptConnectionDialog({
         throw new Error(generateData.error || 'Failed to generate concept')
       }
 
-      // Now create the concept with the AI-generated content
-      const createPayload = {
-        title: generateData.concept.title || title,
-        category: generateData.concept.category || 'General',
-        summary: generateData.concept.summary || '',
-        details: generateData.concept.details || '',
-        keyPoints: JSON.stringify(generateData.concept.keyPoints || []),  // Stringify array
-        examples: JSON.stringify(generateData.concept.examples || []),    // Stringify array
-        relatedConcepts: JSON.stringify(generateData.concept.relatedConcepts || []), // Stringify array
-        needsReview: true,      // Mark AI-generated concepts for review
-        confidenceScore: 0.7,   // Set confidence score for AI-generated concepts
-        isAIGenerated: true,
-        bypassSimilarityCheck: true  // Skip similarity checking for connect dialog concepts
-      }
+      // The concept is already created and relationship is established in the generate API
+      // We just need to return the concept ID
+      console.log(`🎉 Successfully created and connected concept with ID: ${generateData.concept.id}`)
       
-      console.log('🔧 Creating concept with payload:', createPayload)
-      
-      const createResponse = await fetch('/api/concepts', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(createPayload),
-      })
-
-      console.log(`🔧 Create API response status: ${createResponse.status}`)
-
-      if (!createResponse.ok) {
-        if (createResponse.status === 401) {
-          throw new Error('Authentication failed - please make sure you are logged in')
-        }
-        const errorData = await createResponse.json().catch(() => ({}))
-        console.error('❌ Create API error:', errorData)
-        throw new Error(errorData.error || `Failed to create concept (${createResponse.status})`)
-      }
-
-      const createData = await createResponse.json()
-      
-      console.log('✅ Created concept data:', createData)
-      
-      if (!createData.concept || !createData.concept.id) {
-        throw new Error('Invalid response from concept creation API')
-      }
-      
-      console.log(`🎉 Successfully created concept with ID: ${createData.concept.id}`)
-      
-      return createData.concept.id
+      return generateData.concept.id
     } catch (error) {
       console.error('❌ Error generating and creating concept:', error)
       throw error
