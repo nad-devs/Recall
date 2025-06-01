@@ -27,12 +27,12 @@ interface ConceptMatch {
     category: string
     summary?: string
     details?: string
-    createdAt: string
+    createdAt?: string
     lastUpdated: string
-    confidenceScore: number
+    confidenceScore?: number
   }
-  similarityScore: number
-  similarityReasons: string[]
+  similarityScore?: number
+  similarityReasons?: string[]
 }
 
 interface ConceptMatchDialogProps {
@@ -49,8 +49,28 @@ export function ConceptMatchDialog({
   onDecision 
 }: ConceptMatchDialogProps) {
 
+  // Debug logging
+  console.log("🔧 ConceptMatchDialog render:", {
+    open,
+    matchesLength: matches?.length || 0,
+    isProcessing,
+    hasOnDecision: !!onDecision
+  })
+
+  // Effect to track when dialog should be opening
+  useEffect(() => {
+    if (open && matches?.length > 0) {
+      console.log("🔧 ConceptMatchDialog: Dialog should be opening now!", {
+        open,
+        matchesLength: matches.length,
+        firstMatch: matches[0]
+      })
+    }
+  }, [open, matches])
+
   // If we have no matches, don't render anything
   if (!matches || matches.length === 0) {
+    console.log("🔧 ConceptMatchDialog: No matches, returning null")
     return null
   }
 
@@ -65,8 +85,28 @@ export function ConceptMatchDialog({
     })
   }
 
+  // Safe access to keyPoints with fallback
+  const keyPoints = Array.isArray(currentMatch.newConcept.keyPoints) 
+    ? currentMatch.newConcept.keyPoints 
+    : []
+
+  // Safe access to similarity reasons with fallback
+  const similarityReasons = Array.isArray(currentMatch.similarityReasons) 
+    ? currentMatch.similarityReasons 
+    : ['Similar title detected', 'Matching category', 'Content overlap identified']
+
+  console.log("🔧 ConceptMatchDialog: About to render dialog", {
+    currentMatchTitle: currentMatch?.newConcept?.title,
+    existingConceptTitle: currentMatch?.existingConcept?.title,
+    open
+  })
+
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open || (matches?.length > 0)} onOpenChange={(newOpen) => {
+      console.log("🔧 ConceptMatchDialog: onOpenChange called with:", newOpen)
+      // Don't allow closing the dialog by clicking outside or escape
+      // The user must make a decision using the buttons
+    }}>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="pb-4">
           <DialogTitle className="flex items-center gap-2 text-foreground">
@@ -105,19 +145,19 @@ export function ConceptMatchDialog({
                 </p>
               </div>
 
-              {currentMatch.newConcept.keyPoints.length > 0 && (
+              {keyPoints.length > 0 && (
                 <div>
                   <h5 className="font-medium text-green-800 mb-2">Key Points</h5>
                   <ul className="text-sm text-green-700 space-y-1">
-                    {currentMatch.newConcept.keyPoints.slice(0, 3).map((point, index) => (
+                    {keyPoints.slice(0, 3).map((point, index) => (
                       <li key={index} className="flex items-start gap-2">
                         <span className="inline-block w-1 h-1 rounded-full bg-green-500 mt-2 flex-shrink-0"></span>
                         <span>{point}</span>
                       </li>
                     ))}
-                    {currentMatch.newConcept.keyPoints.length > 3 && (
+                    {keyPoints.length > 3 && (
                       <li className="text-xs text-green-600 italic">
-                        +{currentMatch.newConcept.keyPoints.length - 3} more points
+                        +{keyPoints.length - 3} more points
                       </li>
                     )}
                   </ul>
@@ -135,7 +175,10 @@ export function ConceptMatchDialog({
               </CardTitle>
               <CardDescription className="text-blue-700 flex items-center gap-2">
                 <Clock className="h-3 w-3" />
-                Created {formatDate(currentMatch.existingConcept.createdAt)}
+                {currentMatch.existingConcept.createdAt 
+                  ? `Created ${formatDate(currentMatch.existingConcept.createdAt)}`
+                  : `Last updated ${formatDate(currentMatch.existingConcept.lastUpdated)}`
+                }
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -145,9 +188,11 @@ export function ConceptMatchDialog({
                   <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
                     {currentMatch.existingConcept.category}
                   </Badge>
-                  <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
-                    {Math.round(currentMatch.existingConcept.confidenceScore * 100)}% confidence
-                  </Badge>
+                  {currentMatch.existingConcept.confidenceScore && (
+                    <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
+                      {Math.round(currentMatch.existingConcept.confidenceScore * 100)}% confidence
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -163,7 +208,7 @@ export function ConceptMatchDialog({
               <div>
                 <h5 className="font-medium text-blue-800 mb-2">Why This Matches</h5>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  {currentMatch.similarityReasons.map((reason, index) => (
+                  {similarityReasons.map((reason, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <span className="inline-block w-1 h-1 rounded-full bg-blue-500 mt-2 flex-shrink-0"></span>
                       <span>{reason}</span>
@@ -172,7 +217,10 @@ export function ConceptMatchDialog({
                 </ul>
                 <div className="mt-2">
                   <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">
-                    {Math.round(currentMatch.similarityScore * 100)}% similar
+                    {currentMatch.similarityScore 
+                      ? `${Math.round(currentMatch.similarityScore * 100)}% similar`
+                      : 'High similarity'
+                    }
                   </Badge>
                 </div>
               </div>

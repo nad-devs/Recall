@@ -670,8 +670,11 @@ export function useAnalyzePage() {
         // Found matches - show confirmation dialog
         console.log(`💾 Found ${matches.length} concept matches, showing dialog`)
         console.log(`💾 Match details: ${matches.map(m => `${m.newConcept.title} → ${m.existingConcept.title}`).join(', ')}`)
+        console.log("💾 Setting conceptMatches state:", matches)
         setConceptMatches(matches)
+        console.log("💾 Setting showConceptMatchDialog to true")
         setShowConceptMatchDialog(true)
+        console.log("💾 Setting isSaving to false")
         setIsSaving(false)
         return
       } else {
