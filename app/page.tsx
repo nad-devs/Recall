@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Brain, MessageSquare, BookOpen, ArrowRight, Sparkles, BarChart3, Upload, FileText, Zap, Target, Search, Github, Heart, X } from "lucide-react"
+import { Brain, MessageSquare, BookOpen, ArrowRight, Sparkles, BarChart3, Upload, FileText, Zap, Target, Github, Heart, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -597,10 +597,6 @@ export default function LandingPage() {
 
                 <div className="flex items-center justify-between pt-2">
                   <span className="text-xs text-gray-500">4 concepts extracted</span>
-                  <Button size="sm" variant="outline" className="text-xs">
-                    <Search className="w-3 h-3 mr-1" />
-                    Explore
-                  </Button>
                 </div>
               </div>
             </div>
