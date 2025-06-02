@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { getClientIP, canMakeServerConversation } from '@/lib/usage-tracker-server';
+import { normalizeCategory } from '@/lib/utils/conversation';
 
 interface Concept {
   title: string;
@@ -24,28 +25,28 @@ function guessCategoryFromTitle(title: string): string {
   const titleLower = title.toLowerCase();
   
   if (titleLower.includes('array') || titleLower.includes('list') || titleLower.includes('hash')) {
-    return 'Arrays and Hashing';
+    return normalizeCategory('Arrays and Hashing');
   }
   if (titleLower.includes('tree') || titleLower.includes('graph')) {
-    return 'Trees and Graphs';
+    return normalizeCategory('Trees and Graphs');
   }
   if (titleLower.includes('sort') || titleLower.includes('search')) {
-    return 'Algorithms';
+    return normalizeCategory('Algorithms');
   }
   if (titleLower.includes('api') || titleLower.includes('http') || titleLower.includes('rest')) {
-    return 'APIs and Web Services';
+    return normalizeCategory('APIs and Web Services');
   }
   if (titleLower.includes('database') || titleLower.includes('sql')) {
-    return 'Database';
+    return normalizeCategory('Database');
   }
   if (titleLower.includes('react') || titleLower.includes('frontend') || titleLower.includes('ui')) {
-    return 'Frontend Development';
+    return normalizeCategory('Frontend Development');
   }
   if (titleLower.includes('backend') || titleLower.includes('server')) {
-    return 'Backend Engineering';
+    return normalizeCategory('Backend Engineering');
   }
   
-  return 'General';
+  return normalizeCategory('General');
 }
 
 export async function POST(request: Request) {
@@ -269,7 +270,7 @@ export async function POST(request: Request) {
         // Prepare concept data for database insertion
         const conceptToCreate: any = {
           title: conceptData.title,
-          category: conceptData.category || 'General',
+          category: normalizeCategory(conceptData.category || 'General'),
           summary: conceptData.summary || '',
           details: JSON.stringify(conceptData.details || ''),
           keyPoints: JSON.stringify(conceptData.keyPoints || []),
