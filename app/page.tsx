@@ -406,7 +406,7 @@ export default function LandingPage() {
                       <div className="space-y-2">
                         <Input
                           type="email"
-                          placeholder="Email (to uniquely identify u)"
+                          placeholder="Email (to uniquely identify you)"
                           value={email}
                           onChange={(e) => {
                             setEmail(e.target.value)
@@ -464,7 +464,7 @@ export default function LandingPage() {
 
                       <div className="space-y-2">
                         <Input
-                          placeholder="What name would u like to be called"
+                          placeholder="What name would you like to be called"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
@@ -567,7 +567,7 @@ export default function LandingPage() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="text-sm font-medium text-blue-900">Machine Learning</span>
                     </div>
-                    <p className="text-xs text-blue-700">Algorithms that learn patterns from data</p>
+                    <p className="text-xs text-blue-800">Algorithms that learn patterns from data</p>
                   </div>
 
                   <div className="bg-green-50 rounded-lg p-3 border border-green-200">
@@ -575,7 +575,7 @@ export default function LandingPage() {
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-sm font-medium text-green-900">Natural Language Processing</span>
                     </div>
-                    <p className="text-xs text-green-700">AI field focused on language understanding</p>
+                    <p className="text-xs text-green-800">AI field focused on language understanding</p>
                   </div>
 
                   <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
@@ -583,7 +583,7 @@ export default function LandingPage() {
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                       <span className="text-sm font-medium text-purple-900">Transformer Architecture</span>
                     </div>
-                    <p className="text-xs text-purple-700">Neural network design for sequence processing</p>
+                    <p className="text-xs text-purple-800">Neural network design for sequence processing</p>
                   </div>
 
                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
@@ -591,7 +591,7 @@ export default function LandingPage() {
                       <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                       <span className="text-sm font-medium text-orange-900">Word Embeddings</span>
                     </div>
-                    <p className="text-xs text-orange-700">Vector representations of words</p>
+                    <p className="text-xs text-orange-800">Vector representations of words</p>
                   </div>
                 </div>
 

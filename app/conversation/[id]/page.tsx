@@ -198,9 +198,9 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
         <div className="flex flex-col space-y-2">
           <div className="flex justify-between items-center">
             <Button variant="ghost" size="sm" className="w-fit" asChild>
-              <Link href="/conversation">
+              <Link href="/concepts">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to All Conversations
+                Back to Browse Concepts
               </Link>
             </Button>
             <div className="flex gap-2">
