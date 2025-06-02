@@ -2527,19 +2527,39 @@ def standardize_response_format(result: Dict) -> Dict:
     
     # Process each concept to ensure required fields
     for i, concept in enumerate(standardized["concepts"]):
+        # FIXED: Properly map details field from multiple possible sources
+        details_content = ""
+        
+        # Check for details field (problem-solving content)
+        if concept.get("details"):
+            details_content = concept["details"]
+        # Check for implementation field (exploratory learning content)
+        elif concept.get("implementation"):
+            details_content = concept["implementation"]
+        # Check for insights field (non-technical content)
+        elif concept.get("insights"):
+            details_content = concept["insights"]
+        # Fallback to empty string
+        else:
+            details_content = ""
+        
         # Ensure required fields
         required_fields = {
             "title": concept.get("title", f"Concept {i+1}"),
             "category": concept.get("category", "General"),
             "summary": concept.get("summary", ""),
             "keyPoints": concept.get("keyPoints", []),
-            "details": concept.get("details", concept.get("implementation", "")),
+            "details": details_content,  # Now properly mapped from all sources
             "relatedConcepts": concept.get("relatedConcepts", []),
             "confidence_score": concept.get("confidence_score", 0.8),
         }
         
         # Update concept with required fields
         standardized["concepts"][i] = {**concept, **required_fields}
+        
+        # Log the mapping for debugging
+        original_field = "details" if concept.get("details") else ("implementation" if concept.get("implementation") else ("insights" if concept.get("insights") else "none"))
+        logger.debug(f"Mapped '{original_field}' field to 'details' for concept: {concept.get('title', 'Untitled')}")
         
     # Ensure metadata is present
     if "metadata" not in standardized:
