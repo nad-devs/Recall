@@ -195,7 +195,7 @@ export function FeedbackWidget({ page }: FeedbackWidgetProps) {
         <Button
           variant="outline"
           size="sm"
-          className="fixed bottom-4 right-4 z-50 shadow-lg"
+          className="fixed bottom-4 right-4 z-50 shadow-lg bg-white hover:bg-gray-50 border-gray-300 text-gray-700 hover:text-gray-900"
         >
           <MessageSquare className="w-4 h-4 mr-2" />
           Feedback
