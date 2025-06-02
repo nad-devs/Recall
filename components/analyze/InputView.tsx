@@ -30,8 +30,8 @@ export function InputView({
   // Keyboard shortcut handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
-      if (e.ctrlKey || e.metaKey) {
-        // Ctrl+Enter or Cmd+Enter: Allow normal line break
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        // Ctrl+Enter, Cmd+Enter, or Shift+Enter: Allow normal line break
         return
       } else {
         // Enter alone: Trigger analysis
@@ -89,7 +89,7 @@ export function InputView({
             Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
           </p>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-            💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd> for new line
+            💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd>/<kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Shift+Enter</kbd> for new line
           </p>
         </div>
 
@@ -161,7 +161,7 @@ export function InputView({
           Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
         </p>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-          💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd> for new line
+          💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd>/<kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Shift+Enter</kbd> for new line
         </p>
         
         {/* Usage Counter */}
