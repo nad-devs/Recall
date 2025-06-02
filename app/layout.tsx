@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext"
 import { AuthProvider } from "@/components/auth-provider"
 import { ReduxProvider } from "@/components/redux-provider"
 import { FeedbackWidget } from "@/components/feedback-widget"
+import { SpeedInsights } from '@vercel/speed-insights/next'
+import { Analytics } from '@vercel/analytics/react'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +40,8 @@ export default function RootLayout({
               {children}
               <FeedbackWidget />
               <Toaster />
+              <SpeedInsights />
+              <Analytics />
             </ThemeProvider>
           </AuthProvider>
         </ReduxProvider>
