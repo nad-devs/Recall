@@ -207,7 +207,7 @@ export function ConceptsList({
               >
                 <div className="flex items-center">
                   <button
-                    className={`flex-1 justify-start text-left font-normal py-3 px-4 rounded-md hover:bg-muted transition-colors ${
+                    className={`w-full justify-start text-left font-normal py-3 px-4 rounded-md hover:bg-muted transition-colors ${
                       selectedConcept?.id === concept.id ? "bg-muted font-medium" : ""
                     }`}
                     onClick={() => setSelectedConcept(concept)}
@@ -223,30 +223,6 @@ export function ConceptsList({
                         </div>
                       </div>
                     </div>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedConcept(concept)
-                      setEditConceptMode(true)
-                    }}
-                    className="p-1 ml-1 text-muted-foreground hover:text-primary rounded-md hover:bg-muted flex-shrink-0"
-                    title="Edit concept"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 20h9" />
-                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg>
                   </button>
                 </div>
               </motion.div>
