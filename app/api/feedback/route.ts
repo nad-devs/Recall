@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
-// Initialize Resend (will work with or without API key for demo)
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Initialize Resend conditionally to avoid build errors
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 // Fallback email function for when Resend isn't configured
 async function sendFallbackEmail(feedbackData: any, screenshots: string[]) {
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     let emailContent = ''
 
     try {
-      if (process.env.RESEND_API_KEY) {
+      if (process.env.RESEND_API_KEY && resend) {
         console.log('📧 Attempting to send email via Resend...')
         
         const emailHtml = `

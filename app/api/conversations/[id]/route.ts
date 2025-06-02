@@ -258,6 +258,12 @@ export async function DELETE(
 
 // Generate a summary using LLM
 async function generateSummaryWithLLM(text: string, concepts: string[]): Promise<string> {
+  // Check if OpenAI API key is available
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('❌ OpenAI API key not found in environment variables');
+    throw new Error('OpenAI API key not configured');
+  }
+
   // Initialize OpenAI client only when needed
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
