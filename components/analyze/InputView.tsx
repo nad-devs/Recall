@@ -27,6 +27,22 @@ export function InputView({
   const [usageData, setUsageData] = useState({ conversationCount: 0, hasCustomApiKey: false, lastReset: '' })
   const [remainingConversations, setRemainingConversations] = useState(25)
 
+  // Keyboard shortcut handler
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+Enter or Cmd+Enter: Allow normal line break
+        return
+      } else {
+        // Enter alone: Trigger analysis
+        e.preventDefault()
+        if (!isAnalyzing && conversationText.trim()) {
+          handleAnalyze()
+        }
+      }
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     // Use prop data if provided, otherwise get from storage
@@ -72,6 +88,9 @@ export function InputView({
           <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
             Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
           </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+            💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd> for new line
+          </p>
         </div>
 
         {/* Input card */}
@@ -95,6 +114,7 @@ export function InputView({
               }}
               value={conversationText}
               onChange={(e) => setConversationText(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
           </div>
           <div className="flex justify-end">
@@ -139,6 +159,9 @@ export function InputView({
         </h1>
         <p className="text-lg text-zinc-600 dark:text-zinc-300 max-w-2xl mx-auto">
           Paste your ChatGPT conversation, YouTube transcript, or document below to extract concepts and get detailed study notes.
+        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+          💡 Press <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Enter</kbd> to analyze, or <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border rounded text-xs">Ctrl+Enter</kbd> for new line
         </p>
         
         {/* Usage Counter */}
@@ -188,6 +211,7 @@ export function InputView({
             }}
             value={conversationText}
             onChange={(e) => setConversationText(e.target.value)}
+            onKeyDown={handleKeyDown}
           />
         </div>
         <div className="flex justify-end">
