@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
+// Initialize OpenAI client conditionally
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-});
+}) : null;
 
 export async function GET(request: NextRequest) {
   try {
@@ -157,7 +157,7 @@ function isConversationalText(text: string): boolean {
 // Generate a summary using LLM
 async function generateSummaryWithLLM(text: string, concepts: string[]): Promise<string> {
   // Check if OpenAI API key is available
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.OPENAI_API_KEY || !openai) {
     console.error('❌ OpenAI API key not found in environment variables');
     throw new Error('OpenAI API key not configured');
   }
