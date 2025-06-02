@@ -218,8 +218,8 @@ export function ConceptsList({
                       </div>
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <div className="font-medium truncate pr-2">{concept.title}</div>
-                        <div className="text-sm text-muted-foreground truncate mt-1 pr-2">
-                          {concept.summary?.substring(0, 80) || ""}...
+                        <div className="text-sm text-muted-foreground mt-1 pr-2 line-clamp-2 break-words leading-tight">
+                          {concept.summary?.substring(0, 120) || "No description available"}
                         </div>
                       </div>
                     </div>
