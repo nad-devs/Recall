@@ -302,19 +302,67 @@ class ConceptExtractor:
         """Ask the LLM to suggest the best category for a concept."""
         logger.debug(f"Requesting LLM category suggestion for: {title}")
         categories = await self._fetch_categories()
-        prompt = (
-            f"Given the following concept title and summary, suggest the most appropriate category from this list: {categories}.\n"
-            f"Title: {title}\n"
-            f"Summary: {summary}\n"
-            "Respond with only the category name. If none of the categories fit well, respond with 'UNCATEGORIZED'."
-        )
+        
+        # ENHANCED CATEGORIZATION PROMPT - Comprehensive rules for better classification
+        prompt = f"""You are an expert content categorizer. Analyze the concept and choose the MOST SPECIFIC and APPROPRIATE category.
+
+CATEGORIZATION RULES & PRIORITY ORDER:
+
+🔹 PROGRAMMING LANGUAGES (Highest Priority for Language-Specific Content):
+- "Python" → Python sets, lists, dictionaries, syntax, language features
+- "JavaScript" → JS arrays, objects, ES6 features, language specifics  
+- "TypeScript" → TS types, interfaces, language features
+- Use language categories for data structures, syntax, and language-specific features
+
+🔹 CORE COMPUTER SCIENCE:
+- "Data Structures" → Arrays, linked lists, trees, graphs, hash tables
+- "Algorithms" → Sorting, searching, graph algorithms, dynamic programming
+- "Data Structures and Algorithms" → Combined DSA topics
+- "LeetCode Problems" → Specific coding challenges and problem-solving
+
+🔹 DEVELOPMENT DOMAINS:
+- "Backend Engineering" → Server architecture, system design, scalability
+- "Frontend Engineering" → UI/UX, user interfaces, client-side architecture
+- "Backend Engineering > APIs" → REST, GraphQL, API design patterns
+- "Backend Engineering > Databases" → Database design, SQL optimization, schemas
+
+🔹 NON-TECHNICAL DOMAINS (Equal Priority):
+- "Finance" → Money management, investing, economic concepts
+- "Psychology" → Mental health, behavior, cognitive concepts
+- "Business" → Strategy, management, entrepreneurship
+- "Health" → Nutrition, fitness, medical topics
+- "Education" → Learning methods, teaching, academic concepts
+
+EXAMPLES:
+✅ "Sets in Python" → "Python" (language-specific data structure)
+✅ "React useState Hook" → "Frontend Engineering > React" (framework feature)
+✅ "Binary Search Algorithm" → "Algorithms" (algorithm technique)
+✅ "Investment Portfolio Diversification" → "Finance > Investment" (financial concept)
+✅ "Cognitive Bias in Decision Making" → "Psychology > Cognitive" (psychological concept)
+✅ "Team Leadership Strategies" → "Business > Management" (business concept)
+
+DECISION CRITERIA:
+1. Is it language-specific? → Use the programming language category
+2. Is it a core CS concept? → Use Data Structures/Algorithms
+3. Is it about system architecture? → Use engineering domain categories  
+4. Is it non-technical? → Use appropriate domain category
+5. When unsure → Choose the MOST SPECIFIC category available
+
+Available Categories: {categories}
+
+Concept to Categorize:
+Title: {title}
+Summary: {summary}
+
+Respond with ONLY the exact category name from the list above. If no perfect match exists, choose the closest/most general appropriate category."""
+
         try:
             client = self._get_client(custom_api_key)
             response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=20
+                temperature=0.1,  # Slightly higher for better reasoning
+                max_tokens=50  # Allow for longer category names
             )
             category = response.choices[0].message.content.strip()
             # Normalize and check if it's a valid category
@@ -354,6 +402,44 @@ class ConceptExtractor:
             "coding challenge": "LeetCode Problems",
             "problem solving": "LeetCode Problems",
             
+            # ENHANCED PROGRAMMING LANGUAGE MAPPING - More specific detection
+            # Python-specific
+            "python": "Python",
+            "sets in python": "Python",
+            "python set": "Python", 
+            "python list": "Python",
+            "python dict": "Python",
+            "python string": "Python",
+            "python tuple": "Python",
+            "python class": "Python",
+            "python function": "Python",
+            "python module": "Python",
+            "python package": "Python",
+            "python syntax": "Python",
+            "python feature": "Python",
+            "python data structure": "Python",
+            "python collection": "Python",
+            "python standard library": "Python",
+            "python built-in": "Python",
+            
+            # JavaScript-specific  
+            "javascript": "JavaScript",
+            "js": "JavaScript",
+            "javascript array": "JavaScript",
+            "javascript object": "JavaScript",
+            "javascript function": "JavaScript",
+            "javascript method": "JavaScript",
+            "javascript syntax": "JavaScript",
+            "es6": "JavaScript",
+            "javascript feature": "JavaScript",
+            
+            # TypeScript-specific
+            "typescript": "TypeScript", 
+            "ts": "TypeScript",
+            "typescript type": "TypeScript",
+            "typescript interface": "TypeScript",
+            "typescript generic": "TypeScript",
+            
             # Backend Development
             "backend": "Backend Engineering",
             "api": "Backend Engineering > APIs",
@@ -372,8 +458,6 @@ class ConceptExtractor:
             "next": "Frontend Engineering > Next.js",
             "css": "Frontend Engineering > CSS",
             "html": "Frontend Engineering",
-            "javascript": "JavaScript",
-            "typescript": "TypeScript",
             
             # Cloud & DevOps
             "cloud": "Cloud Engineering",
@@ -381,14 +465,6 @@ class ConceptExtractor:
             "docker": "DevOps",
             "kubernetes": "DevOps",
             "devops": "DevOps",
-            
-            # Programming Languages
-            "js": "JavaScript",
-            "ts": "TypeScript",
-            "python": "Python",
-            "java": "Programming",
-            "c++": "Programming",
-            "programming": "Programming",
             
             # System & ML
             "system": "System Design",
