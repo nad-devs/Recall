@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, name, pendingUserName } = await request.json()
+    const { email, name } = await request.json()
     
     if (!email) {
       return NextResponse.json(
@@ -13,10 +13,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🔧 User Info API - Looking up user:', email)
-    console.log('🔧 User Info API - Pending name from form:', pendingUserName)
-
-    // Prioritize the name from the landing page form, then OAuth name, then default
-    const finalName = pendingUserName?.trim() || name || 'User'
 
     // Find or create user
     let user = await prisma.user.findUnique({
@@ -24,34 +20,24 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
-      console.log('🔧 User Info API - Creating new user for OAuth:', email, 'with name:', finalName)
+      console.log('🔧 User Info API - Creating new user for OAuth:', email)
       user = await prisma.user.create({
         data: {
           email: email.toLowerCase().trim(),
-          name: finalName,
+          name: name || 'User',
           lastActiveAt: new Date()
         }
       })
     } else {
       console.log('🔧 User Info API - Found existing user:', user.id)
-      // Update last active time and name if a new name is provided
-      const updateData: any = { lastActiveAt: new Date() }
-      
-      // Only update name if we have a pending name from the form
-      if (pendingUserName?.trim()) {
-        updateData.name = finalName
-        console.log('🔧 User Info API - Updating user name to:', finalName)
-      }
-      
+      // Update last active time and name if provided
       await prisma.user.update({
         where: { id: user.id },
-        data: updateData
+        data: { 
+          lastActiveAt: new Date(),
+          ...(name && { name })
+        }
       })
-      
-      // Update the user object with the new name for return
-      if (pendingUserName?.trim()) {
-        user.name = finalName
-      }
     }
 
     return NextResponse.json({
