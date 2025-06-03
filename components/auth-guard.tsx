@@ -31,11 +31,17 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       if (status === 'authenticated' && session?.user?.email) {
         console.log('🔧 AuthGuard - User authenticated via NextAuth (OAuth)')
         
-        // Get the pending name from localStorage (from landing page form)
-        const pendingUserName = localStorage.getItem('pendingUserName')
-        
         // For OAuth users, we need to get the proper user ID from the database
         try {
+          // Check if user provided a custom name during signup
+          const tempUserName = localStorage.getItem('tempUserName')
+          const finalName = tempUserName || session.user.name || 'User'
+          
+          // Clear the temporary name since we're using it now
+          if (tempUserName) {
+            localStorage.removeItem('tempUserName')
+          }
+          
           const response = await fetch('/api/auth/user-info', {
             method: 'POST',
             headers: {
@@ -43,34 +49,26 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
             },
             body: JSON.stringify({
               email: session.user.email,
-              name: session.user.name || 'User',
-              pendingUserName: pendingUserName
+              name: finalName
             })
           })
           
           if (response.ok) {
             const userData = await response.json()
             
-            // Clear the pending name since we've used it
-            localStorage.removeItem('pendingUserName')
-            
-            // Store OAuth user data in localStorage with proper user ID and name
+            // Store OAuth user data in localStorage with proper user ID
             localStorage.setItem('userEmail', session.user.email)
-            localStorage.setItem('userName', userData.name) // Use the name from database (which includes pending name)
+            localStorage.setItem('userName', finalName)
             localStorage.setItem('userInitials', 
-              userData.name
+              finalName
                 .split(' ')
-                .map((word: string) => word.charAt(0).toUpperCase())
+                .map(word => word.charAt(0).toUpperCase())
                 .join('')
                 .slice(0, 2)
             )
             localStorage.setItem('userId', userData.userId) // Use proper database ID
             
-            console.log('🔧 AuthGuard - Stored OAuth user data with proper ID and name:', {
-              userId: userData.userId,
-              name: userData.name,
-              pendingNameUsed: !!pendingUserName
-            })
+            console.log('🔧 AuthGuard - Stored OAuth user data with proper ID:', userData.userId)
             
             // Small delay to ensure localStorage is fully updated
             setTimeout(() => {
