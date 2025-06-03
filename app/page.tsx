@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 
 export default function LandingPage() {
   const [name, setName] = useState("")
@@ -140,7 +141,7 @@ export default function LandingPage() {
                   <div className="space-y-3">
                     <div className="space-y-2">
                       <Input
-                        placeholder="What name would you like to be called?"
+                        placeholder="What is your name?"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="h-12 text-lg text-gray-900 placeholder:text-gray-500"
@@ -151,12 +152,13 @@ export default function LandingPage() {
                     </div>
 
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         if (name.trim()) {
                           // Store the name temporarily so OAuth can pick it up
                           localStorage.setItem('tempUserName', name.trim())
                         }
-                        router.push('/auth/signin')
+                        // Directly trigger Google OAuth instead of going to signin page
+                        await signIn("google", { callbackUrl: "/dashboard" })
                       }}
                       disabled={!isValidName(name)}
                       className="w-full h-12 bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -181,7 +183,7 @@ export default function LandingPage() {
                       <div className="flex flex-col sm:flex-row gap-2 items-center justify-center">
                         <p className="text-sm text-gray-600">Already have an account?</p>
                         <button
-                          onClick={() => router.push('/auth/signin')}
+                          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
                           className="text-blue-600 hover:text-blue-800 font-medium underline text-sm"
                         >
                           Sign in here
