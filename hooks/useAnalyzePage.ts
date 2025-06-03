@@ -18,6 +18,7 @@ import {
 } from '@/lib/utils/conversation'
 import { useAutoAnalysis } from '@/hooks/useAutoAnalysis'
 import { getAuthHeaders, makeAuthenticatedRequest } from '@/lib/auth-utils'
+import { isYouTubeTranscript } from '@/lib/utils/youtube-detector'
 
 // Add interface for concept matching
 interface ConceptMatch {
@@ -84,6 +85,10 @@ export function useAnalyzePage() {
   
   // Add state to track the last updated concept for navigation
   const [lastUpdatedConceptId, setLastUpdatedConceptId] = useState<string | null>(null)
+
+  // Add YouTube transcript detection state
+  const [showYouTubeLinkPrompt, setShowYouTubeLinkPrompt] = useState(false)
+  const [youtubeLink, setYoutubeLink] = useState<string>("")
 
   const { toast } = useToast()
 
@@ -703,6 +708,12 @@ export function useAnalyzePage() {
         setSelectedConcept(analysis.concepts[0])
         setSelectedTab("summary")
         setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
+      }
+
+      // Check if this was a YouTube transcript and show prompt
+      if (isYouTubeTranscript(conversationText)) {
+        console.log("🎥 YouTube transcript detected, showing link prompt")
+        setShowYouTubeLinkPrompt(true)
       }
 
       console.log("Analysis completed successfully")
@@ -1375,6 +1386,23 @@ export function useAnalyzePage() {
     setShowApiKeyModal(false)
   }
 
+  // Handle YouTube link functionality
+  const handleYouTubeLinkAdd = (link: string) => {
+    setYoutubeLink(link)
+    setShowYouTubeLinkPrompt(false)
+    
+    toast({
+      title: "YouTube Link Added",
+      description: "The video link will be added to all concepts when you save.",
+      duration: 3000,
+    })
+  }
+
+  const handleYouTubeLinkSkip = () => {
+    setShowYouTubeLinkPrompt(false)
+    setYoutubeLink("")
+  }
+
   return {
     // State
     conversationText,
@@ -1411,6 +1439,8 @@ export function useAnalyzePage() {
     usageData,
     showUserInfoModal,
     lastUpdatedConceptId,
+    showYouTubeLinkPrompt,
+    youtubeLink,
 
     // Setters
     setConversationText,
@@ -1455,5 +1485,9 @@ export function useAnalyzePage() {
     // User info modal functions
     handleUserInfoProvided,
     handleUserInfoModalClose,
+
+    // YouTube link functions
+    handleYouTubeLinkAdd,
+    handleYouTubeLinkSkip,
   }
 } 
