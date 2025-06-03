@@ -31,6 +31,9 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       if (status === 'authenticated' && session?.user?.email) {
         console.log('🔧 AuthGuard - User authenticated via NextAuth (OAuth)')
         
+        // Get the pending name from localStorage (from landing page form)
+        const pendingUserName = localStorage.getItem('pendingUserName')
+        
         // For OAuth users, we need to get the proper user ID from the database
         try {
           const response = await fetch('/api/auth/user-info', {
@@ -40,26 +43,34 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
             },
             body: JSON.stringify({
               email: session.user.email,
-              name: session.user.name || 'User'
+              name: session.user.name || 'User',
+              pendingUserName: pendingUserName
             })
           })
           
           if (response.ok) {
             const userData = await response.json()
             
-            // Store OAuth user data in localStorage with proper user ID
+            // Clear the pending name since we've used it
+            localStorage.removeItem('pendingUserName')
+            
+            // Store OAuth user data in localStorage with proper user ID and name
             localStorage.setItem('userEmail', session.user.email)
-            localStorage.setItem('userName', session.user.name || 'User')
+            localStorage.setItem('userName', userData.name) // Use the name from database (which includes pending name)
             localStorage.setItem('userInitials', 
-              (session.user.name || 'User')
+              userData.name
                 .split(' ')
-                .map(word => word.charAt(0).toUpperCase())
+                .map((word: string) => word.charAt(0).toUpperCase())
                 .join('')
                 .slice(0, 2)
             )
             localStorage.setItem('userId', userData.userId) // Use proper database ID
             
-            console.log('🔧 AuthGuard - Stored OAuth user data with proper ID:', userData.userId)
+            console.log('🔧 AuthGuard - Stored OAuth user data with proper ID and name:', {
+              userId: userData.userId,
+              name: userData.name,
+              pendingNameUsed: !!pendingUserName
+            })
             
             // Small delay to ensure localStorage is fully updated
             setTimeout(() => {
