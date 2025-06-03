@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { getRemainingConversations, getUsageData } from "@/lib/usage-tracker"
-import { Send, Loader2 } from "lucide-react"
+import { Send, Loader2, Youtube } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { isYouTubeTranscript } from "@/lib/utils/youtube-detector"
 
 interface InputViewProps {
   conversationText: string
@@ -26,6 +27,9 @@ export function InputView({
   const [mounted, setMounted] = useState(false)
   const [usageData, setUsageData] = useState({ conversationCount: 0, hasCustomApiKey: false, lastReset: '' })
   const [remainingConversations, setRemainingConversations] = useState(25)
+
+  // Check if the current text is a YouTube transcript
+  const isYouTube = conversationText.trim() ? isYouTubeTranscript(conversationText) : false
 
   // Keyboard shortcut handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -116,6 +120,16 @@ export function InputView({
               onChange={(e) => setConversationText(e.target.value)}
               onKeyDown={handleKeyDown}
             />
+            
+            {/* YouTube transcript detection hint */}
+            {isYouTube && (
+              <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <Youtube className="h-4 w-4 text-blue-600" />
+                <span className="text-sm text-blue-700 dark:text-blue-300">
+                  🎥 YouTube transcript detected! You'll be prompted to add the video link after analysis.
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex justify-end">
             <Button
@@ -213,6 +227,16 @@ export function InputView({
             onChange={(e) => setConversationText(e.target.value)}
             onKeyDown={handleKeyDown}
           />
+          
+          {/* YouTube transcript detection hint */}
+          {isYouTube && (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <Youtube className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                🎥 YouTube transcript detected! You'll be prompted to add the video link after analysis.
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex justify-end">
           <Button
