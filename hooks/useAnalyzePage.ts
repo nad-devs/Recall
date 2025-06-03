@@ -710,7 +710,7 @@ export function useAnalyzePage() {
         setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
       }
 
-      // Check if this was a YouTube transcript and show prompt
+      // Check if this was a YouTube transcript and show prompt after analysis
       if (isYouTubeTranscript(conversationText)) {
         console.log("🎥 YouTube transcript detected, showing link prompt")
         setShowYouTubeLinkPrompt(true)
@@ -844,12 +844,19 @@ export function useAnalyzePage() {
       const userEmail = localStorage.getItem('userEmail')
       const userId = localStorage.getItem('userId')
       
+      // Add YouTube link to concepts if available
+      const conceptsWithYouTubeLink = youtubeLink ? analysisResult.concepts.map(concept => ({
+        ...concept,
+        videoResources: youtubeLink
+      })) : analysisResult.concepts
+      
       const response = await makeAuthenticatedRequest('/api/saveConversation', {
         method: 'POST',
         body: JSON.stringify({
           conversation_text: conversationText,
           analysis: {
             ...analysisResult,
+            concepts: conceptsWithYouTubeLink,
             conversation_title: analysisResult.conversationTitle || generateTitleFromConcepts(analysisResult.concepts),
             conversation_summary: analysisResult.overallSummary
           },

@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { ApiKeyModal } from "@/components/api-key-modal"
 import { UserInfoModal } from "@/components/ui/user-info-modal"
 import { AuthGuard } from "@/components/auth-guard"
+import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 
 function AnalyzePage() {
   const {
@@ -49,6 +50,8 @@ function AnalyzePage() {
     showApiKeyModal,
     usageData,
     showUserInfoModal,
+    showYouTubeLinkPrompt,
+    youtubeLink,
 
     // Setters
     setConversationText,
@@ -91,6 +94,10 @@ function AnalyzePage() {
     // User info modal functions
     handleUserInfoProvided,
     handleUserInfoModalClose,
+
+    // YouTube link functions
+    handleYouTubeLinkAdd,
+    handleYouTubeLinkSkip,
   } = useAnalyzePage()
 
   return (
@@ -163,6 +170,14 @@ function AnalyzePage() {
 
               {/* Right column - Analysis results (70% width) */}
               <div className="space-y-6">
+                {/* Show YouTube link prompt if detected */}
+                {showYouTubeLinkPrompt && (
+                  <YouTubeLinkPrompt
+                    onAddLink={handleYouTubeLinkAdd}
+                    onSkip={handleYouTubeLinkSkip}
+                  />
+                )}
+                
                 <ResultsView
                   analysisResult={analysisResult}
                   selectedConcept={selectedConcept}
