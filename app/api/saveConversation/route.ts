@@ -18,6 +18,7 @@ interface Concept {
     description: string;
     code: string;
   }>;
+  videoResources?: string;
 }
 
 // Simple heuristic to guess category from concept title
@@ -195,7 +196,8 @@ export async function POST(request: Request) {
         examples: [],
         relatedConcepts: [],
         relationships: {},
-        codeSnippets: []
+        codeSnippets: [],
+        videoResources: ''
       }));
     }
 
@@ -214,7 +216,8 @@ export async function POST(request: Request) {
         category: "General",
         summary: summary || "Conversation about programming topics",
         keyPoints: ["Extracted from conversation"],
-        relatedConcepts: []
+        relatedConcepts: [],
+        videoResources: ''
       });
       
       console.log("Created generic fallback concept:", title);
@@ -228,7 +231,8 @@ export async function POST(request: Request) {
         summary: concept.summary?.substring(0, 100) + '...',
         hasDetails: !!concept.details,
         hasKeyPoints: !!concept.keyPoints,
-        hasCodeSnippets: !!concept.codeSnippets
+        hasCodeSnippets: !!concept.codeSnippets,
+        hasVideoResources: !!concept.videoResources
       });
     });
 
@@ -277,6 +281,11 @@ export async function POST(request: Request) {
           examples: JSON.stringify(conceptData.examples || []),
           relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
           relationships: JSON.stringify(conceptData.relationships || {}),
+          videoResources: conceptData.videoResources 
+            ? (typeof conceptData.videoResources === 'string' 
+                ? JSON.stringify([conceptData.videoResources]) // Single URL -> JSON array
+                : JSON.stringify(conceptData.videoResources))   // Already an array -> JSON string
+            : '[]', // Default to empty array
           confidenceScore: 0.5, // Default confidence score
           userId: user.id,
           conversationId: conversation.id, // Link to conversation for source tracking
