@@ -1,5 +1,6 @@
 import json
 import os
+import random
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from openai import OpenAI
@@ -96,39 +97,69 @@ class QuizGenerator:
         
         return True, "Valid question"
     
+    def _ensure_answer_distribution(self, questions):
+        """Ensure correct answers are distributed across different positions."""
+        if len(questions) < 4:
+            return questions
+        
+        # Randomize the target positions for correct answers
+        target_positions = [0, 1, 2, 3, 0]  # 5 questions, ensure all positions used
+        random.shuffle(target_positions)
+        
+        for i, question in enumerate(questions):
+            target_pos = target_positions[i]
+            current_pos = question.get('correctAnswer', 0)
+            
+            if current_pos != target_pos and len(question.get('options', [])) == 4:
+                # Swap the correct answer to the target position
+                options = question['options'][:]
+                options[target_pos], options[current_pos] = options[current_pos], options[target_pos]
+                question['options'] = options
+                question['correctAnswer'] = target_pos
+                question['answer'] = options[target_pos]
+                print(f"Redistributed Q{i+1} correct answer from position {current_pos} to {target_pos}")
+        
+        return questions
+    
     def generate_quiz_questions(self, concept):
-        """Generate quiz questions for a given concept using OpenAI."""
+        """Generate quiz questions for a given concept using OpenAI with progressive difficulty."""
         prompt = f"""
-        Based on the following programming concept, generate 5 multiple-choice quiz questions to test understanding.
+        Based on the following programming concept, generate 5 multiple-choice quiz questions with PROGRESSIVE DIFFICULTY:
         
         Concept: {concept.get('title', '')}
         Summary: {concept.get('summary', '')}
         
+        DIFFICULTY PROGRESSION REQUIREMENTS:
+        1. Question 1 (EASY): Basic definition or simple concept identification
+        2. Question 2 (EASY-MEDIUM): Practical usage or basic application
+        3. Question 3 (MEDIUM): Comparison with alternatives or deeper understanding
+        4. Question 4 (MEDIUM-HARD): Implementation challenges, troubleshooting, or advanced usage
+        5. Question 5 (HARD): Complex scenarios, edge cases, optimization, or integration with other concepts
+        
+        QUESTION VARIETY REQUIREMENTS:
+        - Use different question formats and cognitive levels
+        - Mix theoretical and practical questions
+        - Include scenario-based questions for harder levels
+        - Ask about common pitfalls, best practices, and real-world applications
+        - For advanced questions, include code examples or technical scenarios
+        
+        ANSWER DISTRIBUTION:
+        - Vary the position of correct answers across questions
+        - Don't put all correct answers in position A or B
+        - Create plausible wrong answers that test understanding
+        
         CRITICAL REQUIREMENTS:
         1. Each question must have EXACTLY ONE correct answer
-        2. The other 3 options must be clearly incorrect or not applicable
-        3. For negative questions (asking what is NOT something), ensure the correct answer is genuinely NOT part of that category
-        4. Provide detailed explanations that clearly explain why the correct answer is right AND why the other options are wrong
+        2. Create sophisticated distractors (wrong answers that seem reasonable)
+        3. For negative questions, ensure the correct answer is genuinely NOT part of that category
+        4. Provide detailed explanations that explain why the correct answer is right AND why others are wrong
         5. Avoid contradictory or ambiguous questions
-        6. Double-check your logic before finalizing each question
+        6. Make sure harder questions test deeper understanding, not just obscure facts
         
-        For each question:
-        1. Create a clear, specific question about the concept
-        2. Provide 4 multiple-choice options (A, B, C, D)
-        3. Indicate the correct answer (0-3 index) - VERIFY this is actually correct
-        4. Provide a comprehensive explanation that explains:
-           - Why the correct answer is right
-           - Why each incorrect option is wrong
-           - Any important distinctions or context
-        
-        Make the questions practical and test real understanding, not just memorization.
-        Be especially careful with negative questions (asking what is NOT part of something).
-        
-        Example for a negative question about NLP:
-        Question: "Which of the following is NOT a task in Natural Language Processing?"
-        Options: ["Sentiment Analysis", "Machine Translation", "Image Recognition", "Text Summarization"]
-        Correct Answer: 2 (Image Recognition)
-        Explanation: "Image Recognition is a computer vision task that deals with visual data, not textual data. The other options - Sentiment Analysis (analyzing emotions in text), Machine Translation (converting text between languages), and Text Summarization (condensing text content) - are all core NLP tasks that work with human language."
+        EXAMPLES OF PROGRESSIVE DIFFICULTY:
+        - EASY: "What is [concept]?" or "Which statement best describes [concept]?"
+        - MEDIUM: "When would you use [concept] instead of [alternative]?" or "What happens when you [action] with [concept]?"
+        - HARD: "In a complex system where [scenario], how would [concept] handle [specific challenge]?" or "What would be the performance implications of [advanced usage]?"
         
         Return the response in this exact JSON format:
         {{
@@ -147,22 +178,29 @@ class QuizGenerator:
         for attempt in range(max_attempts):
             try:
                 response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o-mini",  # Better model for more sophisticated questions
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are an expert programming instructor creating quiz questions. You must ensure logical consistency and exactly one correct answer per question. Always respond with valid JSON only. Pay special attention to negative questions to avoid contradictions."
+                            "content": "You are an expert programming instructor creating progressively difficult quiz questions. Focus on creating questions that get significantly harder and test deeper understanding. Ensure logical consistency and exactly one correct answer per question. Create diverse, challenging questions that properly test knowledge progression."
                         },
                         {
                             "role": "user",
                             "content": prompt
                         }
                     ],
-                    max_tokens=3000,
-                    temperature=0.3,  # Lower temperature for more consistent results
+                    max_tokens=4000,
+                    temperature=0.7,  # Higher temperature for more diverse questions
                 )
                 
                 content = response.choices[0].message.content.strip()
+                
+                # Clean up markdown formatting if present
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
                 
                 # Parse the JSON response
                 quiz_data = json.loads(content)
@@ -197,16 +235,24 @@ class QuizGenerator:
                         print(f"Options: {question.get('options', [])}")
                         print(f"Correct Answer: {question.get('correctAnswer', 'N/A')}")
                 
+                # Ensure answer distribution across positions
+                validated_questions = self._ensure_answer_distribution(validated_questions)
+                
                 # If we have at least 3 valid questions, return them
                 if len(validated_questions) >= 3:
+                    # Log final answer distribution
+                    positions = [q['correctAnswer'] for q in validated_questions]
+                    print(f"Final answer positions: {positions}")
+                    
                     return {
                         "questions": validated_questions,
                         "metadata": {
                             "conceptTitle": concept.get('title', ''),
-                            "difficulty": "intermediate",
+                            "difficulty": "progressive",
                             "totalQuestions": len(validated_questions),
                             "validationPassed": True,
-                            "attempt": attempt + 1
+                            "attempt": attempt + 1,
+                            "answerPositions": positions
                         }
                     }
                 else:
@@ -217,7 +263,7 @@ class QuizGenerator:
                             "questions": validated_questions,
                             "metadata": {
                                 "conceptTitle": concept.get('title', ''),
-                                "difficulty": "intermediate", 
+                                "difficulty": "progressive", 
                                 "totalQuestions": len(validated_questions),
                                 "validationPassed": False,
                                 "warning": "Some questions failed validation"
@@ -226,6 +272,7 @@ class QuizGenerator:
                 
             except json.JSONDecodeError as e:
                 print(f"Attempt {attempt + 1}: JSON parsing error: {e}")
+                print(f"Response content: {content[:500]}...")
                 if attempt == max_attempts - 1:
                     raise
             except Exception as e:
