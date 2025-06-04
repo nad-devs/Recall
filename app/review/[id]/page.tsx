@@ -157,10 +157,21 @@ export default function ConceptReviewPage({ params }: { params: Promise<PagePara
         }
 
         const generatedQuestionsObj = await quizResponse.json();
-        const generatedQuestions = generatedQuestionsObj.questions || [];
-        console.log('🔧 Generated questions:', generatedQuestions.length)
-        setQuestions(generatedQuestions)
-        setTotalQuestions(generatedQuestions.length)
+        const generatedQuestions = Array.isArray(generatedQuestionsObj.questions) 
+          ? generatedQuestionsObj.questions 
+          : [];
+        
+        console.log('🔧 Generated questions:', generatedQuestions.length);
+        console.log('🔧 Questions structure check:', generatedQuestions.map((q: any, i: number) => ({
+          index: i,
+          hasQuestion: !!q?.question,
+          hasAnswer: !!q?.answer,
+          hasOptions: Array.isArray(q?.options),
+          optionsLength: q?.options?.length || 0
+        })));
+        
+        setQuestions(generatedQuestions);
+        setTotalQuestions(generatedQuestions.length);
       } catch (error) {
         console.error("Error loading concept:", error)
         toast({

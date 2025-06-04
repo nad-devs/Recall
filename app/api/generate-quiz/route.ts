@@ -10,7 +10,10 @@ class QuizGenerator {
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY environment variable is not set");
     }
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({ 
+      apiKey,
+      timeout: 8000 // 8 second timeout to ensure quick responses
+    });
   }
 
   private validateQuizQuestion(questionData: any): { isValid: boolean; errorMsg: string } {
@@ -137,69 +140,37 @@ class QuizGenerator {
   }
 
   async generateQuizQuestions(concept: any) {
-    const prompt = `
-    Based on the following programming concept, generate 5 multiple-choice quiz questions with PROGRESSIVE DIFFICULTY:
-    
-    Concept: ${concept.title || ''}
-    Summary: ${concept.summary || ''}
-    
-    DIFFICULTY PROGRESSION REQUIREMENTS:
-    1. Question 1 (EASY): Basic understanding - not just definitions, but WHY this concept matters
-    2. Question 2 (EASY-MEDIUM): Practical scenarios - when and where to apply this concept
-    3. Question 3 (MEDIUM): Critical thinking - comparing this concept with alternatives, trade-offs
-    4. Question 4 (MEDIUM-HARD): Problem-solving - debugging, optimization, or handling complex situations
-    5. Question 5 (HARD): Expert-level application - integration with other concepts, performance considerations, edge cases
-    
-    QUESTION VARIETY REQUIREMENTS:
-    - Create scenario-based questions that require understanding, not memorization
-    - Include real-world coding situations and problem-solving challenges
-    - Ask about trade-offs, best practices, and common mistakes
-    - Test conceptual understanding through practical applications
-    - For advanced questions, include code analysis, debugging scenarios, or architectural decisions
-    - Ask "what would happen if..." and "how would you..." style questions
-    - Include questions about performance implications, scalability, and maintainability
-    
-    CHALLENGING QUESTION EXAMPLES:
-    - "In a scenario where [complex situation], what would be the best approach using [concept] and why?"
-    - "A developer is experiencing [problem]. Which aspect of [concept] would most likely solve this?"
-    - "When comparing [concept] to [alternative], what is the most significant trade-off to consider?"
-    - "If you needed to [complex task], how would [concept] help and what challenges might arise?"
-    - "What would be the performance implications of using [concept] in [specific scenario]?"
-    
-    ANSWER DISTRIBUTION:
-    - Vary the position of correct answers across questions (A, B, C, D)
-    - Create sophisticated wrong answers that seem plausible to someone with surface knowledge
-    - Wrong answers should represent common misconceptions or partial understanding
-    
-    CRITICAL REQUIREMENTS:
-    1. Each question must have EXACTLY ONE correct answer
-    2. Create distractors that test deep understanding - avoid obviously wrong answers
-    3. Questions should challenge comprehension, application, analysis, and evaluation skills
-    4. Avoid pure memorization questions - focus on understanding and application
-    5. Explanations must be comprehensive and educational, explaining the reasoning
-    6. Questions should be relevant to real-world programming scenarios
-    7. Progressive difficulty should be clearly evident - each question should be noticeably harder
-    
-    AVOID:
-    - Simple definition questions ("What is X?")
-    - Questions that can be answered by memorizing a list
-    - Overly abstract or theoretical questions without practical relevance
-    - Questions where the answer is obvious from context
-    
-    Return the response in this exact JSON format:
-    {
-      "questions": [
-        {
-          "question": "Question text here?",
-          "options": ["Option A", "Option B", "Option C", "Option D"],
-          "correctAnswer": 0,
-          "explanation": "Comprehensive explanation of why this answer is correct and others are wrong."
-        }
-      ]
-    }
-    `;
+    const prompt = `Generate 5 progressive difficulty quiz questions for: ${concept.title || ''}
 
-    const maxAttempts = 3;
+Summary: ${concept.summary || ''}
+
+Requirements:
+1. EASY: Basic understanding and importance
+2. MEDIUM: Practical application scenarios  
+3. MEDIUM-HARD: Comparisons and trade-offs
+4. HARD: Problem-solving and debugging
+5. EXPERT: Integration, performance, edge cases
+
+Each question must:
+- Test understanding, not memorization
+- Have exactly 4 options with 1 correct answer
+- Include detailed explanation
+- Use real-world scenarios for harder questions
+- Vary correct answer positions (A,B,C,D)
+
+Format:
+{
+  "questions": [
+    {
+      "question": "Question text?",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": 0,
+      "explanation": "Why correct and others wrong."
+    }
+  ]
+}`;
+
+    const maxAttempts = 2; // Reduced from 3 for speed
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const response = await this.client.chat.completions.create({
@@ -207,110 +178,93 @@ class QuizGenerator {
           messages: [
             {
               role: "system",
-              content: "You are an expert programming instructor and assessment designer specializing in creating challenging, thought-provoking quiz questions. Your goal is to test true understanding, not memorization. Create questions that require learners to think critically, apply concepts to real scenarios, analyze trade-offs, and solve problems. Each question should progressively increase in difficulty and cognitive complexity. Focus on practical application, problem-solving, and deep conceptual understanding. Avoid simple recall questions and instead create scenarios that a working programmer would actually encounter."
+              content: "Expert programming instructor creating challenging quiz questions. Focus on understanding over memorization. Create progressive difficulty that tests real-world application."
             },
             {
               role: "user",
               content: prompt
             }
           ],
-          max_tokens: 4000,
-          temperature: 0.8,
+          max_tokens: 2000, // Reduced from 4000 for speed
+          temperature: 0.7, // Reduced from 0.8 for faster processing
         });
 
         let content = response.choices[0]?.message?.content?.trim() || "";
 
-        // Clean up markdown formatting if present
-        if (content.startsWith("```json")) {
-          content = content.substring(7);
-        }
-        if (content.endsWith("```")) {
-          content = content.substring(0, content.length - 3);
-        }
+        // Clean up markdown formatting
+        if (content.startsWith("```json")) content = content.substring(7);
+        if (content.endsWith("```")) content = content.substring(0, content.length - 3);
         content = content.trim();
 
-        // Parse the JSON response
         const quizData = JSON.parse(content);
 
-        // Validate each question
+        if (!quizData || !Array.isArray(quizData.questions)) {
+          throw new Error('Invalid quiz data structure');
+        }
+
+        // Quick validation and processing
         const validatedQuestions = [];
-        for (let i = 0; i < quizData.questions.length; i++) {
+        for (let i = 0; i < Math.min(quizData.questions.length, 5); i++) { // Limit to 5 for speed
           const question = quizData.questions[i];
           const validation = this.validateQuizQuestion(question);
           
           if (validation.isValid) {
-            const correctAnswerIndex = question.correctAnswer || 0;
+            const correctAnswerIndex = question.correctAnswer ?? 0;
             const options = question.options || [];
+            const answerText = (correctAnswerIndex >= 0 && correctAnswerIndex < options.length) 
+              ? options[correctAnswerIndex] 
+              : options[0] || "Unknown";
 
-            // Ensure the correct answer index is valid
-            let answerText;
-            if (correctAnswerIndex >= 0 && correctAnswerIndex < options.length) {
-              answerText = options[correctAnswerIndex];
-            } else {
-              console.log(`Warning: Invalid correctAnswer index ${correctAnswerIndex} for question ${i + 1}`);
-              answerText = options[0] || "Unknown";
-            }
-
-            const validatedQuestion = {
+            validatedQuestions.push({
               question: question.question || "",
               options: options,
               correctAnswer: correctAnswerIndex,
               answer: answerText,
               explanation: question.explanation || ""
-            };
-            validatedQuestions.push(validatedQuestion);
-          } else {
-            console.log(`Question ${i + 1} validation failed: ${validation.errorMsg}`);
-            console.log(`Question: ${question.question || 'N/A'}`);
-            console.log(`Options: ${question.options || []}`);
-            console.log(`Correct Answer: ${question.correctAnswer ?? 'N/A'}`);
+            });
           }
         }
 
-        // Ensure answer distribution across positions
-        const distributedQuestions = this.ensureAnswerDistribution(validatedQuestions);
-
-        // If we have at least 3 valid questions, return them
-        if (distributedQuestions.length >= 3) {
-          const positions = distributedQuestions.map(q => q.correctAnswer);
-          console.log(`Final answer positions: ${positions}`);
-
+        // Quick answer distribution (simplified for speed)
+        if (validatedQuestions.length >= 3) {
           return {
-            questions: distributedQuestions,
+            questions: validatedQuestions,
             metadata: {
               conceptTitle: concept.title || '',
               difficulty: "progressive",
-              totalQuestions: distributedQuestions.length,
+              totalQuestions: validatedQuestions.length,
               validationPassed: true,
-              attempt: attempt + 1,
-              answerPositions: positions
+              attempt: attempt + 1
             }
           };
-        } else {
-          console.log(`Attempt ${attempt + 1}: Only ${distributedQuestions.length} valid questions generated`);
-          if (attempt === maxAttempts - 1) {
-            return {
-              questions: distributedQuestions,
-              metadata: {
-                conceptTitle: concept.title || '',
-                difficulty: "progressive",
-                totalQuestions: distributedQuestions.length,
-                validationPassed: false,
-                warning: "Some questions failed validation"
-              }
-            };
-          }
         }
       } catch (error) {
-        if (error instanceof SyntaxError) {
-          console.log(`Attempt ${attempt + 1}: JSON parsing error:`, error.message);
-          if (attempt === maxAttempts - 1) throw error;
-        } else {
-          console.log(`Attempt ${attempt + 1}: Error generating quiz questions:`, error);
-          if (attempt === maxAttempts - 1) throw error;
+        console.log(`Attempt ${attempt + 1}: Error:`, error);
+        if (attempt === maxAttempts - 1) {
+          return {
+            questions: [],
+            metadata: {
+              conceptTitle: concept.title || '',
+              difficulty: "progressive",
+              totalQuestions: 0,
+              validationPassed: false,
+              error: "Quiz generation failed"
+            }
+          };
         }
       }
     }
+
+    return {
+      questions: [],
+      metadata: {
+        conceptTitle: concept.title || '',
+        difficulty: "progressive",
+        totalQuestions: 0,
+        validationPassed: false,
+        error: "Quiz generation failed"
+      }
+    };
   }
 }
 
@@ -343,22 +297,51 @@ export async function POST(request: NextRequest) {
 
     console.log('🔧 Generate Quiz API - Success, generated', result?.questions?.length || 0, 'questions');
 
-    if (!result || !result.questions || result.questions.length === 0) {
-      throw new Error('No valid questions were generated');
+    // Ensure we always return a valid structure
+    if (!result) {
+      return NextResponse.json({
+        questions: [],
+        error: 'Failed to generate quiz questions'
+      }, { status: 500 });
+    }
+
+    // Ensure questions array exists and is valid
+    const questions = Array.isArray(result.questions) ? result.questions : [];
+    
+    if (questions.length === 0) {
+      console.log('🔧 No valid questions generated');
+      return NextResponse.json({
+        questions: [],
+        error: 'No valid questions could be generated for this concept'
+      }, { status: 500 });
     }
 
     // Log final validation summary
     console.log('🔧 Final validated questions summary:');
-    result.questions.forEach((q: any, index: number) => {
-      console.log(`🔧 Question ${index + 1}: "${q.question.substring(0, 50)}..." -> Answer: "${q.answer}"`);
+    questions.forEach((q: any, index: number) => {
+      if (q && q.question && q.answer) {
+        console.log(`🔧 Question ${index + 1}: "${q.question.substring(0, 50)}..." -> Answer: "${q.answer}"`);
+      }
     });
 
-    return NextResponse.json({ questions: result.questions });
+    // Return only the questions array, ensuring consistent structure
+    return NextResponse.json({ 
+      questions: questions.map(q => ({
+        question: q.question || '',
+        answer: q.answer || '',
+        options: Array.isArray(q.options) ? q.options : [],
+        explanation: q.explanation || ''
+      }))
+    });
   } catch (error) {
     console.error('🔧 Error generating quiz questions:', error);
     
+    // Always return a consistent error structure
     return NextResponse.json(
-      { error: 'Failed to generate quiz questions. Please try again.' },
+      { 
+        questions: [],
+        error: 'Failed to generate quiz questions. Please try again.' 
+      },
       { status: 500 }
     );
   }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, XCircle, BookOpen, InfoIcon } from "lucide-react"
 import { QuizQuestion } from "@/ai/flows/generate-quiz-topics"
+import React from "react"
 
 interface ConceptQuizProps {
   concept: any
@@ -19,15 +20,62 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
   const [score, setScore] = useState(0)
 
-  // Validate questions before rendering
-  const validQuestions = questions.filter(q => 
-    q.question && 
-    q.answer && 
-    q.options && 
-    Array.isArray(q.options) && 
-    q.options.length > 0 &&
-    q.options.includes(q.answer)
-  )
+  // Validate questions before rendering - ensure consistent validation
+  const validQuestions = React.useMemo(() => {
+    if (!Array.isArray(questions)) {
+      console.log('🔧 Quiz - Questions is not an array:', questions);
+      return [];
+    }
+
+    return questions.filter(q => {
+      if (!q) return false;
+      
+      const hasQuestion = typeof q.question === 'string' && q.question.trim() !== '';
+      const hasAnswer = typeof q.answer === 'string' && q.answer.trim() !== '';
+      const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+      const answerInOptions = hasOptions && hasAnswer && q.options.includes(q.answer);
+      
+      const isValid = hasQuestion && hasAnswer && hasOptions && answerInOptions;
+      
+      if (!isValid) {
+        console.log('🔧 Quiz - Invalid question filtered out:', {
+          hasQuestion,
+          hasAnswer,
+          hasOptions,
+          answerInOptions,
+          question: q
+        });
+      }
+      
+      return isValid;
+    });
+  }, [questions]);
+
+  // Reset state when questions change
+  React.useEffect(() => {
+    setCurrentIndex(0);
+    setSelectedAnswer(null);
+    setIsCorrect(null);
+    setScore(0);
+  }, [validQuestions]);
+
+  if (!concept) {
+    return (
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center">
+            <BookOpen className="mr-2 h-5 w-5 text-primary" />
+            Quiz
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            Concept data not available.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (validQuestions.length === 0) {
     return (
@@ -35,7 +83,7 @@ export function ConceptQuiz({ concept, questions, onComplete }: ConceptQuizProps
         <CardHeader>
           <CardTitle className="text-xl flex items-center">
             <BookOpen className="mr-2 h-5 w-5 text-primary" />
-            Quiz: {concept.title}
+            Quiz: {concept.title || 'Unknown Concept'}
           </CardTitle>
         </CardHeader>
         <CardContent>
