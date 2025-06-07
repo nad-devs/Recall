@@ -132,7 +132,7 @@ export async function POST(request: Request) {
           }
         }
 
-        // Special case for LeetCode problems
+        // Special case for LeetCode problems - MORE PRECISE MATCHING
         if (existingConcepts.length === 0 && concept.category === "LeetCode Problems") {
           const standardNames = [
             "Contains Duplicate",
@@ -144,36 +144,48 @@ export async function POST(request: Request) {
 
           const titleLower = concept.title.toLowerCase();
           for (const stdName of standardNames) {
-            if (titleLower.includes(stdName.toLowerCase()) && titleLower !== stdName.toLowerCase()) {
-              const leetCodeMatch = await prisma.concept.findFirst({
-                where: {
-                  AND: [
-                    {
-                      title: {
-                        equals: stdName
-                      }
-                    },
-                    { userId: user.id }  // User filtering
-                  ]
-                },
-                select: {
-                  id: true,
-                  title: true,
-                  summary: true,
-                  category: true,
-                  lastUpdated: true
+            const stdNameLower = stdName.toLowerCase();
+            
+            // Only match if the concept title contains the EXACT standard name as a significant part
+            // AND is not just a random keyword match
+            if (titleLower.includes(stdNameLower) && titleLower !== stdNameLower) {
+              // Additional validation: ensure this is actually about the same problem
+              const similarity = calculateSimilarity(concept.title, stdName);
+              
+              // Only proceed if similarity is high enough (50%+) 
+              if (similarity >= 0.5) {
+                const leetCodeMatch = await prisma.concept.findFirst({
+                  where: {
+                    AND: [
+                      {
+                        title: {
+                          equals: stdName
+                        }
+                      },
+                      { userId: user.id }  // User filtering
+                    ]
+                  },
+                  select: {
+                    id: true,
+                    title: true,
+                    summary: true,
+                    category: true,
+                    lastUpdated: true
+                  }
+                });
+                if (leetCodeMatch) {
+                  existingConcepts.push(leetCodeMatch);
+                  console.log(`📋 Found LeetCode match: "${leetCodeMatch.title}" for "${concept.title}" (similarity: ${Math.round(similarity * 100)}%)`);
+                  break;
                 }
-              });
-              if (leetCodeMatch) {
-                existingConcepts.push(leetCodeMatch);
-                console.log(`📋 Found LeetCode match: "${leetCodeMatch.title}" for "${concept.title}"`);
-                break;
+              } else {
+                console.log(`📋 Rejected LeetCode match: "${stdName}" for "${concept.title}" - similarity too low (${Math.round(similarity * 100)}%)`);
               }
             }
           }
         }
 
-        // Check for fuzzy matches based on keywords
+        // Check for fuzzy matches based on keywords - MUCH MORE STRICT
         if (existingConcepts.length === 0) {
           const keywords = concept.title.toLowerCase().split(/\s+/).filter((word: string) => word.length > 3);
           if (keywords.length > 0) {
@@ -202,16 +214,22 @@ export async function POST(request: Request) {
             
             console.log(`📋 Found ${fuzzyMatches.length} potential fuzzy matches`);
 
-            // Filter for high similarity matches
+            // Filter for high similarity matches - MUCH MORE STRICT: require at least 75% keyword match AND similarity score
             for (const fuzzyMatch of fuzzyMatches) {
               const matchTitle = fuzzyMatch.title.toLowerCase();
               const matchingKeywords = keywords.filter((keyword: string) => matchTitle.includes(keyword));
+              const keywordMatchRatio = matchingKeywords.length / keywords.length;
               
-              // If more than 1/3 the keywords match, consider it a potential match (reduced from 1/2)
-              if (matchingKeywords.length >= Math.ceil(keywords.length / 3)) {
+              // Calculate actual similarity score
+              const similarityScore = calculateSimilarity(concept.title, fuzzyMatch.title);
+              
+              // Only accept if high keyword overlap (75%+) AND high similarity (60%+)
+              if (keywordMatchRatio >= 0.75 && similarityScore >= 0.6) {
                 existingConcepts.push(fuzzyMatch);
-                console.log(`📋 Accepted fuzzy match: "${fuzzyMatch.title}" with ${matchingKeywords.length}/${keywords.length} keywords matching`);
+                console.log(`📋 Accepted fuzzy match: "${fuzzyMatch.title}" with ${matchingKeywords.length}/${keywords.length} keywords (${Math.round(keywordMatchRatio * 100)}%) and ${Math.round(similarityScore * 100)}% similarity`);
                 break; // Only take the first good match
+              } else {
+                console.log(`📋 Rejected fuzzy match: "${fuzzyMatch.title}" - keyword ratio: ${Math.round(keywordMatchRatio * 100)}%, similarity: ${Math.round(similarityScore * 100)}%`);
               }
             }
           }
@@ -280,13 +298,22 @@ export async function POST(request: Request) {
                   // 1. The existing concept contains the base term (e.g., "hash table")
                   // 2. The new concept also contains the base term
                   // 3. They're not exactly the same title
+                  // 4. HIGH SIMILARITY SCORE to prevent false matches
                   if (matchTitleLower.includes(variantGroup.base) && 
                       lowerTitle.includes(variantGroup.base) &&
                       matchTitleLower !== lowerTitle) {
                     
-                    existingConcepts.push(match);
-                    console.log(`📋 Found algorithm variant match: "${match.title}" for "${concept.title}"`);
-                    break;
+                    // Calculate similarity to ensure they're actually similar concepts
+                    const algorithmSimilarity = calculateSimilarity(concept.title, match.title);
+                    
+                    // Only accept if similarity is high enough (60%+)
+                    if (algorithmSimilarity >= 0.6) {
+                      existingConcepts.push(match);
+                      console.log(`📋 Found algorithm variant match: "${match.title}" for "${concept.title}" (similarity: ${Math.round(algorithmSimilarity * 100)}%)`);
+                      break;
+                    } else {
+                      console.log(`📋 Rejected algorithm variant: "${match.title}" for "${concept.title}" - similarity too low (${Math.round(algorithmSimilarity * 100)}%)`);
+                    }
                   }
                 }
                 
