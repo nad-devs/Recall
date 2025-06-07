@@ -25,6 +25,12 @@ interface Concept {
 function guessCategoryFromTitle(title: string): string {
   const titleLower = title.toLowerCase();
   
+  // Check for LeetCode problems first
+  if (titleLower.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
+      titleLower.includes("problem")) {
+    return normalizeCategory('LeetCode Problems');
+  }
+  
   if (titleLower.includes('array') || titleLower.includes('list') || titleLower.includes('hash')) {
     return normalizeCategory('Arrays and Hashing');
   }
