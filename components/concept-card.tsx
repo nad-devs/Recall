@@ -993,8 +993,8 @@ export const ConceptCard = React.memo(function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2 flex-1 min-w-0">
-                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight max-w-[calc(100%-120px)]">{title}</CardTitle>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
