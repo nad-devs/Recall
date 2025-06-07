@@ -159,6 +159,7 @@ export function ResultsView(props: ResultsViewProps) {
               setCategoryOptions([
                 { value: "Algorithms", label: "Algorithms", description: "Default category" },
                 { value: "Data Structures", label: "Data Structures", description: "Default category" },
+                { value: "LeetCode Problems", label: "LeetCode Problems", description: "Default category" },
                 { value: "System Design", label: "System Design", description: "Default category" },
                 { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
                 { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
@@ -221,6 +222,7 @@ export function ResultsView(props: ResultsViewProps) {
               const defaultCategories = [
                 "Algorithms",
                 "Data Structures", 
+                "LeetCode Problems",
                 "System Design",
                 "Backend Engineering",
                 "Frontend Engineering",
@@ -248,6 +250,7 @@ export function ResultsView(props: ResultsViewProps) {
           setCategoryOptions([
             { value: "Algorithms", label: "Algorithms", description: "Default category" },
             { value: "Data Structures", label: "Data Structures", description: "Default category" },
+            { value: "LeetCode Problems", label: "LeetCode Problems", description: "Default category" },
             { value: "System Design", label: "System Design", description: "Default category" },
             { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
             { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
@@ -261,6 +264,7 @@ export function ResultsView(props: ResultsViewProps) {
         setCategoryOptions([
           { value: "Algorithms", label: "Algorithms", description: "Default category" },
           { value: "Data Structures", label: "Data Structures", description: "Default category" },
+          { value: "LeetCode Problems", label: "LeetCode Problems", description: "Default category" },
           { value: "System Design", label: "System Design", description: "Default category" },
           { value: "Backend Engineering", label: "Backend Engineering", description: "Default category" },
           { value: "Frontend Engineering", label: "Frontend Engineering", description: "Default category" },
@@ -565,6 +569,7 @@ export function ResultsView(props: ResultsViewProps) {
                           // Default category options
                           { value: "Algorithms", label: "Algorithms", description: "Algorithm concepts and techniques" },
                           { value: "Data Structures", label: "Data Structures", description: "Data organization and storage" },
+                          { value: "LeetCode Problems", label: "LeetCode Problems", description: "Coding challenges and problem-solving" },
                           { value: "System Design", label: "System Design", description: "Architecture and scalability" },
                           { value: "Backend Engineering", label: "Backend Engineering", description: "Server-side development" },
                           { value: "Frontend Engineering", label: "Frontend Engineering", description: "Client-side development" },
@@ -620,6 +625,19 @@ export function ResultsView(props: ResultsViewProps) {
                               { value: 'Dynamic Programming', label: 'Dynamic Programming', description: 'DP techniques and patterns' },
                               { value: 'Greedy Algorithms', label: 'Greedy Algorithms', description: 'Greedy approach algorithms' },
                               { value: 'Binary Search', label: 'Binary Search', description: 'Binary search variations' }
+                            ] : rootCategory === 'LeetCode Problems' ? [
+                              { value: 'Arrays and Hashing', label: 'Arrays and Hashing', description: 'Array and hash table problems' },
+                              { value: 'Two Pointers', label: 'Two Pointers', description: 'Two pointer technique problems' },
+                              { value: 'Sliding Window', label: 'Sliding Window', description: 'Sliding window problems' },
+                              { value: 'Stack', label: 'Stack', description: 'Stack-based problems' },
+                              { value: 'Binary Search', label: 'Binary Search', description: 'Binary search problems' },
+                              { value: 'Linked Lists', label: 'Linked Lists', description: 'Linked list problems' },
+                              { value: 'Trees', label: 'Trees', description: 'Tree traversal and manipulation' },
+                              { value: 'Graphs', label: 'Graphs', description: 'Graph algorithms and traversal' },
+                              { value: 'Dynamic Programming', label: 'Dynamic Programming', description: 'DP problems' },
+                              { value: 'Greedy', label: 'Greedy', description: 'Greedy algorithm problems' },
+                              { value: 'Intervals', label: 'Intervals', description: 'Interval-based problems' },
+                              { value: 'Math & Geometry', label: 'Math & Geometry', description: 'Mathematical problems' }
                             ] : rootCategory === 'Data Structures' ? [
                               { value: 'Arrays', label: 'Arrays', description: 'Array-based structures' },
                               { value: 'Linked Lists', label: 'Linked Lists', description: 'Linked list variations' },
