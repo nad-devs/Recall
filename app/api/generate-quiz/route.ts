@@ -11,8 +11,7 @@ class QuizGenerator {
       throw new Error("OPENAI_API_KEY environment variable is not set");
     }
     this.client = new OpenAI({ 
-      apiKey,
-      timeout: 8000 // 8 second timeout to ensure quick responses
+      apiKey
     });
   }
 
