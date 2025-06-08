@@ -144,8 +144,11 @@ export default function LandingPage() {
                         placeholder="What is your name?"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="h-12 text-lg text-gray-900 placeholder:text-gray-500 bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                        style={{ color: '#111827' }}
+                        className="h-12 text-lg !text-gray-900 placeholder:text-gray-500 !bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                        style={{ 
+                          color: '#111827 !important',
+                          backgroundColor: '#ffffff !important'
+                        } as React.CSSProperties}
                       />
                       {name.trim() && !isValidName(name) && (
                         <p className="text-sm text-red-600">Please enter a name (at least 2 characters)</p>
