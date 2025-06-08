@@ -966,7 +966,7 @@ export const ConceptCard = React.memo(function ConceptCard({
                       setIsEditingTitle(false)
                     }
                   }}
-                  className="text-lg font-semibold text-foreground bg-background border rounded px-2 py-1 flex-1 dark:text-white dark:bg-slate-800 focus:ring-1 focus:ring-primary"
+                  className="text-lg font-semibold text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 flex-1 focus:ring-2 focus:ring-primary focus:border-primary"
                   autoFocus
                   disabled={isSaving}
                 />
@@ -993,8 +993,8 @@ export const ConceptCard = React.memo(function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-[calc(100%-60px)]">
-                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
+              <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight max-w-[calc(100%-120px)]">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -1008,7 +1008,7 @@ export const ConceptCard = React.memo(function ConceptCard({
             )}
             
             {/* Action buttons in top right - always visible with higher z-index */}
-            <div className="flex items-center gap-1 flex-shrink-0 z-20 ml-2">
+            <div className="flex items-center gap-1 flex-shrink-0 z-20 w-8">
               <Button 
                 variant="ghost" 
                 size="icon"
