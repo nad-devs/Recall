@@ -966,7 +966,7 @@ export const ConceptCard = React.memo(function ConceptCard({
                       setIsEditingTitle(false)
                     }
                   }}
-                  className="text-lg font-semibold bg-background border rounded px-2 py-1 flex-1"
+                  className="text-lg font-semibold text-foreground bg-background border rounded px-2 py-1 flex-1 dark:text-white dark:bg-slate-800 focus:ring-1 focus:ring-primary"
                   autoFocus
                   disabled={isSaving}
                 />
@@ -993,7 +993,7 @@ export const ConceptCard = React.memo(function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-[calc(100%-60px)]">
                 <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
