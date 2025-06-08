@@ -40,9 +40,25 @@ class QuizGenerator {
       return { isValid: false, errorMsg: "Duplicate options found" };
     }
 
-    // Minimum explanation length check
-    if (explanation.split(" ").length < 8) {
-      return { isValid: false, errorMsg: "Explanation too brief" };
+    // Enhanced validation for detailed answers
+    if (explanation.split(" ").length < 15) {
+      return { isValid: false, errorMsg: "Explanation too brief for complex scenarios" };
+    }
+
+    // Check that options are sufficiently detailed (not one-word answers)
+    const hasDetailedOptions = options.every((option: string) => option.split(" ").length >= 3);
+    if (!hasDetailedOptions) {
+      return { isValid: false, errorMsg: "Options should be detailed scenarios, not one-word answers" };
+    }
+
+    // Ensure question is scenario-based (contains context indicators)
+    const scenarioIndicators = ["when", "how would", "what would", "scenario", "situation", "implementation", "approach", "strategy"];
+    const hasScenarioContext = scenarioIndicators.some(indicator => 
+      question.toLowerCase().includes(indicator)
+    );
+    
+    if (!hasScenarioContext && question.split(" ").length < 10) {
+      console.log("Warning: Question may lack sufficient scenario context");
     }
 
     return { isValid: true, errorMsg: "Valid question" };
@@ -73,8 +89,8 @@ class QuizGenerator {
   }
 
   async generateQuizQuestions(concept: any) {
-    // Streamlined but comprehensive prompt
-    const prompt = `Create 5 progressive quiz questions for: ${concept.title}
+    // Enhanced prompt for challenging, scenario-based questions
+    const prompt = `Create 5 challenging, scenario-based quiz questions for: ${concept.title}
 
 Content:
 Summary: ${concept.summary}
@@ -82,46 +98,60 @@ Details: ${concept.details}
 Key Points: ${concept.keyPoints}
 
 Requirements:
-- EASY (1): Basic understanding from summary/key points
-- MEDIUM (2): Practical applications from details
-- MEDIUM-HARD (3): Comparisons and trade-offs
-- HARD (4): Problem-solving scenarios
-- EXPERT (5): Integration and edge cases
+- EASY (1): Conceptual understanding with practical context
+- MEDIUM (2): Real-world implementation scenarios with trade-offs
+- MEDIUM-HARD (3): Complex debugging and optimization scenarios
+- HARD (4): Architecture decisions and performance considerations
+- EXPERT (5): Advanced integration, edge cases, and system design
 
-Each question needs:
-• 4 options, 1 correct answer
-• Detailed explanation why correct/others wrong
-• Real-world application focus
-• Use ALL provided content, not just title
-• Vary correct answer positions
+Question Guidelines:
+• Create SCENARIO-BASED questions (not simple definitions)
+• Use detailed, multi-sentence answer options (avoid one-word answers)
+• Include code snippets, system design, or workflow scenarios when relevant
+• Focus on "What would you do when..." or "How would you handle..." situations
+• Make wrong answers plausible but clearly incorrect to experts
+• Test critical thinking and practical application skills
+• Ensure questions require deep understanding, not memorization
+
+Each question structure:
+• 4 detailed options with explanations/reasoning
+• Correct answer should be comprehensive solution/approach
+• Wrong answers should be common misconceptions or partial solutions
+• Real-world context and consequences
+• Progressive complexity building on previous concepts
 
 JSON format:
 {
   "questions": [
     {
-      "question": "Question text?",
-      "options": ["A", "B", "C", "D"],
+      "question": "Detailed scenario-based question with context?",
+      "options": [
+        "Detailed option A with reasoning and approach",
+        "Detailed option B with different methodology", 
+        "Detailed option C with alternative solution",
+        "Detailed option D with comprehensive explanation"
+      ],
       "correctAnswer": 0,
-      "explanation": "Detailed explanation."
+      "explanation": "Detailed explanation of why this approach works best, why others fail, and real-world implications."
     }
   ]
 }`;
 
     try {
       const response = await this.client.chat.completions.create({
-        model: "gpt-3.5-turbo", // Faster model while maintaining quality
+        model: "gpt-3.5-turbo", // Keeping the faster model
         messages: [
           {
             role: "system",
-            content: "Expert programming instructor. Create high-quality quiz questions using ALL provided content. Focus on understanding and real-world application. Ensure progressive difficulty and comprehensive explanations."
+            content: "Expert software architect and senior developer. Create challenging, real-world scenario questions that test practical problem-solving skills. Focus on complex situations developers face in production environments. Avoid simple definition questions. Make answer choices detailed and comprehensive, requiring deep understanding to distinguish correct from incorrect approaches."
           },
           {
             role: "user",
             content: prompt
           }
         ],
-        max_tokens: 1500, // Reduced for speed while still allowing detailed responses
-        temperature: 0.6, // Slightly lower for faster, more focused responses
+        max_tokens: 1800, // Slightly increased for more detailed scenarios
+        temperature: 0.6,
       });
 
       let content = response.choices[0]?.message?.content?.trim() || "";
