@@ -888,7 +888,7 @@ export const ConceptCard = React.memo(function ConceptCard({
     <>
       <Card 
         ref={cardRef}
-        className={`group cursor-pointer transition-all duration-200 hover:shadow-lg flex flex-col ${
+        className={`group cursor-pointer transition-all duration-200 hover:shadow-lg flex flex-col overflow-hidden ${
           isSelected ? "ring-2 ring-primary shadow-lg" : ""
         } ${
           isDragging ? "rotate-3 scale-105 shadow-xl z-20" : ""

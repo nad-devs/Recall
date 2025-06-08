@@ -58,6 +58,8 @@ interface ResultsViewProps {
   handleCancelConceptUpdates: () => void
   setSelectedConcept: (concept: Concept) => void
   addConceptToCurrentAnalysis: (title: string, originalConcept?: Concept) => Promise<Concept>
+  // Analysis result update function
+  setAnalysisResult?: (analysisResult: ConversationAnalysis) => void
   // Concept matching props
   conceptMatches?: any[]
   showConceptMatchDialog?: boolean
@@ -103,6 +105,8 @@ export function ResultsView(props: ResultsViewProps) {
     handleCancelConceptUpdates,
     setSelectedConcept,
     addConceptToCurrentAnalysis,
+    // Analysis result update function
+    setAnalysisResult,
     // Concept matching props
     conceptMatches = [],
     showConceptMatchDialog = false,
@@ -408,37 +412,70 @@ export function ResultsView(props: ResultsViewProps) {
 
     setIsSavingTitle(true)
     try {
-      // Prepare authentication headers
-      const headers = getAuthHeaders()
-
-      // Make API call to update the concept title
-      const response = await fetch(`/api/concepts/${selectedConcept.id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          title: editingTitleValue.trim()
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update title')
-      }
-
-      const result = await response.json()
+      // Check if this is a temporary concept (not saved to database yet)
+      const isTemporaryConcept = selectedConcept.id.startsWith('temp-') || selectedConcept.id.startsWith('concept-')
       
-      // Update the selected concept with the response data
-      const updatedConcept = {
-        ...selectedConcept,
-        title: editingTitleValue.trim(),
-        lastUpdated: new Date().toISOString()
-      }
-      
-      setSelectedConcept(updatedConcept)
+      if (isTemporaryConcept) {
+        // For temporary concepts, update locally in the analysis result
+        const updatedConcept = {
+          ...selectedConcept,
+          title: editingTitleValue.trim(),
+          lastUpdated: new Date().toISOString()
+        }
+        
+        // Update the selected concept
+        setSelectedConcept(updatedConcept)
+        
+        // Update the concept in the analysis result if setAnalysisResult is available
+        if (analysisResult && setAnalysisResult) {
+          const updatedConcepts = analysisResult.concepts.map(concept => 
+            concept.id === selectedConcept.id 
+              ? updatedConcept 
+              : concept
+          )
+          
+          setAnalysisResult({
+            ...analysisResult,
+            concepts: updatedConcepts
+          })
+        }
 
-      toast({
-        title: "Title updated",
-        description: `Concept title changed to "${editingTitleValue.trim()}"`,
-      })
+        toast({
+          title: "Title updated",
+          description: `Concept title changed to "${editingTitleValue.trim()}"`,
+        })
+      } else {
+        // For saved concepts, make API call to update in database
+        const headers = getAuthHeaders()
+
+        const response = await fetch(`/api/concepts/${selectedConcept.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            title: editingTitleValue.trim()
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to update title')
+        }
+
+        const result = await response.json()
+        
+        // Update the selected concept with the response data
+        const updatedConcept = {
+          ...selectedConcept,
+          title: editingTitleValue.trim(),
+          lastUpdated: new Date().toISOString()
+        }
+        
+        setSelectedConcept(updatedConcept)
+
+        toast({
+          title: "Title updated",
+          description: `Concept title changed to "${editingTitleValue.trim()}"`,
+        })
+      }
 
       setIsEditingTitle(false)
     } catch (error) {

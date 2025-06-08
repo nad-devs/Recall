@@ -170,6 +170,7 @@ export function Autocomplete({
         disabled={disabled}
         className={cn(
           "rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium transition-colors",
+          "text-foreground", // Add explicit text color
           "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
           "hover:border-slate-400 dark:hover:border-slate-500",
           "disabled:cursor-not-allowed disabled:opacity-50",
