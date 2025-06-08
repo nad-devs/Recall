@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { getClientIP, canMakeServerConversation } from '@/lib/usage-tracker-server';
-import { normalizeCategory } from '@/lib/utils/conversation';
 
 interface Concept {
   title: string;
@@ -28,32 +27,32 @@ function guessCategoryFromTitle(title: string): string {
   // Check for LeetCode problems first
   if (titleLower.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
       titleLower.includes("problem")) {
-    return normalizeCategory('LeetCode Problems');
+    return 'LeetCode Problems';
   }
   
   if (titleLower.includes('array') || titleLower.includes('list') || titleLower.includes('hash')) {
-    return normalizeCategory('Arrays and Hashing');
+    return 'Arrays and Hashing';
   }
   if (titleLower.includes('tree') || titleLower.includes('graph')) {
-    return normalizeCategory('Trees and Graphs');
+    return 'Trees and Graphs';
   }
   if (titleLower.includes('sort') || titleLower.includes('search')) {
-    return normalizeCategory('Algorithms');
+    return 'Algorithms';
   }
   if (titleLower.includes('api') || titleLower.includes('http') || titleLower.includes('rest')) {
-    return normalizeCategory('APIs and Web Services');
+    return 'APIs and Web Services';
   }
   if (titleLower.includes('database') || titleLower.includes('sql')) {
-    return normalizeCategory('Database');
+    return 'Database';
   }
   if (titleLower.includes('react') || titleLower.includes('frontend') || titleLower.includes('ui')) {
-    return normalizeCategory('Frontend Development');
+    return 'Frontend Development';
   }
   if (titleLower.includes('backend') || titleLower.includes('server')) {
-    return normalizeCategory('Backend Engineering');
+    return 'Backend Engineering';
   }
   
-  return normalizeCategory('General');
+  return 'General';
 }
 
 export async function POST(request: Request) {
@@ -280,7 +279,7 @@ export async function POST(request: Request) {
         // Prepare concept data for database insertion
         const conceptToCreate: any = {
           title: conceptData.title,
-          category: normalizeCategory(conceptData.category || 'General'),
+          category: conceptData.category || 'General',
           summary: conceptData.summary || '',
           details: JSON.stringify(conceptData.details || ''),
           keyPoints: JSON.stringify(conceptData.keyPoints || []),
