@@ -34,6 +34,7 @@ import { PageTransition } from "@/components/page-transition"
 import { disconnectConcepts, connectConcepts } from "@/lib/concept-utils"
 import { ConceptConnectionDialog } from "@/components/concept-connection-dialog"
 import { AuthGuard } from "@/components/auth-guard"
+import { getAuthHeaders } from "@/lib/auth-utils"
 
 export default function ConceptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -182,7 +183,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     try {
       const response = await fetch(`/api/concepts/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ 
           title: editedTitle.trim()
         })
@@ -317,11 +318,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                       try {
                         const response = await fetch(`/api/concepts/${concept.id}`, {
                           method: 'DELETE',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'x-user-email': localStorage.getItem('userEmail') || '',
-                            'x-user-id': localStorage.getItem('userId') || '',
-                          },
+                          headers: getAuthHeaders(),
                         });
 
                         if (!response.ok) {
