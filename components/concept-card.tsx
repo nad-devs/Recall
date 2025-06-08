@@ -993,8 +993,8 @@ export const ConceptCard = React.memo(function ConceptCard({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight max-w-[calc(100%-120px)]">{title}</CardTitle>
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                <CardTitle className="text-lg truncate flex-1 min-w-0 leading-tight">{title}</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -1007,8 +1007,8 @@ export const ConceptCard = React.memo(function ConceptCard({
               </div>
             )}
             
-            {/* Action buttons in top right - always visible with higher z-index */}
-            <div className="flex items-center gap-1 flex-shrink-0 z-20 w-8">
+            {/* Delete button - fixed position, always visible */}
+            <div className="flex items-center flex-shrink-0 z-20">
               <Button 
                 variant="ghost" 
                 size="icon"
