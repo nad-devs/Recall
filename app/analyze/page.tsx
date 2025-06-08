@@ -64,6 +64,7 @@ function AnalyzePage() {
     setEditConceptMode,
     setEditConceptTitle,
     setEditConceptCategory,
+    setAnalysisResult,
 
     // Handlers
     handleAnalyze,
@@ -210,6 +211,7 @@ function AnalyzePage() {
                   handleCancelConceptUpdates={handleCancelConceptUpdates}
                   setSelectedConcept={setSelectedConcept}
                   addConceptToCurrentAnalysis={addConceptToCurrentAnalysis}
+                  setAnalysisResult={setAnalysisResult}
                   conceptMatches={conceptMatches}
                   showConceptMatchDialog={showConceptMatchDialog}
                   isProcessingMatches={isProcessingMatches}

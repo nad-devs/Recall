@@ -13,8 +13,7 @@ import {
 } from '@/lib/types/conversation'
 import { 
   mapBackendResponseToAnalysis, 
-  generateTitleFromConcepts,
-  normalizeCategory 
+  generateTitleFromConcepts
 } from '@/lib/utils/conversation'
 import { useAutoAnalysis } from '@/hooks/useAutoAnalysis'
 import { getAuthHeaders, makeAuthenticatedRequest } from '@/lib/auth-utils'
@@ -452,7 +451,7 @@ export function useAnalyzePage() {
 
   // Handle category updates
   const handleCategoryUpdate = async (rawValue: string) => {
-    const newCategory = normalizeCategory(rawValue)
+    const newCategory = rawValue.trim()
     
     if (!selectedConcept) return
     
@@ -1460,6 +1459,7 @@ export function useAnalyzePage() {
     setEditConceptMode,
     setEditConceptTitle,
     setEditConceptCategory,
+    setAnalysisResult,
 
     // Handlers
     handleAnalyze,

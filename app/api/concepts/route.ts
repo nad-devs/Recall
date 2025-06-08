@@ -118,6 +118,16 @@ const commonTechniques = [
 function determineCategory(concept: any): { category: string, subcategory?: string } {
   // First check if we have a valid LLM-suggested category
   if (concept.category && typeof concept.category === 'string') {
+    // Skip normalization for categories that are already in the correct format
+    if (concept.category === "LeetCode Problems" || 
+        concept.category === "Data Structures" ||
+        concept.category === "Algorithms" ||
+        concept.category === "System Design" ||
+        concept.category === "Backend Engineering" ||
+        concept.category === "Frontend Engineering") {
+      return { category: concept.category };
+    }
+    
     const normalizedCategory = normalizeCategory(concept.category);
     if (normalizedCategory) {
       return normalizedCategory;

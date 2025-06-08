@@ -105,8 +105,16 @@ export function buildCategoryTree(concepts: Concept[]): CategoryNode {
 
 // Normalize category names
 export function normalizeCategory(input: string): string {
-  // Capitalize each word, trim spaces
-  return input
+  // Handle special cases first
+  const trimmed = input.trim();
+  
+  // Special case for LeetCode - preserve the exact casing
+  if (trimmed.toLowerCase() === 'leetcode problems') {
+    return 'LeetCode Problems';
+  }
+  
+  // For other categories, capitalize each word
+  return trimmed
     .toLowerCase()
     .split(' ')
     .filter(Boolean)
