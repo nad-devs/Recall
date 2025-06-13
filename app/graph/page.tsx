@@ -11,7 +11,16 @@ import {
   Minimize2,
   X,
   ExternalLink,
-  TreePine
+  TreePine,
+  GitBranch,
+  Zap,
+  Target,
+  BookOpen as PatternIcon,
+  Brain,
+  TrendingUp,
+  Calendar,
+  Lightbulb,
+  ChevronRight
 } from "lucide-react"
 import ReactFlow, { 
   Background, 
@@ -21,7 +30,8 @@ import ReactFlow, {
   useEdgesState,
   Node,
   Edge,
-  NodeTypes
+  NodeTypes,
+  Position
 } from 'reactflow'
 import dagre from 'dagre'
 import 'reactflow/dist/style.css'
@@ -30,20 +40,48 @@ import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
 import featureFlags from '@/lib/feature-flags'
 
-// Define types for our concepts
+// Define types for intelligent concept system
 interface Concept {
   id: string
   title: string
   category: string
   summary?: string
   details?: string
+  relatedConcepts?: string[]
+  createdAt?: string
+  updatedAt?: string
+  occurrences?: Array<{
+    id: string
+    conversationId: string
+    notes?: string
+    createdAt: string
+  }>
   [key: string]: any
 }
 
-interface CategoryStructure {
-  concepts: Concept[]
-  subcategories: Record<string, Concept[]>
-  directConcepts: Concept[]
+interface SmartRelation {
+  source: string
+  target: string
+  type: 'prerequisite' | 'builds-on' | 'applies-to' | 'similar' | 'co-occurs'
+  strength: number
+  discoveredFrom: 'ai-analysis' | 'co-occurrence' | 'temporal' | 'content-similarity'
+  context?: string
+}
+
+interface LearningInsight {
+  conceptId: string
+  insight: string
+  type: 'pattern-recognition' | 'gap-identification' | 'next-step' | 'interview-prep'
+  relevance: number
+  date: string
+}
+
+interface DailyReflection {
+  date: string
+  conceptsLearned: string[]
+  keyInsights: string[]
+  nextSteps: string[]
+  interviewRelevance: string
 }
 
 export default function GraphPage() {
@@ -75,81 +113,226 @@ export default function GraphPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
-  const [categoryStructure, setCategoryStructure] = useState<Record<string, CategoryStructure>>({})
+  const [smartRelations, setSmartRelations] = useState<SmartRelation[]>([])
+  const [learningInsights, setLearningInsights] = useState<LearningInsight[]>([])
+  const [dailyReflections, setDailyReflections] = useState<DailyReflection[]>([])
+  const [showReflectionPanel, setShowReflectionPanel] = useState(true)
+  const [interviewMode, setInterviewMode] = useState(false)
 
   // Prevent hydration mismatch by ensuring component only renders on client
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Simplified category colors with better contrast
-  const getCategoryColor = useCallback((category: string) => {
+  // Intelligent concept color based on learning stage and interview relevance
+  const getIntelligentConceptColor = useCallback((concept: Concept) => {
+    // Interview-critical concepts
+    const interviewKeywords = ['algorithm', 'data structure', 'system design', 'leetcode', 'sql', 'api']
+    const isInterviewCritical = interviewKeywords.some(keyword => 
+      concept.title.toLowerCase().includes(keyword) || 
+      concept.category?.toLowerCase().includes(keyword)
+    )
+    
+    // Recently learned (based on occurrences)
+    const recentlyLearned = concept.occurrences && concept.occurrences.length > 0 && 
+      new Date(concept.occurrences[0].createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    
+    // Well-connected concepts (core knowledge)
+    const connectionCount = smartRelations.filter(r => 
+      r.source === concept.id || r.target === concept.id
+    ).length
+    
+    if (isInterviewCritical) return '#ef4444' // Red for interview-critical
+    if (recentlyLearned) return '#10b981' // Green for recently learned
+    if (connectionCount > 3) return '#8b5cf6' // Purple for well-connected
+    
+    // Default category colors
     const colors: Record<string, string> = {
-      'Machine Learning': '#8b5cf6',
-      'Data Engineering': '#10b981', 
+      'Machine Learning': '#6366f1',
       'LeetCode Problems': '#f59e0b',
+      'System Design': '#ec4899',
+      'Algorithms': '#f97316',
+      'Data Structures': '#14b8a6',
       'Frontend': '#3b82f6',
       'Backend': '#ef4444',
       'Database': '#06b6d4',
       'Cloud Engineering': '#84cc16',
-      'Artificial Intelligence': '#a855f7',
-      'AI': '#a855f7',
-      'System Design': '#ec4899',
-      'Algorithms': '#f97316',
-      'Data Structures': '#14b8a6',
-      'General': '#6b7280',
       'default': '#6b7280'
     }
+    
+    const category = concept.category?.split(' > ')[0] || 'default'
     return colors[category] || colors.default
-  }, [])
+  }, [smartRelations])
 
-  // Build hierarchy from concepts
-  const buildHierarchy = useCallback((conceptsData: Concept[]) => {
-    const structure: Record<string, CategoryStructure> = {}
+  // AI-powered relationship discovery
+  const discoverSmartRelations = useCallback(async (conceptsData: Concept[]) => {
+    const relations: SmartRelation[] = []
+    
+    // 1. Co-occurrence analysis - concepts that appear together in conversations
+    const conceptPairs = new Map<string, { count: number, contexts: string[] }>()
     
     conceptsData.forEach(concept => {
-      const parts = concept.category?.split(' > ') || ['General']
-      const mainCategory = parts[0]
-      const subCategory = parts[1] // Can be undefined
-      
-      if (!structure[mainCategory]) {
-        structure[mainCategory] = {
-          concepts: [],
-          subcategories: {},
-          directConcepts: []
-        }
-      }
-      
-      structure[mainCategory].concepts.push(concept)
-      
-      if (subCategory) {
-        // Has subcategory
-        if (!structure[mainCategory].subcategories[subCategory]) {
-          structure[mainCategory].subcategories[subCategory] = []
-        }
-        structure[mainCategory].subcategories[subCategory].push(concept)
-      } else {
-        // Direct concept under category
-        structure[mainCategory].directConcepts.push(concept)
+      if (concept.occurrences) {
+        concept.occurrences.forEach(occurrence => {
+          // Find other concepts in the same conversation
+          const relatedConcepts = conceptsData.filter(otherConcept => 
+            otherConcept.id !== concept.id &&
+            otherConcept.occurrences?.some(occ => occ.conversationId === occurrence.conversationId)
+          )
+          
+          relatedConcepts.forEach(relatedConcept => {
+            const pairKey = [concept.id, relatedConcept.id].sort().join('|')
+            if (!conceptPairs.has(pairKey)) {
+              conceptPairs.set(pairKey, { count: 0, contexts: [] })
+            }
+            const pair = conceptPairs.get(pairKey)!
+            pair.count++
+            if (occurrence.notes) {
+              pair.contexts.push(occurrence.notes)
+            }
+          })
+        })
       }
     })
     
-    return structure
+    // Convert co-occurrences to relations
+    conceptPairs.forEach((data, pairKey) => {
+      if (data.count >= 2) { // Only consider pairs that co-occur multiple times
+        const [sourceId, targetId] = pairKey.split('|')
+        relations.push({
+          source: sourceId,
+          target: targetId,
+          type: 'co-occurs',
+          strength: Math.min(0.9, data.count * 0.2),
+          discoveredFrom: 'co-occurrence',
+          context: data.contexts.slice(0, 2).join('; ')
+        })
+      }
+    })
+    
+    // 2. Content similarity analysis
+    conceptsData.forEach(concept => {
+      conceptsData.forEach(otherConcept => {
+        if (concept.id !== otherConcept.id) {
+          const titleSimilarity = calculateContentSimilarity(concept.title, otherConcept.title)
+          const summarySimilarity = concept.summary && otherConcept.summary ? 
+            calculateContentSimilarity(concept.summary, otherConcept.summary) : 0
+          
+          const overallSimilarity = (titleSimilarity + summarySimilarity) / 2
+          
+          if (overallSimilarity > 0.4) {
+            relations.push({
+              source: concept.id,
+              target: otherConcept.id,
+              type: 'similar',
+              strength: overallSimilarity,
+              discoveredFrom: 'content-similarity'
+            })
+          }
+        }
+      })
+    })
+    
+    // 3. Temporal learning patterns - concepts learned in sequence
+    const sortedConcepts = conceptsData
+      .filter(c => c.occurrences && c.occurrences.length > 0)
+      .sort((a, b) => {
+        const aDate = new Date(a.occurrences![0].createdAt)
+        const bDate = new Date(b.occurrences![0].createdAt)
+        return aDate.getTime() - bDate.getTime()
+      })
+    
+    for (let i = 0; i < sortedConcepts.length - 1; i++) {
+      const current = sortedConcepts[i]
+      const next = sortedConcepts[i + 1]
+             const timeDiff = new Date(next.occurrences![0].createdAt).getTime() - 
+                       new Date(current.occurrences![0].createdAt).getTime()
+      
+      // If learned within 3 days, likely a learning progression
+      if (timeDiff < 3 * 24 * 60 * 60 * 1000) {
+        relations.push({
+          source: current.id,
+          target: next.id,
+          type: 'builds-on',
+          strength: 0.6,
+          discoveredFrom: 'temporal'
+        })
+      }
+    }
+    
+    return relations
   }, [])
 
-  // Create tree layout using dagre
-  const createTreeLayout = useCallback((conceptsData: Concept[]) => {
+  // Calculate content similarity using word overlap
+  const calculateContentSimilarity = useCallback((text1: string, text2: string) => {
+    const words1 = text1.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    const words2 = text2.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    
+    const intersection = words1.filter(word => words2.includes(word))
+    const union = [...new Set([...words1, ...words2])]
+    
+    return intersection.length / union.length
+  }, [])
+
+  // Generate learning insights using AI analysis
+  const generateLearningInsights = useCallback(async (conceptsData: Concept[], relations: SmartRelation[]) => {
+    const insights: LearningInsight[] = []
+    
+    conceptsData.forEach(concept => {
+      const connections = relations.filter(r => r.source === concept.id || r.target === concept.id)
+      
+      // Pattern recognition insights
+      if (connections.length > 3) {
+        insights.push({
+          conceptId: concept.id,
+          insight: `This is a central concept in your learning - connected to ${connections.length} other topics. Consider deepening your understanding here.`,
+          type: 'pattern-recognition',
+          relevance: 0.8,
+          date: new Date().toISOString()
+        })
+      }
+      
+      // Gap identification
+      const prerequisiteRelations = relations.filter(r => r.target === concept.id && r.type === 'builds-on')
+      if (prerequisiteRelations.length > 0 && concept.occurrences?.length === 1) {
+        insights.push({
+          conceptId: concept.id,
+          insight: `You might benefit from reviewing prerequisites before diving deeper into this topic.`,
+          type: 'gap-identification',
+          relevance: 0.7,
+          date: new Date().toISOString()
+        })
+      }
+      
+      // Interview preparation insights
+      const interviewKeywords = ['algorithm', 'leetcode', 'system design', 'database', 'api']
+      if (interviewKeywords.some(keyword => concept.title.toLowerCase().includes(keyword))) {
+        insights.push({
+          conceptId: concept.id,
+          insight: `High interview relevance! Practice implementing this concept and explaining it clearly.`,
+          type: 'interview-prep',
+          relevance: 0.9,
+          date: new Date().toISOString()
+        })
+      }
+    })
+    
+    return insights
+  }, [])
+
+  // Create intelligent graph layout
+  const createIntelligentLayout = useCallback((conceptsData: Concept[], relations: SmartRelation[]) => {
     if (!mounted) return { nodes: [], edges: [] }
     
+    // Use force-directed layout that respects relationship strength
     const dagreGraph = new dagre.graphlib.Graph()
     dagreGraph.setDefaultEdgeLabel(() => ({}))
     dagreGraph.setGraph({ 
-      rankdir: 'TB', // Top to Bottom
-      nodesep: 120,
-      ranksep: 100,
+      rankdir: interviewMode ? 'LR' : 'TB', // Left-right for interview mode
+      nodesep: 80,
+      ranksep: 120,
       marginx: 50,
       marginy: 50
     })
@@ -157,59 +340,65 @@ export default function GraphPage() {
     const nodes: Node[] = []
     const edges: Edge[] = []
     
-    // Build hierarchy first
-    const structure = buildHierarchy(conceptsData)
-    setCategoryStructure(structure)
-    
-    // Create root node
-    const rootNode: Node = {
-      id: 'root',
-      type: 'root',
-      data: { 
-        label: 'My Knowledge',
-        totalConcepts: conceptsData.length,
-        totalCategories: Object.keys(structure).length
-      },
-      position: { x: 0, y: 0 }
-    }
-    nodes.push(rootNode)
-    dagreGraph.setNode('root', { width: 200, height: 80 })
-    
-    // Add category nodes
-    Object.entries(structure).forEach(([category, data]) => {
-      const categoryId = `category-${category}`
+    // Create nodes with intelligent sizing based on importance
+    conceptsData.forEach(concept => {
+      const connections = relations.filter(r => r.source === concept.id || r.target === concept.id)
+      const importance = Math.min(2, 1 + connections.length * 0.1)
+      const isRecentlyLearned = concept.occurrences && concept.occurrences.length > 0 && 
+        new Date(concept.occurrences[0].createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       
-      const categoryNode: Node = {
-        id: categoryId,
-        type: 'category',
+      nodes.push({
+        id: concept.id,
+        type: 'intelligentConcept',
+        position: { x: 0, y: 0 },
         data: {
-          label: category,
-          conceptCount: data.concepts.length,
-          hasSubcategories: Object.keys(data.subcategories).length > 0,
-          directConcepts: data.directConcepts,
-          subcategories: data.subcategories
-        },
-        position: { x: 0, y: 0 } // Will be calculated by dagre
-      }
-      nodes.push(categoryNode)
+          label: concept.title,
+          concept: concept,
+          connections: connections.length,
+          importance: importance,
+          isRecentlyLearned: isRecentlyLearned,
+          insights: learningInsights.filter(i => i.conceptId === concept.id),
+          interviewRelevant: ['algorithm', 'leetcode', 'system design'].some(keyword => 
+            concept.title.toLowerCase().includes(keyword)
+          )
+        }
+      })
       
-      const edge: Edge = {
-        id: `root-${categoryId}`,
-        source: 'root',
-        target: categoryId,
-        type: 'smoothstep',
-        animated: false
-      }
-      edges.push(edge)
-      
-      dagreGraph.setNode(categoryId, { width: 180, height: 100 })
-      dagreGraph.setEdge('root', categoryId)
+      dagreGraph.setNode(concept.id, { 
+        width: 100 * importance, 
+        height: 60 * importance 
+      })
     })
     
-    // Calculate positions
+    // Create edges based on discovered relations
+    relations.forEach(relation => {
+      if (relation.strength > 0.3) { // Only show strong relationships
+        const edgeId = `${relation.source}-${relation.target}`
+        const isPrerequisite = relation.type === 'builds-on'
+        
+        edges.push({
+          id: edgeId,
+          source: relation.source,
+          target: relation.target,
+          type: 'smoothstep',
+          animated: isPrerequisite,
+          style: { 
+            stroke: getRelationColor(relation.type),
+            strokeWidth: Math.max(1, relation.strength * 4),
+            opacity: relation.strength
+          },
+          label: interviewMode ? relation.type : undefined,
+          labelStyle: { fontSize: 10, fill: '#666' }
+        })
+        
+        dagreGraph.setEdge(relation.source, relation.target)
+      }
+    })
+    
+    // Calculate layout
     dagre.layout(dagreGraph)
     
-    // Update node positions from dagre
+    // Update positions
     nodes.forEach(node => {
       const nodeWithPosition = dagreGraph.node(node.id)
       if (nodeWithPosition) {
@@ -221,360 +410,225 @@ export default function GraphPage() {
     })
     
     return { nodes, edges }
-  }, [buildHierarchy, mounted])
+  }, [mounted, interviewMode, learningInsights])
 
-  // Root Node Component
-  const RootNode = memo(({ data }: { data: any }) => {
+  // Get relation color based on type
+  const getRelationColor = useCallback((type: SmartRelation['type']) => {
+    const colors = {
+      'prerequisite': '#ef4444',
+      'builds-on': '#f59e0b',
+      'applies-to': '#10b981',
+      'similar': '#3b82f6',
+      'co-occurs': '#8b5cf6'
+    }
+    return colors[type] || '#6b7280'
+  }, [])
+
+  // Intelligent Concept Node Component
+  const IntelligentConceptNode = memo(({ data }: { data: any }) => {
     if (!mounted) return null
+    
+    const concept = data.concept
+    const nodeColor = getIntelligentConceptColor(concept)
+    const size = 60 + (data.connections * 5)
     
     return (
       <div
-        className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg shadow-lg border-2 border-white/20"
+        onClick={() => setSelectedConcept(concept)}
+        className="cursor-pointer transition-all duration-300 rounded-lg shadow-lg border-2 relative"
         style={{
-          width: 200,
-          height: 80,
+          width: size,
+          height: size,
+          backgroundColor: nodeColor,
+          borderColor: data.isRecentlyLearned ? '#10b981' : 'rgba(255,255,255,0.3)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'white'
-        }}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <TreePine className="h-5 w-5" />
-          <div className="font-bold text-lg">{data.label}</div>
-        </div>
-        <div className="text-sm opacity-90">
-          {data.totalConcepts} concepts • {data.totalCategories} categories
-        </div>
-      </div>
-    )
-  })
-
-  // Optimized node expansion - no delays
-  const expandNode = useCallback((nodeId: string, nodeData: any) => {
-    if (!mounted) return
-    
-    console.log('Expanding node:', nodeId, nodeData) // Debug log
-    
-    const newExpanded = new Set(expandedNodes)
-    newExpanded.add(nodeId)
-    setExpandedNodes(newExpanded)
-    
-    const currentNode = nodes.find(n => n.id === nodeId)
-    if (!currentNode) {
-      console.log('Current node not found:', nodeId)
-      return
-    }
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    let yOffset = 0
-    const baseX = currentNode.position.x
-    const baseY = currentNode.position.y + 150
-    
-    // Add subcategories if they exist
-    if (nodeData.hasSubcategories && nodeData.subcategories) {
-      console.log('Adding subcategories:', Object.keys(nodeData.subcategories))
-      Object.entries(nodeData.subcategories).forEach(([subName, concepts], index) => {
-        const subId = `sub-${nodeId}-${subName}`
-        
-        newNodes.push({
-          id: subId,
-          type: 'subcategory',
-          position: {
-            x: baseX + (index % 3) * 160 - 160,
-            y: baseY + Math.floor(index / 3) * 100
-          },
-          data: {
-            label: subName,
-            concepts: concepts,
-            parentCategory: nodeData.label,
-            parentId: nodeId
-          }
-        })
-        
-        newEdges.push({
-          id: `edge-${nodeId}-${subId}`,
-          source: nodeId,
-          target: subId,
-          type: 'smoothstep',
-          animated: false
-        })
-        
-        yOffset = Math.max(yOffset, Math.floor(index / 3) * 100 + 100)
-      })
-    }
-    
-    // Add direct concepts
-    if (nodeData.directConcepts && nodeData.directConcepts.length > 0) {
-      console.log('Adding direct concepts:', nodeData.directConcepts.length)
-      nodeData.directConcepts.forEach((concept: Concept, index: number) => {
-        const conceptId = `concept-${concept.id}`
-        
-        newNodes.push({
-          id: conceptId,
-          type: 'concept',
-          position: {
-            x: baseX + (index % 4) * 140 - 210,
-            y: baseY + yOffset + Math.floor(index / 4) * 80
-          },
-          data: {
-            label: concept.title,
-            concept: concept
-          }
-        })
-        
-        newEdges.push({
-          id: `edge-${nodeId}-${conceptId}`,
-          source: nodeId,
-          target: conceptId,
-          type: 'smoothstep',
-          animated: false
-        })
-      })
-    }
-    
-    console.log('Adding nodes:', newNodes.length, 'edges:', newEdges.length)
-    setNodes(current => [...current, ...newNodes])
-    setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes, mounted])
-
-  // Expand subcategory
-  const expandSubcategory = useCallback((subId: string, subData: any) => {
-    if (!mounted) return
-    
-    console.log('Expanding subcategory:', subId, subData) // Debug log
-    
-    const newExpanded = new Set(expandedNodes)
-    newExpanded.add(subId)
-    setExpandedNodes(newExpanded)
-    
-    const currentNode = nodes.find(n => n.id === subId)
-    if (!currentNode) {
-      console.log('Subcategory node not found:', subId)
-      return
-    }
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    if (subData.concepts && subData.concepts.length > 0) {
-      subData.concepts.forEach((concept: Concept, index: number) => {
-        const conceptId = `concept-${subId}-${concept.id}`
-        
-        newNodes.push({
-          id: conceptId,
-          type: 'concept',
-          position: {
-            x: currentNode.position.x + (index % 3) * 140 - 140,
-            y: currentNode.position.y + 100 + Math.floor(index / 3) * 80
-          },
-          data: {
-            label: concept.title,
-            concept: concept
-          }
-        })
-        
-        newEdges.push({
-          id: `edge-${subId}-${conceptId}`,
-          source: subId,
-          target: conceptId,
-          type: 'smoothstep',
-          animated: false
-        })
-      })
-    }
-    
-    console.log('Adding subcategory nodes:', newNodes.length, 'edges:', newEdges.length)
-    setNodes(current => [...current, ...newNodes])
-    setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes, mounted])
-
-  // Collapse node and all children
-  const collapseNode = useCallback((nodeId: string) => {
-    if (!mounted) return
-    
-    const newExpanded = new Set(expandedNodes)
-    
-    // Remove this node and all its children from expanded set
-    Array.from(expandedNodes).forEach(id => {
-      if (id === nodeId || id.startsWith(`sub-${nodeId}`) || id.startsWith(`concept-${nodeId}`)) {
-        newExpanded.delete(id)
-      }
-    })
-    
-    setExpandedNodes(newExpanded)
-    
-    // Remove child nodes
-    setNodes(current => 
-      current.filter(node => 
-        !node.id.startsWith(`sub-${nodeId}`) && 
-        !node.id.startsWith(`concept-${nodeId}`) &&
-        !node.id.includes(`-${nodeId}-`)
-      )
-    )
-    
-    // Remove child edges
-    setEdges(current => 
-      current.filter(edge => 
-        !edge.id.includes(nodeId) || edge.source === 'root'
-      )
-    )
-  }, [expandedNodes, mounted])
-
-  // Category Node Component - Optimized
-  const CategoryNode = memo(({ data, id }: { data: any, id: string }) => {
-    if (!mounted) return null
-    
-    const isExpanded = expandedNodes.has(id)
-    
-    const handleClick = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation()
-      
-      console.log('Category clicked:', id, 'isExpanded:', isExpanded) // Debug log
-      
-      if (isExpanded) {
-        collapseNode(id)
-      } else {
-        expandNode(id, data)
-      }
-    }, [isExpanded, id, data])
-    
-    return (
-      <div
-        onClick={handleClick}
-        className="cursor-pointer transition-all duration-200 ease-in-out rounded-lg shadow-md"
-        style={{
-          width: 180,
-          height: 100,
-          backgroundColor: getCategoryColor(data.label),
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          border: isExpanded ? '3px solid white' : '2px solid rgba(255,255,255,0.3)',
-          transform: isExpanded ? 'scale(1.05)' : 'scale(1)'
-        }}
-      >
-        <div className="font-bold text-white text-center mb-1" style={{ fontSize: '14px' }}>
-          {data.label}
-        </div>
-        <div className="text-white/80 text-center text-xs mb-1">
-          {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
-        </div>
-        {data.hasSubcategories && (
-          <div className="text-white/60 text-center text-xs mb-1">
-            {Object.keys(data.subcategories).length} subcategor{Object.keys(data.subcategories).length !== 1 ? 'ies' : 'y'}
-          </div>
-        )}
-        {data.directConcepts.length > 0 && (
-          <div className="text-white/60 text-center text-xs">
-            {data.directConcepts.length} direct
-          </div>
-        )}
-        <div className="text-white/50 text-center text-xs mt-1">
-          {isExpanded ? '▼ Collapse' : '▶ Expand'}
-        </div>
-      </div>
-    )
-  })
-
-  // Subcategory Node Component
-  const SubcategoryNode = memo(({ data, id }: { data: any, id: string }) => {
-    if (!mounted) return null
-    
-    const isExpanded = expandedNodes.has(id)
-    
-    const handleClick = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation()
-      
-      console.log('Subcategory clicked:', id, 'isExpanded:', isExpanded) // Debug log
-      
-      if (isExpanded) {
-        collapseNode(id)
-      } else {
-        expandSubcategory(id, data)
-      }
-    }, [isExpanded, id, data])
-    
-    return (
-      <div
-        onClick={handleClick}
-        className="cursor-pointer transition-all duration-200 ease-in-out rounded-lg shadow-sm"
-        style={{
-          width: 140,
-          height: 80,
-          backgroundColor: 'rgba(255,255,255,0.1)',
-          border: `2px solid ${getCategoryColor(data.parentCategory)}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(10px)',
-          transform: isExpanded ? 'scale(1.02)' : 'scale(1)'
-        }}
-      >
-        <div className="font-semibold text-white text-center mb-1" style={{ fontSize: '12px' }}>
-          {data.label}
-        </div>
-        <div className="text-white/70 text-center text-xs mb-1">
-          {data.concepts.length} concept{data.concepts.length !== 1 ? 's' : ''}
-        </div>
-        <div className="text-white/50 text-center text-xs">
-          {isExpanded ? '▼' : '▶'}
-        </div>
-      </div>
-    )
-  })
-
-  // Concept Node Component
-  const ConceptNode = memo(({ data }: { data: any }) => {
-    if (!mounted) return null
-    
-    const handleClick = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation()
-      setSelectedConcept(data.concept)
-    }, [data.concept])
-    
-    return (
-      <div
-        onClick={handleClick}
-        className="cursor-pointer transition-all duration-200 ease-in-out rounded-md shadow-sm"
-        style={{
-          width: 120,
-          height: 60,
-          backgroundColor: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '11px',
           color: 'white',
-          textAlign: 'center',
-          padding: '4px',
-          backdropFilter: 'blur(5px)'
+          transform: `scale(${data.importance})`,
+          boxShadow: data.interviewRelevant ? '0 0 20px rgba(239, 68, 68, 0.4)' : 'none'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
-          e.currentTarget.style.transform = 'scale(1.05)'
+          e.currentTarget.style.transform = `scale(${data.importance * 1.1})`
+          e.currentTarget.style.zIndex = '10'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-          e.currentTarget.style.transform = 'scale(1)'
+          e.currentTarget.style.transform = `scale(${data.importance})`
+          e.currentTarget.style.zIndex = '1'
         }}
       >
-        <div className="font-medium leading-tight break-words">
+        <div className="font-semibold text-xs text-center leading-tight px-1">
           {data.label}
+        </div>
+        
+        {/* Connection count indicator */}
+        {data.connections > 0 && (
+          <div className="absolute -top-2 -right-2 bg-white text-black text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+            {data.connections}
+          </div>
+        )}
+        
+        {/* Recently learned indicator */}
+        {data.isRecentlyLearned && (
+          <div className="absolute -top-1 -left-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+        )}
+        
+        {/* Interview relevance indicator */}
+        {data.interviewRelevant && (
+          <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 text-xs">
+            🎯
+          </div>
+        )}
+        
+        {/* Insights indicator */}
+        {data.insights && data.insights.length > 0 && (
+          <div className="absolute top-0 left-0 w-2 h-2 bg-yellow-400 rounded-full"></div>
+        )}
+      </div>
+    )
+  })
+
+  // Daily Reflection Panel Component
+  const DailyReflectionPanel = memo(() => {
+    if (!mounted || !showReflectionPanel) return null
+    
+    const today = new Date().toISOString().split('T')[0]
+    const recentConcepts = concepts
+      .filter(c => c.occurrences && c.occurrences.some(occ => 
+        new Date(occ.createdAt).toISOString().split('T')[0] === today
+      ))
+      .slice(0, 5)
+    
+    const todaysInsights = learningInsights
+      .filter(i => i.date.split('T')[0] === today)
+      .slice(0, 3)
+    
+    return (
+      <div className="absolute top-0 right-0 w-80 h-full bg-slate-800/95 backdrop-blur border-l border-slate-700 z-20 overflow-y-auto">
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-yellow-400" />
+              Daily Reflection
+            </h2>
+            <button
+              onClick={() => setShowReflectionPanel(false)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          
+          {/* Today's Learning */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              Today's Learning
+            </h3>
+            {recentConcepts.length > 0 ? (
+              <div className="space-y-2">
+                {recentConcepts.map(concept => (
+                  <div
+                    key={concept.id}
+                    className="p-2 bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-700"
+                    onClick={() => setSelectedConcept(concept)}
+                  >
+                    <div className="text-sm text-white font-medium">{concept.title}</div>
+                    <div className="text-xs text-slate-400">{concept.category}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400 italic">No new concepts learned today</div>
+            )}
+          </div>
+          
+          {/* Key Insights */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-1">
+              <Brain className="h-4 w-4" />
+              Key Insights
+            </h3>
+            {todaysInsights.length > 0 ? (
+              <div className="space-y-2">
+                {todaysInsights.map((insight, index) => (
+                  <div key={index} className="p-2 bg-slate-700/30 rounded-lg">
+                    <div className="text-xs text-slate-300">{insight.insight}</div>
+                    <div className="text-xs text-slate-500 mt-1 capitalize">{insight.type.replace('-', ' ')}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400 italic">Keep learning to generate insights!</div>
+            )}
+          </div>
+          
+          {/* Next Steps */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-1">
+              <TrendingUp className="h-4 w-4" />
+              Suggested Next Steps
+            </h3>
+            <div className="space-y-2">
+              <div className="p-2 bg-blue-900/30 rounded-lg">
+                <div className="text-xs text-blue-300">Review concepts with fewer connections</div>
+              </div>
+              <div className="p-2 bg-green-900/30 rounded-lg">
+                <div className="text-xs text-green-300">Practice interview explanations</div>
+              </div>
+              <div className="p-2 bg-purple-900/30 rounded-lg">
+                <div className="text-xs text-purple-300">Explore related concepts</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Interview Prep Focus */}
+          {interviewMode && (
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-1">
+                <Target className="h-4 w-4" />
+                Interview Focus
+              </h3>
+              <div className="space-y-2">
+                {concepts
+                  .filter(c => ['algorithm', 'leetcode', 'system design'].some(keyword => 
+                    c.title.toLowerCase().includes(keyword)
+                  ))
+                  .slice(0, 3)
+                  .map(concept => (
+                    <div
+                      key={concept.id}
+                      className="p-2 bg-red-900/30 rounded-lg cursor-pointer hover:bg-red-900/50"
+                      onClick={() => setSelectedConcept(concept)}
+                    >
+                      <div className="text-xs text-red-300 font-medium">{concept.title}</div>
+                      <div className="text-xs text-red-400 mt-1">High interview priority</div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )
   })
 
-  // Concept Detail Modal Component
-  const ConceptDetailModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
+  // Enhanced Concept Detail Modal
+  const EnhancedConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
     if (!concept || !mounted) return null
+    
+    const relatedConcepts = smartRelations.filter(r => 
+      r.source === concept.id || r.target === concept.id
+    ).map(r => {
+      const relatedId = r.source === concept.id ? r.target : r.source
+      return {
+        concept: concepts.find(c => c.id === relatedId),
+        relation: r
+      }
+    }).filter(r => r.concept)
+    
+    const conceptInsights = learningInsights.filter(i => i.conceptId === concept.id)
     
     return (
       <div
@@ -582,7 +636,7 @@ export default function GraphPage() {
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 rounded-xl p-6 max-w-2xl max-h-[80vh] overflow-auto border border-slate-600 shadow-2xl"
+          className="bg-slate-800 rounded-xl p-6 max-w-3xl max-h-[80vh] overflow-auto border border-slate-600 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-start mb-4">
@@ -602,9 +656,56 @@ export default function GraphPage() {
           </div>
           
           {concept.summary && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-white mb-2">Summary</h3>
+            <div className="mb-4">
               <p className="text-slate-300 leading-relaxed">{concept.summary}</p>
+            </div>
+          )}
+
+          {/* AI-Generated Insights */}
+          {conceptInsights.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-purple-400" />
+                AI Insights
+              </h3>
+              <div className="space-y-2">
+                {conceptInsights.map((insight, index) => (
+                  <div key={index} className="p-3 bg-slate-700/50 rounded-lg">
+                    <div className="text-slate-300">{insight.insight}</div>
+                    <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                      <span className="capitalize">{insight.type.replace('-', ' ')}</span>
+                      <span>•</span>
+                      <span>{Math.round(insight.relevance * 100)}% relevance</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Smart Relationships */}
+          {relatedConcepts.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                <Network className="h-5 w-5 text-blue-400" />
+                Smart Connections
+              </h3>
+              <div className="space-y-2">
+                {relatedConcepts.map((related, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700/70 transition-colors">
+                    <div className="text-xs px-2 py-1 rounded text-white" style={{
+                      backgroundColor: getRelationColor(related.relation.type)
+                    }}>
+                      {related.relation.type}
+                    </div>
+                    <span className="text-slate-300 flex-1">{related.concept?.title}</span>
+                    <div className="text-xs text-slate-400">
+                      {Math.round(related.relation.strength * 100)}% • {related.relation.discoveredFrom}
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-500" />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           
@@ -632,33 +733,13 @@ export default function GraphPage() {
     )
   })
 
-  // Define node types for custom rendering
+  // Define node types
   const nodeTypes = useMemo(() => ({ 
-    root: RootNode,
-    category: CategoryNode,
-    subcategory: SubcategoryNode,
-    concept: ConceptNode
-  }), [mounted, expandedNodes])
+    intelligentConcept: IntelligentConceptNode
+  }), [mounted])
 
-  // Collapse all nodes
-  const collapseAll = useCallback(() => {
-    if (!mounted) return
-    
-    setExpandedNodes(new Set())
-    
-    // Keep only root and category nodes
-    setNodes(current => 
-      current.filter(node => node.type === 'root' || node.type === 'category')
-    )
-    
-    // Keep only root-to-category edges
-    setEdges(current => 
-      current.filter(edge => edge.source === 'root')
-    )
-  }, [mounted])
-
-  // Load concepts data
-  const loadConcepts = useCallback(async () => {
+  // Load and process all data intelligently
+  const loadIntelligentGraph = useCallback(async () => {
     if (!mounted) return
     
     try {
@@ -674,60 +755,37 @@ export default function GraphPage() {
 
       const data = await response.json()
       const conceptsData = (data.concepts || []) as Concept[]
-
       setConcepts(conceptsData)
       
-      const { nodes: treeNodes, edges: treeEdges } = createTreeLayout(conceptsData)
-      setNodes(treeNodes)
-      setEdges(treeEdges)
+      // AI-powered relationship discovery
+      const discoveredRelations = await discoverSmartRelations(conceptsData)
+      setSmartRelations(discoveredRelations)
+      
+      // Generate learning insights
+      const insights = await generateLearningInsights(conceptsData, discoveredRelations)
+      setLearningInsights(insights)
+      
+      // Create intelligent layout
+      const layout = createIntelligentLayout(conceptsData, discoveredRelations)
+      setNodes(layout.nodes)
+      setEdges(layout.edges)
       
       setLoading(false)
     } catch (err) {
-      console.error('Error loading concepts:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load concepts')
+      console.error('Error loading intelligent graph:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load knowledge graph')
       setLoading(false)
     }
-  }, [createTreeLayout, mounted])
+  }, [mounted, discoverSmartRelations, generateLearningInsights, createIntelligentLayout])
 
   // Load data on mount
   useEffect(() => {
     if (mounted) {
-      loadConcepts()
+      loadIntelligentGraph()
     }
-  }, [loadConcepts, mounted])
+  }, [loadIntelligentGraph, mounted])
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <AuthGuard>
-        <PageTransition>
-          <div className="flex flex-col h-screen bg-slate-900">
-            <header className="border-b border-slate-700 bg-slate-800/95 backdrop-blur supports-[backdrop-filter]:bg-slate-800/60 z-10">
-              <div className="container flex items-center justify-between py-3">
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" asChild className="text-white hover:bg-slate-700">
-                    <Link href="/dashboard">
-                      <ArrowLeft className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <div className="flex items-center">
-                    <Network className="h-5 w-5 mr-2 text-blue-400" />
-                    <h1 className="text-xl font-semibold text-white">Knowledge Tree</h1>
-                  </div>
-                </div>
-              </div>
-            </header>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-                <p className="text-slate-300">Initializing knowledge tree...</p>
-              </div>
-            </div>
-          </div>
-        </PageTransition>
-      </AuthGuard>
-    )
-  }
+  if (!mounted) return null
 
   return (
     <AuthGuard>
@@ -743,26 +801,36 @@ export default function GraphPage() {
                   </Link>
                 </Button>
                 <div className="flex items-center">
-                  <Network className="h-5 w-5 mr-2 text-blue-400" />
-                  <h1 className="text-xl font-semibold text-white">Knowledge Tree</h1>
+                  <Brain className="h-5 w-5 mr-2 text-purple-400" />
+                  <h1 className="text-xl font-semibold text-white">Intelligent Learning Graph</h1>
                 </div>
               </div>
+              
               <div className="flex items-center gap-2">
-                {expandedNodes.size > 0 && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={collapseAll}
-                    className="text-white border-slate-600 hover:bg-slate-700"
-                  >
-                    <Minimize2 className="h-4 w-4 mr-2" />
-                    Collapse All
-                  </Button>
-                )}
+                <Button
+                  variant={interviewMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setInterviewMode(!interviewMode)}
+                  className={interviewMode ? "bg-red-600 hover:bg-red-700" : "text-white border-slate-600 hover:bg-slate-700"}
+                >
+                  <Target className="h-4 w-4 mr-2" />
+                  Interview Mode
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowReflectionPanel(!showReflectionPanel)}
+                  className="text-white border-slate-600 hover:bg-slate-700"
+                >
+                  <Lightbulb className="h-4 w-4 mr-2" />
+                  Reflections
+                </Button>
+                
                 <Button variant="outline" size="sm" asChild className="text-white border-slate-600 hover:bg-slate-700">
                   <Link href="/concepts">
                     <BookOpen className="h-4 w-4 mr-2" />
-                    Browse Concepts
+                    Browse
                   </Link>
                 </Button>
               </div>
@@ -770,15 +838,16 @@ export default function GraphPage() {
           </header>
 
           {/* Instructions */}
-          <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3">
+          <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-2">
             <div className="flex items-center justify-between">
               <div className="text-slate-300 text-sm">
-                🌳 <strong>Tree Structure:</strong> Root → Categories → Subcategories → Concepts • <strong>Single click</strong> to expand/collapse • <strong>Click concepts</strong> for details
+                🧠 <strong>AI-Powered Connections:</strong> Relationships discovered automatically • 
+                Larger nodes = More connected • 
+                🎯 Red glow = Interview critical • 
+                Green dot = Recently learned
               </div>
               <div className="text-slate-400 text-xs">
-                Expanded: {expandedNodes.size} | 
-                Total Nodes: {nodes.length} | 
-                Total Concepts: {concepts.length}
+                {concepts.length} concepts • {smartRelations.length} smart connections • {learningInsights.length} insights
               </div>
             </div>
           </div>
@@ -788,8 +857,8 @@ export default function GraphPage() {
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-                  <p className="text-slate-300">Building knowledge tree...</p>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
+                  <p className="text-slate-300">Discovering intelligent connections...</p>
                 </div>
               </div>
             ) : error ? (
@@ -808,10 +877,10 @@ export default function GraphPage() {
                 fitView
                 fitViewOptions={{ 
                   padding: 0.1,
-                  maxZoom: 1,
+                  maxZoom: 1.2,
                   includeHiddenNodes: false 
                 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
                 minZoom={0.2}
                 maxZoom={2}
                 attributionPosition="bottom-left"
@@ -830,24 +899,24 @@ export default function GraphPage() {
                 />
                 <Controls className="bg-slate-800 border-slate-600 text-white" />
                 <MiniMap 
-                  nodeColor={(node) => {
-                    if (node.type === 'root') return '#3b82f6'
-                    if (node.type === 'category') return getCategoryColor(node.data?.label || 'default')
-                    if (node.type === 'subcategory') return getCategoryColor(node.data?.parentCategory || 'default')
-                    return 'rgba(255,255,255,0.3)'
-                  }}
+                  nodeColor={(node) => getIntelligentConceptColor(node.data?.concept || { category: '' } as Concept)}
                   maskColor="rgba(15, 23, 42, 0.8)"
                   className="bg-slate-800 border-slate-600"
                 />
               </ReactFlow>
             )}
-          </div>
 
-          {/* Concept Detail Modal */}
-          <ConceptDetailModal 
-            concept={selectedConcept} 
-            onClose={() => setSelectedConcept(null)} 
-          />
+            {/* Daily Reflection Panel */}
+            <DailyReflectionPanel />
+
+            {/* Enhanced Concept Detail Modal */}
+            {selectedConcept && (
+              <EnhancedConceptModal 
+                concept={selectedConcept} 
+                onClose={() => setSelectedConcept(null)} 
+              />
+            )}
+          </div>
         </div>
       </PageTransition>
     </AuthGuard>
