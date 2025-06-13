@@ -158,10 +158,12 @@ export default function GraphPage() {
 
   // Intelligent concept color based on learning stage and interview relevance
   const getIntelligentConceptColor = useCallback((concept: Concept) => {
+    if (!concept) return '#6b7280'
+    
     // Interview-critical concepts
     const interviewKeywords = ['algorithm', 'data structure', 'system design', 'leetcode', 'sql', 'api']
     const isInterviewCritical = interviewKeywords.some(keyword => 
-      concept.title.toLowerCase().includes(keyword) || 
+      concept.title?.toLowerCase().includes(keyword) || 
       concept.category?.toLowerCase().includes(keyword)
     )
     
@@ -170,7 +172,7 @@ export default function GraphPage() {
       new Date(concept.occurrences[0].createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     
     // Well-connected concepts (core knowledge)
-    const connectionCount = smartRelations.filter(r => 
+    const connectionCount = (smartRelations || []).filter(r => 
       r.source === concept.id || r.target === concept.id
     ).length
     
@@ -197,7 +199,7 @@ export default function GraphPage() {
   }, [smartRelations])
 
   // AI-powered relationship discovery
-  const discoverSmartRelations = useCallback(async (conceptsData: Concept[]) => {
+  const discoverSmartRelations = async (conceptsData: Concept[]) => {
     const relations: SmartRelation[] = []
     
     // 1. Co-occurrence analysis - concepts that appear together in conversations
@@ -291,9 +293,9 @@ export default function GraphPage() {
         })
       }
     }
-    
-    return relations
-  }, [])
+         
+     return relations
+   }
 
   // Calculate content similarity using word overlap
   const calculateContentSimilarity = useCallback((text1: string, text2: string) => {
@@ -307,7 +309,7 @@ export default function GraphPage() {
   }, [])
 
   // Generate learning insights using AI analysis
-  const generateLearningInsights = useCallback(async (conceptsData: Concept[], relations: SmartRelation[]) => {
+  const generateLearningInsights = async (conceptsData: Concept[], relations: SmartRelation[]) => {
     const insights: LearningInsight[] = []
     
     conceptsData.forEach(concept => {
@@ -348,99 +350,98 @@ export default function GraphPage() {
         })
       }
     })
-    
-    return insights
-  }, [])
+         
+     return insights
+   }
 
-  // Create intelligent graph layout
+    // Create intelligent graph layout
   const createIntelligentLayout = useCallback((conceptsData: Concept[], relations: SmartRelation[]) => {
-    if (!mounted) return { nodes: [], edges: [] }
-    
-    // Use force-directed layout that respects relationship strength
-    const dagreGraph = new dagre.graphlib.Graph()
-    dagreGraph.setDefaultEdgeLabel(() => ({}))
-    dagreGraph.setGraph({ 
-      rankdir: interviewMode ? 'LR' : 'TB', // Left-right for interview mode
-      nodesep: 80,
-      ranksep: 120,
-      marginx: 50,
-      marginy: 50
-    })
-    
-    const nodes: Node[] = []
-    const edges: Edge[] = []
-    
-    // Create nodes with intelligent sizing based on importance
-    conceptsData.forEach(concept => {
-      const connections = relations.filter(r => r.source === concept.id || r.target === concept.id)
-      const importance = Math.min(2, 1 + connections.length * 0.1)
-      const isRecentlyLearned = concept.occurrences && concept.occurrences.length > 0 && 
-        new Date(concept.occurrences[0].createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       
-      nodes.push({
-        id: concept.id,
-        type: 'intelligentConcept',
-        position: { x: 0, y: 0 },
-        data: {
-          label: concept.title,
-          concept: concept,
-          connections: connections.length,
-          importance: importance,
-          isRecentlyLearned: isRecentlyLearned,
-          insights: learningInsights.filter(i => i.conceptId === concept.id),
-          interviewRelevant: ['algorithm', 'leetcode', 'system design'].some(keyword => 
-            concept.title.toLowerCase().includes(keyword)
-          )
-        }
+      // Use force-directed layout that respects relationship strength
+      const dagreGraph = new dagre.graphlib.Graph()
+      dagreGraph.setDefaultEdgeLabel(() => ({}))
+      dagreGraph.setGraph({ 
+        rankdir: interviewMode ? 'LR' : 'TB', // Left-right for interview mode
+        nodesep: 80,
+        ranksep: 120,
+        marginx: 50,
+        marginy: 50
       })
       
-      dagreGraph.setNode(concept.id, { 
-        width: 100 * importance, 
-        height: 60 * importance 
-      })
-    })
-    
-    // Create edges based on discovered relations
-    relations.forEach(relation => {
-      if (relation.strength > 0.3) { // Only show strong relationships
-        const edgeId = `${relation.source}-${relation.target}`
-        const isPrerequisite = relation.type === 'builds-on'
+      const nodes: Node[] = []
+      const edges: Edge[] = []
+      
+      // Create nodes with intelligent sizing based on importance
+      conceptsData.forEach(concept => {
+        const connections = relations.filter(r => r.source === concept.id || r.target === concept.id)
+        const importance = Math.min(2, 1 + connections.length * 0.1)
+        const isRecentlyLearned = concept.occurrences && concept.occurrences.length > 0 && 
+          new Date(concept.occurrences[0].createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
         
-        edges.push({
-          id: edgeId,
-          source: relation.source,
-          target: relation.target,
-          type: 'smoothstep',
-          animated: isPrerequisite,
-          style: { 
-            stroke: getRelationColor(relation.type),
-            strokeWidth: Math.max(1, relation.strength * 4),
-            opacity: relation.strength
-          },
-          label: interviewMode ? relation.type : undefined,
-          labelStyle: { fontSize: 10, fill: '#666' }
+        nodes.push({
+          id: concept.id,
+          type: 'intelligentConcept',
+          position: { x: 0, y: 0 },
+          data: {
+            label: concept.title,
+            concept: concept,
+            connections: connections.length,
+            importance: importance,
+            isRecentlyLearned: isRecentlyLearned,
+            insights: learningInsights.filter(i => i.conceptId === concept.id),
+            interviewRelevant: ['algorithm', 'leetcode', 'system design'].some(keyword => 
+              concept.title.toLowerCase().includes(keyword)
+            )
+          }
         })
         
-        dagreGraph.setEdge(relation.source, relation.target)
-      }
-    })
-    
-    // Calculate layout
-    dagre.layout(dagreGraph)
-    
-    // Update positions
-    nodes.forEach(node => {
-      const nodeWithPosition = dagreGraph.node(node.id)
-      if (nodeWithPosition) {
-        node.position = {
-          x: nodeWithPosition.x - nodeWithPosition.width / 2,
-          y: nodeWithPosition.y - nodeWithPosition.height / 2
+        dagreGraph.setNode(concept.id, { 
+          width: 100 * importance, 
+          height: 60 * importance 
+        })
+      })
+      
+      // Create edges based on discovered relations
+      relations.forEach(relation => {
+        if (relation.strength > 0.3) { // Only show strong relationships
+          const edgeId = `${relation.source}-${relation.target}`
+          const isPrerequisite = relation.type === 'builds-on'
+          
+          edges.push({
+            id: edgeId,
+            source: relation.source,
+            target: relation.target,
+            type: 'smoothstep',
+            animated: isPrerequisite,
+            style: { 
+              stroke: getRelationColor(relation.type),
+              strokeWidth: Math.max(1, relation.strength * 4),
+              opacity: relation.strength
+            },
+            label: interviewMode ? relation.type : undefined,
+            labelStyle: { fontSize: 10, fill: '#666' }
+          })
+          
+          dagreGraph.setEdge(relation.source, relation.target)
         }
-      }
-    })
-    
-    return { nodes, edges }
-  }, [mounted, interviewMode, learningInsights])
+      })
+      
+      // Calculate layout
+      dagre.layout(dagreGraph)
+      
+      // Update positions
+      nodes.forEach(node => {
+        const nodeWithPosition = dagreGraph.node(node.id)
+        if (nodeWithPosition) {
+          node.position = {
+            x: nodeWithPosition.x - nodeWithPosition.width / 2,
+            y: nodeWithPosition.y - nodeWithPosition.height / 2
+          }
+        }
+      })
+      
+      return { nodes, edges }
+    }, [interviewMode, learningInsights])
 
   // Get relation color based on type
   const getRelationColor = useCallback((type: SmartRelation['type']) => {
@@ -786,6 +787,11 @@ export default function GraphPage() {
       const conceptsData = (data.concepts || []) as Concept[]
       setConcepts(conceptsData)
       
+      if (conceptsData.length === 0) {
+        setLoading(false)
+        return
+      }
+      
       // AI-powered relationship discovery
       const discoveredRelations = await discoverSmartRelations(conceptsData)
       setSmartRelations(discoveredRelations)
@@ -805,7 +811,7 @@ export default function GraphPage() {
       setError(err instanceof Error ? err.message : 'Failed to load knowledge graph')
       setLoading(false)
     }
-  }, [mounted, discoverSmartRelations, generateLearningInsights, createIntelligentLayout])
+  }, [mounted])
 
   // Load data on mount
   useEffect(() => {
