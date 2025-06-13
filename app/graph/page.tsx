@@ -126,6 +126,36 @@ export default function GraphPage() {
     setMounted(true)
   }, [])
 
+  // Early return to prevent hydration issues
+  if (!mounted) {
+    return (
+      <AuthGuard>
+        <PageTransition>
+          <div className="flex flex-col h-screen bg-slate-900">
+            <header className="border-b border-slate-700 bg-slate-800/95 backdrop-blur supports-[backdrop-filter]:bg-slate-800/60 z-10">
+              <div className="container flex items-center justify-between py-3">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" asChild className="text-white hover:bg-slate-700">
+                    <Link href="/dashboard">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <div className="flex items-center">
+                    <Brain className="h-5 w-5 mr-2 text-purple-400" />
+                    <h1 className="text-xl font-semibold text-white">Intelligent Learning Graph</h1>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
+            </div>
+          </div>
+        </PageTransition>
+      </AuthGuard>
+    )
+  }
+
   // Intelligent concept color based on learning stage and interview relevance
   const getIntelligentConceptColor = useCallback((concept: Concept) => {
     // Interview-critical concepts
@@ -426,7 +456,6 @@ export default function GraphPage() {
 
   // Intelligent Concept Node Component
   const IntelligentConceptNode = memo(({ data }: { data: any }) => {
-    if (!mounted) return null
     
     const concept = data.concept
     const nodeColor = getIntelligentConceptColor(concept)
@@ -491,7 +520,7 @@ export default function GraphPage() {
 
   // Daily Reflection Panel Component
   const DailyReflectionPanel = memo(() => {
-    if (!mounted || !showReflectionPanel) return null
+    if (!showReflectionPanel) return null
     
     const today = new Date().toISOString().split('T')[0]
     const recentConcepts = concepts
@@ -616,7 +645,7 @@ export default function GraphPage() {
 
   // Enhanced Concept Detail Modal
   const EnhancedConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
-    if (!concept || !mounted) return null
+    if (!concept) return null
     
     const relatedConcepts = smartRelations.filter(r => 
       r.source === concept.id || r.target === concept.id
@@ -736,7 +765,7 @@ export default function GraphPage() {
   // Define node types
   const nodeTypes = useMemo(() => ({ 
     intelligentConcept: IntelligentConceptNode
-  }), [mounted])
+  }), [])
 
   // Load and process all data intelligently
   const loadIntelligentGraph = useCallback(async () => {
@@ -784,8 +813,6 @@ export default function GraphPage() {
       loadIntelligentGraph()
     }
   }, [loadIntelligentGraph, mounted])
-
-  if (!mounted) return null
 
   return (
     <AuthGuard>
