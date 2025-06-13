@@ -1027,13 +1027,17 @@ export async function POST(request: Request) {
     // Check if this is a manual concept creation (not from conversation analysis)
     const isManualCreation = data.isManualCreation || false;
     
+    // Check if this is an AI-generated concept (from frontend extraction API)
+    const isAIGenerated = data.isAIGenerated || false;
+    
     // Check if this should bypass similarity checking (e.g., from connect dialog)
-    const bypassSimilarityCheck = data.bypassSimilarityCheck || data.isAIGenerated || false;
+    const bypassSimilarityCheck = data.bypassSimilarityCheck || isAIGenerated || false;
     
     console.log('🔧 SERVER: Step 3 - Processing concept with params:', {
       title,
       isPlaceholder,
       isManualCreation,
+      isAIGenerated,
       bypassSimilarityCheck,
       category: data.category,
       hasContext: !!context,
@@ -1186,12 +1190,12 @@ export async function POST(request: Request) {
       title,
       category: formattedInitialCategory,
       summary: data.summary || "",
-      details: data.details || "",
-      keyPoints: JSON.stringify(data.keyPoints || []),
-      examples: data.examples || "",
-      relatedConcepts: JSON.stringify([]),
+      details: typeof data.details === 'object' ? JSON.stringify(data.details) : (data.details || ""),
+      keyPoints: typeof data.keyPoints === 'object' ? JSON.stringify(data.keyPoints) : JSON.stringify(data.keyPoints ? [data.keyPoints] : []),
+      examples: typeof data.examples === 'object' ? JSON.stringify(data.examples) : (data.examples || ""),
+      relatedConcepts: typeof data.relatedConcepts === 'object' ? JSON.stringify(data.relatedConcepts) : JSON.stringify(data.relatedConcepts ? [data.relatedConcepts] : []),
       relationships: "",
-      confidenceScore: isPlaceholder ? 0.1 : (isManualCreation ? 0.4 : 0.5), // Lower score for manual creations to ensure they need review
+      confidenceScore: isPlaceholder ? 0.1 : (isAIGenerated ? 0.9 : (isManualCreation ? 0.4 : 0.5)), // High score for AI-generated, lower for manual
       isPlaceholder: isPlaceholder,
       lastUpdated: new Date(),
       userId: user.id
@@ -1216,10 +1220,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ concept }, { status: 201 });
     }
 
-    // For manual creations, don't generate content via backend - just return the basic concept
-    if (isManualCreation) {
-      console.log(`📝 Manual concept creation: "${title}" - skipping AI generation`);
-      return NextResponse.json({ concept }, { status: 201 });
+    // For manual creations or AI-generated concepts, don't generate content via backend
+    if (isManualCreation || isAIGenerated) {
+      console.log(`📝 ${isAIGenerated ? 'AI-generated' : 'Manual'} concept creation: "${title}" - skipping backend AI generation`);
+      
+      // For AI-generated concepts, we need to create code snippets from the provided data
+      if (isAIGenerated && data.codeSnippets && Array.isArray(data.codeSnippets) && data.codeSnippets.length > 0) {
+        console.log(`🔧 Creating ${data.codeSnippets.length} code snippets for AI-generated concept...`);
+        
+        // Create code snippets
+        const codeSnippetsToCreate = data.codeSnippets.map((snippet: any) => ({
+          conceptId: concept.id,
+          language: snippet.language || 'Unknown',
+          description: snippet.description || '',
+          code: snippet.code || '',
+        }));
+        
+        try {
+          await prisma.codeSnippet.createMany({
+            data: codeSnippetsToCreate
+          });
+          console.log(`✅ Created ${codeSnippetsToCreate.length} code snippets for concept ${concept.id}`);
+        } catch (snippetError) {
+          console.error('❌ Error creating code snippets:', snippetError);
+          // Don't fail the whole operation for snippet errors
+        }
+      }
+      
+      // Fetch the concept with code snippets to return complete data
+      const conceptWithSnippets = await prisma.concept.findUnique({
+        where: { id: concept.id },
+        include: { 
+          codeSnippets: true,
+          occurrences: true 
+        }
+      });
+      
+      return NextResponse.json({ concept: conceptWithSnippets }, { status: 201 });
     }
 
     // Use the same backend service that analyzes conversations to generate concept content
