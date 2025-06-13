@@ -1084,9 +1084,84 @@ export function useAnalyzePage() {
         return;
       }
       
+      // Add the concept title to loading state immediately for UI feedback
+      setLoadingConcepts(prev => [...prev, title])
+      
+      // Step 1: Use the backend extraction API to generate a proper concept with auto-categorization
+      console.log("🤖 Generating concept content using backend extraction API...")
+      
+      // Create a conversation-like text for the extraction API
+      const extractionPrompt = conversationText 
+        ? `Context from conversation:\n\n${conversationText}\n\nPlease explain the concept: ${title} in detail. Include implementation details, use cases, complexity analysis, and code examples if applicable.`
+        : `Please explain the concept: ${title} in detail. Include implementation details, use cases, complexity analysis, and code examples if applicable.`
+      
+      // Call the extraction API to generate proper concept content
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      let extractionResponse
+      
+      try {
+        console.log("🌐 Attempting HTTPS connection to extraction API...")
+        extractionResponse = await fetch(`${backendUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: extractionPrompt,
+            context: {
+              source: 'manual_concept_creation',
+              title: title,
+              existingConversation: conversationText || null
+            }
+          }),
+        })
+      } catch (sslError) {
+        console.log("🔄 HTTPS failed, trying HTTP fallback...", sslError instanceof Error ? sslError.message : 'SSL connection failed')
+        const httpUrl = backendUrl.replace('https://', 'http://')
+        extractionResponse = await fetch(`${httpUrl}/api/v1/extract-concepts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            conversation_text: extractionPrompt,
+            context: {
+              source: 'manual_concept_creation',
+              title: title,
+              existingConversation: conversationText || null
+            }
+          }),
+        })
+      }
+      
+      if (!extractionResponse.ok) {
+        throw new Error(`Backend extraction failed: ${extractionResponse.status} ${extractionResponse.statusText}`)
+      }
+      
+      const extractionData = await extractionResponse.json()
+      console.log("✅ Backend extraction completed:", extractionData)
+      
+      // Get the generated concept (prefer the one matching our title, or use the first one)
+      let generatedConcept = null
+      if (extractionData.concepts && extractionData.concepts.length > 0) {
+        // Try to find a concept with matching or similar title
+        generatedConcept = extractionData.concepts.find((c: any) => 
+          c.title.toLowerCase().includes(title.toLowerCase()) || 
+          title.toLowerCase().includes(c.title.toLowerCase())
+        ) || extractionData.concepts[0]
+      }
+      
+      if (!generatedConcept) {
+        throw new Error("Backend extraction didn't generate any concepts")
+      }
+      
+      console.log("🎯 Using generated concept:", generatedConcept.title, "with category:", generatedConcept.category)
+      
+      // Step 2: Save/create conversation if we have analysis results
       let conversationId = null
       
       if (analysisResult) {
+        console.log("💾 Saving conversation for concept context...")
         const saveResponse = await makeAuthenticatedRequest('/api/saveConversation', {
           method: 'POST',
           body: JSON.stringify({
@@ -1103,13 +1178,13 @@ export function useAnalyzePage() {
           const saveData = await saveResponse.json()
           if (saveData.success && saveData.conversationId) {
             conversationId = saveData.conversationId
-            console.log("Created/retrieved conversation ID:", conversationId)
+            console.log("✅ Created/retrieved conversation ID:", conversationId)
           }
         } else {
-          console.error("Failed to save conversation:", saveResponse.status, saveResponse.statusText);
+          console.error("❌ Failed to save conversation:", saveResponse.status, saveResponse.statusText);
           if (saveResponse.status === 401) {
             toast({
-              title: "Authentication Error",
+              title: "Authentication Error", 
               description: "Please sign in to add concepts.",
               variant: "destructive",
               duration: 5000,
@@ -1120,15 +1195,24 @@ export function useAnalyzePage() {
         }
       }
       
-      console.log("Making API call to create concept with auth headers:", getAuthHeaders());
+      // Step 3: Create the concept in the database with the generated content
+      console.log("💾 Creating concept in database with generated content...")
       
       const response = await makeAuthenticatedRequest('/api/concepts', {
         method: 'POST',
         body: JSON.stringify({ 
-          title,
+          title: generatedConcept.title, // Use the title from generated concept (might be refined)
+          summary: generatedConcept.summary || "",
+          details: generatedConcept.details || "",
+          keyPoints: generatedConcept.keyPoints || [],
+          category: generatedConcept.category || "General",
+          examples: generatedConcept.examples || [],
+          codeSnippets: generatedConcept.codeSnippets || [],
+          relatedConcepts: generatedConcept.relatedConcepts || [],
           context: conversationText,
           conversationId: conversationId,
-          isManualCreation: true  // Flag to indicate this is a manual creation, not from conversation analysis
+          isAIGenerated: true, // Flag to indicate this was generated by AI
+          bypassSimilarityCheck: true // Since we already have complete content, don't re-generate
         }),
       })
 
@@ -1149,11 +1233,13 @@ export function useAnalyzePage() {
       }
 
       const data = await response.json()
+      console.log("✅ Concept created successfully:", data.concept.id)
       
+      // Step 4: Create the concept object for the UI
       const newConcept: Concept = {
         id: data.concept.id,
         title: data.concept.title,
-        category: data.concept.category || "Uncategorized",
+        category: data.concept.category || "General",
         summary: data.concept.summary || "",
         details: data.concept.details ? 
           (typeof data.concept.details === 'string' ? 
@@ -1179,12 +1265,10 @@ export function useAnalyzePage() {
           (typeof data.concept.relatedConcepts === 'string' ? 
             JSON.parse(data.concept.relatedConcepts) : 
             data.concept.relatedConcepts) : [],
-        // Add needsReview field for concepts created via Connect feature
-        needsReview: true,
-        confidenceScore: 0.5 // Low confidence score to indicate it needs review
+        confidenceScore: 0.9 // High confidence since it was AI-generated
       }
       
-      // Add to current analysis
+      // Step 5: Add to current analysis and update UI
       if (analysisResult) {
         setAnalysisResult({
           ...analysisResult,
@@ -1196,29 +1280,31 @@ export function useAnalyzePage() {
       setShowAddConceptCard(false)
       
       toast({
-        title: "Concept Created",
-        description: `"${newConcept.title}" has been created and added to your knowledge base`,
+        title: "Concept Created Successfully",
+        description: `"${newConcept.title}" has been generated with AI and added to your knowledge base`,
         duration: 4000,
       })
       
       // Auto-refresh concepts after creation
       setTimeout(() => {
-        console.log('🔄 Auto-refreshing concepts after concept creation...')
+        console.log('🔄 Auto-refreshing concepts after AI concept creation...')
         window.dispatchEvent(new CustomEvent('refreshConcepts'))
       }, 500)
       
       return newConcept
     } catch (error) {
-      console.error('Error adding concept:', error)
+      console.error('❌ Error adding concept:', error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create concept. Please check your authentication and try again.",
+        title: "Error Creating Concept",
+        description: error instanceof Error ? error.message : "Failed to create concept. Please check your connection and try again.",
         variant: "destructive",
-        duration: 3000,
+        duration: 5000,
       })
       throw error
     } finally {
       setIsAddingConcept(false)
+      // Remove from loading state
+      setLoadingConcepts(prev => prev.filter(loadingTitle => loadingTitle !== title))
     }
   }
 

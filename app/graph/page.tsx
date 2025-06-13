@@ -35,34 +35,66 @@ interface Concept {
   [key: string]: any
 }
 
-// Custom node component with hover tooltip
+// Custom node component with hover tooltip and effects
 const ConceptNode = ({ data }: { data: any }) => {
   const [showTooltip, setShowTooltip] = useState(false)
 
   return (
     <div
-      className="flex items-center justify-center text-center p-2 h-full rounded-full overflow-hidden relative"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
+      className="flex items-center justify-center text-center p-2 h-full rounded-full overflow-hidden relative transition-all duration-200 ease-in-out"
+      onMouseEnter={(e) => {
+        setShowTooltip(true)
+        e.currentTarget.style.transform = 'scale(1.1)'
+        e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.8)'
+        e.currentTarget.style.zIndex = '10'
+      }}
+      onMouseLeave={(e) => {
+        setShowTooltip(false)
+        e.currentTarget.style.transform = 'scale(1)'
+        e.currentTarget.style.border = '2px solid transparent'
+        e.currentTarget.style.zIndex = '1'
+      }}
     >
-      <div className="text-sm font-medium">{data.label}</div>
+      <div className="text-sm font-medium leading-tight">{data.label}</div>
       
       {showTooltip && (
         <div 
-          className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/90 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-lg" 
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/95 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-xl backdrop-blur-sm" 
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="font-bold mb-1">{data.label}</h3>
+          <div className="text-xs text-blue-600 mb-1">📁 {data.category}</div>
           {data.summary && (
-            <p className="text-xs text-muted-foreground mb-1 line-clamp-3">
+            <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
               {data.summary}
             </p>
           )}
-          <div className="text-xs mt-1 pt-1 border-t text-primary">
+          <div className="text-xs mt-1 pt-1 border-t text-primary font-medium">
             Click to view details
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Category label node component
+const CategoryNode = ({ data }: { data: any }) => {
+  return (
+    <div className="flex items-center justify-center text-center h-full w-full">
+      <div 
+        className="text-lg font-bold text-center px-4 py-2 rounded-lg"
+        style={{
+          color: data.color,
+          backgroundColor: `${data.color}20`,
+          border: `2px dashed ${data.color}40`
+        }}
+      >
+        {data.label}
+        <div className="text-xs font-normal mt-1">
+          {data.count} concept{data.count !== 1 ? 's' : ''}
+        </div>
+      </div>
     </div>
   )
 }
@@ -99,7 +131,8 @@ export default function GraphPage() {
 
   // Define node types for custom rendering
   const nodeTypes = useMemo(() => ({ 
-    concept: ConceptNode 
+    concept: ConceptNode,
+    category: CategoryNode
   }), [])
 
   // Get category color function
@@ -122,81 +155,125 @@ export default function GraphPage() {
     return colors[category] || colors.default
   }
 
-  // Group by function
-  const groupBy = <T extends Record<string, any>>(
-    array: T[],
-    key: keyof T
-  ): Record<string, T[]> => {
-    return array.reduce((result, currentItem) => {
-      const groupKey = currentItem[key] as string || 'Uncategorized'
-      if (!result[groupKey]) {
-        result[groupKey] = []
-      }
-      result[groupKey].push(currentItem)
-      return result
-    }, {} as Record<string, T[]>)
+  // Generate category labels
+  const generateCategoryLabels = (categories: string[], categoryPositions: Record<string, {x: number, y: number}>, conceptCounts: Record<string, number>) => {
+    return categories.map((category) => ({
+      id: `category-${category}`,
+      type: 'category',
+      position: {
+        x: categoryPositions[category].x - 150, // Center the category label
+        y: categoryPositions[category].y - 150
+      },
+      data: { 
+        label: category,
+        color: getCategoryColor(category),
+        count: conceptCounts[category] || 0
+      },
+      style: {
+        width: 300,
+        height: 300,
+        backgroundColor: 'transparent',
+        border: 'none',
+        zIndex: -1
+      },
+      draggable: false,
+      selectable: false
+    }))
   }
 
-  // Generate better organized nodes
-  const generateNodesWithBetterLayout = (concepts: Concept[]) => {
-    // Get unique categories and create positions in a circle
-    const categories = [...new Set(concepts.map(c => c.category || 'Uncategorized'))]
-    const categoryPositions: Record<string, { x: number, y: number }> = {}
+  // Generate better organized nodes with proper clustering
+  const generateNodesWithProperClustering = (concepts: Concept[]) => {
+    const nodes: Node[] = []
     
-    // Position categories in a large circle
+    // Get unique categories and their counts
+    const categories = [...new Set(concepts.map(c => c.category || 'Uncategorized'))]
+    const conceptCounts = concepts.reduce((acc, concept) => {
+      const cat = concept.category || 'Uncategorized'
+      acc[cat] = (acc[cat] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    
+    const categoryPositions: Record<string, { x: number, y: number }> = {}
+    const centerX = 800
+    const centerY = 500
+    const mainRadius = 400 // Distance between category centers
+    
+    // Position categories in a circle
     categories.forEach((category, index) => {
-      const angle = (index / categories.length) * 2 * Math.PI
-      const radius = 400  // Distance from center
+      const angle = (index / categories.length) * 2 * Math.PI - Math.PI / 2 // Start from top
       categoryPositions[category] = {
-        x: 600 + radius * Math.cos(angle),
-        y: 400 + radius * Math.sin(angle)
+        x: centerX + mainRadius * Math.cos(angle),
+        y: centerY + mainRadius * Math.sin(angle)
       }
     })
     
-    // Group concepts by category
-    const grouped = groupBy(concepts, 'category')
-    const graphNodes: Node[] = []
+    // Add category label nodes
+    const categoryNodes = generateCategoryLabels(categories, categoryPositions, conceptCounts)
+    nodes.push(...categoryNodes)
     
-    // Create nodes for each concept, clustered around their category center
+    // Group concepts by category
+    const grouped = concepts.reduce((acc, concept) => {
+      const cat = concept.category || 'Uncategorized'
+      if (!acc[cat]) acc[cat] = []
+      acc[cat].push(concept)
+      return acc
+    }, {} as Record<string, Concept[]>)
+    
+    // Position concept nodes around their category center
     Object.entries(grouped).forEach(([category, items]) => {
-      const center = categoryPositions[category] || { x: 600, y: 400 }
+      const center = categoryPositions[category]
+      const itemCount = items.length
       
       items.forEach((concept, index) => {
-        // Calculate position in a circle around the category center
-        const angle = (index / items.length) * 2 * Math.PI
-        const nodeRadius = Math.min(150, 80 + (items.length * 5))  // Dynamic radius based on count
+        let x, y
         
-        graphNodes.push({
+        if (itemCount <= 8) {
+          // Circle layout for few nodes
+          const angle = (index / itemCount) * 2 * Math.PI
+          const radius = Math.min(120, 80 + itemCount * 5)
+          x = center.x + radius * Math.cos(angle)
+          y = center.y + radius * Math.sin(angle)
+        } else {
+          // Spiral layout for many nodes
+          const spiralAngle = index * 0.8
+          const spiralRadius = 60 + (index * 12)
+          x = center.x + spiralRadius * Math.cos(spiralAngle)
+          y = center.y + spiralRadius * Math.sin(spiralAngle)
+        }
+        
+        nodes.push({
           id: concept.id,
-          type: 'concept',  // Use our custom node type
-          position: {
-            x: center.x + nodeRadius * Math.cos(angle),
-            y: center.y + nodeRadius * Math.sin(angle)
-          },
+          type: 'concept',
+          position: { x, y },
           data: { 
             label: concept.title,
-            category: concept.category,
+            category: category,
             summary: concept.summary?.substring(0, 150) || 'No summary available',
+            conceptData: concept
           },
           style: {
-            background: getCategoryColor(concept.category),
+            background: getCategoryColor(category),
             color: 'white',
-            border: '1px solid #222',
+            border: '2px solid transparent',
             borderRadius: '50%',
-            width: 120,
-            height: 120,
+            width: 110,
+            height: 110,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             textAlign: 'center',
-            padding: '10px'
+            padding: '8px',
+            fontSize: '11px',
+            fontWeight: '500',
+            transition: 'all 0.2s ease-in-out',
+            zIndex: 1
           }
         })
       })
     })
 
-    return graphNodes
+    return { nodes, categoryPositions }
   }
 
   // Load concepts data
@@ -216,7 +293,7 @@ export default function GraphPage() {
       const concepts = (data.concepts || []) as Concept[]
 
       // Generate better layout nodes
-      const graphNodes = generateNodesWithBetterLayout(concepts)
+      const { nodes: graphNodes } = generateNodesWithProperClustering(concepts)
       setNodes(graphNodes)
       setLoading(false)
     } catch (err) {
@@ -226,19 +303,23 @@ export default function GraphPage() {
     }
   }, [setNodes])
 
-  // Handle node click to navigate to concept details
+  // Handle node click to navigate to concept details (only for concept nodes)
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    router.push(`/concept/${node.id}`)
+    if (node.type === 'concept') {
+      router.push(`/concept/${node.id}`)
+    }
   }, [router])
 
-  // Handle right-click on nodes
+  // Handle right-click on nodes (only for concept nodes)
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-    event.preventDefault()
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      nodeId: node.id
-    })
+    if (node.type === 'concept') {
+      event.preventDefault()
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        nodeId: node.id
+      })
+    }
   }, [])
 
   // Handle background click to close context menu
@@ -248,13 +329,11 @@ export default function GraphPage() {
 
   // Actions for context menu
   const startConnection = (nodeId: string) => {
-    // Placeholder for future connection functionality
     console.log('Start connecting from node:', nodeId)
     setContextMenu(null)
   }
 
   const deleteNode = (nodeId: string) => {
-    // Placeholder - we'll just log for now
     console.log('Delete node:', nodeId)
     setContextMenu(null)
   }
@@ -328,27 +407,31 @@ export default function GraphPage() {
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
+                fitViewOptions={{ 
+                  padding: 0.15,
+                  includeHiddenNodes: false 
+                }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
+                minZoom={0.2}
+                maxZoom={1.5}
                 nodesDraggable={true}
                 attributionPosition="bottom-left"
               >
-                <Background color="#aaa" gap={16} />
+                <Background gap={20} size={1} color="#333" />
                 <Controls />
-                <MiniMap />
+                <MiniMap 
+                  nodeColor={(node) => {
+                    if (node.type === 'category') return 'transparent'
+                    return (node.style?.background as string) || '#666'
+                  }}
+                  maskColor="rgba(0, 0, 0, 0.2)"
+                />
                 <Panel position="top-right" className="bg-background/60 p-2 rounded shadow backdrop-blur-sm">
                   <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Nodes: {nodes.length} | Connections: {edges.length}
+                    Concepts: {nodes.filter(n => n.type === 'concept').length} | Categories: {nodes.filter(n => n.type === 'category').length}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {nodes.length > 0 && Object.entries(groupBy(nodes, 'data.category' as keyof Node)).map(([category, categoryNodes]) => (
-                      <div key={category} className="flex items-center gap-1">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: getCategoryColor(category) }}
-                        ></div>
-                        <span className="text-xs">{category}</span>
-                      </div>
-                    ))}
+                  <div className="text-xs text-muted-foreground">
+                    💡 Hover for details • Click to explore • Right-click for options
                   </div>
                 </Panel>
               </ReactFlow>
