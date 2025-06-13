@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut, MessageSquare } from "lucide-react"
+import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut, MessageSquare, Network } from "lucide-react"
 import { DashboardConceptCard } from "@/components/dashboard-concept-card"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { PageTransition } from "@/components/page-transition"
@@ -232,6 +232,12 @@ export default function Dashboard() {
               <Link href="/concepts">
                 <BookOpen className="mr-2 h-4 w-4" />
                 Browse Concepts
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="shadow-sm">
+              <Link href="/graph">
+                <Network className="mr-2 h-4 w-4" />
+                Knowledge Graph
               </Link>
             </Button>
             <Button 
