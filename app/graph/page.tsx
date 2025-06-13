@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from "next/link"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { 
   ArrowLeft, 
@@ -15,7 +16,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   Panel,
-  Node
+  Node,
+  NodeTypes
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { PageTransition } from "@/components/page-transition"
@@ -28,7 +30,41 @@ interface Concept {
   id: string
   title: string
   category: string
+  summary?: string
+  details?: string
   [key: string]: any
+}
+
+// Custom node component with hover tooltip
+const ConceptNode = ({ data }: { data: any }) => {
+  const [showTooltip, setShowTooltip] = useState(false)
+
+  return (
+    <div
+      className="flex items-center justify-center text-center p-2 h-full rounded-full overflow-hidden relative"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <div className="text-sm font-medium">{data.label}</div>
+      
+      {showTooltip && (
+        <div 
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/90 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-lg" 
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 className="font-bold mb-1">{data.label}</h3>
+          {data.summary && (
+            <p className="text-xs text-muted-foreground mb-1 line-clamp-3">
+              {data.summary}
+            </p>
+          )}
+          <div className="text-xs mt-1 pt-1 border-t text-primary">
+            Click to view details
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function GraphPage() {
@@ -54,10 +90,17 @@ export default function GraphPage() {
     );
   }
 
+  const router = useRouter()
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, nodeId: string } | null>(null)
+
+  // Define node types for custom rendering
+  const nodeTypes = useMemo(() => ({ 
+    concept: ConceptNode 
+  }), [])
 
   // Get category color function
   const getCategoryColor = (category: string) => {
@@ -94,6 +137,68 @@ export default function GraphPage() {
     }, {} as Record<string, T[]>)
   }
 
+  // Generate better organized nodes
+  const generateNodesWithBetterLayout = (concepts: Concept[]) => {
+    // Get unique categories and create positions in a circle
+    const categories = [...new Set(concepts.map(c => c.category || 'Uncategorized'))]
+    const categoryPositions: Record<string, { x: number, y: number }> = {}
+    
+    // Position categories in a large circle
+    categories.forEach((category, index) => {
+      const angle = (index / categories.length) * 2 * Math.PI
+      const radius = 400  // Distance from center
+      categoryPositions[category] = {
+        x: 600 + radius * Math.cos(angle),
+        y: 400 + radius * Math.sin(angle)
+      }
+    })
+    
+    // Group concepts by category
+    const grouped = groupBy(concepts, 'category')
+    const graphNodes: Node[] = []
+    
+    // Create nodes for each concept, clustered around their category center
+    Object.entries(grouped).forEach(([category, items]) => {
+      const center = categoryPositions[category] || { x: 600, y: 400 }
+      
+      items.forEach((concept, index) => {
+        // Calculate position in a circle around the category center
+        const angle = (index / items.length) * 2 * Math.PI
+        const nodeRadius = Math.min(150, 80 + (items.length * 5))  // Dynamic radius based on count
+        
+        graphNodes.push({
+          id: concept.id,
+          type: 'concept',  // Use our custom node type
+          position: {
+            x: center.x + nodeRadius * Math.cos(angle),
+            y: center.y + nodeRadius * Math.sin(angle)
+          },
+          data: { 
+            label: concept.title,
+            category: concept.category,
+            summary: concept.summary?.substring(0, 150) || 'No summary available',
+          },
+          style: {
+            background: getCategoryColor(concept.category),
+            color: 'white',
+            border: '1px solid #222',
+            borderRadius: '50%',
+            width: 120,
+            height: 120,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: '10px'
+          }
+        })
+      })
+    })
+
+    return graphNodes
+  }
+
   // Load concepts data
   const loadConcepts = useCallback(async () => {
     try {
@@ -110,66 +215,8 @@ export default function GraphPage() {
       const data = await response.json()
       const concepts = (data.concepts || []) as Concept[]
 
-      // Group concepts by category
-      const grouped = groupBy(concepts, 'category')
-
-      // Define category positions
-      const categoryPositions: Record<string, { x: number, y: number }> = {
-        'Frontend': { x: 200, y: 200 },
-        'Backend': { x: 600, y: 200 },
-        'Database': { x: 200, y: 500 },
-        'AI': { x: 600, y: 500 },
-        'Algorithms': { x: 1000, y: 200 },
-        'Data Structures': { x: 1000, y: 500 },
-        'System Design': { x: 200, y: 800 },
-        'LeetCode Problems': { x: 600, y: 800 },
-        'Backend Engineering': { x: 1000, y: 800 },
-        'Frontend Engineering': { x: 200, y: 1100 },
-        'Data Structures and Algorithms': { x: 600, y: 1100 },
-      }
-
-      // Create nodes
-      const graphNodes: Node[] = []
-      
-      // Create nodes for each concept
-      Object.entries(grouped).forEach(([category, items]) => {
-        // Use defined position or fallback to center
-        const basePos = categoryPositions[category] || { x: 500, y: 500 }
-        
-        items.forEach((concept, index) => {
-          // Calculate angle and position in a circle around the category center
-          const angle = (index / items.length) * 2 * Math.PI
-          const radius = 150  // Radius of the circle
-          
-          graphNodes.push({
-            id: concept.id,
-            type: 'default',
-            position: {
-              x: basePos.x + radius * Math.cos(angle),
-              y: basePos.y + radius * Math.sin(angle)
-            },
-            data: { 
-              label: concept.title,
-              category: concept.category
-            },
-            style: {
-              background: getCategoryColor(concept.category),
-              color: 'white',
-              border: '1px solid #222',
-              borderRadius: '50%',
-              width: 120,
-              height: 120,
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              padding: '10px'
-            }
-          })
-        })
-      })
-
+      // Generate better layout nodes
+      const graphNodes = generateNodesWithBetterLayout(concepts)
       setNodes(graphNodes)
       setLoading(false)
     } catch (err) {
@@ -179,9 +226,52 @@ export default function GraphPage() {
     }
   }, [setNodes])
 
+  // Handle node click to navigate to concept details
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    router.push(`/concept/${node.id}`)
+  }, [router])
+
+  // Handle right-click on nodes
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    event.preventDefault()
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      nodeId: node.id
+    })
+  }, [])
+
+  // Handle background click to close context menu
+  const onPaneClick = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  // Actions for context menu
+  const startConnection = (nodeId: string) => {
+    // Placeholder for future connection functionality
+    console.log('Start connecting from node:', nodeId)
+    setContextMenu(null)
+  }
+
+  const deleteNode = (nodeId: string) => {
+    // Placeholder - we'll just log for now
+    console.log('Delete node:', nodeId)
+    setContextMenu(null)
+  }
+
+  // Load data on mount
   useEffect(() => {
     loadConcepts()
   }, [loadConcepts])
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null)
+    document.addEventListener('click', handleClickOutside)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [])
 
   return (
     <AuthGuard>
@@ -233,6 +323,10 @@ export default function GraphPage() {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
+                onNodeClick={onNodeClick}
+                onNodeContextMenu={onNodeContextMenu}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 nodesDraggable={true}
@@ -241,7 +335,7 @@ export default function GraphPage() {
                 <Background color="#aaa" gap={16} />
                 <Controls />
                 <MiniMap />
-                <Panel position="top-right" className="bg-white/60 dark:bg-gray-800/60 p-2 rounded shadow backdrop-blur-sm">
+                <Panel position="top-right" className="bg-background/60 p-2 rounded shadow backdrop-blur-sm">
                   <div className="text-xs font-medium text-muted-foreground mb-1">
                     Nodes: {nodes.length} | Connections: {edges.length}
                   </div>
@@ -258,6 +352,32 @@ export default function GraphPage() {
                   </div>
                 </Panel>
               </ReactFlow>
+            )}
+
+            {/* Context Menu */}
+            {contextMenu && (
+              <div
+                className="fixed bg-background shadow-lg border rounded-md p-2 z-[1000]"
+                style={{ top: contextMenu.y, left: contextMenu.x }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex flex-col gap-1 text-sm">
+                  <button 
+                    className="hover:bg-accent px-3 py-1.5 rounded-sm text-left flex items-center gap-2"
+                    onClick={() => startConnection(contextMenu.nodeId)}
+                  >
+                    <span className="h-4 w-4">↔</span>
+                    Connect to concept
+                  </button>
+                  <button 
+                    className="hover:bg-accent px-3 py-1.5 rounded-sm text-left flex items-center gap-2 text-destructive"
+                    onClick={() => deleteNode(contextMenu.nodeId)}
+                  >
+                    <span className="h-4 w-4">×</span>
+                    Delete node
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
