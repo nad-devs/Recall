@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { 
   ArrowLeft, 
   Network,
-  BookOpen
+  BookOpen,
+  Minimize2,
+  Maximize2
 } from "lucide-react"
 import ReactFlow, { 
   Background, 
@@ -17,6 +19,7 @@ import ReactFlow, {
   useEdgesState,
   Panel,
   Node,
+  Edge,
   NodeTypes
 } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -33,68 +36,6 @@ interface Concept {
   summary?: string
   details?: string
   [key: string]: any
-}
-
-// Custom node component with hover tooltip and effects
-const ConceptNode = ({ data }: { data: any }) => {
-  const [showTooltip, setShowTooltip] = useState(false)
-
-  return (
-    <div
-      className="flex items-center justify-center text-center p-2 h-full rounded-full overflow-hidden relative transition-all duration-200 ease-in-out"
-      onMouseEnter={(e) => {
-        setShowTooltip(true)
-        e.currentTarget.style.transform = 'scale(1.1)'
-        e.currentTarget.style.zIndex = '10'
-      }}
-      onMouseLeave={(e) => {
-        setShowTooltip(false)
-        e.currentTarget.style.transform = 'scale(1)'
-        e.currentTarget.style.zIndex = '1'
-      }}
-    >
-      <div className="text-xs font-medium leading-tight break-words">{data.label}</div>
-      
-      {showTooltip && (
-        <div 
-          className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/95 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-xl backdrop-blur-sm" 
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 className="font-bold mb-1">{data.label}</h3>
-          <div className="text-xs text-blue-600 mb-1">📁 {data.fullCategory || data.category}</div>
-          {data.summary && (
-            <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
-              {data.summary}
-            </p>
-          )}
-          <div className="text-xs mt-1 pt-1 border-t text-primary font-medium">
-            Click to view details
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Category group background node
-const GroupNode = ({ data }: { data: any }) => {
-  return (
-    <div className="w-full h-full flex items-start justify-center pt-4">
-      <div 
-        className="text-lg font-bold text-center px-4 py-2 rounded-lg"
-        style={{
-          color: data.color,
-          backgroundColor: `${data.color}15`,
-          border: `2px dashed ${data.color}40`
-        }}
-      >
-        {data.label}
-        <div className="text-xs font-normal mt-1">
-          {data.count} concept{data.count !== 1 ? 's' : ''}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export default function GraphPage() {
@@ -125,13 +66,9 @@ export default function GraphPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, nodeId: string } | null>(null)
-
-  // Define node types for custom rendering
-  const nodeTypes = useMemo(() => ({ 
-    concept: ConceptNode,
-    group: GroupNode
-  }), [])
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [concepts, setConcepts] = useState<Concept[]>([])
+  const [showCollapseAll, setShowCollapseAll] = useState(false)
 
   // Simplified category colors with better contrast
   const getCategoryColor = (category: string) => {
@@ -154,172 +91,265 @@ export default function GraphPage() {
     return colors[category] || colors.default
   }
 
-  // Normalize categories - handle subcategories properly
-  const normalizeCategories = (concepts: Concept[]) => {
-    const categoryMap: Record<string, {
-      concepts: Concept[],
-      subCategories: Record<string, Concept[]>
-    }> = {}
+  // Custom Category Node Component
+  const CategoryNode = ({ data, id }: { data: any, id: string }) => {
+    const isExpanded = expandedCategories.has(id)
     
-    concepts.forEach(concept => {
-      const category = concept.category || 'General'
-      let mainCategory: string, subCategory: string | null = null
-      
-      if (category.includes(' > ')) {
-        [mainCategory, subCategory] = category.split(' > ')
-      } else {
-        mainCategory = category
-      }
-      
-      if (!categoryMap[mainCategory]) {
-        categoryMap[mainCategory] = {
-          concepts: [],
-          subCategories: {}
-        }
-      }
-      
-      if (subCategory) {
-        if (!categoryMap[mainCategory].subCategories[subCategory]) {
-          categoryMap[mainCategory].subCategories[subCategory] = []
-        }
-        categoryMap[mainCategory].subCategories[subCategory].push(concept)
-      } else {
-        categoryMap[mainCategory].concepts.push(concept)
-      }
-    })
-    
-    return categoryMap
+    return (
+      <div
+        onClick={() => toggleCategory(id, data.concepts)}
+        className="relative cursor-pointer transition-all duration-300 ease-in-out"
+        style={{
+          width: 160,
+          height: 160,
+          borderRadius: '50%',
+          backgroundColor: getCategoryColor(data.label),
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: isExpanded ? 'scale(1.1)' : 'scale(1)',
+          boxShadow: isExpanded ? '0 0 40px rgba(255,255,255,0.4)' : '0 4px 20px rgba(0,0,0,0.3)',
+          border: isExpanded ? '4px solid rgba(255,255,255,0.8)' : '2px solid rgba(255,255,255,0.2)',
+          zIndex: isExpanded ? 10 : 1
+        }}
+        onMouseEnter={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1.05)'
+            e.currentTarget.style.boxShadow = '0 6px 25px rgba(0,0,0,0.4)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)'
+          }
+        }}
+      >
+        <div className="text-white font-bold text-center leading-tight mb-2" style={{ fontSize: '14px' }}>
+          {data.label}
+        </div>
+        <div className="text-white/80 text-center mb-1" style={{ fontSize: '11px' }}>
+          {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
+        </div>
+        <div className="text-white/60 text-center" style={{ fontSize: '9px' }}>
+          {isExpanded ? '🔽 Click to collapse' : '🔼 Click to expand'}
+        </div>
+        
+        {/* Pulse animation for unexpanded categories */}
+        {!isExpanded && (
+          <div 
+            className="absolute inset-0 rounded-full animate-pulse"
+            style={{
+              backgroundColor: getCategoryColor(data.label),
+              opacity: 0.3,
+              animation: 'pulse 2s infinite'
+            }}
+          />
+        )}
+      </div>
+    )
   }
 
-  // Create organized layout with fixed positions
-  const createOrganizedLayout = (concepts: Concept[]) => {
-    const nodes: Node[] = []
-    const edges: any[] = []
-    const categoryMap = normalizeCategories(concepts)
-    const categories = Object.keys(categoryMap)
+  // Custom Concept Node Component
+  const ConceptNode = ({ data }: { data: any }) => {
+    const [showTooltip, setShowTooltip] = useState(false)
+
+    return (
+      <div
+        onClick={() => router.push(`/concept/${data.concept.id}`)}
+        className="relative cursor-pointer transition-all duration-200 ease-in-out"
+        style={{
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          border: '2px solid rgba(255,255,255,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '11px',
+          color: 'white',
+          textAlign: 'center',
+          padding: '8px',
+          backdropFilter: 'blur(10px)'
+        }}
+        onMouseEnter={(e) => {
+          setShowTooltip(true)
+          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'
+          e.currentTarget.style.transform = 'scale(1.1)'
+          e.currentTarget.style.border = '3px solid rgba(255,255,255,0.8)'
+          e.currentTarget.style.zIndex = '20'
+        }}
+        onMouseLeave={(e) => {
+          setShowTooltip(false)
+          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
+          e.currentTarget.style.transform = 'scale(1)'
+          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.5)'
+          e.currentTarget.style.zIndex = '1'
+        }}
+      >
+        <div className="font-medium leading-tight break-words">
+          {data.label}
+        </div>
+        
+        {showTooltip && (
+          <div 
+            className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/95 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-xl backdrop-blur-sm" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold mb-1">{data.label}</h3>
+            <div className="text-xs text-blue-600 mb-1">📁 {data.concept.category}</div>
+            {data.concept.summary && (
+              <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
+                {data.concept.summary.substring(0, 150)}...
+              </p>
+            )}
+            <div className="text-xs mt-1 pt-1 border-t text-primary font-medium">
+              Click to view details
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Define node types for custom rendering
+  const nodeTypes = useMemo(() => ({ 
+    category: CategoryNode,
+    concept: ConceptNode
+  }), [expandedCategories])
+
+  // Initialize with just category nodes
+  const initializeCategoryNodes = useCallback((conceptsData: Concept[]) => {
+    const categories: Record<string, Concept[]> = {}
     
-    // Define fixed positions for main categories in a clean grid
-    const categoryLayouts: Record<string, { x: number, y: number }> = {
-      'Machine Learning': { x: 300, y: 200 },
-      'Data Engineering': { x: 700, y: 200 },
-      'LeetCode Problems': { x: 1100, y: 200 },
-      'Artificial Intelligence': { x: 300, y: 600 },
-      'AI': { x: 300, y: 600 },
-      'Cloud Engineering': { x: 700, y: 600 },
-      'Backend Engineering': { x: 1100, y: 600 },
-      'Backend': { x: 1100, y: 600 },
-      'Frontend': { x: 500, y: 400 },
-      'Database': { x: 900, y: 400 },
-      'System Design': { x: 300, y: 1000 },
-      'Algorithms': { x: 700, y: 1000 },
-      'Data Structures': { x: 1100, y: 1000 },
-      'General': { x: 500, y: 800 }
+    // Group concepts by main category
+    conceptsData.forEach(concept => {
+      const mainCategory = concept.category?.split(' > ')[0] || 'General'
+      if (!categories[mainCategory]) {
+        categories[mainCategory] = []
+      }
+      categories[mainCategory].push(concept)
+    })
+
+    // Create category nodes in a circle
+    const categoryNodes: Node[] = []
+    const categoryNames = Object.keys(categories)
+    const radius = Math.min(300, Math.max(200, categoryNames.length * 30))
+    const centerX = 600
+    const centerY = 400
+
+    categoryNames.forEach((category, index) => {
+      const angle = (index / categoryNames.length) * 2 * Math.PI - Math.PI / 2 // Start from top
+      
+      categoryNodes.push({
+        id: `category-${category}`,
+        type: 'category',
+        position: {
+          x: centerX + radius * Math.cos(angle) - 80,
+          y: centerY + radius * Math.sin(angle) - 80
+        },
+        data: {
+          label: category,
+          conceptCount: categories[category].length,
+          concepts: categories[category]
+        },
+        draggable: false
+      })
+    })
+
+    setNodes(categoryNodes)
+    setEdges([])
+  }, [setNodes, setEdges])
+
+  // Toggle category expansion
+  const toggleCategory = useCallback((categoryId: string, categoryConcepts: Concept[]) => {
+    const newExpanded = new Set(expandedCategories)
+    
+    if (newExpanded.has(categoryId)) {
+      // Collapse: remove concept nodes and edges
+      newExpanded.delete(categoryId)
+      setNodes(current => 
+        current.filter(node => 
+          node.type === 'category' || !node.id.startsWith(`concept-${categoryId}`)
+        )
+      )
+      setEdges(current => 
+        current.filter(edge => !edge.id.startsWith(`edge-${categoryId}`))
+      )
+    } else {
+      // Expand: add concept nodes
+      newExpanded.add(categoryId)
+      addConceptNodes(categoryId, categoryConcepts)
     }
     
-    // Auto-arrange categories not in predefined list
-    let gridIndex = 0
-    const gridCols = 3
-    const gridSpacing = 400
-    
-    categories.forEach(category => {
-      if (!categoryLayouts[category]) {
-        const row = Math.floor(gridIndex / gridCols)
-        const col = gridIndex % gridCols
-        categoryLayouts[category] = {
-          x: 300 + col * gridSpacing,
-          y: 1400 + row * gridSpacing
-        }
-        gridIndex++
-      }
-    })
-    
-    // Create nodes for each category
-    Object.entries(categoryMap).forEach(([mainCategory, data]) => {
-      const categoryCenter = categoryLayouts[mainCategory] || { x: 500, y: 400 }
-      
-      // Collect all concepts in this category
-      const allConcepts = [...data.concepts]
-      Object.entries(data.subCategories).forEach(([subCat, subConcepts]) => {
-        allConcepts.push(...subConcepts)
-      })
-      
-      // Add category background group node
-      nodes.push({
-        id: `group-${mainCategory}`,
-        type: 'group',
-        position: {
-          x: categoryCenter.x - 180,
-          y: categoryCenter.y - 180
-        },
-        style: {
-          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-          width: 360,
-          height: 360,
-          borderRadius: '20px',
-          border: `2px dashed ${getCategoryColor(mainCategory)}40`,
-          zIndex: -1
-        },
-        data: { 
-          label: mainCategory,
-          color: getCategoryColor(mainCategory),
-          count: allConcepts.length
-        },
-        draggable: false,
-        selectable: false
-      })
-      
-      // Position concepts in a compact grid within category
-      allConcepts.forEach((concept, index) => {
-        const cols = 3
-        const row = Math.floor(index / cols)
-        const col = index % cols
-        const spacing = 100
-        const startX = categoryCenter.x - 100
-        const startY = categoryCenter.y - 80
+    setExpandedCategories(newExpanded)
+    setShowCollapseAll(newExpanded.size > 0)
+  }, [expandedCategories, setNodes, setEdges])
+
+  // Add concept nodes when category is expanded
+  const addConceptNodes = useCallback((categoryId: string, categoryConcepts: Concept[]) => {
+    setNodes(current => {
+      const categoryNode = current.find(n => n.id === categoryId)
+      if (!categoryNode) return current
+
+      const conceptNodes: Node[] = []
+      const centerX = categoryNode.position.x + 80
+      const centerY = categoryNode.position.y + 80
+      const conceptRadius = Math.min(250, Math.max(150, categoryConcepts.length * 20))
+
+      categoryConcepts.forEach((concept, index) => {
+        const angle = (index / categoryConcepts.length) * 2 * Math.PI
+        const nodeId = `concept-${categoryId}-${concept.id}`
         
-        // Special styling for subcategory concepts
-        const isSubcategory = concept.category.includes(' > ')
-        
-        nodes.push({
-          id: concept.id,
+        conceptNodes.push({
+          id: nodeId,
           type: 'concept',
           position: {
-            x: startX + col * spacing,
-            y: startY + row * spacing
+            x: centerX + conceptRadius * Math.cos(angle) - 50,
+            y: centerY + conceptRadius * Math.sin(angle) - 50
           },
-          parentNode: `group-${mainCategory}`,
-          extent: 'parent',
           data: {
             label: concept.title,
-            category: mainCategory,
-            fullCategory: concept.category,
-            summary: concept.summary?.substring(0, 150) || 'No summary available',
-            conceptData: concept
+            concept: concept
           },
+          draggable: true
+        })
+      })
+
+      return [...current, ...conceptNodes]
+    })
+
+    // Add edges from category to concepts
+    setEdges(current => {
+      const newEdges: Edge[] = []
+      
+      categoryConcepts.forEach((concept) => {
+        const nodeId = `concept-${categoryId}-${concept.id}`
+        newEdges.push({
+          id: `edge-${categoryId}-${nodeId}`,
+          source: categoryId,
+          target: nodeId,
+          type: 'smoothstep',
+          animated: true,
           style: {
-            width: 90,
-            height: 90,
-            backgroundColor: getCategoryColor(mainCategory),
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '10px',
-            color: 'white',
-            padding: '6px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            border: isSubcategory ? '3px solid rgba(255,255,255,0.6)' : '2px solid transparent',
-            transition: 'all 0.2s ease-in-out',
-            zIndex: 1,
-            fontWeight: isSubcategory ? '600' : '500'
+            stroke: 'rgba(255,255,255,0.3)',
+            strokeWidth: 2
           }
         })
       })
-    })
 
-    return { nodes, edges }
-  }
+      return [...current, ...newEdges]
+    })
+  }, [setNodes, setEdges])
+
+  // Collapse all categories
+  const collapseAll = useCallback(() => {
+    setExpandedCategories(new Set())
+    setShowCollapseAll(false)
+    initializeCategoryNodes(concepts)
+  }, [concepts, initializeCategoryNodes])
 
   // Load concepts data
   const loadConcepts = useCallback(async () => {
@@ -335,89 +365,54 @@ export default function GraphPage() {
       }
 
       const data = await response.json()
-      const concepts = (data.concepts || []) as Concept[]
+      const conceptsData = (data.concepts || []) as Concept[]
 
-      // Generate organized layout
-      const { nodes: graphNodes, edges: graphEdges } = createOrganizedLayout(concepts)
-      setNodes(graphNodes)
-      setEdges(graphEdges)
+      setConcepts(conceptsData)
+      initializeCategoryNodes(conceptsData)
       setLoading(false)
     } catch (err) {
       console.error('Error loading concepts:', err)
       setError(err instanceof Error ? err.message : 'Failed to load concepts')
       setLoading(false)
     }
-  }, [setNodes, setEdges])
-
-  // Handle node click to navigate to concept details (only for concept nodes)
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    if (node.type === 'concept') {
-      router.push(`/concept/${node.id}`)
-    }
-  }, [router])
-
-  // Handle right-click on nodes (only for concept nodes)
-  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-    if (node.type === 'concept') {
-      event.preventDefault()
-      setContextMenu({
-        x: event.clientX,
-        y: event.clientY,
-        nodeId: node.id
-      })
-    }
-  }, [])
-
-  // Handle background click to close context menu
-  const onPaneClick = useCallback(() => {
-    setContextMenu(null)
-  }, [])
-
-  // Actions for context menu
-  const startConnection = (nodeId: string) => {
-    console.log('Start connecting from node:', nodeId)
-    setContextMenu(null)
-  }
-
-  const deleteNode = (nodeId: string) => {
-    console.log('Delete node:', nodeId)
-    setContextMenu(null)
-  }
+  }, [initializeCategoryNodes])
 
   // Load data on mount
   useEffect(() => {
     loadConcepts()
   }, [loadConcepts])
 
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null)
-    document.addEventListener('click', handleClickOutside)
-    return () => {
-      document.removeEventListener('click', handleClickOutside)
-    }
-  }, [])
-
   return (
     <AuthGuard>
       <PageTransition>
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen bg-slate-900">
           {/* Header */}
-          <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10">
+          <header className="border-b border-slate-700 bg-slate-800/95 backdrop-blur supports-[backdrop-filter]:bg-slate-800/60 z-10">
             <div className="container flex items-center justify-between py-3">
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild className="text-white hover:bg-slate-700">
                   <Link href="/dashboard">
                     <ArrowLeft className="h-4 w-4" />
                   </Link>
                 </Button>
                 <div className="flex items-center">
-                  <Network className="h-5 w-5 mr-2 text-primary" />
-                  <h1 className="text-xl font-semibold">Knowledge Graph</h1>
+                  <Network className="h-5 w-5 mr-2 text-blue-400" />
+                  <h1 className="text-xl font-semibold text-white">Knowledge Graph</h1>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild>
+                {showCollapseAll && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={collapseAll}
+                    className="text-white border-slate-600 hover:bg-slate-700"
+                  >
+                    <Minimize2 className="h-4 w-4 mr-2" />
+                    Collapse All
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" asChild className="text-white border-slate-600 hover:bg-slate-700">
                   <Link href="/concepts">
                     <BookOpen className="h-4 w-4 mr-2" />
                     Browse Concepts
@@ -427,18 +422,32 @@ export default function GraphPage() {
             </div>
           </header>
 
+          {/* Instructions */}
+          <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="text-slate-300 text-sm">
+                💡 <strong>Click on category bubbles</strong> to explore concepts • <strong>Hover</strong> for details • <strong>Click concepts</strong> to view full details
+              </div>
+              <div className="text-slate-400 text-xs">
+                Categories: {nodes.filter(n => n.type === 'category').length} | 
+                Expanded: {expandedCategories.size} | 
+                Total Concepts: {concepts.length}
+              </div>
+            </div>
+          </div>
+
           {/* Main Content */}
           <div className="flex-1 relative">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <p className="text-sm text-muted-foreground">Loading knowledge graph...</p>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+                  <p className="text-slate-300">Loading knowledge graph...</p>
                 </div>
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-full">
-                <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md">
+                <div className="bg-red-900/20 text-red-400 px-6 py-4 rounded-lg border border-red-800">
                   {error}
                 </div>
               </div>
@@ -448,69 +457,35 @@ export default function GraphPage() {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
-                onNodeClick={onNodeClick}
-                onNodeContextMenu={onNodeContextMenu}
-                onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ 
-                  padding: 0.1,
-                  maxZoom: 1,
+                  padding: 0.2,
+                  maxZoom: 1.2,
                   includeHiddenNodes: false 
                 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
-                minZoom={0.3}
-                maxZoom={1.5}
-                nodesDraggable={true}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                minZoom={0.4}
+                maxZoom={2}
                 attributionPosition="bottom-left"
+                className="bg-slate-900"
               >
-                <Background gap={20} size={1} color="#333" />
-                <Controls />
+                <Background 
+                  gap={20} 
+                  size={1} 
+                  color="rgba(148, 163, 184, 0.1)" 
+                  className="bg-slate-900"
+                />
+                <Controls className="bg-slate-800 border-slate-600 text-white" />
                 <MiniMap 
                   nodeColor={(node) => {
-                    if (node.type === 'group') return 'rgba(255,255,255,0.1)'
-                    return getCategoryColor(node.data?.category || 'default')
+                    if (node.type === 'category') return getCategoryColor(node.data?.label || 'default')
+                    return 'rgba(255,255,255,0.3)'
                   }}
-                  maskColor="rgba(0, 0, 0, 0.2)"
-                  style={{
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                  }}
+                  maskColor="rgba(15, 23, 42, 0.8)"
+                  className="bg-slate-800 border-slate-600"
                 />
-                <Panel position="top-right" className="bg-background/60 p-2 rounded shadow backdrop-blur-sm">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Concepts: {nodes.filter(n => n.type === 'concept').length} | Categories: {nodes.filter(n => n.type === 'group').length}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    💡 Hover for details • Click to explore • Subcategories have white borders
-                  </div>
-                </Panel>
               </ReactFlow>
-            )}
-
-            {/* Context Menu */}
-            {contextMenu && (
-              <div
-                className="fixed bg-background shadow-lg border rounded-md p-2 z-[1000]"
-                style={{ top: contextMenu.y, left: contextMenu.x }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="flex flex-col gap-1 text-sm">
-                  <button 
-                    className="hover:bg-accent px-3 py-1.5 rounded-sm text-left flex items-center gap-2"
-                    onClick={() => startConnection(contextMenu.nodeId)}
-                  >
-                    <span className="h-4 w-4">↔</span>
-                    Connect to concept
-                  </button>
-                  <button 
-                    className="hover:bg-accent px-3 py-1.5 rounded-sm text-left flex items-center gap-2 text-destructive"
-                    onClick={() => deleteNode(contextMenu.nodeId)}
-                  >
-                    <span className="h-4 w-4">×</span>
-                    Delete node
-                  </button>
-                </div>
-              </div>
             )}
           </div>
         </div>
