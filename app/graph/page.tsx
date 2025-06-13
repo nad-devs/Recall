@@ -9,7 +9,8 @@ import {
   Network,
   BookOpen,
   Minimize2,
-  Maximize2
+  X,
+  ExternalLink
 } from "lucide-react"
 import ReactFlow, { 
   Background, 
@@ -67,8 +68,10 @@ export default function GraphPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set())
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [showCollapseAll, setShowCollapseAll] = useState(false)
+  const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
 
   // Simplified category colors with better contrast
   const getCategoryColor = (category: string) => {
@@ -97,7 +100,7 @@ export default function GraphPage() {
     
     return (
       <div
-        onClick={() => toggleCategory(id, data.concepts)}
+        onClick={() => toggleCategory(id, data)}
         className="relative cursor-pointer transition-all duration-300 ease-in-out"
         style={{
           width: 160,
@@ -132,6 +135,9 @@ export default function GraphPage() {
         <div className="text-white/80 text-center mb-1" style={{ fontSize: '11px' }}>
           {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
         </div>
+        <div className="text-white/60 text-center mb-1" style={{ fontSize: '10px' }}>
+          {data.subcategoryCount} subcategor{data.subcategoryCount !== 1 ? 'ies' : 'y'}
+        </div>
         <div className="text-white/60 text-center" style={{ fontSize: '9px' }}>
           {isExpanded ? '🔽 Click to collapse' : '🔼 Click to expand'}
         </div>
@@ -151,65 +157,150 @@ export default function GraphPage() {
     )
   }
 
-  // Custom Concept Node Component
-  const ConceptNode = ({ data }: { data: any }) => {
-    const [showTooltip, setShowTooltip] = useState(false)
-
+  // Custom Subcategory Node Component
+  const SubcategoryNode = ({ data, id }: { data: any, id: string }) => {
+    const isExpanded = expandedSubcategories.has(id)
+    const parentCategory = data.parentCategory.split('-')[1]
+    
     return (
       <div
-        onClick={() => router.push(`/concept/${data.concept.id}`)}
-        className="relative cursor-pointer transition-all duration-200 ease-in-out"
+        onClick={() => toggleSubcategory(id, data)}
+        className="cursor-pointer transition-all duration-300 ease-in-out"
         style={{
-          width: 100,
-          height: 100,
+          width: 120,
+          height: 120,
           borderRadius: '50%',
           backgroundColor: 'rgba(255,255,255,0.1)',
-          border: '2px solid rgba(255,255,255,0.5)',
+          border: `3px solid ${getCategoryColor(parentCategory)}`,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '11px',
-          color: 'white',
-          textAlign: 'center',
-          padding: '8px',
+          transform: isExpanded ? 'scale(1.05)' : 'scale(1)',
+          boxShadow: isExpanded ? `0 0 20px ${getCategoryColor(parentCategory)}40` : '0 2px 10px rgba(0,0,0,0.3)',
           backdropFilter: 'blur(10px)'
         }}
         onMouseEnter={(e) => {
-          setShowTooltip(true)
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'
-          e.currentTarget.style.transform = 'scale(1.1)'
-          e.currentTarget.style.border = '3px solid rgba(255,255,255,0.8)'
-          e.currentTarget.style.zIndex = '20'
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1.02)'
+            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)'
+          }
         }}
         onMouseLeave={(e) => {
-          setShowTooltip(false)
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
+          }
+        }}
+      >
+        <div className="text-white font-semibold text-center leading-tight mb-1" style={{ fontSize: '12px' }}>
+          {data.label}
+        </div>
+        <div className="text-white/70 text-center mb-1" style={{ fontSize: '10px' }}>
+          {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
+        </div>
+        <div className="text-white/50 text-center" style={{ fontSize: '8px' }}>
+          {isExpanded ? '🔽 Collapse' : '🔼 Expand'}
+        </div>
+      </div>
+    )
+  }
+
+  // Custom Concept Node Component
+  const ConceptNode = ({ data }: { data: any }) => {
+    return (
+      <div
+        onClick={() => setSelectedConcept(data.concept)}
+        className="cursor-pointer transition-all duration-200 ease-in-out"
+        style={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          border: '2px solid rgba(255,255,255,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '10px',
+          color: 'white',
+          textAlign: 'center',
+          padding: '6px',
+          backdropFilter: 'blur(5px)'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)'
           e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
+          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.6)'
+        }}
+        onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.5)'
-          e.currentTarget.style.zIndex = '1'
+          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
+          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.3)'
         }}
       >
         <div className="font-medium leading-tight break-words">
           {data.label}
         </div>
-        
-        {showTooltip && (
-          <div 
-            className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-background/95 border text-foreground p-3 rounded-lg w-64 z-50 mb-2 shadow-xl backdrop-blur-sm" 
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-bold mb-1">{data.label}</h3>
-            <div className="text-xs text-blue-600 mb-1">📁 {data.concept.category}</div>
-            {data.concept.summary && (
-              <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
-                {data.concept.summary.substring(0, 150)}...
-              </p>
-            )}
-            <div className="text-xs mt-1 pt-1 border-t text-primary font-medium">
-              Click to view details
-            </div>
+      </div>
+    )
+  }
+
+  // Concept Detail Modal Component
+  const ConceptDetailModal = ({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
+    if (!concept) return null
+    
+    return (
+      <div
+        className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]"
+        onClick={onClose}
+      >
+        <div
+          className="bg-slate-800 rounded-xl p-6 max-w-2xl max-h-[80vh] overflow-auto border border-slate-600 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-2xl font-bold text-white">{concept.title}</h2>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
-        )}
+          
+          <div className="mb-4">
+            <span className="inline-block bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-sm">
+              📁 {concept.category}
+            </span>
+          </div>
+          
+          {concept.summary && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-white mb-2">Summary</h3>
+              <p className="text-slate-300 leading-relaxed">{concept.summary}</p>
+            </div>
+          )}
+          
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                router.push(`/concept/${concept.id}`)
+                onClose()
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Full Details
+            </button>
+            
+            <button
+              onClick={onClose}
+              className="bg-transparent border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 px-4 py-2 rounded-lg transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -217,25 +308,41 @@ export default function GraphPage() {
   // Define node types for custom rendering
   const nodeTypes = useMemo(() => ({ 
     category: CategoryNode,
+    subcategory: SubcategoryNode,
     concept: ConceptNode
-  }), [expandedCategories])
+  }), [expandedCategories, expandedSubcategories])
 
-  // Initialize with just category nodes
+  // Initialize with just category nodes - build proper hierarchy
   const initializeCategoryNodes = useCallback((conceptsData: Concept[]) => {
-    const categories: Record<string, Concept[]> = {}
+    const categoryStructure: Record<string, {
+      concepts: Concept[],
+      subcategories: Record<string, Concept[]>
+    }> = {}
     
-    // Group concepts by main category
+    // Build proper hierarchy
     conceptsData.forEach(concept => {
-      const mainCategory = concept.category?.split(' > ')[0] || 'General'
-      if (!categories[mainCategory]) {
-        categories[mainCategory] = []
+      const parts = concept.category?.split(' > ') || ['General']
+      const mainCategory = parts[0]
+      const subCategory = parts[1] || 'General' // Default subcategory if none
+      
+      if (!categoryStructure[mainCategory]) {
+        categoryStructure[mainCategory] = {
+          concepts: [],
+          subcategories: {}
+        }
       }
-      categories[mainCategory].push(concept)
+      
+      if (!categoryStructure[mainCategory].subcategories[subCategory]) {
+        categoryStructure[mainCategory].subcategories[subCategory] = []
+      }
+      
+      categoryStructure[mainCategory].subcategories[subCategory].push(concept)
+      categoryStructure[mainCategory].concepts.push(concept) // Keep total count
     })
 
     // Create category nodes in a circle
     const categoryNodes: Node[] = []
-    const categoryNames = Object.keys(categories)
+    const categoryNames = Object.keys(categoryStructure)
     const radius = Math.min(300, Math.max(200, categoryNames.length * 30))
     const centerX = 600
     const centerY = 400
@@ -252,8 +359,9 @@ export default function GraphPage() {
         },
         data: {
           label: category,
-          conceptCount: categories[category].length,
-          concepts: categories[category]
+          conceptCount: categoryStructure[category].concepts.length,
+          subcategoryCount: Object.keys(categoryStructure[category].subcategories).length,
+          structure: categoryStructure[category]
         },
         draggable: false
       })
@@ -263,90 +371,173 @@ export default function GraphPage() {
     setEdges([])
   }, [setNodes, setEdges])
 
-  // Toggle category expansion
-  const toggleCategory = useCallback((categoryId: string, categoryConcepts: Concept[]) => {
+  // Toggle category to show subcategories (not concepts directly)
+  const toggleCategory = useCallback((categoryId: string, categoryData: any) => {
     const newExpanded = new Set(expandedCategories)
     
     if (newExpanded.has(categoryId)) {
-      // Collapse: remove concept nodes and edges
+      // Collapse: remove subcategories and their concepts
       newExpanded.delete(categoryId)
-      setNodes(current => 
-        current.filter(node => 
-          node.type === 'category' || !node.id.startsWith(`concept-${categoryId}`)
-        )
-      )
-      setEdges(current => 
-        current.filter(edge => !edge.id.startsWith(`edge-${categoryId}`))
-      )
+      collapseCategory(categoryId)
     } else {
-      // Expand: add concept nodes
+      // Expand to show subcategories
       newExpanded.add(categoryId)
-      addConceptNodes(categoryId, categoryConcepts)
+      expandToSubcategories(categoryId, categoryData.structure)
     }
     
     setExpandedCategories(newExpanded)
-    setShowCollapseAll(newExpanded.size > 0)
-  }, [expandedCategories, setNodes, setEdges])
+    setShowCollapseAll(newExpanded.size > 0 || expandedSubcategories.size > 0)
+  }, [expandedCategories, expandedSubcategories])
 
-  // Add concept nodes when category is expanded
-  const addConceptNodes = useCallback((categoryId: string, categoryConcepts: Concept[]) => {
-    setNodes(current => {
-      const categoryNode = current.find(n => n.id === categoryId)
-      if (!categoryNode) return current
-
-      const conceptNodes: Node[] = []
-      const centerX = categoryNode.position.x + 80
-      const centerY = categoryNode.position.y + 80
-      const conceptRadius = Math.min(250, Math.max(150, categoryConcepts.length * 20))
-
-      categoryConcepts.forEach((concept, index) => {
-        const angle = (index / categoryConcepts.length) * 2 * Math.PI
-        const nodeId = `concept-${categoryId}-${concept.id}`
-        
-        conceptNodes.push({
-          id: nodeId,
-          type: 'concept',
-          position: {
-            x: centerX + conceptRadius * Math.cos(angle) - 50,
-            y: centerY + conceptRadius * Math.sin(angle) - 50
-          },
-          data: {
-            label: concept.title,
-            concept: concept
-          },
-          draggable: true
-        })
+  // Collapse category and all its subcategories
+  const collapseCategory = useCallback((categoryId: string) => {
+    setNodes(current => 
+      current.filter(node => 
+        node.type === 'category' || 
+        (!node.id.startsWith(`subcategory-${categoryId}`) && !node.id.startsWith(`concept-${categoryId}`))
+      )
+    )
+    setEdges(current => 
+      current.filter(edge => !edge.id.startsWith(`edge-${categoryId}`))
+    )
+    
+    // Also clear any expanded subcategories for this category
+    setExpandedSubcategories(current => {
+      const newSet = new Set(current)
+      Array.from(current).forEach(subId => {
+        if (subId.startsWith(`subcategory-${categoryId}`)) {
+          newSet.delete(subId)
+        }
       })
-
-      return [...current, ...conceptNodes]
-    })
-
-    // Add edges from category to concepts
-    setEdges(current => {
-      const newEdges: Edge[] = []
-      
-      categoryConcepts.forEach((concept) => {
-        const nodeId = `concept-${categoryId}-${concept.id}`
-        newEdges.push({
-          id: `edge-${categoryId}-${nodeId}`,
-          source: categoryId,
-          target: nodeId,
-          type: 'smoothstep',
-          animated: true,
-          style: {
-            stroke: 'rgba(255,255,255,0.3)',
-            strokeWidth: 2
-          }
-        })
-      })
-
-      return [...current, ...newEdges]
+      return newSet
     })
   }, [setNodes, setEdges])
 
-  // Collapse all categories
+  // Show subcategories when category is expanded
+  const expandToSubcategories = useCallback((categoryId: string, structure: any) => {
+    const categoryNode = nodes.find(n => n.id === categoryId)
+    if (!categoryNode) return
+
+    const subcategoryNodes: Node[] = []
+    const newEdges: Edge[] = []
+    const centerX = categoryNode.position.x + 80
+    const centerY = categoryNode.position.y + 80
+    const subcategoryRadius = 200
+
+    const subcategories = Object.entries(structure.subcategories)
+
+    subcategories.forEach(([subName, concepts], index) => {
+      const angle = (index / subcategories.length) * 2 * Math.PI
+      const nodeId = `subcategory-${categoryId}-${subName}`
+      
+      subcategoryNodes.push({
+        id: nodeId,
+        type: 'subcategory',
+        position: {
+          x: centerX + subcategoryRadius * Math.cos(angle) - 60,
+          y: centerY + subcategoryRadius * Math.sin(angle) - 60
+        },
+        data: {
+          label: subName,
+          parentCategory: categoryId,
+          concepts: concepts,
+          conceptCount: (concepts as Concept[]).length
+        },
+        draggable: true
+      })
+      
+      // Edge from category to subcategory
+      newEdges.push({
+        id: `edge-${categoryId}-${nodeId}`,
+        source: categoryId,
+        target: nodeId,
+        type: 'smoothstep',
+        animated: true,
+        style: {
+          stroke: 'rgba(255,255,255,0.3)',
+          strokeWidth: 2
+        }
+      })
+    })
+
+    setNodes(current => [...current, ...subcategoryNodes])
+    setEdges(current => [...current, ...newEdges])
+  }, [nodes, setNodes, setEdges])
+
+  // Toggle subcategory to show concepts
+  const toggleSubcategory = useCallback((subcategoryId: string, subcategoryData: any) => {
+    const newExpanded = new Set(expandedSubcategories)
+    
+    if (newExpanded.has(subcategoryId)) {
+      // Collapse concepts
+      newExpanded.delete(subcategoryId)
+      setNodes(current => 
+        current.filter(node => !node.id.startsWith(`concept-${subcategoryId}`))
+      )
+      setEdges(current =>
+        current.filter(edge => !edge.id.includes(`concept-${subcategoryId}`))
+      )
+    } else {
+      // Expand concepts
+      newExpanded.add(subcategoryId)
+      showConceptsForSubcategory(subcategoryId, subcategoryData)
+    }
+    
+    setExpandedSubcategories(newExpanded)
+    setShowCollapseAll(expandedCategories.size > 0 || newExpanded.size > 0)
+  }, [expandedSubcategories, expandedCategories, setNodes, setEdges])
+
+  // Show concepts when subcategory is expanded
+  const showConceptsForSubcategory = useCallback((subcategoryId: string, subcategoryData: any) => {
+    const subcategoryNode = nodes.find(n => n.id === subcategoryId)
+    if (!subcategoryNode) return
+
+    const conceptNodes: Node[] = []
+    const newEdges: Edge[] = []
+    const centerX = subcategoryNode.position.x + 60
+    const centerY = subcategoryNode.position.y + 60
+    const conceptRadius = 120
+
+    subcategoryData.concepts.forEach((concept: Concept, index: number) => {
+      const angle = (index / subcategoryData.concepts.length) * 2 * Math.PI
+      const nodeId = `concept-${subcategoryId}-${concept.id}`
+      
+      conceptNodes.push({
+        id: nodeId,
+        type: 'concept',
+        position: {
+          x: centerX + conceptRadius * Math.cos(angle) - 40,
+          y: centerY + conceptRadius * Math.sin(angle) - 40
+        },
+        data: {
+          label: concept.title,
+          concept: concept
+        },
+        draggable: true
+      })
+
+      // Edge from subcategory to concept
+      newEdges.push({
+        id: `edge-${subcategoryId}-${nodeId}`,
+        source: subcategoryId,
+        target: nodeId,
+        type: 'smoothstep',
+        animated: true,
+        style: {
+          stroke: 'rgba(255,255,255,0.2)',
+          strokeWidth: 1
+        }
+      })
+    })
+
+    setNodes(current => [...current, ...conceptNodes])
+    setEdges(current => [...current, ...newEdges])
+  }, [nodes, setNodes, setEdges])
+
+  // Collapse all categories and subcategories
   const collapseAll = useCallback(() => {
     setExpandedCategories(new Set())
+    setExpandedSubcategories(new Set())
     setShowCollapseAll(false)
     initializeCategoryNodes(concepts)
   }, [concepts, initializeCategoryNodes])
@@ -426,12 +617,12 @@ export default function GraphPage() {
           <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="text-slate-300 text-sm">
-                💡 <strong>Click on category bubbles</strong> to explore concepts • <strong>Hover</strong> for details • <strong>Click concepts</strong> to view full details
+                💡 <strong>Categories</strong> → <strong>Subcategories</strong> → <strong>Concepts</strong> • Click to expand each level • Click concepts for details
               </div>
               <div className="text-slate-400 text-xs">
                 Categories: {nodes.filter(n => n.type === 'category').length} | 
-                Expanded: {expandedCategories.size} | 
-                Total Concepts: {concepts.length}
+                Subcategories: {nodes.filter(n => n.type === 'subcategory').length} | 
+                Concepts: {nodes.filter(n => n.type === 'concept').length}
               </div>
             </div>
           </div>
@@ -480,6 +671,10 @@ export default function GraphPage() {
                 <MiniMap 
                   nodeColor={(node) => {
                     if (node.type === 'category') return getCategoryColor(node.data?.label || 'default')
+                    if (node.type === 'subcategory') {
+                      const parentCategory = node.data?.parentCategory?.split('-')[1] || 'default'
+                      return getCategoryColor(parentCategory)
+                    }
                     return 'rgba(255,255,255,0.3)'
                   }}
                   maskColor="rgba(15, 23, 42, 0.8)"
@@ -488,6 +683,12 @@ export default function GraphPage() {
               </ReactFlow>
             )}
           </div>
+
+          {/* Concept Detail Modal */}
+          <ConceptDetailModal 
+            concept={selectedConcept} 
+            onClose={() => setSelectedConcept(null)} 
+          />
         </div>
       </PageTransition>
     </AuthGuard>
