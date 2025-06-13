@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConceptCard } from "@/components/concept-card"
 import { ConceptsNavigation } from "@/components/concepts-navigation"
 import { CategoryDialogs } from "@/components/concepts-navigation/CategoryDialogs"
-import { BookOpen, Search, ArrowLeft, Tag, Plus, X, PanelLeftClose, PanelLeftOpen, AlertTriangle, FolderPlus } from "lucide-react"
+import { BookOpen, Search, ArrowLeft, Tag, Plus, X, PanelLeftClose, PanelLeftOpen, AlertTriangle, FolderPlus, Network } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DndProvider, useDrop } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
@@ -1016,6 +1016,13 @@ export default function ConceptsPage() {
                     >
                       <AlertTriangle className="mr-1 h-4 w-4" />
                       Needs Review
+                    </Button>
+                    
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/graph">
+                        <Network className="mr-1 h-4 w-4" />
+                        Graph View
+                      </Link>
                     </Button>
                     
                     <Button variant="outline" size="sm" asChild>
