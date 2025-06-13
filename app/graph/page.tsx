@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import Link from "next/link"
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,8 @@ import {
   BookOpen,
   Minimize2,
   X,
-  ExternalLink
+  ExternalLink,
+  TreePine
 } from "lucide-react"
 import ReactFlow, { 
   Background, 
@@ -18,11 +19,11 @@ import ReactFlow, {
   MiniMap,
   useNodesState,
   useEdgesState,
-  Panel,
   Node,
   Edge,
   NodeTypes
 } from 'reactflow'
+import dagre from 'dagre'
 import 'reactflow/dist/style.css'
 import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
@@ -37,6 +38,12 @@ interface Concept {
   summary?: string
   details?: string
   [key: string]: any
+}
+
+interface CategoryStructure {
+  concepts: Concept[]
+  subcategories: Record<string, Concept[]>
+  directConcepts: Concept[]
 }
 
 export default function GraphPage() {
@@ -67,11 +74,10 @@ export default function GraphPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
-  const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [concepts, setConcepts] = useState<Concept[]>([])
-  const [showCollapseAll, setShowCollapseAll] = useState(false)
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
+  const [categoryStructure, setCategoryStructure] = useState<Record<string, CategoryStructure>>({})
 
   // Simplified category colors with better contrast
   const getCategoryColor = (category: string) => {
@@ -94,148 +100,276 @@ export default function GraphPage() {
     return colors[category] || colors.default
   }
 
-  // Custom Category Node Component
-  const CategoryNode = ({ data, id }: { data: any, id: string }) => {
-    const isExpanded = expandedCategories.has(id)
+  // Build hierarchy from concepts
+  const buildHierarchy = useCallback((conceptsData: Concept[]) => {
+    const structure: Record<string, CategoryStructure> = {}
+    
+    conceptsData.forEach(concept => {
+      const parts = concept.category?.split(' > ') || ['General']
+      const mainCategory = parts[0]
+      const subCategory = parts[1] // Can be undefined
+      
+      if (!structure[mainCategory]) {
+        structure[mainCategory] = {
+          concepts: [],
+          subcategories: {},
+          directConcepts: []
+        }
+      }
+      
+      structure[mainCategory].concepts.push(concept)
+      
+      if (subCategory) {
+        // Has subcategory
+        if (!structure[mainCategory].subcategories[subCategory]) {
+          structure[mainCategory].subcategories[subCategory] = []
+        }
+        structure[mainCategory].subcategories[subCategory].push(concept)
+      } else {
+        // Direct concept under category
+        structure[mainCategory].directConcepts.push(concept)
+      }
+    })
+    
+    return structure
+  }, [])
+
+  // Create tree layout using dagre
+  const createTreeLayout = useCallback((conceptsData: Concept[]) => {
+    const dagreGraph = new dagre.graphlib.Graph()
+    dagreGraph.setDefaultEdgeLabel(() => ({}))
+    dagreGraph.setGraph({ 
+      rankdir: 'TB', // Top to Bottom
+      nodesep: 120,
+      ranksep: 100,
+      marginx: 50,
+      marginy: 50
+    })
+    
+    const nodes: Node[] = []
+    const edges: Edge[] = []
+    
+    // Create root node
+    const rootNode: Node = {
+      id: 'root',
+      type: 'root',
+      data: { 
+        label: 'My Knowledge',
+        totalConcepts: conceptsData.length,
+        totalCategories: Object.keys(categoryStructure).length
+      },
+      position: { x: 0, y: 0 }
+    }
+    nodes.push(rootNode)
+    dagreGraph.setNode('root', { width: 200, height: 80 })
+    
+    // Build hierarchy
+    const structure = buildHierarchy(conceptsData)
+    setCategoryStructure(structure)
+    
+    // Add category nodes
+    Object.entries(structure).forEach(([category, data]) => {
+      const categoryId = `category-${category}`
+      
+      const categoryNode: Node = {
+        id: categoryId,
+        type: 'category',
+        data: {
+          label: category,
+          conceptCount: data.concepts.length,
+          hasSubcategories: Object.keys(data.subcategories).length > 0,
+          directConcepts: data.directConcepts,
+          subcategories: data.subcategories
+        },
+        position: { x: 0, y: 0 } // Will be calculated by dagre
+      }
+      nodes.push(categoryNode)
+      
+      const edge: Edge = {
+        id: `root-${categoryId}`,
+        source: 'root',
+        target: categoryId,
+        type: 'smoothstep',
+        animated: false
+      }
+      edges.push(edge)
+      
+      dagreGraph.setNode(categoryId, { width: 180, height: 100 })
+      dagreGraph.setEdge('root', categoryId)
+    })
+    
+    // Calculate positions
+    dagre.layout(dagreGraph)
+    
+    // Update node positions from dagre
+    nodes.forEach(node => {
+      const nodeWithPosition = dagreGraph.node(node.id)
+      if (nodeWithPosition) {
+        node.position = {
+          x: nodeWithPosition.x - nodeWithPosition.width / 2,
+          y: nodeWithPosition.y - nodeWithPosition.height / 2
+        }
+      }
+    })
+    
+    return { nodes, edges }
+  }, [buildHierarchy, categoryStructure])
+
+  // Root Node Component
+  const RootNode = memo(({ data }: { data: any }) => {
+    return (
+      <div
+        className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg shadow-lg border-2 border-white/20"
+        style={{
+          width: 200,
+          height: 80,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white'
+        }}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <TreePine className="h-5 w-5" />
+          <div className="font-bold text-lg">{data.label}</div>
+        </div>
+        <div className="text-sm opacity-90">
+          {data.totalConcepts} concepts • {data.totalCategories} categories
+        </div>
+      </div>
+    )
+  })
+
+  // Category Node Component - Optimized
+  const CategoryNode = memo(({ data, id }: { data: any, id: string }) => {
+    const isExpanded = expandedNodes.has(id)
+    
+    const handleClick = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation()
+      
+      if (isExpanded) {
+        collapseNode(id)
+      } else {
+        expandNode(id, data)
+      }
+    }, [isExpanded, id, data])
     
     return (
       <div
-        onClick={() => toggleCategory(id, data)}
-        className="relative cursor-pointer transition-all duration-300 ease-in-out"
+        onClick={handleClick}
+        className="cursor-pointer transition-all duration-200 ease-in-out rounded-lg shadow-md"
         style={{
-          width: 160,
-          height: 160,
-          borderRadius: '50%',
+          width: 180,
+          height: 100,
           backgroundColor: getCategoryColor(data.label),
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          transform: isExpanded ? 'scale(1.1)' : 'scale(1)',
-          boxShadow: isExpanded ? '0 0 40px rgba(255,255,255,0.4)' : '0 4px 20px rgba(0,0,0,0.3)',
-          border: isExpanded ? '4px solid rgba(255,255,255,0.8)' : '2px solid rgba(255,255,255,0.2)',
-          zIndex: isExpanded ? 10 : 1
-        }}
-        onMouseEnter={(e) => {
-          if (!isExpanded) {
-            e.currentTarget.style.transform = 'scale(1.05)'
-            e.currentTarget.style.boxShadow = '0 6px 25px rgba(0,0,0,0.4)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isExpanded) {
-            e.currentTarget.style.transform = 'scale(1)'
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.3)'
-          }
+          border: isExpanded ? '3px solid white' : '2px solid rgba(255,255,255,0.3)',
+          transform: isExpanded ? 'scale(1.05)' : 'scale(1)'
         }}
       >
-        <div className="text-white font-bold text-center leading-tight mb-2" style={{ fontSize: '14px' }}>
+        <div className="font-bold text-white text-center mb-1" style={{ fontSize: '14px' }}>
           {data.label}
         </div>
-        <div className="text-white/80 text-center mb-1" style={{ fontSize: '11px' }}>
+        <div className="text-white/80 text-center text-xs mb-1">
           {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
         </div>
-        <div className="text-white/60 text-center mb-1" style={{ fontSize: '10px' }}>
-          {data.subcategoryCount} subcategor{data.subcategoryCount !== 1 ? 'ies' : 'y'}
-        </div>
-        <div className="text-white/60 text-center" style={{ fontSize: '9px' }}>
-          {isExpanded ? '🔽 Click to collapse' : '🔼 Click to expand'}
-        </div>
-        
-        {/* Pulse animation for unexpanded categories */}
-        {!isExpanded && (
-          <div 
-            className="absolute inset-0 rounded-full animate-pulse"
-            style={{
-              backgroundColor: getCategoryColor(data.label),
-              opacity: 0.3,
-              animation: 'pulse 2s infinite'
-            }}
-          />
+        {data.hasSubcategories && (
+          <div className="text-white/60 text-center text-xs mb-1">
+            {Object.keys(data.subcategories).length} subcategor{Object.keys(data.subcategories).length !== 1 ? 'ies' : 'y'}
+          </div>
         )}
+        {data.directConcepts.length > 0 && (
+          <div className="text-white/60 text-center text-xs">
+            {data.directConcepts.length} direct
+          </div>
+        )}
+        <div className="text-white/50 text-center text-xs mt-1">
+          {isExpanded ? '▼ Collapse' : '▶ Expand'}
+        </div>
       </div>
     )
-  }
+  })
 
-  // Custom Subcategory Node Component
-  const SubcategoryNode = ({ data, id }: { data: any, id: string }) => {
-    const isExpanded = expandedSubcategories.has(id)
-    const parentCategory = data.parentCategory.split('-')[1]
+  // Subcategory Node Component
+  const SubcategoryNode = memo(({ data, id }: { data: any, id: string }) => {
+    const isExpanded = expandedNodes.has(id)
+    
+    const handleClick = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation()
+      
+      if (isExpanded) {
+        collapseNode(id)
+      } else {
+        expandSubcategory(id, data)
+      }
+    }, [isExpanded, id, data])
     
     return (
       <div
-        onClick={() => toggleSubcategory(id, data)}
-        className="cursor-pointer transition-all duration-300 ease-in-out"
+        onClick={handleClick}
+        className="cursor-pointer transition-all duration-200 ease-in-out rounded-lg shadow-sm"
         style={{
-          width: 120,
-          height: 120,
-          borderRadius: '50%',
+          width: 140,
+          height: 80,
           backgroundColor: 'rgba(255,255,255,0.1)',
-          border: `3px solid ${getCategoryColor(parentCategory)}`,
+          border: `2px solid ${getCategoryColor(data.parentCategory)}`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          transform: isExpanded ? 'scale(1.05)' : 'scale(1)',
-          boxShadow: isExpanded ? `0 0 20px ${getCategoryColor(parentCategory)}40` : '0 2px 10px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(10px)'
-        }}
-        onMouseEnter={(e) => {
-          if (!isExpanded) {
-            e.currentTarget.style.transform = 'scale(1.02)'
-            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isExpanded) {
-            e.currentTarget.style.transform = 'scale(1)'
-            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
-          }
+          backdropFilter: 'blur(10px)',
+          transform: isExpanded ? 'scale(1.02)' : 'scale(1)'
         }}
       >
-        <div className="text-white font-semibold text-center leading-tight mb-1" style={{ fontSize: '12px' }}>
+        <div className="font-semibold text-white text-center mb-1" style={{ fontSize: '12px' }}>
           {data.label}
         </div>
-        <div className="text-white/70 text-center mb-1" style={{ fontSize: '10px' }}>
-          {data.conceptCount} concept{data.conceptCount !== 1 ? 's' : ''}
+        <div className="text-white/70 text-center text-xs mb-1">
+          {data.concepts.length} concept{data.concepts.length !== 1 ? 's' : ''}
         </div>
-        <div className="text-white/50 text-center" style={{ fontSize: '8px' }}>
-          {isExpanded ? '🔽 Collapse' : '🔼 Expand'}
+        <div className="text-white/50 text-center text-xs">
+          {isExpanded ? '▼' : '▶'}
         </div>
       </div>
     )
-  }
+  })
 
-  // Custom Concept Node Component
-  const ConceptNode = ({ data }: { data: any }) => {
+  // Concept Node Component
+  const ConceptNode = memo(({ data }: { data: any }) => {
+    const handleClick = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation()
+      setSelectedConcept(data.concept)
+    }, [data.concept])
+    
     return (
       <div
-        onClick={() => setSelectedConcept(data.concept)}
-        className="cursor-pointer transition-all duration-200 ease-in-out"
+        onClick={handleClick}
+        className="cursor-pointer transition-all duration-200 ease-in-out rounded-md shadow-sm"
         style={{
-          width: 80,
-          height: 80,
-          borderRadius: '50%',
+          width: 120,
+          height: 60,
           backgroundColor: 'rgba(255,255,255,0.05)',
-          border: '2px solid rgba(255,255,255,0.3)',
+          border: '1px solid rgba(255,255,255,0.3)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '10px',
+          fontSize: '11px',
           color: 'white',
           textAlign: 'center',
-          padding: '6px',
+          padding: '4px',
           backdropFilter: 'blur(5px)'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)'
           e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
-          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.6)'
+          e.currentTarget.style.transform = 'scale(1.05)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)'
           e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-          e.currentTarget.style.border = '2px solid rgba(255,255,255,0.3)'
+          e.currentTarget.style.transform = 'scale(1)'
         }}
       >
         <div className="font-medium leading-tight break-words">
@@ -243,10 +377,10 @@ export default function GraphPage() {
         </div>
       </div>
     )
-  }
+  })
 
   // Concept Detail Modal Component
-  const ConceptDetailModal = ({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
+  const ConceptDetailModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
     if (!concept) return null
     
     return (
@@ -303,244 +437,179 @@ export default function GraphPage() {
         </div>
       </div>
     )
-  }
+  })
 
   // Define node types for custom rendering
   const nodeTypes = useMemo(() => ({ 
+    root: RootNode,
     category: CategoryNode,
     subcategory: SubcategoryNode,
     concept: ConceptNode
-  }), [expandedCategories, expandedSubcategories])
+  }), [])
 
-  // Initialize with just category nodes - build proper hierarchy
-  const initializeCategoryNodes = useCallback((conceptsData: Concept[]) => {
-    const categoryStructure: Record<string, {
-      concepts: Concept[],
-      subcategories: Record<string, Concept[]>
-    }> = {}
+  // Optimized node expansion - no delays
+  const expandNode = useCallback((nodeId: string, nodeData: any) => {
+    const newExpanded = new Set(expandedNodes)
+    newExpanded.add(nodeId)
+    setExpandedNodes(newExpanded)
     
-    // Build proper hierarchy
-    conceptsData.forEach(concept => {
-      const parts = concept.category?.split(' > ') || ['General']
-      const mainCategory = parts[0]
-      const subCategory = parts[1] || 'General' // Default subcategory if none
-      
-      if (!categoryStructure[mainCategory]) {
-        categoryStructure[mainCategory] = {
-          concepts: [],
-          subcategories: {}
-        }
-      }
-      
-      if (!categoryStructure[mainCategory].subcategories[subCategory]) {
-        categoryStructure[mainCategory].subcategories[subCategory] = []
-      }
-      
-      categoryStructure[mainCategory].subcategories[subCategory].push(concept)
-      categoryStructure[mainCategory].concepts.push(concept) // Keep total count
-    })
-
-    // Create category nodes in a circle
-    const categoryNodes: Node[] = []
-    const categoryNames = Object.keys(categoryStructure)
-    const radius = Math.min(300, Math.max(200, categoryNames.length * 30))
-    const centerX = 600
-    const centerY = 400
-
-    categoryNames.forEach((category, index) => {
-      const angle = (index / categoryNames.length) * 2 * Math.PI - Math.PI / 2 // Start from top
-      
-      categoryNodes.push({
-        id: `category-${category}`,
-        type: 'category',
-        position: {
-          x: centerX + radius * Math.cos(angle) - 80,
-          y: centerY + radius * Math.sin(angle) - 80
-        },
-        data: {
-          label: category,
-          conceptCount: categoryStructure[category].concepts.length,
-          subcategoryCount: Object.keys(categoryStructure[category].subcategories).length,
-          structure: categoryStructure[category]
-        },
-        draggable: false
+    const currentNode = nodes.find(n => n.id === nodeId)
+    if (!currentNode) return
+    
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    
+    let yOffset = 0
+    const baseX = currentNode.position.x
+    const baseY = currentNode.position.y + 150
+    
+    // Add subcategories if they exist
+    if (nodeData.hasSubcategories) {
+      Object.entries(nodeData.subcategories).forEach(([subName, concepts], index) => {
+        const subId = `sub-${nodeId}-${subName}`
+        
+        newNodes.push({
+          id: subId,
+          type: 'subcategory',
+          position: {
+            x: baseX + (index % 3) * 160 - 160,
+            y: baseY + Math.floor(index / 3) * 100
+          },
+          data: {
+            label: subName,
+            concepts: concepts,
+            parentCategory: nodeData.label,
+            parentId: nodeId
+          }
+        })
+        
+        newEdges.push({
+          id: `edge-${nodeId}-${subId}`,
+          source: nodeId,
+          target: subId,
+          type: 'smoothstep',
+          animated: false
+        })
+        
+        yOffset = Math.max(yOffset, Math.floor(index / 3) * 100 + 100)
       })
-    })
-
-    setNodes(categoryNodes)
-    setEdges([])
-  }, [setNodes, setEdges])
-
-  // Toggle category to show subcategories (not concepts directly)
-  const toggleCategory = useCallback((categoryId: string, categoryData: any) => {
-    const newExpanded = new Set(expandedCategories)
-    
-    if (newExpanded.has(categoryId)) {
-      // Collapse: remove subcategories and their concepts
-      newExpanded.delete(categoryId)
-      collapseCategory(categoryId)
-    } else {
-      // Expand to show subcategories
-      newExpanded.add(categoryId)
-      expandToSubcategories(categoryId, categoryData.structure)
     }
     
-    setExpandedCategories(newExpanded)
-    setShowCollapseAll(newExpanded.size > 0 || expandedSubcategories.size > 0)
-  }, [expandedCategories, expandedSubcategories])
-
-  // Collapse category and all its subcategories
-  const collapseCategory = useCallback((categoryId: string) => {
-    setNodes(current => 
-      current.filter(node => 
-        node.type === 'category' || 
-        (!node.id.startsWith(`subcategory-${categoryId}`) && !node.id.startsWith(`concept-${categoryId}`))
-      )
-    )
-    setEdges(current => 
-      current.filter(edge => !edge.id.startsWith(`edge-${categoryId}`))
-    )
-    
-    // Also clear any expanded subcategories for this category
-    setExpandedSubcategories(current => {
-      const newSet = new Set(current)
-      Array.from(current).forEach(subId => {
-        if (subId.startsWith(`subcategory-${categoryId}`)) {
-          newSet.delete(subId)
-        }
-      })
-      return newSet
-    })
-  }, [setNodes, setEdges])
-
-  // Show subcategories when category is expanded
-  const expandToSubcategories = useCallback((categoryId: string, structure: any) => {
-    const categoryNode = nodes.find(n => n.id === categoryId)
-    if (!categoryNode) return
-
-    const subcategoryNodes: Node[] = []
-    const newEdges: Edge[] = []
-    const centerX = categoryNode.position.x + 80
-    const centerY = categoryNode.position.y + 80
-    const subcategoryRadius = 200
-
-    const subcategories = Object.entries(structure.subcategories)
-
-    subcategories.forEach(([subName, concepts], index) => {
-      const angle = (index / subcategories.length) * 2 * Math.PI
-      const nodeId = `subcategory-${categoryId}-${subName}`
+    // Add direct concepts
+    nodeData.directConcepts.forEach((concept: Concept, index: number) => {
+      const conceptId = `concept-${concept.id}`
       
-      subcategoryNodes.push({
-        id: nodeId,
-        type: 'subcategory',
-        position: {
-          x: centerX + subcategoryRadius * Math.cos(angle) - 60,
-          y: centerY + subcategoryRadius * Math.sin(angle) - 60
-        },
-        data: {
-          label: subName,
-          parentCategory: categoryId,
-          concepts: concepts,
-          conceptCount: (concepts as Concept[]).length
-        },
-        draggable: true
-      })
-      
-      // Edge from category to subcategory
-      newEdges.push({
-        id: `edge-${categoryId}-${nodeId}`,
-        source: categoryId,
-        target: nodeId,
-        type: 'smoothstep',
-        animated: true,
-        style: {
-          stroke: 'rgba(255,255,255,0.3)',
-          strokeWidth: 2
-        }
-      })
-    })
-
-    setNodes(current => [...current, ...subcategoryNodes])
-    setEdges(current => [...current, ...newEdges])
-  }, [nodes, setNodes, setEdges])
-
-  // Toggle subcategory to show concepts
-  const toggleSubcategory = useCallback((subcategoryId: string, subcategoryData: any) => {
-    const newExpanded = new Set(expandedSubcategories)
-    
-    if (newExpanded.has(subcategoryId)) {
-      // Collapse concepts
-      newExpanded.delete(subcategoryId)
-      setNodes(current => 
-        current.filter(node => !node.id.startsWith(`concept-${subcategoryId}`))
-      )
-      setEdges(current =>
-        current.filter(edge => !edge.id.includes(`concept-${subcategoryId}`))
-      )
-    } else {
-      // Expand concepts
-      newExpanded.add(subcategoryId)
-      showConceptsForSubcategory(subcategoryId, subcategoryData)
-    }
-    
-    setExpandedSubcategories(newExpanded)
-    setShowCollapseAll(expandedCategories.size > 0 || newExpanded.size > 0)
-  }, [expandedSubcategories, expandedCategories, setNodes, setEdges])
-
-  // Show concepts when subcategory is expanded
-  const showConceptsForSubcategory = useCallback((subcategoryId: string, subcategoryData: any) => {
-    const subcategoryNode = nodes.find(n => n.id === subcategoryId)
-    if (!subcategoryNode) return
-
-    const conceptNodes: Node[] = []
-    const newEdges: Edge[] = []
-    const centerX = subcategoryNode.position.x + 60
-    const centerY = subcategoryNode.position.y + 60
-    const conceptRadius = 120
-
-    subcategoryData.concepts.forEach((concept: Concept, index: number) => {
-      const angle = (index / subcategoryData.concepts.length) * 2 * Math.PI
-      const nodeId = `concept-${subcategoryId}-${concept.id}`
-      
-      conceptNodes.push({
-        id: nodeId,
+      newNodes.push({
+        id: conceptId,
         type: 'concept',
         position: {
-          x: centerX + conceptRadius * Math.cos(angle) - 40,
-          y: centerY + conceptRadius * Math.sin(angle) - 40
+          x: baseX + (index % 4) * 140 - 210,
+          y: baseY + yOffset + Math.floor(index / 4) * 80
         },
         data: {
           label: concept.title,
           concept: concept
-        },
-        draggable: true
-      })
-
-      // Edge from subcategory to concept
-      newEdges.push({
-        id: `edge-${subcategoryId}-${nodeId}`,
-        source: subcategoryId,
-        target: nodeId,
-        type: 'smoothstep',
-        animated: true,
-        style: {
-          stroke: 'rgba(255,255,255,0.2)',
-          strokeWidth: 1
         }
       })
+      
+      newEdges.push({
+        id: `edge-${nodeId}-${conceptId}`,
+        source: nodeId,
+        target: conceptId,
+        type: 'smoothstep',
+        animated: false
+      })
     })
-
-    setNodes(current => [...current, ...conceptNodes])
+    
+    setNodes(current => [...current, ...newNodes])
     setEdges(current => [...current, ...newEdges])
-  }, [nodes, setNodes, setEdges])
+  }, [expandedNodes, nodes])
 
-  // Collapse all categories and subcategories
+  // Expand subcategory
+  const expandSubcategory = useCallback((subId: string, subData: any) => {
+    const newExpanded = new Set(expandedNodes)
+    newExpanded.add(subId)
+    setExpandedNodes(newExpanded)
+    
+    const currentNode = nodes.find(n => n.id === subId)
+    if (!currentNode) return
+    
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    
+    subData.concepts.forEach((concept: Concept, index: number) => {
+      const conceptId = `concept-${subId}-${concept.id}`
+      
+      newNodes.push({
+        id: conceptId,
+        type: 'concept',
+        position: {
+          x: currentNode.position.x + (index % 3) * 140 - 140,
+          y: currentNode.position.y + 100 + Math.floor(index / 3) * 80
+        },
+        data: {
+          label: concept.title,
+          concept: concept
+        }
+      })
+      
+      newEdges.push({
+        id: `edge-${subId}-${conceptId}`,
+        source: subId,
+        target: conceptId,
+        type: 'smoothstep',
+        animated: false
+      })
+    })
+    
+    setNodes(current => [...current, ...newNodes])
+    setEdges(current => [...current, ...newEdges])
+  }, [expandedNodes, nodes])
+
+  // Collapse node and all children
+  const collapseNode = useCallback((nodeId: string) => {
+    const newExpanded = new Set(expandedNodes)
+    
+    // Remove this node and all its children from expanded set
+    Array.from(expandedNodes).forEach(id => {
+      if (id === nodeId || id.startsWith(`sub-${nodeId}`) || id.startsWith(`concept-${nodeId}`)) {
+        newExpanded.delete(id)
+      }
+    })
+    
+    setExpandedNodes(newExpanded)
+    
+    // Remove child nodes
+    setNodes(current => 
+      current.filter(node => 
+        !node.id.startsWith(`sub-${nodeId}`) && 
+        !node.id.startsWith(`concept-${nodeId}`) &&
+        !node.id.includes(`-${nodeId}-`)
+      )
+    )
+    
+    // Remove child edges
+    setEdges(current => 
+      current.filter(edge => 
+        !edge.id.includes(nodeId) || edge.source === 'root'
+      )
+    )
+  }, [expandedNodes])
+
+  // Collapse all nodes
   const collapseAll = useCallback(() => {
-    setExpandedCategories(new Set())
-    setExpandedSubcategories(new Set())
-    setShowCollapseAll(false)
-    initializeCategoryNodes(concepts)
-  }, [concepts, initializeCategoryNodes])
+    setExpandedNodes(new Set())
+    
+    // Keep only root and category nodes
+    setNodes(current => 
+      current.filter(node => node.type === 'root' || node.type === 'category')
+    )
+    
+    // Keep only root-to-category edges
+    setEdges(current => 
+      current.filter(edge => edge.source === 'root')
+    )
+  }, [])
 
   // Load concepts data
   const loadConcepts = useCallback(async () => {
@@ -559,14 +628,18 @@ export default function GraphPage() {
       const conceptsData = (data.concepts || []) as Concept[]
 
       setConcepts(conceptsData)
-      initializeCategoryNodes(conceptsData)
+      
+      const { nodes: treeNodes, edges: treeEdges } = createTreeLayout(conceptsData)
+      setNodes(treeNodes)
+      setEdges(treeEdges)
+      
       setLoading(false)
     } catch (err) {
       console.error('Error loading concepts:', err)
       setError(err instanceof Error ? err.message : 'Failed to load concepts')
       setLoading(false)
     }
-  }, [initializeCategoryNodes])
+  }, [createTreeLayout])
 
   // Load data on mount
   useEffect(() => {
@@ -588,11 +661,11 @@ export default function GraphPage() {
                 </Button>
                 <div className="flex items-center">
                   <Network className="h-5 w-5 mr-2 text-blue-400" />
-                  <h1 className="text-xl font-semibold text-white">Knowledge Graph</h1>
+                  <h1 className="text-xl font-semibold text-white">Knowledge Tree</h1>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {showCollapseAll && (
+                {expandedNodes.size > 0 && (
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -617,12 +690,12 @@ export default function GraphPage() {
           <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="text-slate-300 text-sm">
-                💡 <strong>Categories</strong> → <strong>Subcategories</strong> → <strong>Concepts</strong> • Click to expand each level • Click concepts for details
+                🌳 <strong>Tree Structure:</strong> Root → Categories → Subcategories → Concepts • <strong>Single click</strong> to expand/collapse • <strong>Click concepts</strong> for details
               </div>
               <div className="text-slate-400 text-xs">
-                Categories: {nodes.filter(n => n.type === 'category').length} | 
-                Subcategories: {nodes.filter(n => n.type === 'subcategory').length} | 
-                Concepts: {nodes.filter(n => n.type === 'concept').length}
+                Expanded: {expandedNodes.size} | 
+                Total Nodes: {nodes.length} | 
+                Total Concepts: {concepts.length}
               </div>
             </div>
           </div>
@@ -633,7 +706,7 @@ export default function GraphPage() {
               <div className="flex items-center justify-center h-full">
                 <div className="flex flex-col items-center gap-4">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-                  <p className="text-slate-300">Loading knowledge graph...</p>
+                  <p className="text-slate-300">Building knowledge tree...</p>
                 </div>
               </div>
             ) : error ? (
@@ -651,15 +724,19 @@ export default function GraphPage() {
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ 
-                  padding: 0.2,
-                  maxZoom: 1.2,
+                  padding: 0.1,
+                  maxZoom: 1,
                   includeHiddenNodes: false 
                 }}
                 defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                minZoom={0.4}
+                minZoom={0.2}
                 maxZoom={2}
                 attributionPosition="bottom-left"
                 className="bg-slate-900"
+                defaultEdgeOptions={{
+                  type: 'smoothstep',
+                  animated: false
+                }}
               >
                 <Background 
                   gap={20} 
@@ -670,11 +747,9 @@ export default function GraphPage() {
                 <Controls className="bg-slate-800 border-slate-600 text-white" />
                 <MiniMap 
                   nodeColor={(node) => {
+                    if (node.type === 'root') return '#3b82f6'
                     if (node.type === 'category') return getCategoryColor(node.data?.label || 'default')
-                    if (node.type === 'subcategory') {
-                      const parentCategory = node.data?.parentCategory?.split('-')[1] || 'default'
-                      return getCategoryColor(parentCategory)
-                    }
+                    if (node.type === 'subcategory') return getCategoryColor(node.data?.parentCategory || 'default')
                     return 'rgba(255,255,255,0.3)'
                   }}
                   maskColor="rgba(15, 23, 42, 0.8)"
