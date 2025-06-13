@@ -45,17 +45,15 @@ const ConceptNode = ({ data }: { data: any }) => {
       onMouseEnter={(e) => {
         setShowTooltip(true)
         e.currentTarget.style.transform = 'scale(1.1)'
-        e.currentTarget.style.border = '3px solid rgba(255, 255, 255, 0.8)'
         e.currentTarget.style.zIndex = '10'
       }}
       onMouseLeave={(e) => {
         setShowTooltip(false)
         e.currentTarget.style.transform = 'scale(1)'
-        e.currentTarget.style.border = '2px solid transparent'
         e.currentTarget.style.zIndex = '1'
       }}
     >
-      <div className="text-sm font-medium leading-tight">{data.label}</div>
+      <div className="text-xs font-medium leading-tight break-words">{data.label}</div>
       
       {showTooltip && (
         <div 
@@ -63,7 +61,7 @@ const ConceptNode = ({ data }: { data: any }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <h3 className="font-bold mb-1">{data.label}</h3>
-          <div className="text-xs text-blue-600 mb-1">📁 {data.category}</div>
+          <div className="text-xs text-blue-600 mb-1">📁 {data.fullCategory || data.category}</div>
           {data.summary && (
             <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
               {data.summary}
@@ -78,15 +76,15 @@ const ConceptNode = ({ data }: { data: any }) => {
   )
 }
 
-// Category label node component
-const CategoryNode = ({ data }: { data: any }) => {
+// Category group background node
+const GroupNode = ({ data }: { data: any }) => {
   return (
-    <div className="flex items-center justify-center text-center h-full w-full">
+    <div className="w-full h-full flex items-start justify-center pt-4">
       <div 
         className="text-lg font-bold text-center px-4 py-2 rounded-lg"
         style={{
           color: data.color,
-          backgroundColor: `${data.color}20`,
+          backgroundColor: `${data.color}15`,
           border: `2px dashed ${data.color}40`
         }}
       >
@@ -132,148 +130,195 @@ export default function GraphPage() {
   // Define node types for custom rendering
   const nodeTypes = useMemo(() => ({ 
     concept: ConceptNode,
-    category: CategoryNode
+    group: GroupNode
   }), [])
 
-  // Get category color function
+  // Simplified category colors with better contrast
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
+      'Machine Learning': '#8b5cf6',
+      'Data Engineering': '#10b981', 
+      'LeetCode Problems': '#f59e0b',
       'Frontend': '#3b82f6',
-      'Backend': '#8b5cf6',
-      'Database': '#10b981',
-      'AI': '#f59e0b',
-      'Design': '#ec4899',
-      'Algorithms': '#ef4444',
+      'Backend': '#ef4444',
+      'Database': '#06b6d4',
+      'Cloud Engineering': '#84cc16',
+      'Artificial Intelligence': '#a855f7',
+      'AI': '#a855f7',
+      'System Design': '#ec4899',
+      'Algorithms': '#f97316',
       'Data Structures': '#14b8a6',
-      'System Design': '#8b5cf6',
-      'LeetCode Problems': '#f97316',
-      'Backend Engineering': '#6366f1',
-      'Frontend Engineering': '#0ea5e9',
-      'Data Structures and Algorithms': '#8b5cf6',
+      'General': '#6b7280',
       'default': '#6b7280'
     }
     return colors[category] || colors.default
   }
 
-  // Generate category labels
-  const generateCategoryLabels = (categories: string[], categoryPositions: Record<string, {x: number, y: number}>, conceptCounts: Record<string, number>) => {
-    return categories.map((category) => ({
-      id: `category-${category}`,
-      type: 'category',
-      position: {
-        x: categoryPositions[category].x - 150, // Center the category label
-        y: categoryPositions[category].y - 150
-      },
-      data: { 
-        label: category,
-        color: getCategoryColor(category),
-        count: conceptCounts[category] || 0
-      },
-      style: {
-        width: 300,
-        height: 300,
-        backgroundColor: 'transparent',
-        border: 'none',
-        zIndex: -1
-      },
-      draggable: false,
-      selectable: false
-    }))
-  }
-
-  // Generate better organized nodes with proper clustering
-  const generateNodesWithProperClustering = (concepts: Concept[]) => {
-    const nodes: Node[] = []
+  // Normalize categories - handle subcategories properly
+  const normalizeCategories = (concepts: Concept[]) => {
+    const categoryMap: Record<string, {
+      concepts: Concept[],
+      subCategories: Record<string, Concept[]>
+    }> = {}
     
-    // Get unique categories and their counts
-    const categories = [...new Set(concepts.map(c => c.category || 'Uncategorized'))]
-    const conceptCounts = concepts.reduce((acc, concept) => {
-      const cat = concept.category || 'Uncategorized'
-      acc[cat] = (acc[cat] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-    
-    const categoryPositions: Record<string, { x: number, y: number }> = {}
-    const centerX = 800
-    const centerY = 500
-    const mainRadius = 400 // Distance between category centers
-    
-    // Position categories in a circle
-    categories.forEach((category, index) => {
-      const angle = (index / categories.length) * 2 * Math.PI - Math.PI / 2 // Start from top
-      categoryPositions[category] = {
-        x: centerX + mainRadius * Math.cos(angle),
-        y: centerY + mainRadius * Math.sin(angle)
+    concepts.forEach(concept => {
+      const category = concept.category || 'General'
+      let mainCategory: string, subCategory: string | null = null
+      
+      if (category.includes(' > ')) {
+        [mainCategory, subCategory] = category.split(' > ')
+      } else {
+        mainCategory = category
+      }
+      
+      if (!categoryMap[mainCategory]) {
+        categoryMap[mainCategory] = {
+          concepts: [],
+          subCategories: {}
+        }
+      }
+      
+      if (subCategory) {
+        if (!categoryMap[mainCategory].subCategories[subCategory]) {
+          categoryMap[mainCategory].subCategories[subCategory] = []
+        }
+        categoryMap[mainCategory].subCategories[subCategory].push(concept)
+      } else {
+        categoryMap[mainCategory].concepts.push(concept)
       }
     })
     
-    // Add category label nodes
-    const categoryNodes = generateCategoryLabels(categories, categoryPositions, conceptCounts)
-    nodes.push(...categoryNodes)
+    return categoryMap
+  }
+
+  // Create organized layout with fixed positions
+  const createOrganizedLayout = (concepts: Concept[]) => {
+    const nodes: Node[] = []
+    const edges: any[] = []
+    const categoryMap = normalizeCategories(concepts)
+    const categories = Object.keys(categoryMap)
     
-    // Group concepts by category
-    const grouped = concepts.reduce((acc, concept) => {
-      const cat = concept.category || 'Uncategorized'
-      if (!acc[cat]) acc[cat] = []
-      acc[cat].push(concept)
-      return acc
-    }, {} as Record<string, Concept[]>)
+    // Define fixed positions for main categories in a clean grid
+    const categoryLayouts: Record<string, { x: number, y: number }> = {
+      'Machine Learning': { x: 300, y: 200 },
+      'Data Engineering': { x: 700, y: 200 },
+      'LeetCode Problems': { x: 1100, y: 200 },
+      'Artificial Intelligence': { x: 300, y: 600 },
+      'AI': { x: 300, y: 600 },
+      'Cloud Engineering': { x: 700, y: 600 },
+      'Backend Engineering': { x: 1100, y: 600 },
+      'Backend': { x: 1100, y: 600 },
+      'Frontend': { x: 500, y: 400 },
+      'Database': { x: 900, y: 400 },
+      'System Design': { x: 300, y: 1000 },
+      'Algorithms': { x: 700, y: 1000 },
+      'Data Structures': { x: 1100, y: 1000 },
+      'General': { x: 500, y: 800 }
+    }
     
-    // Position concept nodes around their category center
-    Object.entries(grouped).forEach(([category, items]) => {
-      const center = categoryPositions[category]
-      const itemCount = items.length
-      
-      items.forEach((concept, index) => {
-        let x, y
-        
-        if (itemCount <= 8) {
-          // Circle layout for few nodes
-          const angle = (index / itemCount) * 2 * Math.PI
-          const radius = Math.min(120, 80 + itemCount * 5)
-          x = center.x + radius * Math.cos(angle)
-          y = center.y + radius * Math.sin(angle)
-        } else {
-          // Spiral layout for many nodes
-          const spiralAngle = index * 0.8
-          const spiralRadius = 60 + (index * 12)
-          x = center.x + spiralRadius * Math.cos(spiralAngle)
-          y = center.y + spiralRadius * Math.sin(spiralAngle)
+    // Auto-arrange categories not in predefined list
+    let gridIndex = 0
+    const gridCols = 3
+    const gridSpacing = 400
+    
+    categories.forEach(category => {
+      if (!categoryLayouts[category]) {
+        const row = Math.floor(gridIndex / gridCols)
+        const col = gridIndex % gridCols
+        categoryLayouts[category] = {
+          x: 300 + col * gridSpacing,
+          y: 1400 + row * gridSpacing
         }
+        gridIndex++
+      }
+    })
+    
+    // Create nodes for each category
+    Object.entries(categoryMap).forEach(([mainCategory, data]) => {
+      const categoryCenter = categoryLayouts[mainCategory] || { x: 500, y: 400 }
+      
+      // Collect all concepts in this category
+      const allConcepts = [...data.concepts]
+      Object.entries(data.subCategories).forEach(([subCat, subConcepts]) => {
+        allConcepts.push(...subConcepts)
+      })
+      
+      // Add category background group node
+      nodes.push({
+        id: `group-${mainCategory}`,
+        type: 'group',
+        position: {
+          x: categoryCenter.x - 180,
+          y: categoryCenter.y - 180
+        },
+        style: {
+          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+          width: 360,
+          height: 360,
+          borderRadius: '20px',
+          border: `2px dashed ${getCategoryColor(mainCategory)}40`,
+          zIndex: -1
+        },
+        data: { 
+          label: mainCategory,
+          color: getCategoryColor(mainCategory),
+          count: allConcepts.length
+        },
+        draggable: false,
+        selectable: false
+      })
+      
+      // Position concepts in a compact grid within category
+      allConcepts.forEach((concept, index) => {
+        const cols = 3
+        const row = Math.floor(index / cols)
+        const col = index % cols
+        const spacing = 100
+        const startX = categoryCenter.x - 100
+        const startY = categoryCenter.y - 80
+        
+        // Special styling for subcategory concepts
+        const isSubcategory = concept.category.includes(' > ')
         
         nodes.push({
           id: concept.id,
           type: 'concept',
-          position: { x, y },
-          data: { 
+          position: {
+            x: startX + col * spacing,
+            y: startY + row * spacing
+          },
+          parentNode: `group-${mainCategory}`,
+          extent: 'parent',
+          data: {
             label: concept.title,
-            category: category,
+            category: mainCategory,
+            fullCategory: concept.category,
             summary: concept.summary?.substring(0, 150) || 'No summary available',
             conceptData: concept
           },
           style: {
-            background: getCategoryColor(category),
-            color: 'white',
-            border: '2px solid transparent',
+            width: 90,
+            height: 90,
+            backgroundColor: getCategoryColor(mainCategory),
             borderRadius: '50%',
-            width: 110,
-            height: 110,
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            fontSize: '10px',
+            color: 'white',
+            padding: '6px',
             textAlign: 'center',
-            padding: '8px',
-            fontSize: '11px',
-            fontWeight: '500',
+            cursor: 'pointer',
+            border: isSubcategory ? '3px solid rgba(255,255,255,0.6)' : '2px solid transparent',
             transition: 'all 0.2s ease-in-out',
-            zIndex: 1
+            zIndex: 1,
+            fontWeight: isSubcategory ? '600' : '500'
           }
         })
       })
     })
 
-    return { nodes, categoryPositions }
+    return { nodes, edges }
   }
 
   // Load concepts data
@@ -292,16 +337,17 @@ export default function GraphPage() {
       const data = await response.json()
       const concepts = (data.concepts || []) as Concept[]
 
-      // Generate better layout nodes
-      const { nodes: graphNodes } = generateNodesWithProperClustering(concepts)
+      // Generate organized layout
+      const { nodes: graphNodes, edges: graphEdges } = createOrganizedLayout(concepts)
       setNodes(graphNodes)
+      setEdges(graphEdges)
       setLoading(false)
     } catch (err) {
       console.error('Error loading concepts:', err)
       setError(err instanceof Error ? err.message : 'Failed to load concepts')
       setLoading(false)
     }
-  }, [setNodes])
+  }, [setNodes, setEdges])
 
   // Handle node click to navigate to concept details (only for concept nodes)
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -408,11 +454,12 @@ export default function GraphPage() {
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ 
-                  padding: 0.15,
+                  padding: 0.1,
+                  maxZoom: 1,
                   includeHiddenNodes: false 
                 }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
-                minZoom={0.2}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
+                minZoom={0.3}
                 maxZoom={1.5}
                 nodesDraggable={true}
                 attributionPosition="bottom-left"
@@ -421,17 +468,20 @@ export default function GraphPage() {
                 <Controls />
                 <MiniMap 
                   nodeColor={(node) => {
-                    if (node.type === 'category') return 'transparent'
-                    return (node.style?.background as string) || '#666'
+                    if (node.type === 'group') return 'rgba(255,255,255,0.1)'
+                    return getCategoryColor(node.data?.category || 'default')
                   }}
                   maskColor="rgba(0, 0, 0, 0.2)"
+                  style={{
+                    backgroundColor: 'rgba(0,0,0,0.8)',
+                  }}
                 />
                 <Panel position="top-right" className="bg-background/60 p-2 rounded shadow backdrop-blur-sm">
                   <div className="text-xs font-medium text-muted-foreground mb-1">
-                    Concepts: {nodes.filter(n => n.type === 'concept').length} | Categories: {nodes.filter(n => n.type === 'category').length}
+                    Concepts: {nodes.filter(n => n.type === 'concept').length} | Categories: {nodes.filter(n => n.type === 'group').length}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    💡 Hover for details • Click to explore • Right-click for options
+                    💡 Hover for details • Click to explore • Subcategories have white borders
                   </div>
                 </Panel>
               </ReactFlow>
