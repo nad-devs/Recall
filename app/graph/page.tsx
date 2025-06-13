@@ -251,6 +251,179 @@ export default function GraphPage() {
     )
   })
 
+  // Optimized node expansion - no delays
+  const expandNode = useCallback((nodeId: string, nodeData: any) => {
+    if (!mounted) return
+    
+    console.log('Expanding node:', nodeId, nodeData) // Debug log
+    
+    const newExpanded = new Set(expandedNodes)
+    newExpanded.add(nodeId)
+    setExpandedNodes(newExpanded)
+    
+    const currentNode = nodes.find(n => n.id === nodeId)
+    if (!currentNode) {
+      console.log('Current node not found:', nodeId)
+      return
+    }
+    
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    
+    let yOffset = 0
+    const baseX = currentNode.position.x
+    const baseY = currentNode.position.y + 150
+    
+    // Add subcategories if they exist
+    if (nodeData.hasSubcategories && nodeData.subcategories) {
+      console.log('Adding subcategories:', Object.keys(nodeData.subcategories))
+      Object.entries(nodeData.subcategories).forEach(([subName, concepts], index) => {
+        const subId = `sub-${nodeId}-${subName}`
+        
+        newNodes.push({
+          id: subId,
+          type: 'subcategory',
+          position: {
+            x: baseX + (index % 3) * 160 - 160,
+            y: baseY + Math.floor(index / 3) * 100
+          },
+          data: {
+            label: subName,
+            concepts: concepts,
+            parentCategory: nodeData.label,
+            parentId: nodeId
+          }
+        })
+        
+        newEdges.push({
+          id: `edge-${nodeId}-${subId}`,
+          source: nodeId,
+          target: subId,
+          type: 'smoothstep',
+          animated: false
+        })
+        
+        yOffset = Math.max(yOffset, Math.floor(index / 3) * 100 + 100)
+      })
+    }
+    
+    // Add direct concepts
+    if (nodeData.directConcepts && nodeData.directConcepts.length > 0) {
+      console.log('Adding direct concepts:', nodeData.directConcepts.length)
+      nodeData.directConcepts.forEach((concept: Concept, index: number) => {
+        const conceptId = `concept-${concept.id}`
+        
+        newNodes.push({
+          id: conceptId,
+          type: 'concept',
+          position: {
+            x: baseX + (index % 4) * 140 - 210,
+            y: baseY + yOffset + Math.floor(index / 4) * 80
+          },
+          data: {
+            label: concept.title,
+            concept: concept
+          }
+        })
+        
+        newEdges.push({
+          id: `edge-${nodeId}-${conceptId}`,
+          source: nodeId,
+          target: conceptId,
+          type: 'smoothstep',
+          animated: false
+        })
+      })
+    }
+    
+    console.log('Adding nodes:', newNodes.length, 'edges:', newEdges.length)
+    setNodes(current => [...current, ...newNodes])
+    setEdges(current => [...current, ...newEdges])
+  }, [expandedNodes, nodes, mounted])
+
+  // Expand subcategory
+  const expandSubcategory = useCallback((subId: string, subData: any) => {
+    if (!mounted) return
+    
+    console.log('Expanding subcategory:', subId, subData) // Debug log
+    
+    const newExpanded = new Set(expandedNodes)
+    newExpanded.add(subId)
+    setExpandedNodes(newExpanded)
+    
+    const currentNode = nodes.find(n => n.id === subId)
+    if (!currentNode) {
+      console.log('Subcategory node not found:', subId)
+      return
+    }
+    
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    
+    if (subData.concepts && subData.concepts.length > 0) {
+      subData.concepts.forEach((concept: Concept, index: number) => {
+        const conceptId = `concept-${subId}-${concept.id}`
+        
+        newNodes.push({
+          id: conceptId,
+          type: 'concept',
+          position: {
+            x: currentNode.position.x + (index % 3) * 140 - 140,
+            y: currentNode.position.y + 100 + Math.floor(index / 3) * 80
+          },
+          data: {
+            label: concept.title,
+            concept: concept
+          }
+        })
+        
+        newEdges.push({
+          id: `edge-${subId}-${conceptId}`,
+          source: subId,
+          target: conceptId,
+          type: 'smoothstep',
+          animated: false
+        })
+      })
+    }
+    
+    console.log('Adding subcategory nodes:', newNodes.length, 'edges:', newEdges.length)
+    setNodes(current => [...current, ...newNodes])
+    setEdges(current => [...current, ...newEdges])
+  }, [expandedNodes, nodes, mounted])
+
+  // Collapse node and all children
+  const collapseNode = useCallback((nodeId: string) => {
+    if (!mounted) return
+    
+    const newExpanded = new Set(expandedNodes)
+    
+    // Remove this node and all its children from expanded set
+    Array.from(expandedNodes).forEach(id => {
+      if (id === nodeId || id.startsWith(`sub-${nodeId}`) || id.startsWith(`concept-${nodeId}`)) {
+        newExpanded.delete(id)
+      }
+    })
+    
+    setExpandedNodes(newExpanded)
+    
+    // Remove child nodes
+    setNodes(current => 
+      current.filter(node => 
+        !node.id.startsWith(`sub-${nodeId}`) && 
+        !node.id.startsWith(`concept-${nodeId}`) &&
+        !node.id.includes(`-${nodeId}-`)
+      )
+    )
+    
+    // Remove child edges
+    setEdges(current => 
+      current.filter(edge => 
+        !edge.id.includes(nodeId) || edge.source === 'root'
+      )
+    )
+  }, [expandedNodes, mounted])
+
   // Category Node Component - Optimized
   const CategoryNode = memo(({ data, id }: { data: any, id: string }) => {
     if (!mounted) return null
@@ -259,6 +432,8 @@ export default function GraphPage() {
     
     const handleClick = useCallback((e: React.MouseEvent) => {
       e.stopPropagation()
+      
+      console.log('Category clicked:', id, 'isExpanded:', isExpanded) // Debug log
       
       if (isExpanded) {
         collapseNode(id)
@@ -314,6 +489,8 @@ export default function GraphPage() {
     
     const handleClick = useCallback((e: React.MouseEvent) => {
       e.stopPropagation()
+      
+      console.log('Subcategory clicked:', id, 'isExpanded:', isExpanded) // Debug log
       
       if (isExpanded) {
         collapseNode(id)
@@ -461,162 +638,7 @@ export default function GraphPage() {
     category: CategoryNode,
     subcategory: SubcategoryNode,
     concept: ConceptNode
-  }), [mounted])
-
-  // Optimized node expansion - no delays
-  const expandNode = useCallback((nodeId: string, nodeData: any) => {
-    if (!mounted) return
-    
-    const newExpanded = new Set(expandedNodes)
-    newExpanded.add(nodeId)
-    setExpandedNodes(newExpanded)
-    
-    const currentNode = nodes.find(n => n.id === nodeId)
-    if (!currentNode) return
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    let yOffset = 0
-    const baseX = currentNode.position.x
-    const baseY = currentNode.position.y + 150
-    
-    // Add subcategories if they exist
-    if (nodeData.hasSubcategories) {
-      Object.entries(nodeData.subcategories).forEach(([subName, concepts], index) => {
-        const subId = `sub-${nodeId}-${subName}`
-        
-        newNodes.push({
-          id: subId,
-          type: 'subcategory',
-          position: {
-            x: baseX + (index % 3) * 160 - 160,
-            y: baseY + Math.floor(index / 3) * 100
-          },
-          data: {
-            label: subName,
-            concepts: concepts,
-            parentCategory: nodeData.label,
-            parentId: nodeId
-          }
-        })
-        
-        newEdges.push({
-          id: `edge-${nodeId}-${subId}`,
-          source: nodeId,
-          target: subId,
-          type: 'smoothstep',
-          animated: false
-        })
-        
-        yOffset = Math.max(yOffset, Math.floor(index / 3) * 100 + 100)
-      })
-    }
-    
-    // Add direct concepts
-    nodeData.directConcepts.forEach((concept: Concept, index: number) => {
-      const conceptId = `concept-${concept.id}`
-      
-      newNodes.push({
-        id: conceptId,
-        type: 'concept',
-        position: {
-          x: baseX + (index % 4) * 140 - 210,
-          y: baseY + yOffset + Math.floor(index / 4) * 80
-        },
-        data: {
-          label: concept.title,
-          concept: concept
-        }
-      })
-      
-      newEdges.push({
-        id: `edge-${nodeId}-${conceptId}`,
-        source: nodeId,
-        target: conceptId,
-        type: 'smoothstep',
-        animated: false
-      })
-    })
-    
-    setNodes(current => [...current, ...newNodes])
-    setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes, mounted])
-
-  // Expand subcategory
-  const expandSubcategory = useCallback((subId: string, subData: any) => {
-    if (!mounted) return
-    
-    const newExpanded = new Set(expandedNodes)
-    newExpanded.add(subId)
-    setExpandedNodes(newExpanded)
-    
-    const currentNode = nodes.find(n => n.id === subId)
-    if (!currentNode) return
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    subData.concepts.forEach((concept: Concept, index: number) => {
-      const conceptId = `concept-${subId}-${concept.id}`
-      
-      newNodes.push({
-        id: conceptId,
-        type: 'concept',
-        position: {
-          x: currentNode.position.x + (index % 3) * 140 - 140,
-          y: currentNode.position.y + 100 + Math.floor(index / 3) * 80
-        },
-        data: {
-          label: concept.title,
-          concept: concept
-        }
-      })
-      
-      newEdges.push({
-        id: `edge-${subId}-${conceptId}`,
-        source: subId,
-        target: conceptId,
-        type: 'smoothstep',
-        animated: false
-      })
-    })
-    
-    setNodes(current => [...current, ...newNodes])
-    setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes, mounted])
-
-  // Collapse node and all children
-  const collapseNode = useCallback((nodeId: string) => {
-    if (!mounted) return
-    
-    const newExpanded = new Set(expandedNodes)
-    
-    // Remove this node and all its children from expanded set
-    Array.from(expandedNodes).forEach(id => {
-      if (id === nodeId || id.startsWith(`sub-${nodeId}`) || id.startsWith(`concept-${nodeId}`)) {
-        newExpanded.delete(id)
-      }
-    })
-    
-    setExpandedNodes(newExpanded)
-    
-    // Remove child nodes
-    setNodes(current => 
-      current.filter(node => 
-        !node.id.startsWith(`sub-${nodeId}`) && 
-        !node.id.startsWith(`concept-${nodeId}`) &&
-        !node.id.includes(`-${nodeId}-`)
-      )
-    )
-    
-    // Remove child edges
-    setEdges(current => 
-      current.filter(edge => 
-        !edge.id.includes(nodeId) || edge.source === 'root'
-      )
-    )
-  }, [expandedNodes, mounted])
+  }), [mounted, expandedNodes])
 
   // Collapse all nodes
   const collapseAll = useCallback(() => {
