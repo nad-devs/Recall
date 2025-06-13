@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut, MessageSquare } from "lucide-react"
+import { BookOpen, ArrowRight, Brain, Edit2, Check, X, LogOut, MessageSquare, Network } from "lucide-react"
 import { DashboardConceptCard } from "@/components/dashboard-concept-card"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { PageTransition } from "@/components/page-transition"
@@ -13,6 +13,7 @@ import { DashboardLoading } from "@/components/dashboard-loading"
 import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import featureFlags from '@/lib/feature-flags'
 
 export default function Dashboard() {
   const { data: session, status } = useSession()
@@ -234,6 +235,14 @@ export default function Dashboard() {
                 Browse Concepts
               </Link>
             </Button>
+            {featureFlags.enableKnowledgeGraph && (
+              <Button variant="outline" asChild className="shadow-sm">
+                <Link href="/graph">
+                  <Network className="mr-2 h-4 w-4" />
+                  Knowledge Graph
+                </Link>
+              </Button>
+            )}
             <Button 
               variant="ghost" 
             onClick={() => {
