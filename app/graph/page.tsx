@@ -70,6 +70,7 @@ export default function GraphPage() {
   }
 
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
@@ -79,8 +80,13 @@ export default function GraphPage() {
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
   const [categoryStructure, setCategoryStructure] = useState<Record<string, CategoryStructure>>({})
 
+  // Prevent hydration mismatch by ensuring component only renders on client
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Simplified category colors with better contrast
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = useCallback((category: string) => {
     const colors: Record<string, string> = {
       'Machine Learning': '#8b5cf6',
       'Data Engineering': '#10b981', 
@@ -98,7 +104,7 @@ export default function GraphPage() {
       'default': '#6b7280'
     }
     return colors[category] || colors.default
-  }
+  }, [])
 
   // Build hierarchy from concepts
   const buildHierarchy = useCallback((conceptsData: Concept[]) => {
@@ -136,6 +142,8 @@ export default function GraphPage() {
 
   // Create tree layout using dagre
   const createTreeLayout = useCallback((conceptsData: Concept[]) => {
+    if (!mounted) return { nodes: [], edges: [] }
+    
     const dagreGraph = new dagre.graphlib.Graph()
     dagreGraph.setDefaultEdgeLabel(() => ({}))
     dagreGraph.setGraph({ 
@@ -149,6 +157,10 @@ export default function GraphPage() {
     const nodes: Node[] = []
     const edges: Edge[] = []
     
+    // Build hierarchy first
+    const structure = buildHierarchy(conceptsData)
+    setCategoryStructure(structure)
+    
     // Create root node
     const rootNode: Node = {
       id: 'root',
@@ -156,16 +168,12 @@ export default function GraphPage() {
       data: { 
         label: 'My Knowledge',
         totalConcepts: conceptsData.length,
-        totalCategories: Object.keys(categoryStructure).length
+        totalCategories: Object.keys(structure).length
       },
       position: { x: 0, y: 0 }
     }
     nodes.push(rootNode)
     dagreGraph.setNode('root', { width: 200, height: 80 })
-    
-    // Build hierarchy
-    const structure = buildHierarchy(conceptsData)
-    setCategoryStructure(structure)
     
     // Add category nodes
     Object.entries(structure).forEach(([category, data]) => {
@@ -213,10 +221,12 @@ export default function GraphPage() {
     })
     
     return { nodes, edges }
-  }, [buildHierarchy, categoryStructure])
+  }, [buildHierarchy, mounted])
 
   // Root Node Component
   const RootNode = memo(({ data }: { data: any }) => {
+    if (!mounted) return null
+    
     return (
       <div
         className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg shadow-lg border-2 border-white/20"
@@ -243,6 +253,8 @@ export default function GraphPage() {
 
   // Category Node Component - Optimized
   const CategoryNode = memo(({ data, id }: { data: any, id: string }) => {
+    if (!mounted) return null
+    
     const isExpanded = expandedNodes.has(id)
     
     const handleClick = useCallback((e: React.MouseEvent) => {
@@ -296,6 +308,8 @@ export default function GraphPage() {
 
   // Subcategory Node Component
   const SubcategoryNode = memo(({ data, id }: { data: any, id: string }) => {
+    if (!mounted) return null
+    
     const isExpanded = expandedNodes.has(id)
     
     const handleClick = useCallback((e: React.MouseEvent) => {
@@ -340,6 +354,8 @@ export default function GraphPage() {
 
   // Concept Node Component
   const ConceptNode = memo(({ data }: { data: any }) => {
+    if (!mounted) return null
+    
     const handleClick = useCallback((e: React.MouseEvent) => {
       e.stopPropagation()
       setSelectedConcept(data.concept)
@@ -381,7 +397,7 @@ export default function GraphPage() {
 
   // Concept Detail Modal Component
   const ConceptDetailModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
-    if (!concept) return null
+    if (!concept || !mounted) return null
     
     return (
       <div
@@ -445,10 +461,12 @@ export default function GraphPage() {
     category: CategoryNode,
     subcategory: SubcategoryNode,
     concept: ConceptNode
-  }), [])
+  }), [mounted])
 
   // Optimized node expansion - no delays
   const expandNode = useCallback((nodeId: string, nodeData: any) => {
+    if (!mounted) return
+    
     const newExpanded = new Set(expandedNodes)
     newExpanded.add(nodeId)
     setExpandedNodes(newExpanded)
@@ -523,10 +541,12 @@ export default function GraphPage() {
     
     setNodes(current => [...current, ...newNodes])
     setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes])
+  }, [expandedNodes, nodes, mounted])
 
   // Expand subcategory
   const expandSubcategory = useCallback((subId: string, subData: any) => {
+    if (!mounted) return
+    
     const newExpanded = new Set(expandedNodes)
     newExpanded.add(subId)
     setExpandedNodes(newExpanded)
@@ -564,10 +584,12 @@ export default function GraphPage() {
     
     setNodes(current => [...current, ...newNodes])
     setEdges(current => [...current, ...newEdges])
-  }, [expandedNodes, nodes])
+  }, [expandedNodes, nodes, mounted])
 
   // Collapse node and all children
   const collapseNode = useCallback((nodeId: string) => {
+    if (!mounted) return
+    
     const newExpanded = new Set(expandedNodes)
     
     // Remove this node and all its children from expanded set
@@ -594,10 +616,12 @@ export default function GraphPage() {
         !edge.id.includes(nodeId) || edge.source === 'root'
       )
     )
-  }, [expandedNodes])
+  }, [expandedNodes, mounted])
 
   // Collapse all nodes
   const collapseAll = useCallback(() => {
+    if (!mounted) return
+    
     setExpandedNodes(new Set())
     
     // Keep only root and category nodes
@@ -609,10 +633,12 @@ export default function GraphPage() {
     setEdges(current => 
       current.filter(edge => edge.source === 'root')
     )
-  }, [])
+  }, [mounted])
 
   // Load concepts data
   const loadConcepts = useCallback(async () => {
+    if (!mounted) return
+    
     try {
       setLoading(true)
 
@@ -639,12 +665,47 @@ export default function GraphPage() {
       setError(err instanceof Error ? err.message : 'Failed to load concepts')
       setLoading(false)
     }
-  }, [createTreeLayout])
+  }, [createTreeLayout, mounted])
 
   // Load data on mount
   useEffect(() => {
-    loadConcepts()
-  }, [loadConcepts])
+    if (mounted) {
+      loadConcepts()
+    }
+  }, [loadConcepts, mounted])
+
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!mounted) {
+    return (
+      <AuthGuard>
+        <PageTransition>
+          <div className="flex flex-col h-screen bg-slate-900">
+            <header className="border-b border-slate-700 bg-slate-800/95 backdrop-blur supports-[backdrop-filter]:bg-slate-800/60 z-10">
+              <div className="container flex items-center justify-between py-3">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" asChild className="text-white hover:bg-slate-700">
+                    <Link href="/dashboard">
+                      <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <div className="flex items-center">
+                    <Network className="h-5 w-5 mr-2 text-blue-400" />
+                    <h1 className="text-xl font-semibold text-white">Knowledge Tree</h1>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+                <p className="text-slate-300">Initializing knowledge tree...</p>
+              </div>
+            </div>
+          </div>
+        </PageTransition>
+      </AuthGuard>
+    )
+  }
 
   return (
     <AuthGuard>
@@ -737,6 +798,7 @@ export default function GraphPage() {
                   type: 'smoothstep',
                   animated: false
                 }}
+                proOptions={{ hideAttribution: true }}
               >
                 <Background 
                   gap={20} 
