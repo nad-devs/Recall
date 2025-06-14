@@ -17,7 +17,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react"
-import { LaneKnowledgeGraph } from './components/LaneKnowledgeGraph'
+import KnowledgeCompanion from '@/components/KnowledgeCompanion'
 import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
@@ -507,11 +507,18 @@ export default function GraphPage() {
               </div>
             ) : (
               <>
-                <LaneKnowledgeGraph 
-                  concepts={concepts as EnhancedConcept[]}
-                  onConceptClick={handleConceptClickWithPosition}
-                  interviewMode={interviewMode}
-                  className="bg-slate-900"
+                <KnowledgeCompanion 
+                  concepts={concepts as any}
+                  categories={Array.from(new Set(concepts.map(c => c.category))).map((cat, idx) => ({
+                    id: `cat-${idx}`,
+                    name: cat,
+                    parentId: null,
+                    children: [],
+                    concepts: [],
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                  }))}
+                  onConceptSelect={(concept) => setSelectedConcept(concept as any)}
                 />
 
                 {/* Simple Insight Panel */}
