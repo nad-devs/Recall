@@ -331,19 +331,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const semanticClusters = generateSemanticClusters(concepts);
   const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
   
-  // Update viewBox to fit all concepts
-  useEffect(() => {
-    if (bounds && (bounds.minX !== Infinity)) {
-      const width = bounds.maxX - bounds.minX;
-      const height = bounds.maxY - bounds.minY;
-      setViewBox({
-        x: bounds.minX,
-        y: bounds.minY,
-        width: Math.max(width, 1200),
-        height: Math.max(height, 800)
-      });
-    }
-  }, [bounds]);
+
   
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
@@ -408,17 +396,19 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            subcategory.concepts.forEach((concept, conceptIndex) => {
              const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
              
-             // Calculate safe radius to avoid overlapping with other subcategories
-             const minSafeRadius = bubbleRadius + 80;
-             const dynamicRadius = minSafeRadius + (subcategory.concepts.length * 8);
-             const conceptRadius = Math.max(minSafeRadius, dynamicRadius);
+             // Use same collision avoidance logic as rendering
+             const baseRadius = bubbleRadius + 120;
+             const clusterSpacing = 200;
+             const conceptSpacing = subcategory.concepts.length * 15;
              
-             // Offset the angle based on subcategory position to avoid other subcategories
              const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
-             const offsetAngle = conceptAngle + (subcategoryAngle * 0.3);
+             const avoidanceRadius = baseRadius + conceptSpacing + (clusterSpacing / subcategories.length);
              
-             const conceptX = x + Math.cos(offsetAngle) * conceptRadius;
-             const conceptY = y + Math.sin(offsetAngle) * conceptRadius;
+             const directionOffset = subcategoryAngle + (Math.PI / subcategories.length);
+             const finalAngle = conceptAngle + directionOffset;
+             
+             const conceptX = x + Math.cos(finalAngle) * avoidanceRadius;
+             const conceptY = y + Math.sin(finalAngle) * avoidanceRadius;
             
             dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
           });
@@ -426,6 +416,34 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       });
     }
   });
+
+  // Update viewBox to fit all concepts including expanded subcategories
+  useEffect(() => {
+    // Calculate bounds including expanded subcategory concepts
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    
+    // Include all dynamic positions (base concepts + expanded subcategory concepts)
+    dynamicConceptPositions.forEach((pos) => {
+      minX = Math.min(minX, pos.x);
+      maxX = Math.max(maxX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxY = Math.max(maxY, pos.y);
+    });
+    
+    // Add extra padding for expanded concepts
+    const padding = 200; // Increased padding
+    
+    if (minX !== Infinity) {
+      const width = (maxX - minX) + (padding * 2);
+      const height = (maxY - minY) + (padding * 2);
+      setViewBox({
+        x: minX - padding,
+        y: minY - padding,
+        width: Math.max(width, 1600), // Increased minimum width
+        height: Math.max(height, 1200) // Increased minimum height
+      });
+    }
+  }, [expandedSubcategories, concepts.length]);
 
   // Generate connections with better debugging
   const connections = concepts.flatMap(concept => {
@@ -1117,21 +1135,24 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {/* Expanded Individual Concepts */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
-                              // Smart positioning to avoid overlaps
+                              // Much better collision avoidance system
                               const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
                               
-                              // Calculate safe radius to avoid overlapping with other subcategories
-                              const minSafeRadius = bubbleRadius + 80; // Minimum distance from subcategory center
-                              const spacingPerConcept = Math.max(50, 300 / subcategories.length); // More space when fewer subcategories
-                              const dynamicRadius = minSafeRadius + (subcategory.concepts.length * 8); // Scale with concept count
-                              const conceptRadius = Math.max(minSafeRadius, dynamicRadius);
+                              // Calculate a much larger safe radius to prevent overlaps
+                              const baseRadius = bubbleRadius + 120; // Increased minimum distance
+                              const clusterSpacing = 200; // Minimum distance between different subcategories
+                              const conceptSpacing = subcategory.concepts.length * 15; // More space for more concepts
                               
-                              // Offset the angle based on subcategory position to avoid other subcategories
+                              // Calculate radius based on subcategory position to avoid other subcategories
                               const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
-                              const offsetAngle = conceptAngle + (subcategoryAngle * 0.3); // Slight rotation to spread away from other subcategories
+                              const avoidanceRadius = baseRadius + conceptSpacing + (clusterSpacing / subcategories.length);
                               
-                              const conceptX = x + Math.cos(offsetAngle) * conceptRadius;
-                              const conceptY = y + Math.sin(offsetAngle) * conceptRadius;
+                              // Create directional offset to push concepts away from cluster center
+                              const directionOffset = subcategoryAngle + (Math.PI / subcategories.length); // Push outward
+                              const finalAngle = conceptAngle + directionOffset;
+                              
+                              const conceptX = x + Math.cos(finalAngle) * avoidanceRadius;
+                              const conceptY = y + Math.sin(finalAngle) * avoidanceRadius;
                               
                               const masteryColor = getMasteryColor(concept.masteryLevel);
                               const isSelected = selectedConcept?.id === concept.id;
