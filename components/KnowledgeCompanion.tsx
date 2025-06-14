@@ -1138,62 +1138,201 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
   });
   
-  // Calculate physics-based positions for subcategories and their concepts
+  // Apply the same advanced physics to SUBCATEGORIES (the visible bubbles)
+  const allSubcategoryNodes: Array<{
+    id: string;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    radius: number;
+    mass: number;
+    clusterId: string;
+    clusterX: number;
+    clusterY: number;
+    subcategory: any;
+    textWidth: number;
+    textHeight: number;
+  }> = [];
+
+  // Initialize subcategory nodes with proper text boundary calculations
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
-    if (subcategories.length > 0) {
-      // Calculate physics-based subcategory positions
-      const subcategoryPositions = calculatePhysicsBasedPositions(cluster, subcategories);
+    subcategories.forEach((subcategory, index) => {
+      // Calculate actual text dimensions for subcategory bubbles
+      const title = subcategory.name || '';
+      const textWidth = Math.max(100, title.length * 10 + 40); // Larger for subcategory bubbles
+      const textHeight = 50; // Taller for subcategory bubbles
+      const bubbleRadius = Math.max(35, Math.sqrt(textWidth * textHeight) / 2.5); // Larger bubbles
       
-      // Create a map with radius information for collision detection
-      const subcategoryPositionsWithRadius = new Map<string, { x: number; y: number; radius: number }>();
+      // Initial positioning in expanding spiral
+      const spiralRadius = 80 + (index * 50); // More spacing for subcategories
+      const spiralAngle = index * 2.4; // Golden angle
       
-      // Add subcategory positions to the map
-      subcategoryPositions.forEach((pos, key) => {
-        dynamicConceptPositions.set(key, pos);
+      allSubcategoryNodes.push({
+        id: `subcategory-${cluster.id}-${subcategory.name}`,
+        x: cluster.position.x + Math.cos(spiralAngle) * spiralRadius,
+        y: cluster.position.y + Math.sin(spiralAngle) * spiralRadius,
+        vx: 0,
+        vy: 0,
+        radius: bubbleRadius,
+        mass: 2 + (textWidth * textHeight) / 500, // Heavier mass for subcategories
+        clusterId: cluster.id,
+        clusterX: cluster.position.x,
+        clusterY: cluster.position.y,
+        subcategory: subcategory,
+        textWidth: textWidth,
+        textHeight: textHeight
+      });
+    });
+  });
+
+  // Advanced physics simulation for SUBCATEGORIES
+  const subcategoryIterations = 60; // More iterations for better subcategory spacing
+  const subcategoryTimeStep = 0.08;
+  const subcategoryDamping = 0.92;
+  
+  for (let iter = 0; iter < subcategoryIterations; iter++) {
+    allSubcategoryNodes.forEach(node => {
+      let fx = 0, fy = 0;
+      
+      // 1. CLUSTER COHESION - Keep subcategories near their cluster
+      const clusterDx = node.clusterX - node.x;
+      const clusterDy = node.clusterY - node.y;
+      const clusterDist = Math.sqrt(clusterDx * clusterDx + clusterDy * clusterDy);
+      
+      const clusterSize = allSubcategoryNodes.filter(n => n.clusterId === node.clusterId).length;
+      const optimalClusterRadius = Math.max(200, clusterSize * 60); // Larger radius for subcategories
+      
+      if (clusterDist > optimalClusterRadius * 0.4) {
+        const clusterForce = 0.03 * (clusterDist - optimalClusterRadius * 0.4);
+        fx += (clusterDx / clusterDist) * clusterForce;
+        fy += (clusterDy / clusterDist) * clusterForce;
+      }
+      
+      // 2. SUBCATEGORY REPULSION - Prevent overlaps with proper text boundaries
+      allSubcategoryNodes.forEach(other => {
+        if (other.id === node.id) return;
         
-        // Extract subcategory info for radius calculation
-        const subcategoryName = key.replace(`subcategory-${cluster.id}-`, '');
-        const subcategory = subcategories.find(s => s.name === subcategoryName);
-        if (subcategory) {
-          const nameLength = subcategory.name.length;
-          const baseSizeFromName = Math.max(25, nameLength * 2);
-          const baseSizeFromCount = subcategory.count * 3;
-          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-          subcategoryPositionsWithRadius.set(key, { ...pos, radius: bubbleRadius });
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 0.1) return;
+        
+        // Calculate minimum distance based on text boundaries and bubble sizes
+        const minDistance = Math.max(
+          node.radius + other.radius + 40, // Basic bubble separation
+          (node.textWidth + other.textWidth) / 2 + 30, // Text width consideration
+          80 // Absolute minimum for subcategory readability
+        );
+        
+        if (distance < minDistance) {
+          const repulsionForce = (minDistance - distance) * 800 / (distance * distance);
+          const forceX = (dx / distance) * repulsionForce;
+          const forceY = (dy / distance) * repulsionForce;
+          
+          const massRatio = other.mass / (node.mass + other.mass);
+          fx += forceX * massRatio;
+          fy += forceY * massRatio;
         }
       });
       
-      // Calculate positions for expanded subcategory concepts using smart layouts
-      subcategories.forEach((subcategory) => {
-        const key = `${cluster.id}-${subcategory.name}`;
-        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-        const subcategoryPos = subcategoryPositions.get(subcategoryKey);
+      // 3. INTER-CLUSTER SEPARATION - Keep different clusters apart
+      allSubcategoryNodes.forEach(other => {
+        if (other.clusterId === node.clusterId) return;
         
-        if (expandedSubcategories.has(key) && subcategoryPos) {
-          // Calculate bubble size
-          const nameLength = subcategory.name.length;
-          const baseSizeFromName = Math.max(25, nameLength * 2);
-          const baseSizeFromCount = subcategory.count * 3;
-          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-          
-          // Calculate smart concept positions based on count
-          const conceptPositions = calculateSmartConceptPositions(
-            subcategoryPos.x,
-            subcategoryPos.y,
-            subcategory.concepts,
-            bubbleRadius,
-            subcategoryPositionsWithRadius
-          );
-          
-          // Add concept positions to the map
-          conceptPositions.forEach((pos, conceptId) => {
-            dynamicConceptPositions.set(conceptId, pos);
-          });
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 150 && distance > 0.1) {
+          const separationForce = (150 - distance) * 0.8;
+          fx += (dx / distance) * separationForce;
+          fy += (dy / distance) * separationForce;
         }
+      });
+      
+      // 4. VIEWPORT BOUNDARIES
+      const viewportMargin = 250;
+      const leftBound = -viewBox.width / 2 + viewportMargin;
+      const rightBound = viewBox.width / 2 - viewportMargin;
+      const topBound = -viewBox.height / 2 + viewportMargin;
+      const bottomBound = viewBox.height / 2 - viewportMargin;
+      
+      if (node.x < leftBound) fx += (leftBound - node.x) * 0.15;
+      if (node.x > rightBound) fx += (rightBound - node.x) * 0.15;
+      if (node.y < topBound) fy += (topBound - node.y) * 0.15;
+      if (node.y > bottomBound) fy += (bottomBound - node.y) * 0.15;
+      
+      // Apply forces with physics integration
+      const acceleration = 1 / node.mass;
+      node.vx += fx * acceleration * subcategoryTimeStep;
+      node.vy += fy * acceleration * subcategoryTimeStep;
+      
+      // Apply damping
+      node.vx *= subcategoryDamping;
+      node.vy *= subcategoryDamping;
+      
+      // Velocity limiting
+      const maxVelocity = 8;
+      const velocity = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+      if (velocity > maxVelocity) {
+        node.vx = (node.vx / velocity) * maxVelocity;
+        node.vy = (node.vy / velocity) * maxVelocity;
+      }
+      
+      // Update position
+      node.x += node.vx * subcategoryTimeStep;
+      node.y += node.vy * subcategoryTimeStep;
+    });
+    
+    // Adaptive cooling for subcategories
+    if (iter > subcategoryIterations * 0.75) {
+      allSubcategoryNodes.forEach(node => {
+        node.vx *= 0.96;
+        node.vy *= 0.96;
       });
     }
+  }
+
+  // Store final subcategory positions
+  allSubcategoryNodes.forEach(node => {
+    dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
+  });
+
+  // Handle expanded subcategory concepts (when user clicks to expand)
+  semanticClusters.forEach(cluster => {
+    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+    
+    subcategories.forEach((subcategory) => {
+      const key = `${cluster.id}-${subcategory.name}`;
+      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+      const subcategoryPos = dynamicConceptPositions.get(subcategoryKey);
+      
+      if (expandedSubcategories.has(key) && subcategoryPos) {
+        // Calculate bubble size
+        const nameLength = subcategory.name.length;
+        const baseSizeFromName = Math.max(25, nameLength * 2);
+        const baseSizeFromCount = subcategory.count * 3;
+        const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+        
+        // Calculate smart concept positions based on count
+        const conceptPositions = calculateSmartConceptPositions(
+          subcategoryPos.x,
+          subcategoryPos.y,
+          subcategory.concepts,
+          bubbleRadius,
+          new Map() // Empty map since we're not checking subcategory overlaps here
+        );
+        
+        // Add concept positions to the map
+        conceptPositions.forEach((pos, conceptId) => {
+          dynamicConceptPositions.set(conceptId, pos);
+        });
+      }
+    });
   });
 
   // Parse JSON fields safely with better error handling
