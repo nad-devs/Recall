@@ -946,6 +946,26 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Generate dynamic semantic clusters and layout
   const semanticClusters = generateDynamicSemanticClusters(concepts);
   const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
+
+  // Filter concepts based on search and cluster selection BEFORE using them
+  const filteredConcepts = concepts.filter(concept => {
+    // First apply cluster filter
+    if (selectedClusters.size > 0) {
+      const conceptCluster = semanticClusters.find(cluster => 
+        cluster.concepts.some(c => c.id === concept.id)
+      );
+      if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
+        return false;
+      }
+    }
+    
+    // Then apply search filter
+    if (!searchQuery) return true;
+    
+    return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
+  });
   
   // Create dynamic position map with physics-based layout
   const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
@@ -1024,26 +1044,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       return fallback;
     }
   };
-
-  // Filter concepts based on search and cluster selection
-  const filteredConcepts = concepts.filter(concept => {
-    // First apply cluster filter
-    if (selectedClusters.size > 0) {
-      const conceptCluster = semanticClusters.find(cluster => 
-        cluster.concepts.some(c => c.id === concept.id)
-      );
-      if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
-        return false;
-      }
-    }
-    
-    // Then apply search filter
-    if (!searchQuery) return true;
-    
-    return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
-  });
   
   // Calculate dynamic viewport bounds for simple layout
   const calculateViewportBounds = () => {
