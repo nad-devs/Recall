@@ -195,43 +195,64 @@ const buildCategoryHierarchy = (categories: Category[]): Category[] => {
 // Generate cluster layout positions
 const generateClusterLayout = (categories: Category[], concepts: Concept[]) => {
   const positions = new Map<string, { x: number; y: number }>();
-  const clusterRadius = 120;
-  const clusterSpacing = 300;
   
-  let clusterIndex = 0;
-  const processedCategories = new Set<string>();
+  // Group concepts by category and sort by size
+  const categoryGroups = concepts.reduce((groups, concept) => {
+    const category = concept.category || 'Uncategorized';
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(concept);
+    return groups;
+  }, {} as Record<string, Concept[]>);
 
-  const processCategory = (category: Category, level: number = 0) => {
-    if (processedCategories.has(category.id)) return;
-    processedCategories.add(category.id);
+  // Sort categories by concept count (largest first)
+  const sortedCategories = Object.entries(categoryGroups)
+    .sort(([, a], [, b]) => b.length - a.length);
 
-    const conceptsInCategory = concepts.filter(c => c.category === category.name);
-    if (conceptsInCategory.length === 0 && category.children.length === 0) return;
-
-    // Calculate cluster center
-    const row = Math.floor(clusterIndex / 4);
-    const col = clusterIndex % 4;
-    const centerX = col * clusterSpacing + 200;
-    const centerY = row * clusterSpacing + 200;
-
-    // Position concepts in a circular pattern within the cluster
+  // Smart grid layout with better spacing
+  const cols = Math.ceil(Math.sqrt(sortedCategories.length));
+  const gridSpacing = 450; // Better spacing between clusters
+  
+  sortedCategories.forEach(([categoryName, conceptsInCategory], index) => {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    
+    // Calculate cluster center with offset for better visual balance
+    const centerX = col * gridSpacing + 250;
+    const centerY = row * gridSpacing + 250;
+    
+    // Dynamic cluster radius based on concept count
+    const baseRadius = Math.min(150, 80 + (conceptsInCategory.length * 15));
+    
+    // Position concepts in concentric circles for larger clusters
     conceptsInCategory.forEach((concept, index) => {
-      const angle = (index / conceptsInCategory.length) * 2 * Math.PI;
-      const radius = Math.min(clusterRadius, 40 + (conceptsInCategory.length * 8));
-      
-      positions.set(concept.id, {
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius
-      });
+      if (conceptsInCategory.length === 1) {
+        // Single concept at center
+        positions.set(concept.id, { x: centerX, y: centerY });
+      } else if (conceptsInCategory.length <= 6) {
+        // Single ring for small clusters
+        const angle = (index / conceptsInCategory.length) * 2 * Math.PI;
+        positions.set(concept.id, {
+          x: centerX + Math.cos(angle) * baseRadius,
+          y: centerY + Math.sin(angle) * baseRadius
+        });
+      } else {
+        // Multiple rings for larger clusters
+        const conceptsPerRing = 6;
+        const ring = Math.floor(index / conceptsPerRing);
+        const indexInRing = index % conceptsPerRing;
+        const conceptsInThisRing = Math.min(conceptsPerRing, conceptsInCategory.length - ring * conceptsPerRing);
+        const ringRadius = baseRadius + (ring * 70);
+        const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
+        
+        positions.set(concept.id, {
+          x: centerX + Math.cos(angle) * ringRadius,
+          y: centerY + Math.sin(angle) * ringRadius
+        });
+      }
     });
-
-    clusterIndex++;
-
-    // Process child categories
-    category.children.forEach(child => processCategory(child, level + 1));
-  };
-
-  categories.forEach(category => processCategory(category));
+  });
   
   return positions;
 };
@@ -279,7 +300,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const filteredConcepts = concepts.filter(concept => {
     const matchesSearch = concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      concept.summary.toLowerCase().includes(searchQuery.toLowerCase());
+      (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = selectedCategories.size === 0 || selectedCategories.has(concept.category);
     
@@ -354,7 +375,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         to: relatedId,
         fromPos,
         toPos,
-        strength: Math.min(concept.confidenceScore, targetConcept.confidenceScore),
+        strength: Math.min(concept.confidenceScore || 0.5, targetConcept.confidenceScore || 0.5),
         fromConcept: concept,
         toConcept: targetConcept
       };
@@ -497,9 +518,22 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const handleMouseUp = (event: React.MouseEvent, targetConceptId?: string) => {
     if (isDragging && dragStart && targetConceptId && targetConceptId !== dragStart.conceptId) {
       // Create connection logic here
-      console.log(`Creating connection from ${dragStart.conceptId} to ${targetConceptId}`);
-      // You can add API call to save the connection
+      console.log(`✅ Creating connection from ${dragStart.conceptId} to ${targetConceptId}`);
+      
+      // Add visual feedback
+      const sourceConcept = concepts.find(c => c.id === dragStart.conceptId);
+      const targetConcept = concepts.find(c => c.id === targetConceptId);
+      
+      if (sourceConcept && targetConcept) {
+        alert(`Connection created: ${sourceConcept.title} → ${targetConcept.title}`);
+      }
+      
+      // You can add API call to save the connection here
+      // await createConnection(dragStart.conceptId, targetConceptId);
+    } else if (isDragging) {
+      console.log('❌ Connection creation cancelled - invalid target');
     }
+    
     setIsDragging(false);
     setDragStart(null);
     setDragCurrent(null);
@@ -596,7 +630,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       {/* Main Content */}
       <div className="flex h-[calc(100vh-140px)]">
         {/* Left Sidebar - Categories */}
-        <div className="w-96 bg-slate-800/50 border-r border-white/10 p-6 overflow-y-auto">
+        <div className="w-[450px] bg-slate-800/50 border-r border-white/10 p-6 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-white">Categories</h3>
             <span className="text-sm text-gray-400">Ctrl+Click for multi-select</span>
@@ -630,14 +664,46 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             </button>
           </div>
 
+          {/* Mastery Levels */}
+          <div className="border-t border-white/10 pt-4 mt-6">
+            <h4 className="text-sm font-medium text-white mb-3">Mastery Levels</h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="text-green-400">●●●●</span>
+                <span className="text-gray-300">Expert</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-400">●●●○</span>
+                <span className="text-gray-300">Advanced</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-yellow-400">●●○○</span>
+                <span className="text-gray-300">Intermediate</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-red-400">●○○○</span>
+                <span className="text-gray-300">Beginner</span>
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-gray-400">
+              <div>Progress ring shows learning completion</div>
+              <div>⭐ indicates bookmarked concepts</div>
+              <div>Hover nodes for full details</div>
+            </div>
+          </div>
+
           {/* Stats */}
           <div className="border-t border-white/10 pt-4 mt-6">
             <h4 className="text-sm font-medium text-white mb-3">Overview</h4>
             <div className="space-y-2 text-sm text-gray-400">
               <div>Total Concepts: {concepts.length}</div>
               <div>Visible: {filteredConcepts.length}</div>
-              <div>Connections: {visibleConnections.length}</div>
+              <div>Connections: {visibleConnections.length} ({connections.length} total)</div>
               <div>Categories: {categories.length}</div>
+            </div>
+            <div className="mt-3 text-xs text-gray-400">
+              <div>Right-click + drag to create connections</div>
+              <div>Hover to highlight connections</div>
             </div>
           </div>
         </div>
@@ -669,16 +735,29 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 (conn.from === hoveredConcept || conn.to === hoveredConcept);
               
               return (
-                <line
-                  key={index}
-                  x1={conn.fromPos.x}
-                  y1={conn.fromPos.y}
-                  x2={conn.toPos.x}
-                  y2={conn.toPos.y}
-                  stroke={isHighlighted ? "rgba(16, 185, 129, 0.8)" : "rgba(99, 102, 241, 0.3)"}
-                  strokeWidth={isHighlighted ? 4 : Math.max(1, conn.strength * 3)}
-                  className="transition-all duration-300"
-                />
+                <g key={index}>
+                  {/* Connection glow effect */}
+                  <line
+                    x1={conn.fromPos.x}
+                    y1={conn.fromPos.y}
+                    x2={conn.toPos.x}
+                    y2={conn.toPos.y}
+                    stroke={isHighlighted ? "rgba(16, 185, 129, 0.3)" : "rgba(99, 102, 241, 0.2)"}
+                    strokeWidth={isHighlighted ? 8 : 4}
+                    className="transition-all duration-300"
+                  />
+                  {/* Main connection line */}
+                  <line
+                    x1={conn.fromPos.x}
+                    y1={conn.fromPos.y}
+                    x2={conn.toPos.x}
+                    y2={conn.toPos.y}
+                    stroke={isHighlighted ? "rgba(16, 185, 129, 1)" : "rgba(99, 102, 241, 0.8)"}
+                    strokeWidth={isHighlighted ? 3 : 2}
+                    strokeDasharray={isHighlighted ? "none" : "5,5"}
+                    className="transition-all duration-300"
+                  />
+                </g>
               );
             })}
 
