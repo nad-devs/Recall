@@ -55,6 +55,248 @@ interface SemanticCluster {
   keywords: string[];
 }
 
+// Node types for hierarchical spacing
+interface HierarchicalNode {
+  id: string;
+  type: 'cluster_name' | 'category' | 'concept';
+  x: number;
+  y: number;
+  radius: number;
+  textWidth?: number;
+  textHeight?: number;
+}
+
+// Collision detection with hierarchical rules
+const checkCollision = (nodeA: HierarchicalNode, nodeB: HierarchicalNode): boolean => {
+  const distance = Math.sqrt(Math.pow(nodeA.x - nodeB.x, 2) + Math.pow(nodeA.y - nodeB.y, 2));
+  
+  let minDistance: number;
+  
+  if (nodeA.type === 'cluster_name' || nodeB.type === 'cluster_name') {
+    // Cluster names need extra space
+    minDistance = 100;
+  } else if (nodeA.type === 'category' && nodeB.type === 'category') {
+    minDistance = 4 * Math.max(nodeA.radius, nodeB.radius);
+  } else if (nodeA.type === 'concept' && nodeB.type === 'concept') {
+    minDistance = 2 * Math.max(nodeA.radius, nodeB.radius);
+  } else {
+    // Mixed types (category-concept)
+    minDistance = 3 * Math.max(nodeA.radius, nodeB.radius);
+  }
+  
+  return distance < minDistance;
+};
+
+// Calculate hierarchical layout with proper zones
+const calculateHierarchicalLayout = (cluster: SemanticCluster, subcategories: any[]) => {
+  const clusterRegion = {
+    centerX: cluster.position.x,
+    centerY: cluster.position.y,
+    width: 600, // Dynamic based on content
+    height: 500
+  };
+  
+  // Zone definitions (vertical zones)
+  const zones = {
+    clusterName: {
+      top: clusterRegion.centerY - clusterRegion.height / 2,
+      height: clusterRegion.height * 0.2, // Top 20%
+      centerY: clusterRegion.centerY - clusterRegion.height / 2 + clusterRegion.height * 0.1
+    },
+    categories: {
+      top: clusterRegion.centerY - clusterRegion.height / 2 + clusterRegion.height * 0.2,
+      height: clusterRegion.height * 0.3, // Middle 30%
+      centerY: clusterRegion.centerY - clusterRegion.height / 2 + clusterRegion.height * 0.35
+    },
+    concepts: {
+      top: clusterRegion.centerY - clusterRegion.height / 2 + clusterRegion.height * 0.5,
+      height: clusterRegion.height * 0.5, // Bottom 50%
+      centerY: clusterRegion.centerY - clusterRegion.height / 2 + clusterRegion.height * 0.75
+    }
+  };
+  
+  const nodes: HierarchicalNode[] = [];
+  const positions = new Map<string, { x: number; y: number }>();
+  
+  // 1. CLUSTER NAME POSITIONING (Fixed at top-center)
+  const clusterNameNode: HierarchicalNode = {
+    id: `cluster-name-${cluster.id}`,
+    type: 'cluster_name',
+    x: clusterRegion.centerX,
+    y: zones.clusterName.centerY,
+    radius: 0, // Text element
+    textWidth: cluster.name.length * 12 + 40, // Estimate text width
+    textHeight: 24 + 20 // Font height + padding
+  };
+  nodes.push(clusterNameNode);
+  
+  // 2. CATEGORY NODE SPACING (Semi-circle below cluster name)
+  if (subcategories.length > 0) {
+    const arcRadius = 120;
+    const arcSpan = Math.PI * 2/3; // 120° arc
+    const arcStart = -arcSpan / 2;
+    
+    subcategories.forEach((subcategory, index) => {
+      const angle = arcStart + (index / Math.max(1, subcategories.length - 1)) * arcSpan;
+      
+      // Calculate category position
+      let categoryX = clusterRegion.centerX + Math.cos(angle) * arcRadius;
+      let categoryY = zones.categories.centerY + Math.sin(angle) * arcRadius * 0.5; // Flatten the arc
+      
+      // Ensure minimum distance from cluster name
+      const distanceFromClusterName = Math.sqrt(
+        Math.pow(categoryX - clusterNameNode.x, 2) + 
+        Math.pow(categoryY - clusterNameNode.y, 2)
+      );
+      if (distanceFromClusterName < 100) {
+        categoryY = clusterNameNode.y + 100;
+      }
+      
+      // Dynamic bubble size based on content
+      const nameLength = subcategory.name.length;
+      const baseSizeFromName = Math.max(25, nameLength * 2);
+      const baseSizeFromCount = subcategory.count * 3;
+      const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+      
+      const categoryNode: HierarchicalNode = {
+        id: `category-${cluster.id}-${subcategory.name}`,
+        type: 'category',
+        x: categoryX,
+        y: categoryY,
+        radius: bubbleRadius
+      };
+      
+      // Check for collisions with existing nodes and adjust
+      let attempts = 0;
+      while (attempts < 50) {
+        let hasCollision = false;
+        for (const existingNode of nodes) {
+          if (checkCollision(categoryNode, existingNode)) {
+            hasCollision = true;
+            break;
+          }
+        }
+        
+        if (!hasCollision) break;
+        
+        // Adjust position to avoid collision
+        categoryNode.x += (Math.random() - 0.5) * 20;
+        categoryNode.y += 15; // Move down to avoid cluster name
+        attempts++;
+      }
+      
+      nodes.push(categoryNode);
+      positions.set(`subcategory-${cluster.id}-${subcategory.name}`, { 
+        x: categoryNode.x, 
+        y: categoryNode.y 
+      });
+    });
+  }
+  
+  return { nodes, positions, zones, clusterRegion };
+};
+
+// Calculate concept positions within category zones
+const calculateConceptPositions = (
+  category: HierarchicalNode,
+  concepts: any[],
+  zones: any,
+  existingNodes: HierarchicalNode[]
+) => {
+  const conceptPositions = new Map<string, { x: number; y: number }>();
+  const conceptNodes: HierarchicalNode[] = [];
+  
+  if (concepts.length === 0) return { conceptPositions, conceptNodes };
+  
+  // Determine layout strategy based on concept count
+  const conceptRadius = 18;
+  
+  if (concepts.length <= 6) {
+    // Small circle around category
+    const radius = Math.max(60, category.radius + 45); // Minimum distance = 2.5 * concept_radius
+    
+    concepts.forEach((concept, index) => {
+      const angle = (index / concepts.length) * 2 * Math.PI;
+      let conceptX = category.x + Math.cos(angle) * radius;
+      let conceptY = category.y + Math.sin(angle) * radius;
+      
+      // Ensure concepts stay in concept zone
+      conceptY = Math.max(conceptY, zones.concepts.top + conceptRadius);
+      conceptY = Math.min(conceptY, zones.concepts.top + zones.concepts.height - conceptRadius);
+      
+      const conceptNode: HierarchicalNode = {
+        id: concept.id,
+        type: 'concept',
+        x: conceptX,
+        y: conceptY,
+        radius: conceptRadius
+      };
+      
+      // Check collisions and adjust
+      let attempts = 0;
+      while (attempts < 30) {
+        let hasCollision = false;
+        for (const existingNode of [...existingNodes, ...conceptNodes]) {
+          if (checkCollision(conceptNode, existingNode)) {
+            hasCollision = true;
+            break;
+          }
+        }
+        
+        if (!hasCollision) break;
+        
+        // Spiral outward if collision
+        const spiralRadius = radius + attempts * 10;
+        const spiralAngle = angle + attempts * 0.5;
+        conceptNode.x = category.x + Math.cos(spiralAngle) * spiralRadius;
+        conceptNode.y = category.y + Math.sin(spiralAngle) * spiralRadius;
+        
+        // Keep in concept zone
+        conceptNode.y = Math.max(conceptNode.y, zones.concepts.top + conceptRadius);
+        conceptNode.y = Math.min(conceptNode.y, zones.concepts.top + zones.concepts.height - conceptRadius);
+        
+        attempts++;
+      }
+      
+      conceptNodes.push(conceptNode);
+      conceptPositions.set(concept.id, { x: conceptNode.x, y: conceptNode.y });
+    });
+  } else {
+    // Grid layout for many concepts
+    const conceptsPerRow = Math.ceil(Math.sqrt(concepts.length));
+    const horizontalSpacing = conceptRadius * 2.5; // 2 * concept_radius minimum
+    const verticalSpacing = conceptRadius * 2.5;
+    
+    const gridWidth = (conceptsPerRow - 1) * horizontalSpacing;
+    const gridStartX = category.x - gridWidth / 2;
+    const gridStartY = Math.max(
+      category.y + category.radius + 45, // 2.5 * concept_radius from category
+      zones.concepts.top + conceptRadius
+    );
+    
+    concepts.forEach((concept, index) => {
+      const row = Math.floor(index / conceptsPerRow);
+      const col = index % conceptsPerRow;
+      
+      const conceptX = gridStartX + col * horizontalSpacing;
+      const conceptY = gridStartY + row * verticalSpacing;
+      
+      const conceptNode: HierarchicalNode = {
+        id: concept.id,
+        type: 'concept',
+        x: conceptX,
+        y: conceptY,
+        radius: conceptRadius
+      };
+      
+      conceptNodes.push(conceptNode);
+      conceptPositions.set(concept.id, { x: conceptX, y: conceptY });
+    });
+  }
+  
+  return { conceptPositions, conceptNodes };
+};
+
 // Get icon for concept category/type
 const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   const title = concept.title.toLowerCase();
@@ -365,73 +607,57 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
-  // Create dynamic position map for all visible concepts (including expanded ones)
+  // Create dynamic position map with hierarchical layout
   const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
+  const allHierarchicalNodes: HierarchicalNode[] = [];
   
   // Add positions from conceptPositions (for non-subcategory concepts)
   conceptPositions.forEach((pos, id) => {
     dynamicConceptPositions.set(id, pos);
   });
   
-  // Add positions for expanded subcategory concepts with organized zones
+  // Calculate hierarchical layout for expanded subcategory concepts
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
     if (subcategories.length > 0) {
+      // Calculate hierarchical layout for this cluster
+      const { nodes, positions: subPositions, zones, clusterRegion } = calculateHierarchicalLayout(cluster, subcategories);
+      allHierarchicalNodes.push(...nodes);
+      
+      // Add subcategory positions
+      subPositions.forEach((pos, key) => {
+        dynamicConceptPositions.set(key, pos);
+      });
+      
+      // Calculate concept positions for expanded subcategories
       subcategories.forEach((subcategory, index) => {
         const key = `${cluster.id}-${subcategory.name}`;
         if (expandedSubcategories.has(key)) {
-          // Calculate subcategory bubble position
-          const angle = (index / subcategories.length) * 2 * Math.PI;
-          const radius = 80;
-          const x = cluster.position.x + Math.cos(angle) * radius;
-          const y = cluster.position.y + Math.sin(angle) * radius;
-          
-          // Dynamic bubble size based on name length and concept count
-          const nameLength = subcategory.name.length;
-          const baseSizeFromName = Math.max(25, nameLength * 2);
-          const baseSizeFromCount = subcategory.count * 3;
-          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-          
-          // Create organized grid layout within each subcategory zone
-          const conceptsPerRow = Math.ceil(Math.sqrt(subcategory.concepts.length));
-          const conceptSpacing = 45; // Fixed spacing between concepts
-          const gridWidth = (conceptsPerRow - 1) * conceptSpacing;
-          const gridHeight = (Math.ceil(subcategory.concepts.length / conceptsPerRow) - 1) * conceptSpacing;
-          
-          // Calculate zone boundaries
-          const zoneRadius = Math.max(80, bubbleRadius + 60);
-          const zoneStartX = x - gridWidth / 2;
-          const zoneStartY = y - gridHeight / 2;
-          
-          // Position concepts in organized grid within the zone
-          subcategory.concepts.forEach((concept, conceptIndex) => {
-            const row = Math.floor(conceptIndex / conceptsPerRow);
-            const col = conceptIndex % conceptsPerRow;
+          // Find the category node for this subcategory
+          const categoryNode = nodes.find(n => n.id === `category-${cluster.id}-${subcategory.name}`);
+          if (categoryNode) {
+            const { conceptPositions: subConceptPositions, conceptNodes } = calculateConceptPositions(
+              categoryNode,
+              subcategory.concepts,
+              zones,
+              allHierarchicalNodes
+            );
             
-            let conceptX = zoneStartX + col * conceptSpacing;
-            let conceptY = zoneStartY + row * conceptSpacing;
+            // Add concept positions to the map
+            subConceptPositions.forEach((pos, conceptId) => {
+              dynamicConceptPositions.set(conceptId, pos);
+            });
             
-            // Ensure concepts stay within reasonable bounds
-            const maxDistance = zoneRadius + 20;
-            const distanceFromCenter = Math.sqrt(Math.pow(conceptX - x, 2) + Math.pow(conceptY - y, 2));
-            
-            if (distanceFromCenter > maxDistance) {
-              // Fallback to circular arrangement if grid goes too far
-              const fallbackAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-              const fallbackRadius = zoneRadius;
-              conceptX = x + Math.cos(fallbackAngle) * fallbackRadius;
-              conceptY = y + Math.sin(fallbackAngle) * fallbackRadius;
-            }
-            
-            dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
-          });
+            // Add concept nodes to global tracking
+            allHierarchicalNodes.push(...conceptNodes);
+          }
         }
       });
     }
   });
 
-  // Calculate dynamic viewport bounds to include all expanded concepts
+  // Calculate dynamic viewport bounds for hierarchical layout
   const calculateViewportBounds = () => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
@@ -443,23 +669,32 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       maxY = Math.max(maxY, cluster.position.y);
     });
     
-    // Include expanded subcategory zones
-    dynamicConceptPositions.forEach(position => {
-      minX = Math.min(minX, position.x);
-      minY = Math.min(minY, position.y);
-      maxX = Math.max(maxX, position.x);
-      maxY = Math.max(maxY, position.y);
+    // Include all hierarchical node positions
+    allHierarchicalNodes.forEach(node => {
+      // Account for node size in bounds
+      const nodeExtent = node.type === 'cluster_name' ? 50 : node.radius;
+      minX = Math.min(minX, node.x - nodeExtent);
+      minY = Math.min(minY, node.y - nodeExtent);
+      maxX = Math.max(maxX, node.x + nodeExtent);
+      maxY = Math.max(maxY, node.y + nodeExtent);
     });
     
-    // Add padding for better visibility and account for node sizes
-    const padding = 100;
-    const nodeRadius = 22; // Account for largest nodes
+    // Include all dynamic concept positions
+    dynamicConceptPositions.forEach(position => {
+      minX = Math.min(minX, position.x - 25); // Account for concept radius
+      minY = Math.min(minY, position.y - 25);
+      maxX = Math.max(maxX, position.x + 25);
+      maxY = Math.max(maxY, position.y + 25);
+    });
+    
+    // Add padding for better visibility
+    const padding = 120; // Increased for hierarchical spacing
     
     return {
-      x: minX - padding - nodeRadius,
-      y: minY - padding - nodeRadius,
-      width: Math.max(1200, (maxX - minX) + (padding + nodeRadius) * 2),
-      height: Math.max(800, (maxY - minY) + (padding + nodeRadius) * 2)
+      x: minX - padding,
+      y: minY - padding,
+      width: Math.max(1400, (maxX - minX) + padding * 2),
+      height: Math.max(1000, (maxY - minY) + padding * 2)
     };
   };
   
@@ -901,7 +1136,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               if (!hasVisibleConcepts) return null;
               
               const subcategories = generateSubcategories(cluster.concepts);
-              const isExpanded = expandedSubcategories.has(cluster.id);
+              const isExpanded = expandedClusters.has(cluster.id);
               
               return (
                 <g key={`label-${cluster.id}`}>
@@ -966,18 +1201,28 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   )}
                   
                   {/* Expanded Subcategory Bubbles */}
-                  {isExpanded && subcategories.length > 1 && subcategories.map((subcat, idx) => {
-                    const angle = (idx / subcategories.length) * 2 * Math.PI;
-                    const radius = 60;
-                    const x = cluster.position.x + Math.cos(angle) * radius;
-                    const y = cluster.position.y - 140 + Math.sin(angle) * radius;
+                  {isExpanded && subcategories.length > 1 && subcategories.map((subcategory, index) => {
+                    // Get hierarchical position for this subcategory
+                    const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+                    const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
+                    
+                    if (!subcategoryPosition) return null;
+                    
+                    const x = subcategoryPosition.x;
+                    const y = subcategoryPosition.y;
+                    
+                    // Dynamic bubble size based on name length and concept count
+                    const nameLength = subcategory.name.length;
+                    const baseSizeFromName = Math.max(25, nameLength * 2);
+                    const baseSizeFromCount = subcategory.count * 3;
+                    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
                     
                     return (
-                      <g key={`subcat-${cluster.id}-${idx}`}>
+                      <g key={`subcat-${cluster.id}-${index}`}>
                         <circle
                           cx={x}
                           cy={y}
-                          r="12"
+                          r={bubbleRadius}
                           fill={`${cluster.color}80`}
                           stroke={cluster.color}
                           strokeWidth="2"
@@ -992,7 +1237,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           fontWeight="500"
                           className="pointer-events-none"
                         >
-                          {subcat.count}
+                          {subcategory.count}
                         </text>
                         <text
                           x={x}
@@ -1003,7 +1248,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           fontWeight="400"
                           className="pointer-events-none"
                         >
-                          {subcat.name.length > 8 ? subcat.name.substring(0, 6) + '..' : subcat.name}
+                          {subcategory.name.length > 8 ? subcategory.name.substring(0, 6) + '..' : subcategory.name}
                         </text>
                       </g>
                     );
@@ -1058,21 +1303,25 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             {/* Subcategory Bubbles and Individual Concepts */}
             {semanticClusters.map(cluster => {
               const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-              const isExpanded = expandedSubcategories.has(cluster.id);
+              const isExpanded = expandedClusters.has(cluster.id);
               
               // If cluster has subcategories, show subcategory bubbles
               if (subcategories.length > 0) {
                 return (
                   <g key={`subcategories-${cluster.id}`}>
                     {subcategories.map((subcategory, index) => {
-                      // Position subcategories in a circle around cluster center
-                      const angle = (index / subcategories.length) * 2 * Math.PI;
-                      const radius = 80;
-                      const x = cluster.position.x + Math.cos(angle) * radius;
-                      const y = cluster.position.y + Math.sin(angle) * radius;
+                      // Get hierarchical position for this subcategory
+                      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+                      const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
+                      
+                      if (!subcategoryPosition) return null;
+                      
+                      const x = subcategoryPosition.x;
+                      const y = subcategoryPosition.y;
+                      
                       // Dynamic bubble size based on name length and concept count
                       const nameLength = subcategory.name.length;
-                      const baseSizeFromName = Math.max(25, nameLength * 2); // Minimum 25px, 2px per character
+                      const baseSizeFromName = Math.max(25, nameLength * 2);
                       const baseSizeFromCount = subcategory.count * 3;
                       const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
                       
@@ -1155,35 +1404,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {/* Expanded Individual Concepts */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
-                              // Use organized grid layout matching the position calculation
-                              const conceptsPerRow = Math.ceil(Math.sqrt(subcategory.concepts.length));
-                              const conceptSpacing = 45; // Fixed spacing between concepts
-                              const gridWidth = (conceptsPerRow - 1) * conceptSpacing;
-                              const gridHeight = (Math.ceil(subcategory.concepts.length / conceptsPerRow) - 1) * conceptSpacing;
+                              // Get hierarchical position for this concept
+                              const conceptPosition = dynamicConceptPositions.get(concept.id);
+                              if (!conceptPosition) return null;
                               
-                              // Calculate zone boundaries
-                              const zoneRadius = Math.max(80, bubbleRadius + 60);
-                              const zoneStartX = x - gridWidth / 2;
-                              const zoneStartY = y - gridHeight / 2;
-                              
-                              // Position concept in organized grid
-                              const row = Math.floor(conceptIndex / conceptsPerRow);
-                              const col = conceptIndex % conceptsPerRow;
-                              
-                              let conceptX = zoneStartX + col * conceptSpacing;
-                              let conceptY = zoneStartY + row * conceptSpacing;
-                              
-                              // Ensure concepts stay within reasonable bounds
-                              const maxDistance = zoneRadius + 20;
-                              const distanceFromCenter = Math.sqrt(Math.pow(conceptX - x, 2) + Math.pow(conceptY - y, 2));
-                              
-                              if (distanceFromCenter > maxDistance) {
-                                // Fallback to circular arrangement if grid goes too far
-                                const fallbackAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-                                const fallbackRadius = zoneRadius;
-                                conceptX = x + Math.cos(fallbackAngle) * fallbackRadius;
-                                conceptY = y + Math.sin(fallbackAngle) * fallbackRadius;
-                              }
+                              const conceptX = conceptPosition.x;
+                              const conceptY = conceptPosition.y;
                               
                               const masteryColor = getMasteryColor(concept.masteryLevel);
                               const isSelected = selectedConcept?.id === concept.id;
@@ -1275,7 +1501,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 return cluster.concepts
                   .filter(concept => filteredConcepts.some(fc => fc.id === concept.id))
                   .map((concept) => {
-                    const position = conceptPositions.get(concept.id);
+                    const position = dynamicConceptPositions.get(concept.id);
                     if (!position) return null;
 
                     const masteryColor = getMasteryColor(concept.masteryLevel);
