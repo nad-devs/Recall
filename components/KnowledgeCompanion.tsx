@@ -942,6 +942,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   
   // Subcategory expansion state
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
+  
+  // Add zoom and pan functionality
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  
+  // Zoom event handler
+  const handleWheel = (event: React.WheelEvent) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
+  };
+  
+  // Reset zoom
+  const resetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
 
   // Generate dynamic semantic clusters and layout
   const semanticClusters = generateDynamicSemanticClusters(concepts);
@@ -1138,191 +1155,51 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
   });
   
-  // Apply structured layouts + physics to SUBCATEGORIES (the visible bubbles)
-  const allSubcategoryNodes: Array<{
-    id: string;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    radius: number;
-    mass: number;
-    clusterId: string;
-    clusterX: number;
-    clusterY: number;
-    subcategory: any;
-    textWidth: number;
-    textHeight: number;
-    idealX: number;
-    idealY: number;
-  }> = [];
-
-  // Initialize subcategory nodes with STRUCTURED CIRCULAR LAYOUTS + physics backup
+  // SIMPLE STRUCTURED CIRCULAR LAYOUTS for subcategories
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
+    console.log(`🔍 DEBUG: Cluster "${cluster.name}" has ${subcategories.length} subcategories`);
+    
     subcategories.forEach((subcategory, index) => {
-      // Calculate actual text dimensions for subcategory bubbles
-      const title = subcategory.name || '';
-      const textWidth = Math.max(100, title.length * 10 + 40);
-      const textHeight = 50;
-      const bubbleRadius = Math.max(35, Math.sqrt(textWidth * textHeight) / 2.5);
-      
-      // STRUCTURED CIRCULAR POSITIONING - Start with perfect circles
       const totalSubcategories = subcategories.length;
-      let targetX, targetY;
+      let x, y;
       
       if (totalSubcategories === 1) {
         // Single subcategory - place at cluster center
-        targetX = cluster.position.x;
-        targetY = cluster.position.y;
+        x = cluster.position.x;
+        y = cluster.position.y;
       } else if (totalSubcategories <= 6) {
         // Small clusters - single perfect circle
         const angle = (index / totalSubcategories) * 2 * Math.PI;
-        const radius = Math.max(120, totalSubcategories * 25); // Adaptive radius based on count
-        targetX = cluster.position.x + Math.cos(angle) * radius;
-        targetY = cluster.position.y + Math.sin(angle) * radius;
+        const radius = Math.max(150, totalSubcategories * 30); // Larger radius for better spacing
+        x = cluster.position.x + Math.cos(angle) * radius;
+        y = cluster.position.y + Math.sin(angle) * radius;
       } else {
         // Larger clusters - concentric circles
-        const innerCount = 6; // First 6 in inner circle
-        const outerCount = totalSubcategories - innerCount;
-        
+        const innerCount = 6;
         if (index < innerCount) {
           // Inner circle
           const angle = (index / innerCount) * 2 * Math.PI;
-          const radius = 100;
-          targetX = cluster.position.x + Math.cos(angle) * radius;
-          targetY = cluster.position.y + Math.sin(angle) * radius;
+          const radius = 120;
+          x = cluster.position.x + Math.cos(angle) * radius;
+          y = cluster.position.y + Math.sin(angle) * radius;
         } else {
           // Outer circle
           const outerIndex = index - innerCount;
+          const outerCount = totalSubcategories - innerCount;
           const angle = (outerIndex / outerCount) * 2 * Math.PI;
-          const radius = 180;
-          targetX = cluster.position.x + Math.cos(angle) * radius;
-          targetY = cluster.position.y + Math.sin(angle) * radius;
+          const radius = 200;
+          x = cluster.position.x + Math.cos(angle) * radius;
+          y = cluster.position.y + Math.sin(angle) * radius;
         }
       }
       
-      allSubcategoryNodes.push({
-        id: `subcategory-${cluster.id}-${subcategory.name}`,
-        x: targetX, // Start at structured position
-        y: targetY,
-        vx: 0,
-        vy: 0,
-        radius: bubbleRadius,
-        mass: 2 + (textWidth * textHeight) / 500,
-        clusterId: cluster.id,
-        clusterX: cluster.position.x,
-        clusterY: cluster.position.y,
-        subcategory: subcategory,
-        textWidth: textWidth,
-        textHeight: textHeight,
-        // Store the ideal structured position
-        idealX: targetX,
-        idealY: targetY
-      });
+      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+      dynamicConceptPositions.set(subcategoryKey, { x, y });
+      
+      console.log(`🔍 DEBUG: Set position for "${subcategoryKey}" at (${x.toFixed(1)}, ${y.toFixed(1)})`);
     });
-  });
-
-  // HYBRID: Structured positioning + physics for collision avoidance
-  const subcategoryIterations = 30; // Fewer iterations since we start with good positions
-  const subcategoryTimeStep = 0.1;
-  const subcategoryDamping = 0.88;
-  
-  for (let iter = 0; iter < subcategoryIterations; iter++) {
-    allSubcategoryNodes.forEach(node => {
-      let fx = 0, fy = 0;
-      
-      // 1. STRUCTURED POSITION ATTRACTION - Pull toward ideal circular position
-      const idealDx = node.idealX - node.x;
-      const idealDy = node.idealY - node.y;
-      const idealDist = Math.sqrt(idealDx * idealDx + idealDy * idealDy);
-      
-      if (idealDist > 5) { // Only pull if significantly away from ideal position
-        const structureForce = 0.08 * idealDist; // Strong pull toward structured position
-        fx += (idealDx / idealDist) * structureForce;
-        fy += (idealDy / idealDist) * structureForce;
-      }
-      
-             // 2. COLLISION AVOIDANCE - Only push apart when actually overlapping
-       allSubcategoryNodes.forEach(other => {
-         if (other.id === node.id) return;
-         
-         const dx = node.x - other.x;
-         const dy = node.y - other.y;
-         const distance = Math.sqrt(dx * dx + dy * dy);
-         
-         if (distance < 0.1) return;
-         
-         // Calculate minimum safe distance
-         const minDistance = Math.max(
-           node.radius + other.radius + 25, // Basic bubble separation
-           (node.textWidth + other.textWidth) / 2 + 15, // Text width consideration
-           70 // Minimum for readability
-         );
-         
-         if (distance < minDistance) {
-           // Moderate repulsion - just enough to prevent overlap
-           const overlap = minDistance - distance;
-           const repulsionForce = overlap * 200; // Gentler force to maintain structure
-           const forceX = (dx / distance) * repulsionForce;
-           const forceY = (dy / distance) * repulsionForce;
-           
-           // Equal and opposite forces
-           fx += forceX * 0.5;
-           fy += forceY * 0.5;
-         }
-       });
-      
-             // 3. GENTLE INTER-CLUSTER SEPARATION - Minimal force to avoid cluster overlap
-       allSubcategoryNodes.forEach(other => {
-         if (other.clusterId === node.clusterId) return;
-         
-         const dx = node.x - other.x;
-         const dy = node.y - other.y;
-         const distance = Math.sqrt(dx * dx + dy * dy);
-         
-         if (distance < 100 && distance > 0.1) {
-           const separationForce = (100 - distance) * 0.3; // Gentle separation
-           fx += (dx / distance) * separationForce;
-           fy += (dy / distance) * separationForce;
-         }
-       });
-      
-      // Apply forces with physics integration
-      const acceleration = 1 / node.mass;
-      node.vx += fx * acceleration * subcategoryTimeStep;
-      node.vy += fy * acceleration * subcategoryTimeStep;
-      
-      // Apply damping
-      node.vx *= subcategoryDamping;
-      node.vy *= subcategoryDamping;
-      
-      // Velocity limiting
-      const maxVelocity = 8;
-      const velocity = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
-      if (velocity > maxVelocity) {
-        node.vx = (node.vx / velocity) * maxVelocity;
-        node.vy = (node.vy / velocity) * maxVelocity;
-      }
-      
-      // Update position
-      node.x += node.vx * subcategoryTimeStep;
-      node.y += node.vy * subcategoryTimeStep;
-    });
-    
-    // Adaptive cooling for subcategories
-    if (iter > subcategoryIterations * 0.75) {
-      allSubcategoryNodes.forEach(node => {
-        node.vx *= 0.96;
-        node.vy *= 0.96;
-      });
-    }
-  }
-
-  // Store final subcategory positions
-  allSubcategoryNodes.forEach(node => {
-    dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
   });
 
   // Handle expanded subcategory concepts (when user clicks to expand)
@@ -1820,8 +1697,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
             onMouseMove={handleMouseMove}
             onMouseUp={(e) => handleMouseUp(e)}
+            onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
           >
+            <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
             {/* Background Grid */}
             <defs>
               <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -2311,6 +2190,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   });
               }
             })}
+            </g>
           </svg>
 
           {/* Hover Tooltip */}
