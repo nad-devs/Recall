@@ -106,6 +106,28 @@ const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   return Settings;
 };
 
+// Generate subcategories within clusters
+const generateSubcategories = (clusterConcepts: Concept[]) => {
+  const subcategoryMap = new Map<string, Concept[]>();
+  
+  clusterConcepts.forEach(concept => {
+    // Extract subcategory from full category path (e.g., "Machine Learning > Neural Networks" -> "Neural Networks")
+    const categoryParts = concept.category.split(' > ');
+    const subcategory = categoryParts.length > 1 ? categoryParts[categoryParts.length - 1] : 'General';
+    
+    if (!subcategoryMap.has(subcategory)) {
+      subcategoryMap.set(subcategory, []);
+    }
+    subcategoryMap.get(subcategory)!.push(concept);
+  });
+  
+  return Array.from(subcategoryMap.entries()).map(([name, concepts]) => ({
+    name,
+    concepts,
+    count: concepts.length
+  }));
+};
+
 // AI-powered semantic clustering
 const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
   // Define semantic groups with keywords and patterns
@@ -296,6 +318,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ conceptId: string; x: number; y: number } | null>(null);
   const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [userConnections, setUserConnections] = useState<Array<{from: string, to: string}>>([]);
+  
+  // Subcategory expansion state
+  const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
 
   // Generate semantic clusters and layout
   const semanticClusters = generateSemanticClusters(concepts);
@@ -406,9 +432,31 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }).filter(Boolean);
   });
 
-  console.log(`Total connections found: ${connections.length}`);
+  // Add user-created connections
+  const userConnectionsWithPositions = userConnections.map(conn => {
+    const fromPos = conceptPositions.get(conn.from);
+    const toPos = conceptPositions.get(conn.to);
+    const fromConcept = concepts.find(c => c.id === conn.from);
+    const toConcept = concepts.find(c => c.id === conn.to);
+    
+    if (fromPos && toPos && fromConcept && toConcept) {
+      return {
+        from: conn.from,
+        to: conn.to,
+        fromPos,
+        toPos,
+        fromConcept,
+        toConcept,
+        isUserCreated: true
+      };
+    }
+    return null;
+  }).filter(Boolean);
 
-  const visibleConnections = connections.filter(conn => {
+  const allConnections = [...connections, ...userConnectionsWithPositions];
+  console.log(`Total connections found: ${allConnections.length} (${userConnections.length} user-created)`);
+
+  const visibleConnections = allConnections.filter(conn => {
     if (!conn || !showConnections) return false;
     const fromVisible = filteredConcepts.some(c => c.id === conn.from);
     const toVisible = filteredConcepts.some(c => c.id === conn.to);
@@ -455,8 +503,21 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       const targetConcept = concepts.find(c => c.id === targetConceptId);
       
       if (sourceConcept && targetConcept) {
-        console.log(`Connection: ${sourceConcept.title} → ${targetConcept.title}`);
-        // Add your connection creation logic here
+        // Create new user connection
+        const newConnection = { from: dragStart.conceptId, to: targetConceptId };
+        
+        // Check if connection already exists (in either direction)
+        const connectionExists = userConnections.some(conn => 
+          (conn.from === newConnection.from && conn.to === newConnection.to) ||
+          (conn.from === newConnection.to && conn.to === newConnection.from)
+        );
+        
+        if (!connectionExists) {
+          setUserConnections(prev => [...prev, newConnection]);
+          console.log(`✅ Created connection: ${sourceConcept.title} → ${targetConcept.title}`);
+        } else {
+          console.log(`⚠️ Connection already exists: ${sourceConcept.title} ↔ ${targetConcept.title}`);
+        }
       }
     }
     
@@ -468,7 +529,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Get connected nodes for highlighting
   const getConnectedNodes = (conceptId: string) => {
     const connected = new Set<string>();
-    connections.forEach(conn => {
+    allConnections.forEach(conn => {
       if (conn?.from === conceptId) connected.add(conn.to);
       if (conn?.to === conceptId) connected.add(conn.from);
     });
@@ -613,8 +674,11 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           </button>
           
           <div className="mt-3 text-xs text-gray-400">
-            <div>Total: {connections.length} connections</div>
+            <div>Auto: {connections.length} connections</div>
+            <div>User: {userConnections.length} connections</div>
             <div>Visible: {visibleConnections.length}</div>
+            <div className="mt-2 text-yellow-400">🟡 User connections</div>
+            <div className="text-blue-400">🔵 Auto connections</div>
             <div className="mt-2">Right-click + drag to connect</div>
           </div>
         </div>
@@ -696,7 +760,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
 
-            {/* Cluster Labels */}
+            {/* Cluster Labels and Subcategory Bubbles */}
             {semanticClusters.map(cluster => {
               const hasVisibleConcepts = cluster.concepts.some(c => 
                 filteredConcepts.some(fc => fc.id === c.id)
@@ -704,8 +768,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               
               if (!hasVisibleConcepts) return null;
               
+              const subcategories = generateSubcategories(cluster.concepts);
+              const isExpanded = expandedSubcategories.has(cluster.id);
+              
               return (
                 <g key={`label-${cluster.id}`}>
+                  {/* Main Cluster Label */}
                   <text
                     x={cluster.position.x}
                     y={cluster.position.y - 150}
@@ -727,6 +795,87 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   >
                     {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
                   </text>
+                  
+                  {/* Subcategory Expansion Button */}
+                  {subcategories.length > 1 && (
+                    <circle
+                      cx={cluster.position.x + 80}
+                      cy={cluster.position.y - 140}
+                      r="8"
+                      fill={cluster.color}
+                      stroke="rgba(255,255,255,0.3)"
+                      strokeWidth="1"
+                      className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedSubcategories);
+                        if (newExpanded.has(cluster.id)) {
+                          newExpanded.delete(cluster.id);
+                        } else {
+                          newExpanded.add(cluster.id);
+                        }
+                        setExpandedSubcategories(newExpanded);
+                      }}
+                    />
+                  )}
+                  
+                  {/* Subcategory Count */}
+                  {subcategories.length > 1 && (
+                    <text
+                      x={cluster.position.x + 80}
+                      y={cluster.position.y - 137}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize="8"
+                      fontWeight="600"
+                      className="pointer-events-none"
+                    >
+                      {subcategories.length}
+                    </text>
+                  )}
+                  
+                  {/* Expanded Subcategory Bubbles */}
+                  {isExpanded && subcategories.length > 1 && subcategories.map((subcat, idx) => {
+                    const angle = (idx / subcategories.length) * 2 * Math.PI;
+                    const radius = 60;
+                    const x = cluster.position.x + Math.cos(angle) * radius;
+                    const y = cluster.position.y - 140 + Math.sin(angle) * radius;
+                    
+                    return (
+                      <g key={`subcat-${cluster.id}-${idx}`}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r="12"
+                          fill={`${cluster.color}80`}
+                          stroke={cluster.color}
+                          strokeWidth="2"
+                          className="transition-all duration-300"
+                        />
+                        <text
+                          x={x}
+                          y={y + 2}
+                          textAnchor="middle"
+                          fill="white"
+                          fontSize="8"
+                          fontWeight="500"
+                          className="pointer-events-none"
+                        >
+                          {subcat.count}
+                        </text>
+                        <text
+                          x={x}
+                          y={y + 25}
+                          textAnchor="middle"
+                          fill="rgba(255,255,255,0.8)"
+                          fontSize="9"
+                          fontWeight="400"
+                          className="pointer-events-none"
+                        >
+                          {subcat.name.length > 8 ? subcat.name.substring(0, 6) + '..' : subcat.name}
+                        </text>
+                      </g>
+                    );
+                  })}
                 </g>
               );
             })}
@@ -737,6 +886,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               
               const isHighlighted = hoveredConcept && 
                 (conn.from === hoveredConcept || conn.to === hoveredConcept);
+              const isUserCreated = (conn as any).isUserCreated;
               
               return (
                 <line
@@ -745,9 +895,15 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   y1={conn.fromPos.y}
                   x2={conn.toPos.x}
                   y2={conn.toPos.y}
-                  stroke={isHighlighted ? "#10B981" : "rgba(99, 102, 241, 0.6)"}
-                  strokeWidth={isHighlighted ? 3 : 2}
-                  strokeDasharray={isHighlighted ? "none" : "5,5"}
+                  stroke={
+                    isHighlighted 
+                      ? "#10B981" 
+                      : isUserCreated 
+                        ? "#F59E0B" 
+                        : "rgba(99, 102, 241, 0.6)"
+                  }
+                  strokeWidth={isHighlighted ? 3 : isUserCreated ? 3 : 2}
+                  strokeDasharray={isHighlighted ? "none" : isUserCreated ? "none" : "5,5"}
                   className="transition-all duration-300"
                 />
               );
