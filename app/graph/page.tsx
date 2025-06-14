@@ -180,16 +180,19 @@ export default function GraphPage() {
   const ConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
     if (!concept) return null
     
+    // Add debugging
+    console.log('ConceptModal rendering for:', concept.title)
+    
     // Process enhanced concept data safely
     const enhanced = processEnhancedConcept(concept as EnhancedConcept)
     
     return (
       <div
-        className="fixed inset-0 bg-black/80 z-[1000] flex items-start justify-center pt-16 pb-8"
+        className="fixed inset-0 bg-black/80 z-[2000] flex items-center justify-center p-4"
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 rounded-xl p-4 max-w-3xl max-h-[85vh] overflow-auto border border-slate-600 shadow-2xl text-sm mx-4"
+          className="bg-slate-800 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto border border-slate-600 shadow-2xl text-sm"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-start mb-4">
