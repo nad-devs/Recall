@@ -544,7 +544,13 @@ const generateClusterLayout = (clusters: SemanticCluster[], viewBox: { x: number
   return { positions, bounds };
 };
 
-// Simple subcategory positioning - keep them close to parent cluster
+// Simple collision detection - only check actual overlaps
+const checkActualOverlap = (x1: number, y1: number, r1: number, x2: number, y2: number, r2: number): boolean => {
+  const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  return distance < (r1 + r2 + 5); // Small 5px buffer
+};
+
+// Simple subcategory positioning with minimal collision adjustment
 const calculateSubcategoryPositions = (cluster: SemanticCluster, subcategories: any[]) => {
   const positions = new Map<string, { x: number; y: number }>();
   
@@ -555,23 +561,54 @@ const calculateSubcategoryPositions = (cluster: SemanticCluster, subcategories: 
   const angleStep = (2 * Math.PI) / subcategories.length;
   const startAngle = -Math.PI / 2; // Start from top
   
+  const placedPositions: Array<{ x: number; y: number; radius: number }> = [];
+  
   subcategories.forEach((subcategory, index) => {
     const angle = startAngle + (index * angleStep);
-    const x = cluster.position.x + Math.cos(angle) * baseRadius;
-    const y = cluster.position.y + Math.sin(angle) * baseRadius;
+    let x = cluster.position.x + Math.cos(angle) * baseRadius;
+    let y = cluster.position.y + Math.sin(angle) * baseRadius;
     
+    // Calculate bubble size
+    const nameLength = subcategory.name.length;
+    const baseSizeFromName = Math.max(25, nameLength * 2);
+    const baseSizeFromCount = subcategory.count * 3;
+    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+    
+    // Only adjust if there's an actual overlap with existing subcategories
+    let hasOverlap = true;
+    let attempts = 0;
+    
+    while (hasOverlap && attempts < 10) { // Limited attempts - keep it simple
+      hasOverlap = false;
+      
+      for (const placed of placedPositions) {
+        if (checkActualOverlap(x, y, bubbleRadius, placed.x, placed.y, placed.radius)) {
+          hasOverlap = true;
+          // Small adjustment - just nudge slightly outward
+          const adjustAngle = angle + (attempts * 0.3); // Small angular adjustment
+          const adjustRadius = baseRadius + (attempts * 10); // Small radial increase
+          x = cluster.position.x + Math.cos(adjustAngle) * adjustRadius;
+          y = cluster.position.y + Math.sin(adjustAngle) * adjustRadius;
+          break;
+        }
+      }
+      attempts++;
+    }
+    
+    placedPositions.push({ x, y, radius: bubbleRadius });
     positions.set(`subcategory-${cluster.id}-${subcategory.name}`, { x, y });
   });
   
   return positions;
 };
 
-// Simple concept positioning around subcategories
+// Simple concept positioning around subcategories with minimal collision adjustment
 const calculateExpandedConceptPositions = (
   subcategoryX: number,
   subcategoryY: number,
   concepts: any[],
-  bubbleRadius: number
+  bubbleRadius: number,
+  allSubcategoryPositions: Map<string, { x: number; y: number; radius: number }>
 ) => {
   const positions = new Map<string, { x: number; y: number }>();
   
@@ -580,11 +617,33 @@ const calculateExpandedConceptPositions = (
   // Arrange concepts in a circle around subcategory
   const conceptRadius = Math.max(bubbleRadius + 50, 70); // Minimum distance from subcategory
   const angleStep = (2 * Math.PI) / concepts.length;
+  const conceptSize = 18; // Concept node radius
   
   concepts.forEach((concept, index) => {
     const angle = index * angleStep;
-    const x = subcategoryX + Math.cos(angle) * conceptRadius;
-    const y = subcategoryY + Math.sin(angle) * conceptRadius;
+    let x = subcategoryX + Math.cos(angle) * conceptRadius;
+    let y = subcategoryY + Math.sin(angle) * conceptRadius;
+    
+    // Only check for overlaps with other subcategories (not concepts)
+    let hasOverlap = true;
+    let attempts = 0;
+    
+    while (hasOverlap && attempts < 5) { // Very limited attempts
+      hasOverlap = false;
+      
+      // Check overlap with other subcategories
+      for (const [key, subPos] of allSubcategoryPositions) {
+        if (checkActualOverlap(x, y, conceptSize, subPos.x, subPos.y, subPos.radius)) {
+          hasOverlap = true;
+          // Small adjustment - move outward slightly
+          const adjustedRadius = conceptRadius + (attempts * 15);
+          x = subcategoryX + Math.cos(angle) * adjustedRadius;
+          y = subcategoryY + Math.sin(angle) * adjustedRadius;
+          break;
+        }
+      }
+      attempts++;
+    }
     
     positions.set(concept.id, { x, y });
   });
@@ -670,9 +729,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       // Calculate subcategory positions
       const subcategoryPositions = calculateSubcategoryPositions(cluster, subcategories);
       
+      // Create a map with radius information for collision detection
+      const subcategoryPositionsWithRadius = new Map<string, { x: number; y: number; radius: number }>();
+      
       // Add subcategory positions to the map
       subcategoryPositions.forEach((pos, key) => {
         dynamicConceptPositions.set(key, pos);
+        
+        // Extract subcategory info for radius calculation
+        const subcategoryName = key.replace(`subcategory-${cluster.id}-`, '');
+        const subcategory = subcategories.find(s => s.name === subcategoryName);
+        if (subcategory) {
+          const nameLength = subcategory.name.length;
+          const baseSizeFromName = Math.max(25, nameLength * 2);
+          const baseSizeFromCount = subcategory.count * 3;
+          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+          subcategoryPositionsWithRadius.set(key, { ...pos, radius: bubbleRadius });
+        }
       });
       
       // Calculate positions for expanded subcategory concepts
@@ -693,7 +766,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             subcategoryPos.x,
             subcategoryPos.y,
             subcategory.concepts,
-            bubbleRadius
+            bubbleRadius,
+            subcategoryPositionsWithRadius
           );
           
           // Add concept positions to the map
