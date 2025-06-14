@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Target, BookOpen, Zap, Search, Filter, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
 
-// Types based on your actual Prisma schema
+// Types compatible with existing graph page
 interface Category {
   id: string;
   name: string;
   parentId: string | null;
   parent?: Category;
   children: Category[];
-  concepts: Concept[];
+  concepts: any[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,24 +17,26 @@ interface Concept {
   id: string;
   title: string;
   category: string;
-  summary: string;
-  details: string; // JSON string
-  keyPoints: string; // JSON string
-  examples: string; // JSON string
-  relatedConcepts: string; // JSON string - array of concept IDs
-  relationships: string; // JSON string
-  confidenceScore: number;
-  masteryLevel: string | null; // "BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"
-  learningProgress: number; // 0-100%
-  practiceCount: number;
-  lastPracticed: Date | null;
-  difficultyRating: number | null; // 1-5 stars
-  prerequisites: string; // JSON string - array of concept IDs
-  personalRating: number | null;
-  bookmarked: boolean;
-  tags: string; // JSON string
-  createdAt: Date;
-  categories: Category[];
+  summary?: string;
+  details?: string; // JSON string
+  keyPoints?: string; // JSON string
+  examples?: string; // JSON string
+  relatedConcepts?: string; // JSON string - array of concept IDs
+  relationships?: string; // JSON string
+  confidenceScore?: number;
+  masteryLevel?: string | null; // "BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"
+  learningProgress?: number; // 0-100%
+  practiceCount?: number;
+  lastPracticed?: Date | string | null;
+  difficultyRating?: number | null; // 1-5 stars
+  prerequisites?: string; // JSON string - array of concept IDs
+  personalRating?: number | null;
+  bookmarked?: boolean;
+  tags?: string; // JSON string
+  createdAt?: Date | string;
+  categories?: Category[];
+  // Additional fields from EnhancedConcept
+  [key: string]: any;
 }
 
 interface KnowledgeCompanionProps {
