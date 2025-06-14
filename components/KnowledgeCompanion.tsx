@@ -377,6 +377,43 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
+  // Create dynamic position map for all visible concepts (including expanded ones)
+  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
+  
+  // Add positions from conceptPositions (for non-subcategory concepts)
+  conceptPositions.forEach((pos, id) => {
+    dynamicConceptPositions.set(id, pos);
+  });
+  
+  // Add positions for expanded subcategory concepts
+  semanticClusters.forEach(cluster => {
+    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+    
+    if (subcategories.length > 0) {
+      subcategories.forEach((subcategory, index) => {
+        const key = `${cluster.id}-${subcategory.name}`;
+        if (expandedSubcategories.has(key)) {
+          // Calculate subcategory bubble position
+          const angle = (index / subcategories.length) * 2 * Math.PI;
+          const radius = 80;
+          const x = cluster.position.x + Math.cos(angle) * radius;
+          const y = cluster.position.y + Math.sin(angle) * radius;
+          const bubbleRadius = Math.max(20, Math.min(35, subcategory.count * 3));
+          
+          // Add positions for expanded concepts
+          subcategory.concepts.forEach((concept, conceptIndex) => {
+            const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+            const conceptRadius = Math.max(80, bubbleRadius + 60 + (subcategory.concepts.length * 5));
+            const conceptX = x + Math.cos(conceptAngle) * conceptRadius;
+            const conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+            
+            dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
+          });
+        }
+      });
+    }
+  });
+
   // Generate connections with better debugging
   const connections = concepts.flatMap(concept => {
     const relatedIds = parseJsonField(concept.relatedConcepts, []);
@@ -417,8 +454,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         return null;
       }
       
-      const fromPos = conceptPositions.get(concept.id);
-      const toPos = targetConceptId ? conceptPositions.get(targetConceptId) : null;
+      const fromPos = dynamicConceptPositions.get(concept.id);
+      const toPos = targetConceptId ? dynamicConceptPositions.get(targetConceptId) : null;
       
       if (!fromPos || !toPos) {
         console.warn(`Position not found for connection: ${concept.title} -> ${targetConcept.title}`);
@@ -438,8 +475,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 
   // Add user-created connections
   const userConnectionsWithPositions = userConnections.map(conn => {
-    const fromPos = conceptPositions.get(conn.from);
-    const toPos = conceptPositions.get(conn.to);
+    const fromPos = dynamicConceptPositions.get(conn.from);
+    const toPos = dynamicConceptPositions.get(conn.to);
     const fromConcept = concepts.find(c => c.id === conn.from);
     const toConcept = concepts.find(c => c.id === conn.to);
     
@@ -460,11 +497,41 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const allConnections = [...connections, ...userConnectionsWithPositions];
   console.log(`Total connections found: ${allConnections.length} (${userConnections.length} user-created)`);
 
+  // Get currently visible concept IDs (only expanded individual concepts, not subcategory bubbles)
+  const getVisibleConceptIds = () => {
+    const visibleIds = new Set<string>();
+    
+    semanticClusters.forEach(cluster => {
+      const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+      
+      if (subcategories.length > 0) {
+        // Only add concepts from expanded subcategories
+        subcategories.forEach(subcategory => {
+          const key = `${cluster.id}-${subcategory.name}`;
+          if (expandedSubcategories.has(key)) {
+            subcategory.concepts.forEach(concept => {
+              visibleIds.add(concept.id);
+            });
+          }
+        });
+      } else {
+        // Add all concepts from clusters without subcategories
+        cluster.concepts.forEach(concept => {
+          if (filteredConcepts.some(fc => fc.id === concept.id)) {
+            visibleIds.add(concept.id);
+          }
+        });
+      }
+    });
+    
+    return visibleIds;
+  };
+
+  const visibleConceptIds = getVisibleConceptIds();
   const visibleConnections = allConnections.filter(conn => {
     if (!conn || !showConnections) return false;
-    const fromVisible = filteredConcepts.some(c => c.id === conn.from);
-    const toVisible = filteredConcepts.some(c => c.id === conn.to);
-    return fromVisible && toVisible;
+    // Only show connections between concepts that are actually visible as individual nodes
+    return visibleConceptIds.has(conn.from) && visibleConceptIds.has(conn.to);
   });
 
   console.log(`Visible connections: ${visibleConnections.length}`);
@@ -1006,8 +1073,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {/* Expanded Individual Concepts */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
+                              // Better positioning: spread concepts in a larger circle with more spacing
                               const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-                              const conceptRadius = bubbleRadius + 40;
+                              const conceptRadius = Math.max(80, bubbleRadius + 60 + (subcategory.concepts.length * 5)); // Dynamic radius based on count
                               const conceptX = x + Math.cos(conceptAngle) * conceptRadius;
                               const conceptY = y + Math.sin(conceptAngle) * conceptRadius;
                               
