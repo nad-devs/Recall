@@ -373,7 +373,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     dynamicConceptPositions.set(id, pos);
   });
   
-  // Add positions for expanded subcategory concepts
+  // Add positions for expanded subcategory concepts with organized zones
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
@@ -386,29 +386,43 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const radius = 80;
           const x = cluster.position.x + Math.cos(angle) * radius;
           const y = cluster.position.y + Math.sin(angle) * radius;
-                     // Dynamic bubble size based on name length and concept count
-           const nameLength = subcategory.name.length;
-           const baseSizeFromName = Math.max(25, nameLength * 2);
-           const baseSizeFromCount = subcategory.count * 3;
-           const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-           
-           // Add positions for expanded concepts with same logic as rendering
-           subcategory.concepts.forEach((concept, conceptIndex) => {
-             const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-             
-             // Use same collision avoidance logic as rendering
-             const baseRadius = bubbleRadius + 120;
-             const clusterSpacing = 200;
-             const conceptSpacing = subcategory.concepts.length * 15;
-             
-             const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
-             const avoidanceRadius = baseRadius + conceptSpacing + (clusterSpacing / subcategories.length);
-             
-             const directionOffset = subcategoryAngle + (Math.PI / subcategories.length);
-             const finalAngle = conceptAngle + directionOffset;
-             
-             const conceptX = x + Math.cos(finalAngle) * avoidanceRadius;
-             const conceptY = y + Math.sin(finalAngle) * avoidanceRadius;
+          
+          // Dynamic bubble size based on name length and concept count
+          const nameLength = subcategory.name.length;
+          const baseSizeFromName = Math.max(25, nameLength * 2);
+          const baseSizeFromCount = subcategory.count * 3;
+          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+          
+          // Create organized grid layout within each subcategory zone
+          const conceptsPerRow = Math.ceil(Math.sqrt(subcategory.concepts.length));
+          const conceptSpacing = 45; // Fixed spacing between concepts
+          const gridWidth = (conceptsPerRow - 1) * conceptSpacing;
+          const gridHeight = (Math.ceil(subcategory.concepts.length / conceptsPerRow) - 1) * conceptSpacing;
+          
+          // Calculate zone boundaries
+          const zoneRadius = Math.max(80, bubbleRadius + 60);
+          const zoneStartX = x - gridWidth / 2;
+          const zoneStartY = y - gridHeight / 2;
+          
+          // Position concepts in organized grid within the zone
+          subcategory.concepts.forEach((concept, conceptIndex) => {
+            const row = Math.floor(conceptIndex / conceptsPerRow);
+            const col = conceptIndex % conceptsPerRow;
+            
+            let conceptX = zoneStartX + col * conceptSpacing;
+            let conceptY = zoneStartY + row * conceptSpacing;
+            
+            // Ensure concepts stay within reasonable bounds
+            const maxDistance = zoneRadius + 20;
+            const distanceFromCenter = Math.sqrt(Math.pow(conceptX - x, 2) + Math.pow(conceptY - y, 2));
+            
+            if (distanceFromCenter > maxDistance) {
+              // Fallback to circular arrangement if grid goes too far
+              const fallbackAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+              const fallbackRadius = zoneRadius;
+              conceptX = x + Math.cos(fallbackAngle) * fallbackRadius;
+              conceptY = y + Math.sin(fallbackAngle) * fallbackRadius;
+            }
             
             dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
           });
@@ -417,33 +431,39 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   });
 
-  // Update viewBox to fit all concepts including expanded subcategories
-  useEffect(() => {
-    // Calculate bounds including expanded subcategory concepts
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  // Calculate dynamic viewport bounds to include all expanded concepts
+  const calculateViewportBounds = () => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
-    // Include all dynamic positions (base concepts + expanded subcategory concepts)
-    dynamicConceptPositions.forEach((pos) => {
-      minX = Math.min(minX, pos.x);
-      maxX = Math.max(maxX, pos.x);
-      minY = Math.min(minY, pos.y);
-      maxY = Math.max(maxY, pos.y);
+    // Include all base cluster positions
+    semanticClusters.forEach(cluster => {
+      minX = Math.min(minX, cluster.position.x);
+      minY = Math.min(minY, cluster.position.y);
+      maxX = Math.max(maxX, cluster.position.x);
+      maxY = Math.max(maxY, cluster.position.y);
     });
     
-    // Add extra padding for expanded concepts
-    const padding = 200; // Increased padding
+    // Include expanded subcategory zones
+    dynamicConceptPositions.forEach(position => {
+      minX = Math.min(minX, position.x);
+      minY = Math.min(minY, position.y);
+      maxX = Math.max(maxX, position.x);
+      maxY = Math.max(maxY, position.y);
+    });
     
-    if (minX !== Infinity) {
-      const width = (maxX - minX) + (padding * 2);
-      const height = (maxY - minY) + (padding * 2);
-      setViewBox({
-        x: minX - padding,
-        y: minY - padding,
-        width: Math.max(width, 1600), // Increased minimum width
-        height: Math.max(height, 1200) // Increased minimum height
-      });
-    }
-  }, [expandedSubcategories, concepts.length]);
+    // Add padding for better visibility and account for node sizes
+    const padding = 100;
+    const nodeRadius = 22; // Account for largest nodes
+    
+    return {
+      x: minX - padding - nodeRadius,
+      y: minY - padding - nodeRadius,
+      width: Math.max(1200, (maxX - minX) + (padding + nodeRadius) * 2),
+      height: Math.max(800, (maxY - minY) + (padding + nodeRadius) * 2)
+    };
+  };
+  
+  const viewportBounds = calculateViewportBounds();
 
   // Generate connections with better debugging
   const connections = concepts.flatMap(concept => {
@@ -592,8 +612,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     if (isDragging && dragStart) {
       const rect = svgRef.current?.getBoundingClientRect();
       if (rect) {
-        const svgX = ((event.clientX - rect.left) * viewBox.width) / rect.width + viewBox.x;
-        const svgY = ((event.clientY - rect.top) * viewBox.height) / rect.height + viewBox.y;
+        const svgX = ((event.clientX - rect.left) * viewportBounds.width) / rect.width + viewportBounds.x;
+        const svgY = ((event.clientY - rect.top) * viewportBounds.height) / rect.height + viewportBounds.y;
         setDragCurrent({ x: svgX, y: svgY });
       }
     }
@@ -859,7 +879,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           <svg
             ref={svgRef}
             className="w-full h-full cursor-grab active:cursor-grabbing"
-            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+            viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
             onMouseMove={handleMouseMove}
             onMouseUp={(e) => handleMouseUp(e)}
             onContextMenu={(e) => e.preventDefault()}
@@ -1135,24 +1155,35 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {/* Expanded Individual Concepts */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
-                              // Much better collision avoidance system
-                              const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+                              // Use organized grid layout matching the position calculation
+                              const conceptsPerRow = Math.ceil(Math.sqrt(subcategory.concepts.length));
+                              const conceptSpacing = 45; // Fixed spacing between concepts
+                              const gridWidth = (conceptsPerRow - 1) * conceptSpacing;
+                              const gridHeight = (Math.ceil(subcategory.concepts.length / conceptsPerRow) - 1) * conceptSpacing;
                               
-                              // Calculate a much larger safe radius to prevent overlaps
-                              const baseRadius = bubbleRadius + 120; // Increased minimum distance
-                              const clusterSpacing = 200; // Minimum distance between different subcategories
-                              const conceptSpacing = subcategory.concepts.length * 15; // More space for more concepts
+                              // Calculate zone boundaries
+                              const zoneRadius = Math.max(80, bubbleRadius + 60);
+                              const zoneStartX = x - gridWidth / 2;
+                              const zoneStartY = y - gridHeight / 2;
                               
-                              // Calculate radius based on subcategory position to avoid other subcategories
-                              const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
-                              const avoidanceRadius = baseRadius + conceptSpacing + (clusterSpacing / subcategories.length);
+                              // Position concept in organized grid
+                              const row = Math.floor(conceptIndex / conceptsPerRow);
+                              const col = conceptIndex % conceptsPerRow;
                               
-                              // Create directional offset to push concepts away from cluster center
-                              const directionOffset = subcategoryAngle + (Math.PI / subcategories.length); // Push outward
-                              const finalAngle = conceptAngle + directionOffset;
+                              let conceptX = zoneStartX + col * conceptSpacing;
+                              let conceptY = zoneStartY + row * conceptSpacing;
                               
-                              const conceptX = x + Math.cos(finalAngle) * avoidanceRadius;
-                              const conceptY = y + Math.sin(finalAngle) * avoidanceRadius;
+                              // Ensure concepts stay within reasonable bounds
+                              const maxDistance = zoneRadius + 20;
+                              const distanceFromCenter = Math.sqrt(Math.pow(conceptX - x, 2) + Math.pow(conceptY - y, 2));
+                              
+                              if (distanceFromCenter > maxDistance) {
+                                // Fallback to circular arrangement if grid goes too far
+                                const fallbackAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+                                const fallbackRadius = zoneRadius;
+                                conceptX = x + Math.cos(fallbackAngle) * fallbackRadius;
+                                conceptY = y + Math.sin(fallbackAngle) * fallbackRadius;
+                              }
                               
                               const masteryColor = getMasteryColor(concept.masteryLevel);
                               const isSelected = selectedConcept?.id === concept.id;
