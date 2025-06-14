@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { EnhancedConcept, processEnhancedConcept } from '../types'
-import { Search, Filter, ZoomIn, ZoomOut, RotateCcw, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, Filter, RotateCcw } from 'lucide-react'
 
 interface Connection {
   from: string
@@ -56,10 +56,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
   const [focusedLanes, setFocusedLanes] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [weightFilter, setWeightFilter] = useState(0.3)
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  // Removed zoom/pan state - making it static
   const [tooltip, setTooltip] = useState<{ x: number, y: number, concept: EnhancedConcept } | null>(null)
 
   // Category configuration with colors and icons
@@ -78,47 +75,57 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     'default': { color: '#6B7280', icon: '📝', bgColor: '#6B728020' }
   }
 
-  // Calculate understanding strength
+  // Calculate understanding strength - return clean percentages
   const calculateUnderstandingStrength = (concept: EnhancedConcept): number => {
+    // If learningProgress is already a percentage (0-100), use it directly
     if (concept.learningProgress && concept.learningProgress > 0) {
-      return concept.learningProgress
+      return concept.learningProgress > 1 ? concept.learningProgress : concept.learningProgress * 100
     }
     
     let totalScore = 0
     let maxScore = 0
     
-    if (concept.practiceCount !== undefined) {
+    // Practice count contribution (0-40 points)
+    if (concept.practiceCount !== undefined && concept.practiceCount > 0) {
       totalScore += Math.min(40, concept.practiceCount * 8)
       maxScore += 40
     }
     
-    if (concept.reviewCount !== undefined) {
+    // Review count contribution (0-30 points)
+    if (concept.reviewCount !== undefined && concept.reviewCount > 0) {
       totalScore += Math.min(30, concept.reviewCount * 6)
       maxScore += 30
     }
     
+    // Mastery level contribution (0-50 points)
     if (concept.masteryLevel) {
       const masteryScores = { 'BEGINNER': 20, 'INTERMEDIATE': 35, 'ADVANCED': 45, 'EXPERT': 50 }
       totalScore += masteryScores[concept.masteryLevel as keyof typeof masteryScores] || 0
       maxScore += 50
     }
     
+    // Confidence score contribution (0-30 points)
     if (concept.confidenceScore !== undefined && concept.confidenceScore > 0) {
-      totalScore += concept.confidenceScore * 30
+      const confidencePoints = concept.confidenceScore > 1 ? concept.confidenceScore : concept.confidenceScore * 30
+      totalScore += Math.min(30, confidencePoints)
       maxScore += 30
     }
     
+    // Personal rating contribution (0-25 points)
     if (concept.personalRating && concept.personalRating > 0) {
       totalScore += concept.personalRating * 5
       maxScore += 25
     }
     
+    // Occurrences contribution (0-20 points)
     if (concept.occurrences && concept.occurrences.length > 0) {
       totalScore += Math.min(20, concept.occurrences.length * 4)
       maxScore += 20
     }
     
-    return maxScore > 0 ? Math.min(100, (totalScore / maxScore) * 100) : 15
+    // Calculate final percentage and round to whole number
+    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 25
+    return Math.round(Math.min(100, Math.max(0, percentage)))
   }
 
   // Build connections between concepts
@@ -399,34 +406,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     ))
   }
 
-  // Handle mouse events
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true)
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      })
-    }
-  }
-
-  const handleMouseUp = () => {
-    setIsDragging(false)
-  }
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setZoom(prev => Math.max(0.5, Math.min(2, prev * delta)))
-  }
-
   const resetView = () => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
     setFocusedLanes(new Set())
   }
 
@@ -489,20 +469,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         
         {/* Controls */}
         <div className="flex gap-2">
-          <button
-            onClick={() => setZoom(prev => Math.min(2, prev * 1.2))}
-            className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-3 h-3" />
-          </button>
-          <button
-            onClick={() => setZoom(prev => Math.max(0.5, prev * 0.8))}
-            className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-3 h-3" />
-          </button>
+
           <button
             onClick={resetView}
             className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
@@ -548,13 +515,8 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       {/* SVG Graph */}
       <svg
         ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${graphDimensions.width / zoom} ${graphDimensions.height / zoom}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
+        className="w-full h-full"
+        viewBox={`0 0 ${graphDimensions.width} ${graphDimensions.height}`}
       >
         <defs>
           {/* Connection gradients */}
@@ -579,7 +541,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
           </filter>
         </defs>
         
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+        <g>
           {/* Lane Backgrounds */}
           {filteredLanes.map((lane, index) => {
             const config = categoryConfig[lane.category as keyof typeof categoryConfig] || categoryConfig.default
