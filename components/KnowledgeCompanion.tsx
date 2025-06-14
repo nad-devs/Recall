@@ -651,6 +651,274 @@ const calculateExpandedConceptPositions = (
   return positions;
 };
 
+// Dynamic clustering based on actual concept data
+const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
+  // Analyze concepts to find natural clusters
+  const categoryGroups = new Map<string, Concept[]>();
+  const categoryKeywords = new Map<string, Set<string>>();
+  
+  // First pass: group by main category and collect keywords
+  concepts.forEach(concept => {
+    const mainCategory = concept.category.split(' > ')[0] || 'Other';
+    
+    if (!categoryGroups.has(mainCategory)) {
+      categoryGroups.set(mainCategory, []);
+      categoryKeywords.set(mainCategory, new Set());
+    }
+    
+    categoryGroups.get(mainCategory)!.push(concept);
+    
+    // Extract keywords from title and summary
+    const text = `${concept.title} ${concept.summary || ''}`.toLowerCase();
+    const words = text.split(/\s+/).filter(word => word.length > 3);
+    words.forEach(word => categoryKeywords.get(mainCategory)!.add(word));
+  });
+  
+  // Define color palette for dynamic clusters
+  const colors = [
+    "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", 
+    "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F",
+    "#FF9F43", "#54A0FF", "#5F27CD", "#00D2D3"
+  ];
+  
+  const clusters: SemanticCluster[] = [];
+  let colorIndex = 0;
+  
+  // Create clusters from natural categories
+  categoryGroups.forEach((groupConcepts, categoryName) => {
+    if (groupConcepts.length > 0) {
+      // Determine icon based on keywords
+      const keywords = Array.from(categoryKeywords.get(categoryName) || []);
+      let icon = Settings; // default
+      
+      if (keywords.some(k => ['algorithm', 'leetcode', 'programming', 'code'].includes(k))) {
+        icon = Code;
+      } else if (keywords.some(k => ['cloud', 'aws', 'kubernetes', 'docker'].includes(k))) {
+        icon = Cloud;
+      } else if (keywords.some(k => ['machine', 'learning', 'ai', 'neural'].includes(k))) {
+        icon = Brain;
+      } else if (keywords.some(k => ['data', 'database', 'sql', 'query'].includes(k))) {
+        icon = Database;
+      } else if (keywords.some(k => ['system', 'architecture', 'microservice'].includes(k))) {
+        icon = Cpu;
+      } else if (keywords.some(k => ['security', 'auth', 'token'].includes(k))) {
+        icon = Shield;
+      } else if (keywords.some(k => ['performance', 'optimization', 'load'].includes(k))) {
+        icon = Zap;
+      } else if (keywords.some(k => ['web', 'frontend', 'backend', 'api'].includes(k))) {
+        icon = Network;
+      }
+      
+      // Calculate cluster position in grid
+      const cols = 3;
+      const row = Math.floor(clusters.length / cols);
+      const col = clusters.length % cols;
+      
+      clusters.push({
+        id: `cluster-${clusters.length}`,
+        name: categoryName,
+        concepts: groupConcepts,
+        color: colors[colorIndex % colors.length],
+        icon: icon,
+        position: {
+          x: col * 450 + 250,
+          y: row * 350 + 200
+        },
+        keywords: keywords.slice(0, 10) // Top 10 keywords
+      });
+      
+      colorIndex++;
+    }
+  });
+  
+  return clusters;
+};
+
+// Physics-based positioning with constraints
+const calculatePhysicsBasedPositions = (cluster: SemanticCluster, subcategories: any[]) => {
+  const positions = new Map<string, { x: number; y: number }>();
+  
+  if (subcategories.length === 0) return positions;
+  
+  // Initialize positions - start with simple circular arrangement
+  const nodes = subcategories.map((subcategory, index) => {
+    const angle = (index / subcategories.length) * 2 * Math.PI;
+    const baseRadius = 80;
+    
+    // Calculate bubble size for repulsion force
+    const nameLength = subcategory.name.length;
+    const baseSizeFromName = Math.max(25, nameLength * 2);
+    const baseSizeFromCount = subcategory.count * 3;
+    const radius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+    
+    return {
+      id: `subcategory-${cluster.id}-${subcategory.name}`,
+      x: cluster.position.x + Math.cos(angle) * baseRadius,
+      y: cluster.position.y + Math.sin(angle) * baseRadius,
+      radius: radius,
+      vx: 0, // velocity
+      vy: 0,
+      subcategory: subcategory
+    };
+  });
+  
+  // Physics simulation with constraints
+  const iterations = 30; // Stable number of iterations
+  const damping = 0.9; // Velocity damping for stability
+  const clusterAttraction = 0.1; // Pull toward cluster center
+  const nodeRepulsion = 200; // Push away from other nodes
+  const maxDistance = 150; // Hard constraint - don't go too far from cluster
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    // Calculate forces for each node
+    nodes.forEach(node => {
+      let fx = 0, fy = 0;
+      
+      // 1. Attraction to cluster center (keeps hierarchy)
+      const dcx = cluster.position.x - node.x;
+      const dcy = cluster.position.y - node.y;
+      const clusterDist = Math.sqrt(dcx * dcx + dcy * dcy);
+      
+      if (clusterDist > 60) { // Only pull if too far
+        fx += dcx * clusterAttraction;
+        fy += dcy * clusterAttraction;
+      }
+      
+      // 2. Repulsion from other nodes (prevents overlap)
+      nodes.forEach(other => {
+        if (other === node) return;
+        
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minDist = node.radius + other.radius + 20; // Minimum separation
+        
+        if (dist < minDist && dist > 0) {
+          const force = nodeRepulsion / (dist * dist);
+          fx += (dx / dist) * force;
+          fy += (dy / dist) * force;
+        }
+      });
+      
+      // Apply forces to velocity
+      node.vx += fx;
+      node.vy += fy;
+      
+      // Apply damping
+      node.vx *= damping;
+      node.vy *= damping;
+      
+      // Update position
+      node.x += node.vx;
+      node.y += node.vy;
+      
+      // Hard constraint: don't go too far from cluster
+      const newDcx = cluster.position.x - node.x;
+      const newDcy = cluster.position.y - node.y;
+      const newClusterDist = Math.sqrt(newDcx * newDcx + newDcy * newDcy);
+      
+      if (newClusterDist > maxDistance) {
+        const angle = Math.atan2(newDcy, newDcx);
+        node.x = cluster.position.x - Math.cos(angle) * maxDistance;
+        node.y = cluster.position.y - Math.sin(angle) * maxDistance;
+        node.vx = 0; // Stop velocity to prevent oscillation
+        node.vy = 0;
+      }
+    });
+  }
+  
+  // Store final positions
+  nodes.forEach(node => {
+    positions.set(node.id, { x: node.x, y: node.y });
+  });
+  
+  return positions;
+};
+
+// Smart concept positioning based on count
+const calculateSmartConceptPositions = (
+  subcategoryX: number,
+  subcategoryY: number,
+  concepts: any[],
+  bubbleRadius: number,
+  allSubcategoryPositions: Map<string, { x: number; y: number; radius: number }>
+) => {
+  const positions = new Map<string, { x: number; y: number }>();
+  
+  if (concepts.length === 0) return positions;
+  
+  const conceptSize = 18;
+  const minDistanceFromSubcategory = bubbleRadius + 35;
+  
+  if (concepts.length <= 3) {
+    // Simple arrangement for few concepts
+    const angles = concepts.length === 1 ? [0] : 
+                   concepts.length === 2 ? [0, Math.PI] :
+                   [0, 2*Math.PI/3, 4*Math.PI/3];
+    
+    concepts.forEach((concept, index) => {
+      const angle = angles[index];
+      const x = subcategoryX + Math.cos(angle) * minDistanceFromSubcategory;
+      const y = subcategoryY + Math.sin(angle) * minDistanceFromSubcategory;
+      positions.set(concept.id, { x, y });
+    });
+    
+  } else if (concepts.length <= 8) {
+    // Single ring
+    const radius = minDistanceFromSubcategory;
+    concepts.forEach((concept, index) => {
+      const angle = (index / concepts.length) * 2 * Math.PI;
+      const x = subcategoryX + Math.cos(angle) * radius;
+      const y = subcategoryY + Math.sin(angle) * radius;
+      positions.set(concept.id, { x, y });
+    });
+    
+  } else if (concepts.length <= 15) {
+    // Dual concentric rings
+    const innerRadius = minDistanceFromSubcategory;
+    const outerRadius = minDistanceFromSubcategory + 40;
+    const innerCount = Math.min(6, concepts.length);
+    const outerCount = concepts.length - innerCount;
+    
+    concepts.forEach((concept, index) => {
+      if (index < innerCount) {
+        // Inner ring
+        const angle = (index / innerCount) * 2 * Math.PI;
+        const x = subcategoryX + Math.cos(angle) * innerRadius;
+        const y = subcategoryY + Math.sin(angle) * innerRadius;
+        positions.set(concept.id, { x, y });
+      } else {
+        // Outer ring
+        const outerIndex = index - innerCount;
+        const angle = (outerIndex / outerCount) * 2 * Math.PI;
+        const x = subcategoryX + Math.cos(angle) * outerRadius;
+        const y = subcategoryY + Math.sin(angle) * outerRadius;
+        positions.set(concept.id, { x, y });
+      }
+    });
+    
+  } else {
+    // Compact grid for many concepts
+    const conceptsPerRow = Math.ceil(Math.sqrt(concepts.length));
+    const spacing = conceptSize * 2.5;
+    const gridWidth = (conceptsPerRow - 1) * spacing;
+    const gridHeight = (Math.ceil(concepts.length / conceptsPerRow) - 1) * spacing;
+    
+    const startX = subcategoryX - gridWidth / 2;
+    const startY = subcategoryY + minDistanceFromSubcategory + 20;
+    
+    concepts.forEach((concept, index) => {
+      const row = Math.floor(index / conceptsPerRow);
+      const col = index % conceptsPerRow;
+      const x = startX + col * spacing;
+      const y = startY + row * spacing;
+      positions.set(concept.id, { x, y });
+    });
+  }
+  
+  return positions;
+};
+
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   concepts,
   categories,
@@ -675,12 +943,76 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Subcategory expansion state
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
 
-  // Generate semantic clusters and layout
-  const semanticClusters = generateSemanticClusters(concepts);
+  // Generate dynamic semantic clusters and layout
+  const semanticClusters = generateDynamicSemanticClusters(concepts);
   const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
   
-
+  // Create dynamic position map with physics-based layout
+  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
   
+  // Add positions from conceptPositions (for non-subcategory concepts)
+  conceptPositions.forEach((pos, id) => {
+    dynamicConceptPositions.set(id, pos);
+  });
+  
+  // Calculate physics-based positions for subcategories and their concepts
+  semanticClusters.forEach(cluster => {
+    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+    
+    if (subcategories.length > 0) {
+      // Calculate physics-based subcategory positions
+      const subcategoryPositions = calculatePhysicsBasedPositions(cluster, subcategories);
+      
+      // Create a map with radius information for collision detection
+      const subcategoryPositionsWithRadius = new Map<string, { x: number; y: number; radius: number }>();
+      
+      // Add subcategory positions to the map
+      subcategoryPositions.forEach((pos, key) => {
+        dynamicConceptPositions.set(key, pos);
+        
+        // Extract subcategory info for radius calculation
+        const subcategoryName = key.replace(`subcategory-${cluster.id}-`, '');
+        const subcategory = subcategories.find(s => s.name === subcategoryName);
+        if (subcategory) {
+          const nameLength = subcategory.name.length;
+          const baseSizeFromName = Math.max(25, nameLength * 2);
+          const baseSizeFromCount = subcategory.count * 3;
+          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+          subcategoryPositionsWithRadius.set(key, { ...pos, radius: bubbleRadius });
+        }
+      });
+      
+      // Calculate positions for expanded subcategory concepts using smart layouts
+      subcategories.forEach((subcategory) => {
+        const key = `${cluster.id}-${subcategory.name}`;
+        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+        const subcategoryPos = subcategoryPositions.get(subcategoryKey);
+        
+        if (expandedSubcategories.has(key) && subcategoryPos) {
+          // Calculate bubble size
+          const nameLength = subcategory.name.length;
+          const baseSizeFromName = Math.max(25, nameLength * 2);
+          const baseSizeFromCount = subcategory.count * 3;
+          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+          
+          // Calculate smart concept positions based on count
+          const conceptPositions = calculateSmartConceptPositions(
+            subcategoryPos.x,
+            subcategoryPos.y,
+            subcategory.concepts,
+            bubbleRadius,
+            subcategoryPositionsWithRadius
+          );
+          
+          // Add concept positions to the map
+          conceptPositions.forEach((pos, conceptId) => {
+            dynamicConceptPositions.set(conceptId, pos);
+          });
+        }
+      });
+    }
+  });
+
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
     if (!jsonString || jsonString.trim() === '') return fallback;
@@ -713,72 +1045,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
-  // Create dynamic position map with simple, clean layout
-  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
-  
-  // Add positions from conceptPositions (for non-subcategory concepts)
-  conceptPositions.forEach((pos, id) => {
-    dynamicConceptPositions.set(id, pos);
-  });
-  
-  // Calculate simple positions for subcategories and their concepts
-  semanticClusters.forEach(cluster => {
-    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-    
-    if (subcategories.length > 0) {
-      // Calculate subcategory positions
-      const subcategoryPositions = calculateSubcategoryPositions(cluster, subcategories);
-      
-      // Create a map with radius information for collision detection
-      const subcategoryPositionsWithRadius = new Map<string, { x: number; y: number; radius: number }>();
-      
-      // Add subcategory positions to the map
-      subcategoryPositions.forEach((pos, key) => {
-        dynamicConceptPositions.set(key, pos);
-        
-        // Extract subcategory info for radius calculation
-        const subcategoryName = key.replace(`subcategory-${cluster.id}-`, '');
-        const subcategory = subcategories.find(s => s.name === subcategoryName);
-        if (subcategory) {
-          const nameLength = subcategory.name.length;
-          const baseSizeFromName = Math.max(25, nameLength * 2);
-          const baseSizeFromCount = subcategory.count * 3;
-          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-          subcategoryPositionsWithRadius.set(key, { ...pos, radius: bubbleRadius });
-        }
-      });
-      
-      // Calculate positions for expanded subcategory concepts
-      subcategories.forEach((subcategory) => {
-        const key = `${cluster.id}-${subcategory.name}`;
-        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-        const subcategoryPos = subcategoryPositions.get(subcategoryKey);
-        
-        if (expandedSubcategories.has(key) && subcategoryPos) {
-          // Calculate bubble size
-          const nameLength = subcategory.name.length;
-          const baseSizeFromName = Math.max(25, nameLength * 2);
-          const baseSizeFromCount = subcategory.count * 3;
-          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-          
-          // Calculate concept positions
-          const conceptPositions = calculateExpandedConceptPositions(
-            subcategoryPos.x,
-            subcategoryPos.y,
-            subcategory.concepts,
-            bubbleRadius,
-            subcategoryPositionsWithRadius
-          );
-          
-          // Add concept positions to the map
-          conceptPositions.forEach((pos, conceptId) => {
-            dynamicConceptPositions.set(conceptId, pos);
-          });
-        }
-      });
-    }
-  });
-
   // Calculate dynamic viewport bounds for simple layout
   const calculateViewportBounds = () => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
