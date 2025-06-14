@@ -55,7 +55,8 @@ interface SemanticCluster {
   keywords: string[];
 }
 
-// Node types for hierarchical spacing
+// Remove complex hierarchical functions - using simple positioning instead
+/*
 interface HierarchicalNode {
   id: string;
   type: 'cluster_name' | 'category' | 'concept';
@@ -66,7 +67,6 @@ interface HierarchicalNode {
   textHeight?: number;
 }
 
-// Collision detection with hierarchical rules
 const checkCollision = (nodeA: HierarchicalNode, nodeB: HierarchicalNode): boolean => {
   const distance = Math.sqrt(Math.pow(nodeA.x - nodeB.x, 2) + Math.pow(nodeA.y - nodeB.y, 2));
   
@@ -87,7 +87,6 @@ const checkCollision = (nodeA: HierarchicalNode, nodeB: HierarchicalNode): boole
   return distance < minDistance;
 };
 
-// Calculate hierarchical layout with proper zones
 const calculateHierarchicalLayout = (cluster: SemanticCluster, subcategories: any[]) => {
   const clusterRegion = {
     centerX: cluster.position.x,
@@ -196,7 +195,6 @@ const calculateHierarchicalLayout = (cluster: SemanticCluster, subcategories: an
   return { nodes, positions, zones, clusterRegion };
 };
 
-// Calculate concept positions within category zones
 const calculateConceptPositions = (
   category: HierarchicalNode,
   concepts: any[],
@@ -296,6 +294,7 @@ const calculateConceptPositions = (
   
   return { conceptPositions, conceptNodes };
 };
+*/
 
 // Get icon for concept category/type
 const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
@@ -545,119 +544,52 @@ const generateClusterLayout = (clusters: SemanticCluster[], viewBox: { x: number
   return { positions, bounds };
 };
 
-// Define category region boundaries
-interface CategoryRegion {
-  centerX: number;
-  centerY: number;
-  width: number;
-  height: number;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
-// Calculate category region for each cluster
-const getCategoryRegion = (cluster: SemanticCluster): CategoryRegion => {
-  const regionWidth = 400;
-  const regionHeight = 300;
-  
-  return {
-    centerX: cluster.position.x,
-    centerY: cluster.position.y,
-    width: regionWidth,
-    height: regionHeight,
-    minX: cluster.position.x - regionWidth / 2,
-    maxX: cluster.position.x + regionWidth / 2,
-    minY: cluster.position.y - regionHeight / 2,
-    maxY: cluster.position.y + regionHeight / 2
-  };
-};
-
-// Constrain position within category region
-const constrainToRegion = (x: number, y: number, region: CategoryRegion, nodeRadius: number = 30): { x: number; y: number } => {
-  const constrainedX = Math.max(
-    region.minX + nodeRadius,
-    Math.min(region.maxX - nodeRadius, x)
-  );
-  const constrainedY = Math.max(
-    region.minY + nodeRadius + 50, // Extra space for cluster name
-    Math.min(region.maxY - nodeRadius, y)
-  );
-  
-  return { x: constrainedX, y: constrainedY };
-};
-
-// Simple subcategory positioning within category regions
+// Simple subcategory positioning - keep them close to parent cluster
 const calculateSubcategoryPositions = (cluster: SemanticCluster, subcategories: any[]) => {
-  const region = getCategoryRegion(cluster);
   const positions = new Map<string, { x: number; y: number }>();
   
+  if (subcategories.length === 0) return positions;
+  
+  // Simple circular arrangement around cluster center
+  const baseRadius = 80; // Keep subcategories close to cluster
+  const angleStep = (2 * Math.PI) / subcategories.length;
+  const startAngle = -Math.PI / 2; // Start from top
+  
   subcategories.forEach((subcategory, index) => {
-    // Arrange subcategories in a circle within the category region
-    const angle = (index / subcategories.length) * 2 * Math.PI;
-    const radius = Math.min(120, (Math.min(region.width, region.height) / 2) - 80);
+    const angle = startAngle + (index * angleStep);
+    const x = cluster.position.x + Math.cos(angle) * baseRadius;
+    const y = cluster.position.y + Math.sin(angle) * baseRadius;
     
-    // Calculate initial position
-    let x = region.centerX + Math.cos(angle) * radius;
-    let y = region.centerY + Math.sin(angle) * radius;
-    
-    // Get dynamic bubble size
-    const nameLength = subcategory.name.length;
-    const baseSizeFromName = Math.max(25, nameLength * 2);
-    const baseSizeFromCount = subcategory.count * 3;
-    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-    
-    // Constrain to region boundaries
-    const constrainedPosition = constrainToRegion(x, y, region, bubbleRadius);
-    
-    positions.set(`subcategory-${cluster.id}-${subcategory.name}`, constrainedPosition);
+    positions.set(`subcategory-${cluster.id}-${subcategory.name}`, { x, y });
   });
   
   return positions;
 };
 
-// Calculate concept positions around their subcategory (also constrained to region)
-const calculateConceptPositionsInRegion = (
-  subcategoryPosition: { x: number; y: number },
+// Simple concept positioning around subcategories
+const calculateExpandedConceptPositions = (
+  subcategoryX: number,
+  subcategoryY: number,
   concepts: any[],
-  region: CategoryRegion
+  bubbleRadius: number
 ) => {
-  const conceptPositions = new Map<string, { x: number; y: number }>();
-  const conceptRadius = 18;
+  const positions = new Map<string, { x: number; y: number }>();
+  
+  if (concepts.length === 0) return positions;
+  
+  // Arrange concepts in a circle around subcategory
+  const conceptRadius = Math.max(bubbleRadius + 50, 70); // Minimum distance from subcategory
+  const angleStep = (2 * Math.PI) / concepts.length;
   
   concepts.forEach((concept, index) => {
-    if (concepts.length <= 6) {
-      // Small circle around subcategory
-      const angle = (index / concepts.length) * 2 * Math.PI;
-      const radius = 60;
-      let x = subcategoryPosition.x + Math.cos(angle) * radius;
-      let y = subcategoryPosition.y + Math.sin(angle) * radius;
-      
-      // Constrain to region
-      const constrainedPosition = constrainToRegion(x, y, region, conceptRadius);
-      conceptPositions.set(concept.id, constrainedPosition);
-    } else {
-      // Grid layout for many concepts
-      const conceptsPerRow = Math.ceil(Math.sqrt(concepts.length));
-      const spacing = 40;
-      const row = Math.floor(index / conceptsPerRow);
-      const col = index % conceptsPerRow;
-      
-      const gridWidth = (conceptsPerRow - 1) * spacing;
-      const gridStartX = subcategoryPosition.x - gridWidth / 2;
-      const gridStartY = subcategoryPosition.y + 80; // Below subcategory
-      
-      let x = gridStartX + col * spacing;
-      let y = gridStartY + row * spacing;
-      
-      // Constrain to region
-      const constrainedPosition = constrainToRegion(x, y, region, conceptRadius);
-      conceptPositions.set(concept.id, constrainedPosition);
-    }
+    const angle = index * angleStep;
+    const x = subcategoryX + Math.cos(angle) * conceptRadius;
+    const y = subcategoryY + Math.sin(angle) * conceptRadius;
+    
+    positions.set(concept.id, { x, y });
   });
   
-  return conceptPositions;
+  return positions;
 };
 
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
@@ -688,54 +620,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const semanticClusters = generateSemanticClusters(concepts);
   const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
   
-  // Create dynamic position map with region-constrained layout
-  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
-  
-  // Add positions from conceptPositions (for non-subcategory concepts)
-  conceptPositions.forEach((pos, id) => {
-    dynamicConceptPositions.set(id, pos);
-  });
-  
-  // Calculate region-constrained positions for subcategories and concepts
-  semanticClusters.forEach(cluster => {
-    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-    
-    if (subcategories.length > 0) {
-      // Get category region for this cluster
-      const region = getCategoryRegion(cluster);
-      
-      // Calculate subcategory positions within the region
-      const subcategoryPositions = calculateSubcategoryPositions(cluster, subcategories);
-      
-      // Add subcategory positions to the map
-      subcategoryPositions.forEach((pos, key) => {
-        dynamicConceptPositions.set(key, pos);
-      });
-      
-      // Calculate concept positions for expanded subcategories
-      subcategories.forEach((subcategory) => {
-        const key = `${cluster.id}-${subcategory.name}`;
-        if (expandedSubcategories.has(key)) {
-          const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-          const subcategoryPosition = subcategoryPositions.get(subcategoryKey);
-          
-          if (subcategoryPosition) {
-            const conceptPositions = calculateConceptPositionsInRegion(
-              subcategoryPosition,
-              subcategory.concepts,
-              region
-            );
-            
-            // Add concept positions to the map
-            conceptPositions.forEach((pos, conceptId) => {
-              dynamicConceptPositions.set(conceptId, pos);
-            });
-          }
-        }
-      });
-    }
-  });
 
+  
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
     if (!jsonString || jsonString.trim() === '') return fallback;
@@ -768,27 +654,85 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
-  // Calculate dynamic viewport bounds for region-based layout
+  // Create dynamic position map with simple, clean layout
+  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
+  
+  // Add positions from conceptPositions (for non-subcategory concepts)
+  conceptPositions.forEach((pos, id) => {
+    dynamicConceptPositions.set(id, pos);
+  });
+  
+  // Calculate simple positions for subcategories and their concepts
+  semanticClusters.forEach(cluster => {
+    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+    
+    if (subcategories.length > 0) {
+      // Calculate subcategory positions
+      const subcategoryPositions = calculateSubcategoryPositions(cluster, subcategories);
+      
+      // Add subcategory positions to the map
+      subcategoryPositions.forEach((pos, key) => {
+        dynamicConceptPositions.set(key, pos);
+      });
+      
+      // Calculate positions for expanded subcategory concepts
+      subcategories.forEach((subcategory) => {
+        const key = `${cluster.id}-${subcategory.name}`;
+        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+        const subcategoryPos = subcategoryPositions.get(subcategoryKey);
+        
+        if (expandedSubcategories.has(key) && subcategoryPos) {
+          // Calculate bubble size
+          const nameLength = subcategory.name.length;
+          const baseSizeFromName = Math.max(25, nameLength * 2);
+          const baseSizeFromCount = subcategory.count * 3;
+          const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+          
+          // Calculate concept positions
+          const conceptPositions = calculateExpandedConceptPositions(
+            subcategoryPos.x,
+            subcategoryPos.y,
+            subcategory.concepts,
+            bubbleRadius
+          );
+          
+          // Add concept positions to the map
+          conceptPositions.forEach((pos, conceptId) => {
+            dynamicConceptPositions.set(conceptId, pos);
+          });
+        }
+      });
+    }
+  });
+
+  // Calculate dynamic viewport bounds for simple layout
   const calculateViewportBounds = () => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
-    // Include all category regions
+    // Include all base cluster positions
     semanticClusters.forEach(cluster => {
-      const region = getCategoryRegion(cluster);
-      minX = Math.min(minX, region.minX);
-      minY = Math.min(minY, region.minY);
-      maxX = Math.max(maxX, region.maxX);
-      maxY = Math.max(maxY, region.maxY);
+      minX = Math.min(minX, cluster.position.x - 50);
+      minY = Math.min(minY, cluster.position.y - 50);
+      maxX = Math.max(maxX, cluster.position.x + 50);
+      maxY = Math.max(maxY, cluster.position.y + 50);
     });
     
-    // Add padding for better visibility
+    // Include all dynamic concept positions
+    dynamicConceptPositions.forEach(position => {
+      minX = Math.min(minX, position.x - 30);
+      minY = Math.min(minY, position.y - 30);
+      maxX = Math.max(maxX, position.x + 30);
+      maxY = Math.max(maxY, position.y + 30);
+    });
+    
+    // Add reasonable padding
     const padding = 100;
     
     return {
       x: minX - padding,
       y: minY - padding,
-      width: Math.max(1400, (maxX - minX) + padding * 2),
-      height: Math.max(1000, (maxY - minY) + padding * 2)
+      width: Math.max(1200, (maxX - minX) + padding * 2),
+      height: Math.max(800, (maxY - minY) + padding * 2)
     };
   };
   
@@ -1220,48 +1164,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
-
-            {/* Category Region Boundaries */}
-            {semanticClusters.map(cluster => {
-              const hasVisibleConcepts = cluster.concepts.some(c => 
-                filteredConcepts.some(fc => fc.id === c.id)
-              );
-              
-              if (!hasVisibleConcepts) return null;
-              
-              const region = getCategoryRegion(cluster);
-              
-              return (
-                <g key={`region-${cluster.id}`}>
-                  {/* Subtle region background */}
-                  <rect
-                    x={region.minX}
-                    y={region.minY}
-                    width={region.width}
-                    height={region.height}
-                    fill={`${cluster.color}08`}
-                    stroke={`${cluster.color}20`}
-                    strokeWidth="1"
-                    strokeDasharray="5,5"
-                    rx="10"
-                    className="pointer-events-none"
-                  />
-                  
-                  {/* Region label */}
-                  <text
-                    x={region.centerX}
-                    y={region.minY + 20}
-                    textAnchor="middle"
-                    fill={`${cluster.color}60`}
-                    fontSize="12"
-                    fontWeight="500"
-                    className="pointer-events-none"
-                  >
-                    {cluster.name} Region
-                  </text>
-                </g>
-              );
-            })}
 
             {/* Cluster Labels and Subcategory Bubbles */}
             {semanticClusters.map(cluster => {
