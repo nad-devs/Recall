@@ -1033,9 +1033,42 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Subcategory expansion state
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
 
-  // Generate semantic clusters and enhanced organic layout
+  // Generate semantic clusters
   const semanticClusters = generateSemanticClusters(concepts);
   
+  // Parse JSON fields safely with better error handling
+  const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
+    if (!jsonString) return fallback;
+    
+    try {
+      const parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch (error) {
+      console.warn(`Failed to parse JSON field:`, jsonString, error);
+      return fallback;
+    }
+  };
+
+  // Filter concepts based on search and cluster selection
+  const filteredConcepts = concepts.filter(concept => {
+    // First apply cluster filter
+    if (selectedClusters.size > 0) {
+      const conceptCluster = semanticClusters.find(cluster => 
+        cluster.concepts.some(c => c.id === concept.id)
+      );
+      if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
+        return false;
+      }
+    }
+    
+    // Then apply search filter
+    if (!searchQuery) return true;
+    
+    return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   // Calculate initial viewport bounds
   const initialViewportBounds = {
     x: -600,
@@ -1104,38 +1137,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   });
 
-  // Parse JSON fields safely with better error handling
-  const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
-    if (!jsonString || jsonString.trim() === '') return fallback;
-    try {
-      const parsed = JSON.parse(jsonString);
-      return Array.isArray(parsed) ? parsed : fallback;
-    } catch (error) {
-      console.warn('Failed to parse JSON field:', jsonString, error);
-      return fallback;
-    }
-  };
-
-  // Filter concepts based on search and cluster selection
-  const filteredConcepts = concepts.filter(concept => {
-    // First apply cluster filter
-    if (selectedClusters.size > 0) {
-      const conceptCluster = semanticClusters.find(cluster => 
-        cluster.concepts.some(c => c.id === concept.id)
-      );
-      if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
-        return false;
-      }
-    }
-    
-    // Then apply search filter
-    if (!searchQuery) return true;
-    
-    return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
-  });
-  
   // Calculate dynamic viewport bounds for hierarchical layout
   const calculateViewportBounds = () => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
