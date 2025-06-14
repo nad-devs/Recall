@@ -579,12 +579,13 @@ export default function GraphPage() {
               </>
             )}
 
-            {/* Concept Modal */}
-            <ConceptModal 
+          </div>
+          
+          {/* Concept Modal - Rendered at root level for proper fixed positioning */}
+          <ConceptModal 
             concept={selectedConcept} 
             onClose={() => setSelectedConcept(null)} 
           />
-          </div>
         </div>
       </PageTransition>
     </AuthGuard>
