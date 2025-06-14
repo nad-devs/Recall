@@ -398,14 +398,27 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const radius = 80;
           const x = cluster.position.x + Math.cos(angle) * radius;
           const y = cluster.position.y + Math.sin(angle) * radius;
-          const bubbleRadius = Math.max(20, Math.min(35, subcategory.count * 3));
-          
-          // Add positions for expanded concepts
-          subcategory.concepts.forEach((concept, conceptIndex) => {
-            const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-            const conceptRadius = Math.max(80, bubbleRadius + 60 + (subcategory.concepts.length * 5));
-            const conceptX = x + Math.cos(conceptAngle) * conceptRadius;
-            const conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+                     // Dynamic bubble size based on name length and concept count
+           const nameLength = subcategory.name.length;
+           const baseSizeFromName = Math.max(25, nameLength * 2);
+           const baseSizeFromCount = subcategory.count * 3;
+           const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+           
+           // Add positions for expanded concepts with same logic as rendering
+           subcategory.concepts.forEach((concept, conceptIndex) => {
+             const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+             
+             // Calculate safe radius to avoid overlapping with other subcategories
+             const minSafeRadius = bubbleRadius + 80;
+             const dynamicRadius = minSafeRadius + (subcategory.concepts.length * 8);
+             const conceptRadius = Math.max(minSafeRadius, dynamicRadius);
+             
+             // Offset the angle based on subcategory position to avoid other subcategories
+             const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
+             const offsetAngle = conceptAngle + (subcategoryAngle * 0.3);
+             
+             const conceptX = x + Math.cos(offsetAngle) * conceptRadius;
+             const conceptY = y + Math.sin(offsetAngle) * conceptRadius;
             
             dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
           });
@@ -1019,7 +1032,11 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       const radius = 80;
                       const x = cluster.position.x + Math.cos(angle) * radius;
                       const y = cluster.position.y + Math.sin(angle) * radius;
-                      const bubbleRadius = Math.max(20, Math.min(35, subcategory.count * 3));
+                      // Dynamic bubble size based on name length and concept count
+                      const nameLength = subcategory.name.length;
+                      const baseSizeFromName = Math.max(25, nameLength * 2); // Minimum 25px, 2px per character
+                      const baseSizeFromCount = subcategory.count * 3;
+                      const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
                       
                       return (
                         <g key={`subcategory-${cluster.id}-${subcategory.name}`}>
@@ -1045,23 +1062,50 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                             }}
                           />
                           
-                          {/* Subcategory Name */}
-                          <text
-                            x={x}
-                            y={y - 3}
-                            textAnchor="middle"
-                            fill="white"
-                            fontSize="10"
-                            fontWeight="600"
-                            className="pointer-events-none"
-                          >
-                            {subcategory.name.length > 12 ? subcategory.name.substring(0, 10) + '..' : subcategory.name}
-                          </text>
+                          {/* Subcategory Name - Multi-line for longer names */}
+                          {subcategory.name.length > 15 ? (
+                            <>
+                              <text
+                                x={x}
+                                y={y - 8}
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="9"
+                                fontWeight="600"
+                                className="pointer-events-none"
+                              >
+                                {subcategory.name.substring(0, 12)}
+                              </text>
+                              <text
+                                x={x}
+                                y={y + 2}
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="9"
+                                fontWeight="600"
+                                className="pointer-events-none"
+                              >
+                                {subcategory.name.substring(12, 24)}...
+                              </text>
+                            </>
+                          ) : (
+                            <text
+                              x={x}
+                              y={y - 3}
+                              textAnchor="middle"
+                              fill="white"
+                              fontSize="10"
+                              fontWeight="600"
+                              className="pointer-events-none"
+                            >
+                              {subcategory.name}
+                            </text>
+                          )}
                           
                           {/* Concept Count */}
                           <text
                             x={x}
-                            y={y + 8}
+                            y={subcategory.name.length > 15 ? y + 15 : y + 8}
                             textAnchor="middle"
                             fill="white"
                             fontSize="9"
@@ -1073,11 +1117,21 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {/* Expanded Individual Concepts */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
-                              // Better positioning: spread concepts in a larger circle with more spacing
+                              // Smart positioning to avoid overlaps
                               const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-                              const conceptRadius = Math.max(80, bubbleRadius + 60 + (subcategory.concepts.length * 5)); // Dynamic radius based on count
-                              const conceptX = x + Math.cos(conceptAngle) * conceptRadius;
-                              const conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+                              
+                              // Calculate safe radius to avoid overlapping with other subcategories
+                              const minSafeRadius = bubbleRadius + 80; // Minimum distance from subcategory center
+                              const spacingPerConcept = Math.max(50, 300 / subcategories.length); // More space when fewer subcategories
+                              const dynamicRadius = minSafeRadius + (subcategory.concepts.length * 8); // Scale with concept count
+                              const conceptRadius = Math.max(minSafeRadius, dynamicRadius);
+                              
+                              // Offset the angle based on subcategory position to avoid other subcategories
+                              const subcategoryAngle = (index / subcategories.length) * 2 * Math.PI;
+                              const offsetAngle = conceptAngle + (subcategoryAngle * 0.3); // Slight rotation to spread away from other subcategories
+                              
+                              const conceptX = x + Math.cos(offsetAngle) * conceptRadius;
+                              const conceptY = y + Math.sin(offsetAngle) * conceptRadius;
                               
                               const masteryColor = getMasteryColor(concept.masteryLevel);
                               const isSelected = selectedConcept?.id === concept.id;
