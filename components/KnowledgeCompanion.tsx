@@ -106,19 +106,23 @@ const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   return Settings;
 };
 
-// Generate subcategories within clusters
+// Generate subcategories within clusters - only for categories with actual subcategories
 const generateSubcategories = (clusterConcepts: Concept[]) => {
   const subcategoryMap = new Map<string, Concept[]>();
   
   clusterConcepts.forEach(concept => {
     // Extract subcategory from full category path (e.g., "Machine Learning > Neural Networks" -> "Neural Networks")
     const categoryParts = concept.category.split(' > ');
-    const subcategory = categoryParts.length > 1 ? categoryParts[categoryParts.length - 1] : 'General';
     
-    if (!subcategoryMap.has(subcategory)) {
-      subcategoryMap.set(subcategory, []);
+    // Only create subcategories if there are actually subcategories (more than 1 part)
+    if (categoryParts.length > 1) {
+      const subcategory = categoryParts[categoryParts.length - 1];
+      
+      if (!subcategoryMap.has(subcategory)) {
+        subcategoryMap.set(subcategory, []);
+      }
+      subcategoryMap.get(subcategory)!.push(concept);
     }
-    subcategoryMap.get(subcategory)!.push(concept);
   });
   
   return Array.from(subcategoryMap.entries()).map(([name, concepts]) => ({
@@ -466,7 +470,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   console.log(`Visible connections: ${visibleConnections.length}`);
 
   // Get mastery color
-  const getMasteryColor = (masteryLevel: string | null): string => {
+  const getMasteryColor = (masteryLevel: string | null | undefined): string => {
     switch (masteryLevel) {
       case 'EXPERT': return '#10B981';
       case 'ADVANCED': return '#3B82F6';
@@ -497,26 +501,36 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-  const handleMouseUp = (event: React.MouseEvent, targetConceptId?: string) => {
+  const handleMouseUp = async (event: React.MouseEvent, targetConceptId?: string) => {
     if (isDragging && dragStart && targetConceptId && targetConceptId !== dragStart.conceptId) {
       const sourceConcept = concepts.find(c => c.id === dragStart.conceptId);
       const targetConcept = concepts.find(c => c.id === targetConceptId);
       
       if (sourceConcept && targetConcept) {
-        // Create new user connection
-        const newConnection = { from: dragStart.conceptId, to: targetConceptId };
-        
-        // Check if connection already exists (in either direction)
-        const connectionExists = userConnections.some(conn => 
-          (conn.from === newConnection.from && conn.to === newConnection.to) ||
-          (conn.from === newConnection.to && conn.to === newConnection.from)
-        );
-        
-        if (!connectionExists) {
-          setUserConnections(prev => [...prev, newConnection]);
-          console.log(`✅ Created connection: ${sourceConcept.title} → ${targetConcept.title}`);
-        } else {
-          console.log(`⚠️ Connection already exists: ${sourceConcept.title} ↔ ${targetConcept.title}`);
+        try {
+          // Call the API to persist the connection
+          const response = await fetch('/api/concepts/link', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              conceptId1: dragStart.conceptId,
+              conceptId2: targetConceptId
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            console.log(`✅ Created persistent connection: ${sourceConcept.title} → ${targetConcept.title}`);
+            // Refresh the page to show the new connection
+            window.location.reload();
+          } else {
+            console.error(`❌ Failed to create connection: ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error creating connection:`, error);
         }
       }
     }
@@ -923,114 +937,276 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               />
             )}
 
-            {/* Concept Nodes */}
-            {filteredConcepts.map((concept) => {
-              const position = conceptPositions.get(concept.id);
-              if (!position) return null;
-
-              const cluster = semanticClusters.find(c => c.concepts.some(cc => cc.id === concept.id));
-              const categoryColor = cluster?.color || '#6B7280';
-              const masteryColor = getMasteryColor(concept.masteryLevel);
-              const isSelected = selectedConcept?.id === concept.id;
-              const isHovered = hoveredConcept === concept.id;
-              const connectedNodes = getConnectedNodes(concept.id);
-              const isConnected = hoveredConcept && connectedNodes.has(hoveredConcept);
-              const progress = concept.learningProgress || 0;
-              const IconComponent = getConceptIcon(concept);
+            {/* Subcategory Bubbles and Individual Concepts */}
+            {semanticClusters.map(cluster => {
+              const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+              const isExpanded = expandedSubcategories.has(cluster.id);
               
-              return (
-                <g key={concept.id}>
-                  {/* Node Glow */}
-                  {(isSelected || isHovered) && (
-                    <circle
-                      cx={position.x}
-                      cy={position.y}
-                      r="40"
-                      fill={`${categoryColor}20`}
-                      className="transition-all duration-300"
-                    />
-                  )}
-                  
-                  {/* Progress Ring */}
-                  <circle
-                    cx={position.x}
-                    cy={position.y}
-                    r="26"
-                    fill="none"
-                    stroke="rgba(255,255,255,0.1)"
-                    strokeWidth="2"
-                  />
-                  <circle
-                    cx={position.x}
-                    cy={position.y}
-                    r="26"
-                    fill="none"
-                    stroke={masteryColor}
-                    strokeWidth="2"
-                    strokeDasharray={`${(progress / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
-                    className="transition-all duration-300"
-                    transform={`rotate(-90 ${position.x} ${position.y})`}
-                  />
-                  
-                  {/* Main Node */}
-                  <circle
-                    cx={position.x}
-                    cy={position.y}
-                    r="22"
-                    fill={categoryColor}
-                    stroke={isConnected ? "#10B981" : masteryColor}
-                    strokeWidth={isConnected ? 3 : 2}
-                    className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                    onMouseEnter={() => setHoveredConcept(concept.id)}
-                    onMouseLeave={() => setHoveredConcept(null)}
-                    onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
-                    onMouseUp={(e) => handleMouseUp(e, concept.id)}
-                    onClick={() => {
-                      if (!isDragging) {
-                        setSelectedConcept(concept);
-                        onConceptSelect?.(concept);
-                      }
-                    }}
-                  />
+              // If cluster has subcategories, show subcategory bubbles
+              if (subcategories.length > 0) {
+                return (
+                  <g key={`subcategories-${cluster.id}`}>
+                    {subcategories.map((subcategory, index) => {
+                      // Position subcategories in a circle around cluster center
+                      const angle = (index / subcategories.length) * 2 * Math.PI;
+                      const radius = 80;
+                      const x = cluster.position.x + Math.cos(angle) * radius;
+                      const y = cluster.position.y + Math.sin(angle) * radius;
+                      const bubbleRadius = Math.max(20, Math.min(35, subcategory.count * 3));
+                      
+                      return (
+                        <g key={`subcategory-${cluster.id}-${subcategory.name}`}>
+                          {/* Subcategory Bubble */}
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={bubbleRadius}
+                            fill={cluster.color}
+                            fillOpacity={0.7}
+                            stroke={cluster.color}
+                            strokeWidth={2}
+                            className="cursor-pointer transition-all duration-300 hover:opacity-90"
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSubcategories);
+                              const key = `${cluster.id}-${subcategory.name}`;
+                              if (newExpanded.has(key)) {
+                                newExpanded.delete(key);
+                              } else {
+                                newExpanded.add(key);
+                              }
+                              setExpandedSubcategories(newExpanded);
+                            }}
+                          />
+                          
+                          {/* Subcategory Name */}
+                          <text
+                            x={x}
+                            y={y - 3}
+                            textAnchor="middle"
+                            fill="white"
+                            fontSize="10"
+                            fontWeight="600"
+                            className="pointer-events-none"
+                          >
+                            {subcategory.name.length > 12 ? subcategory.name.substring(0, 10) + '..' : subcategory.name}
+                          </text>
+                          
+                          {/* Concept Count */}
+                          <text
+                            x={x}
+                            y={y + 8}
+                            textAnchor="middle"
+                            fill="white"
+                            fontSize="9"
+                            className="pointer-events-none"
+                          >
+                            {subcategory.count}
+                          </text>
+                          
+                          {/* Expanded Individual Concepts */}
+                          {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
+                            subcategory.concepts.map((concept, conceptIndex) => {
+                              const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+                              const conceptRadius = bubbleRadius + 40;
+                              const conceptX = x + Math.cos(conceptAngle) * conceptRadius;
+                              const conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+                              
+                              const masteryColor = getMasteryColor(concept.masteryLevel);
+                              const isSelected = selectedConcept?.id === concept.id;
+                              const isHovered = hoveredConcept === concept.id;
+                              const progress = concept.learningProgress || 0;
+                              const IconComponent = getConceptIcon(concept);
+                              
+                              return (
+                                <g key={`expanded-concept-${concept.id}`}>
+                                  {/* Connection line to subcategory */}
+                                  <line
+                                    x1={x}
+                                    y1={y}
+                                    x2={conceptX}
+                                    y2={conceptY}
+                                    stroke={cluster.color}
+                                    strokeWidth={1}
+                                    strokeOpacity={0.5}
+                                  />
+                                  
+                                  {/* Individual Concept Node */}
+                                  <circle
+                                    cx={conceptX}
+                                    cy={conceptY}
+                                    r="18"
+                                    fill={cluster.color}
+                                    stroke={masteryColor}
+                                    strokeWidth={2}
+                                    className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                                    onMouseEnter={() => setHoveredConcept(concept.id)}
+                                    onMouseLeave={() => setHoveredConcept(null)}
+                                    onMouseDown={(e) => handleMouseDown(e, concept.id, { x: conceptX, y: conceptY })}
+                                    onMouseUp={(e) => handleMouseUp(e, concept.id)}
+                                    onClick={() => {
+                                      if (!isDragging) {
+                                        setSelectedConcept(concept);
+                                        onConceptSelect?.(concept);
+                                      }
+                                    }}
+                                  />
+                                  
+                                  {/* Progress Ring */}
+                                  <circle
+                                    cx={conceptX}
+                                    cy={conceptY}
+                                    r="20"
+                                    fill="none"
+                                    stroke={masteryColor}
+                                    strokeWidth="1"
+                                    strokeDasharray={`${(progress / 100) * (2 * Math.PI * 20)} ${2 * Math.PI * 20}`}
+                                    className="transition-all duration-300"
+                                    transform={`rotate(-90 ${conceptX} ${conceptY})`}
+                                  />
+                                  
+                                  {/* Icon */}
+                                  <foreignObject
+                                    x={conceptX - 6}
+                                    y={conceptY - 6}
+                                    width="12"
+                                    height="12"
+                                    className="pointer-events-none"
+                                  >
+                                    <IconComponent className="w-3 h-3 text-white" />
+                                  </foreignObject>
+                                  
+                                  {/* Title */}
+                                  <text
+                                    x={conceptX}
+                                    y={conceptY + 30}
+                                    textAnchor="middle"
+                                    fill="white"
+                                    fontSize="9"
+                                    fontWeight="400"
+                                    className="pointer-events-none"
+                                  >
+                                    {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
+                                  </text>
+                                </g>
+                              );
+                            })
+                          }
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              } else {
+                // If no subcategories, show individual concepts as before (for clusters without subcategories)
+                return cluster.concepts
+                  .filter(concept => filteredConcepts.some(fc => fc.id === concept.id))
+                  .map((concept) => {
+                    const position = conceptPositions.get(concept.id);
+                    if (!position) return null;
 
-                  {/* Icon */}
-                  <foreignObject
-                    x={position.x - 8}
-                    y={position.y - 8}
-                    width="16"
-                    height="16"
-                    className="pointer-events-none"
-                  >
-                    <IconComponent className="w-4 h-4 text-white" />
-                  </foreignObject>
+                    const masteryColor = getMasteryColor(concept.masteryLevel);
+                    const isSelected = selectedConcept?.id === concept.id;
+                    const isHovered = hoveredConcept === concept.id;
+                    const connectedNodes = getConnectedNodes(concept.id);
+                    const isConnected = hoveredConcept && connectedNodes.has(hoveredConcept);
+                    const progress = concept.learningProgress || 0;
+                    const IconComponent = getConceptIcon(concept);
+                    
+                    return (
+                      <g key={concept.id}>
+                        {/* Node Glow */}
+                        {(isSelected || isHovered) && (
+                          <circle
+                            cx={position.x}
+                            cy={position.y}
+                            r="40"
+                            fill={`${cluster.color}20`}
+                            className="transition-all duration-300"
+                          />
+                        )}
+                        
+                        {/* Progress Ring */}
+                        <circle
+                          cx={position.x}
+                          cy={position.y}
+                          r="26"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.1)"
+                          strokeWidth="2"
+                        />
+                        <circle
+                          cx={position.x}
+                          cy={position.y}
+                          r="26"
+                          fill="none"
+                          stroke={masteryColor}
+                          strokeWidth="2"
+                          strokeDasharray={`${(progress / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
+                          className="transition-all duration-300"
+                          transform={`rotate(-90 ${position.x} ${position.y})`}
+                        />
+                        
+                        {/* Main Node */}
+                        <circle
+                          cx={position.x}
+                          cy={position.y}
+                          r="22"
+                          fill={cluster.color}
+                          stroke={isConnected ? "#10B981" : masteryColor}
+                          strokeWidth={isConnected ? 3 : 2}
+                          className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                          onMouseEnter={() => setHoveredConcept(concept.id)}
+                          onMouseLeave={() => setHoveredConcept(null)}
+                          onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
+                          onMouseUp={(e) => handleMouseUp(e, concept.id)}
+                          onClick={() => {
+                            if (!isDragging) {
+                              setSelectedConcept(concept);
+                              onConceptSelect?.(concept);
+                            }
+                          }}
+                        />
 
-                  {/* Title */}
-                  <text
-                    x={position.x}
-                    y={position.y + 40}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="11"
-                    fontWeight="500"
-                    className="pointer-events-none"
-                  >
-                    {concept.title.length > 20 ? concept.title.substring(0, 17) + '...' : concept.title}
-                  </text>
+                        {/* Icon */}
+                        <foreignObject
+                          x={position.x - 8}
+                          y={position.y - 8}
+                          width="16"
+                          height="16"
+                          className="pointer-events-none"
+                        >
+                          <IconComponent className="w-4 h-4 text-white" />
+                        </foreignObject>
 
-                  {/* Bookmarked indicator */}
-                  {concept.bookmarked && (
-                    <text
-                      x={position.x + 18}
-                      y={position.y - 12}
-                      textAnchor="middle"
-                      fontSize="10"
-                      className="pointer-events-none"
-                    >
-                      ⭐
-                    </text>
-                  )}
-                </g>
-              );
+                        {/* Title */}
+                        <text
+                          x={position.x}
+                          y={position.y + 40}
+                          textAnchor="middle"
+                          fill="white"
+                          fontSize="11"
+                          fontWeight="500"
+                          className="pointer-events-none"
+                        >
+                          {concept.title.length > 20 ? concept.title.substring(0, 17) + '...' : concept.title}
+                        </text>
+
+                        {/* Bookmarked indicator */}
+                        {concept.bookmarked && (
+                          <text
+                            x={position.x + 18}
+                            y={position.y - 12}
+                            textAnchor="middle"
+                            fontSize="10"
+                            className="pointer-events-none"
+                          >
+                            ⭐
+                          </text>
+                        )}
+                      </g>
+                    );
+                  });
+              }
             })}
           </svg>
 
