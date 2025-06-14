@@ -145,9 +145,20 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       
       // 1. Prerequisites connections (highest priority)
       if (processed.prerequisitesParsed && Array.isArray(processed.prerequisitesParsed)) {
-        processed.prerequisitesParsed.forEach((prereqId: string) => {
-          const targetConcept = conceptsData.find(c => c.id === prereqId || c.title.toLowerCase().includes(prereqId.toLowerCase()))
-          if (targetConcept && !connectionExists(prereqId, concept.id)) {
+        processed.prerequisitesParsed.forEach((prereqId: any) => {
+          // Safely convert to string and handle different data types
+          const prereqIdStr = typeof prereqId === 'string' ? prereqId : 
+                             typeof prereqId === 'object' && prereqId?.id ? prereqId.id :
+                             typeof prereqId === 'object' && prereqId?.title ? prereqId.title :
+                             String(prereqId)
+          
+          if (!prereqIdStr || typeof prereqIdStr !== 'string') return
+          
+          const targetConcept = conceptsData.find(c => 
+            c.id === prereqIdStr || 
+            c.title.toLowerCase().includes(prereqIdStr.toLowerCase())
+          )
+          if (targetConcept && !connectionExists(targetConcept.id, concept.id)) {
             connections.push({
               from: targetConcept.id,
               to: concept.id,
@@ -161,8 +172,19 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       
       // 2. Related concepts connections
       if (processed.relatedConceptsParsed && Array.isArray(processed.relatedConceptsParsed)) {
-        processed.relatedConceptsParsed.forEach((relatedId: string) => {
-          const targetConcept = conceptsData.find(c => c.id === relatedId || c.title.toLowerCase().includes(relatedId.toLowerCase()))
+        processed.relatedConceptsParsed.forEach((relatedId: any) => {
+          // Safely convert to string and handle different data types
+          const relatedIdStr = typeof relatedId === 'string' ? relatedId : 
+                              typeof relatedId === 'object' && relatedId?.id ? relatedId.id :
+                              typeof relatedId === 'object' && relatedId?.title ? relatedId.title :
+                              String(relatedId)
+          
+          if (!relatedIdStr || typeof relatedIdStr !== 'string') return
+          
+          const targetConcept = conceptsData.find(c => 
+            c.id === relatedIdStr || 
+            c.title.toLowerCase().includes(relatedIdStr.toLowerCase())
+          )
           if (targetConcept && !connectionExists(concept.id, targetConcept.id)) {
             connections.push({
               from: concept.id,
@@ -175,11 +197,14 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         })
       }
       
-      // 3. Smart semantic connections based on title similarity
-      conceptsData.forEach(otherConcept => {
-        if (otherConcept.id !== concept.id && !connectionExists(concept.id, otherConcept.id)) {
-          const title1 = concept.title.toLowerCase()
-          const title2 = otherConcept.title.toLowerCase()
+             // 3. Smart semantic connections based on title similarity
+       conceptsData.forEach(otherConcept => {
+         if (otherConcept.id !== concept.id && !connectionExists(concept.id, otherConcept.id)) {
+           // Safely handle titles that might not be strings
+           const title1 = typeof concept.title === 'string' ? concept.title.toLowerCase() : ''
+           const title2 = typeof otherConcept.title === 'string' ? otherConcept.title.toLowerCase() : ''
+           
+           if (!title1 || !title2) return
           
           // Check for common keywords that indicate relationships
           const dataStructureKeywords = ['hash', 'table', 'array', 'tree', 'graph', 'stack', 'queue', 'heap']
@@ -210,11 +235,13 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
             shouldConnect = true
             weight = 0.7
           }
-          // Same category but different subcategory
-          else if (concept.category.split(' > ')[0] === otherConcept.category.split(' > ')[0]) {
-            shouldConnect = true
-            weight = 0.4
-          }
+                     // Same category but different subcategory
+           else if (concept.category && otherConcept.category && 
+                   typeof concept.category === 'string' && typeof otherConcept.category === 'string' &&
+                   concept.category.split(' > ')[0] === otherConcept.category.split(' > ')[0]) {
+             shouldConnect = true
+             weight = 0.4
+           }
           
           if (shouldConnect) {
             connections.push({
@@ -283,8 +310,10 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     
     // Group concepts by main category (before ' > ')
     const categoryGroups = conceptsData.reduce((groups, concept) => {
-      const mainCategory = concept.category.split(' > ')[0] || 'General'
-      const subCategory = concept.category.split(' > ')[1] || undefined
+      // Safely handle category that might not be a string
+      const categoryStr = typeof concept.category === 'string' ? concept.category : 'General'
+      const mainCategory = categoryStr.split(' > ')[0] || 'General'
+      const subCategory = categoryStr.split(' > ')[1] || undefined
       
       if (!groups[mainCategory]) groups[mainCategory] = []
       groups[mainCategory].push({
