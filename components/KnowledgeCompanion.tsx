@@ -947,12 +947,24 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   
-  // Zoom event handler
-  const handleWheel = (event: React.WheelEvent) => {
-    event.preventDefault();
-    const delta = event.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.max(0.3, Math.min(3, prev * delta)));
+  // Keyboard zoom handler (Ctrl+/Ctrl-)
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.ctrlKey) {
+      if (event.key === '=' || event.key === '+') {
+        event.preventDefault();
+        setZoom(prev => Math.min(3, prev * 1.2));
+      } else if (event.key === '-') {
+        event.preventDefault();
+        setZoom(prev => Math.max(0.3, prev * 0.8));
+      }
+    }
   };
+
+  // Add keyboard event listener
+  React.useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   
   // Reset zoom
   const resetZoom = () => {
@@ -1159,7 +1171,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
-    console.log(`🔍 DEBUG: Cluster "${cluster.name}" has ${subcategories.length} subcategories`);
+
     
     subcategories.forEach((subcategory, index) => {
       const totalSubcategories = subcategories.length;
@@ -1170,35 +1182,35 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         x = cluster.position.x;
         y = cluster.position.y;
       } else if (totalSubcategories <= 6) {
-        // Small clusters - single perfect circle
+        // Small clusters - perfect circle with better spacing
         const angle = (index / totalSubcategories) * 2 * Math.PI;
-        const radius = Math.max(150, totalSubcategories * 30); // Larger radius for better spacing
+        const radius = 200; // Fixed larger radius for clean circles
         x = cluster.position.x + Math.cos(angle) * radius;
         y = cluster.position.y + Math.sin(angle) * radius;
-      } else {
-        // Larger clusters - concentric circles
-        const innerCount = 6;
-        if (index < innerCount) {
-          // Inner circle
-          const angle = (index / innerCount) * 2 * Math.PI;
-          const radius = 120;
-          x = cluster.position.x + Math.cos(angle) * radius;
-          y = cluster.position.y + Math.sin(angle) * radius;
-        } else {
-          // Outer circle
-          const outerIndex = index - innerCount;
-          const outerCount = totalSubcategories - innerCount;
-          const angle = (outerIndex / outerCount) * 2 * Math.PI;
-          const radius = 200;
-          x = cluster.position.x + Math.cos(angle) * radius;
-          y = cluster.position.y + Math.sin(angle) * radius;
+              } else {
+          // Larger clusters - concentric circles with better spacing
+          const innerCount = 6;
+          if (index < innerCount) {
+            // Inner circle
+            const angle = (index / innerCount) * 2 * Math.PI;
+            const radius = 150; // Larger inner radius
+            x = cluster.position.x + Math.cos(angle) * radius;
+            y = cluster.position.y + Math.sin(angle) * radius;
+          } else {
+            // Outer circle
+            const outerIndex = index - innerCount;
+            const outerCount = totalSubcategories - innerCount;
+            const angle = (outerIndex / outerCount) * 2 * Math.PI;
+            const radius = 280; // Much larger outer radius
+            x = cluster.position.x + Math.cos(angle) * radius;
+            y = cluster.position.y + Math.sin(angle) * radius;
+          }
         }
-      }
       
       const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
       dynamicConceptPositions.set(subcategoryKey, { x, y });
       
-      console.log(`🔍 DEBUG: Set position for "${subcategoryKey}" at (${x.toFixed(1)}, ${y.toFixed(1)})`);
+
     });
   });
 
@@ -1697,7 +1709,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
             onMouseMove={handleMouseMove}
             onMouseUp={(e) => handleMouseUp(e)}
-            onWheel={handleWheel}
+
             onContextMenu={(e) => e.preventDefault()}
           >
             <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
