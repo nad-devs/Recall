@@ -1138,7 +1138,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
   });
   
-  // Apply the same advanced physics to SUBCATEGORIES (the visible bubbles)
+  // Apply structured layouts + physics to SUBCATEGORIES (the visible bubbles)
   const allSubcategoryNodes: Array<{
     id: string;
     x: number;
@@ -1153,118 +1153,141 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     subcategory: any;
     textWidth: number;
     textHeight: number;
+    idealX: number;
+    idealY: number;
   }> = [];
 
-  // Initialize subcategory nodes with proper text boundary calculations
+  // Initialize subcategory nodes with STRUCTURED CIRCULAR LAYOUTS + physics backup
   semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
     subcategories.forEach((subcategory, index) => {
       // Calculate actual text dimensions for subcategory bubbles
       const title = subcategory.name || '';
-      const textWidth = Math.max(100, title.length * 10 + 40); // Larger for subcategory bubbles
-      const textHeight = 50; // Taller for subcategory bubbles
-      const bubbleRadius = Math.max(35, Math.sqrt(textWidth * textHeight) / 2.5); // Larger bubbles
+      const textWidth = Math.max(100, title.length * 10 + 40);
+      const textHeight = 50;
+      const bubbleRadius = Math.max(35, Math.sqrt(textWidth * textHeight) / 2.5);
       
-      // Initial positioning in expanding spiral
-      const spiralRadius = 80 + (index * 50); // More spacing for subcategories
-      const spiralAngle = index * 2.4; // Golden angle
+      // STRUCTURED CIRCULAR POSITIONING - Start with perfect circles
+      const totalSubcategories = subcategories.length;
+      let targetX, targetY;
+      
+      if (totalSubcategories === 1) {
+        // Single subcategory - place at cluster center
+        targetX = cluster.position.x;
+        targetY = cluster.position.y;
+      } else if (totalSubcategories <= 6) {
+        // Small clusters - single perfect circle
+        const angle = (index / totalSubcategories) * 2 * Math.PI;
+        const radius = Math.max(120, totalSubcategories * 25); // Adaptive radius based on count
+        targetX = cluster.position.x + Math.cos(angle) * radius;
+        targetY = cluster.position.y + Math.sin(angle) * radius;
+      } else {
+        // Larger clusters - concentric circles
+        const innerCount = 6; // First 6 in inner circle
+        const outerCount = totalSubcategories - innerCount;
+        
+        if (index < innerCount) {
+          // Inner circle
+          const angle = (index / innerCount) * 2 * Math.PI;
+          const radius = 100;
+          targetX = cluster.position.x + Math.cos(angle) * radius;
+          targetY = cluster.position.y + Math.sin(angle) * radius;
+        } else {
+          // Outer circle
+          const outerIndex = index - innerCount;
+          const angle = (outerIndex / outerCount) * 2 * Math.PI;
+          const radius = 180;
+          targetX = cluster.position.x + Math.cos(angle) * radius;
+          targetY = cluster.position.y + Math.sin(angle) * radius;
+        }
+      }
       
       allSubcategoryNodes.push({
         id: `subcategory-${cluster.id}-${subcategory.name}`,
-        x: cluster.position.x + Math.cos(spiralAngle) * spiralRadius,
-        y: cluster.position.y + Math.sin(spiralAngle) * spiralRadius,
+        x: targetX, // Start at structured position
+        y: targetY,
         vx: 0,
         vy: 0,
         radius: bubbleRadius,
-        mass: 2 + (textWidth * textHeight) / 500, // Heavier mass for subcategories
+        mass: 2 + (textWidth * textHeight) / 500,
         clusterId: cluster.id,
         clusterX: cluster.position.x,
         clusterY: cluster.position.y,
         subcategory: subcategory,
         textWidth: textWidth,
-        textHeight: textHeight
+        textHeight: textHeight,
+        // Store the ideal structured position
+        idealX: targetX,
+        idealY: targetY
       });
     });
   });
 
-  // Advanced physics simulation for SUBCATEGORIES
-  const subcategoryIterations = 60; // More iterations for better subcategory spacing
-  const subcategoryTimeStep = 0.08;
-  const subcategoryDamping = 0.92;
+  // HYBRID: Structured positioning + physics for collision avoidance
+  const subcategoryIterations = 30; // Fewer iterations since we start with good positions
+  const subcategoryTimeStep = 0.1;
+  const subcategoryDamping = 0.88;
   
   for (let iter = 0; iter < subcategoryIterations; iter++) {
     allSubcategoryNodes.forEach(node => {
       let fx = 0, fy = 0;
       
-      // 1. CLUSTER COHESION - Keep subcategories near their cluster
-      const clusterDx = node.clusterX - node.x;
-      const clusterDy = node.clusterY - node.y;
-      const clusterDist = Math.sqrt(clusterDx * clusterDx + clusterDy * clusterDy);
+      // 1. STRUCTURED POSITION ATTRACTION - Pull toward ideal circular position
+      const idealDx = node.idealX - node.x;
+      const idealDy = node.idealY - node.y;
+      const idealDist = Math.sqrt(idealDx * idealDx + idealDy * idealDy);
       
-      const clusterSize = allSubcategoryNodes.filter(n => n.clusterId === node.clusterId).length;
-      const optimalClusterRadius = Math.max(200, clusterSize * 60); // Larger radius for subcategories
-      
-      if (clusterDist > optimalClusterRadius * 0.4) {
-        const clusterForce = 0.03 * (clusterDist - optimalClusterRadius * 0.4);
-        fx += (clusterDx / clusterDist) * clusterForce;
-        fy += (clusterDy / clusterDist) * clusterForce;
+      if (idealDist > 5) { // Only pull if significantly away from ideal position
+        const structureForce = 0.08 * idealDist; // Strong pull toward structured position
+        fx += (idealDx / idealDist) * structureForce;
+        fy += (idealDy / idealDist) * structureForce;
       }
       
-      // 2. SUBCATEGORY REPULSION - Prevent overlaps with proper text boundaries
-      allSubcategoryNodes.forEach(other => {
-        if (other.id === node.id) return;
-        
-        const dx = node.x - other.x;
-        const dy = node.y - other.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < 0.1) return;
-        
-        // Calculate minimum distance based on text boundaries and bubble sizes
-        const minDistance = Math.max(
-          node.radius + other.radius + 40, // Basic bubble separation
-          (node.textWidth + other.textWidth) / 2 + 30, // Text width consideration
-          80 // Absolute minimum for subcategory readability
-        );
-        
-        if (distance < minDistance) {
-          const repulsionForce = (minDistance - distance) * 800 / (distance * distance);
-          const forceX = (dx / distance) * repulsionForce;
-          const forceY = (dy / distance) * repulsionForce;
-          
-          const massRatio = other.mass / (node.mass + other.mass);
-          fx += forceX * massRatio;
-          fy += forceY * massRatio;
-        }
-      });
+             // 2. COLLISION AVOIDANCE - Only push apart when actually overlapping
+       allSubcategoryNodes.forEach(other => {
+         if (other.id === node.id) return;
+         
+         const dx = node.x - other.x;
+         const dy = node.y - other.y;
+         const distance = Math.sqrt(dx * dx + dy * dy);
+         
+         if (distance < 0.1) return;
+         
+         // Calculate minimum safe distance
+         const minDistance = Math.max(
+           node.radius + other.radius + 25, // Basic bubble separation
+           (node.textWidth + other.textWidth) / 2 + 15, // Text width consideration
+           70 // Minimum for readability
+         );
+         
+         if (distance < minDistance) {
+           // Moderate repulsion - just enough to prevent overlap
+           const overlap = minDistance - distance;
+           const repulsionForce = overlap * 200; // Gentler force to maintain structure
+           const forceX = (dx / distance) * repulsionForce;
+           const forceY = (dy / distance) * repulsionForce;
+           
+           // Equal and opposite forces
+           fx += forceX * 0.5;
+           fy += forceY * 0.5;
+         }
+       });
       
-      // 3. INTER-CLUSTER SEPARATION - Keep different clusters apart
-      allSubcategoryNodes.forEach(other => {
-        if (other.clusterId === node.clusterId) return;
-        
-        const dx = node.x - other.x;
-        const dy = node.y - other.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < 150 && distance > 0.1) {
-          const separationForce = (150 - distance) * 0.8;
-          fx += (dx / distance) * separationForce;
-          fy += (dy / distance) * separationForce;
-        }
-      });
-      
-      // 4. VIEWPORT BOUNDARIES
-      const viewportMargin = 250;
-      const leftBound = -viewBox.width / 2 + viewportMargin;
-      const rightBound = viewBox.width / 2 - viewportMargin;
-      const topBound = -viewBox.height / 2 + viewportMargin;
-      const bottomBound = viewBox.height / 2 - viewportMargin;
-      
-      if (node.x < leftBound) fx += (leftBound - node.x) * 0.15;
-      if (node.x > rightBound) fx += (rightBound - node.x) * 0.15;
-      if (node.y < topBound) fy += (topBound - node.y) * 0.15;
-      if (node.y > bottomBound) fy += (bottomBound - node.y) * 0.15;
+             // 3. GENTLE INTER-CLUSTER SEPARATION - Minimal force to avoid cluster overlap
+       allSubcategoryNodes.forEach(other => {
+         if (other.clusterId === node.clusterId) return;
+         
+         const dx = node.x - other.x;
+         const dy = node.y - other.y;
+         const distance = Math.sqrt(dx * dx + dy * dy);
+         
+         if (distance < 100 && distance > 0.1) {
+           const separationForce = (100 - distance) * 0.3; // Gentle separation
+           fx += (dx / distance) * separationForce;
+           fy += (dy / distance) * separationForce;
+         }
+       });
       
       // Apply forces with physics integration
       const acceleration = 1 / node.mass;
