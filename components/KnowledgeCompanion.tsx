@@ -967,12 +967,98 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
-  // Create dynamic position map with physics-based layout
+  // Create dynamic position map with physics-based layout for ALL concepts
   const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
   
-  // Add positions from conceptPositions (for non-subcategory concepts)
-  conceptPositions.forEach((pos, id) => {
-    dynamicConceptPositions.set(id, pos);
+  // Apply physics-based positioning to ALL concepts in each cluster
+  semanticClusters.forEach(cluster => {
+    const clusterConcepts = cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id));
+    
+    if (clusterConcepts.length > 0) {
+      // Apply physics simulation to prevent overlaps
+      const nodes = clusterConcepts.map((concept, index) => {
+        // Start with basic circular arrangement
+        const angle = (index / clusterConcepts.length) * 2 * Math.PI;
+        const baseRadius = Math.min(120, 60 + clusterConcepts.length * 8);
+        
+        return {
+          id: concept.id,
+          x: cluster.position.x + Math.cos(angle) * baseRadius,
+          y: cluster.position.y + Math.sin(angle) * baseRadius,
+          radius: 20, // Concept node radius
+          vx: 0,
+          vy: 0,
+          concept: concept
+        };
+      });
+      
+      // Physics simulation to spread out overlapping nodes
+      const iterations = 25;
+      const damping = 0.85;
+      const clusterAttraction = 0.05; // Weak pull toward cluster center
+      const nodeRepulsion = 300; // Strong push away from other nodes
+      const maxDistance = 200; // Don't go too far from cluster
+      
+      for (let iter = 0; iter < iterations; iter++) {
+        nodes.forEach(node => {
+          let fx = 0, fy = 0;
+          
+          // 1. Weak attraction to cluster center
+          const dcx = cluster.position.x - node.x;
+          const dcy = cluster.position.y - node.y;
+          const clusterDist = Math.sqrt(dcx * dcx + dcy * dcy);
+          
+          if (clusterDist > 80) {
+            fx += dcx * clusterAttraction;
+            fy += dcy * clusterAttraction;
+          }
+          
+          // 2. Strong repulsion from other nodes
+          nodes.forEach(other => {
+            if (other === node) return;
+            
+            const dx = node.x - other.x;
+            const dy = node.y - other.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = node.radius + other.radius + 25; // Minimum separation
+            
+            if (dist < minDist && dist > 0) {
+              const force = nodeRepulsion / (dist * dist);
+              fx += (dx / dist) * force;
+              fy += (dy / dist) * force;
+            }
+          });
+          
+          // Apply forces
+          node.vx += fx;
+          node.vy += fy;
+          node.vx *= damping;
+          node.vy *= damping;
+          
+          // Update position
+          node.x += node.vx;
+          node.y += node.vy;
+          
+          // Constrain to cluster area
+          const newDcx = cluster.position.x - node.x;
+          const newDcy = cluster.position.y - node.y;
+          const newClusterDist = Math.sqrt(newDcx * newDcx + newDcy * newDcy);
+          
+          if (newClusterDist > maxDistance) {
+            const angle = Math.atan2(newDcy, newDcx);
+            node.x = cluster.position.x - Math.cos(angle) * maxDistance;
+            node.y = cluster.position.y - Math.sin(angle) * maxDistance;
+            node.vx = 0;
+            node.vy = 0;
+          }
+        });
+      }
+      
+      // Store final positions
+      nodes.forEach(node => {
+        dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
+      });
+    }
   });
   
   // Calculate physics-based positions for subcategories and their concepts
