@@ -186,10 +186,25 @@ export default function GraphPage() {
     // Process enhanced concept data safely
     const enhanced = processEnhancedConcept(concept as EnhancedConcept)
     
+    // Prevent body scroll when modal is open
+    useEffect(() => {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = 'unset'
+      }
+    }, [])
+    
     return (
       <div
         className="fixed inset-0 bg-black/80 z-[2000] flex items-center justify-center p-4"
         onClick={onClose}
+        style={{ 
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0
+        }}
       >
         <div
           className="bg-slate-800 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto border border-slate-600 shadow-2xl text-sm"
