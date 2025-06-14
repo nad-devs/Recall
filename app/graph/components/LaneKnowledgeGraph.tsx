@@ -198,14 +198,16 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     return connections
   }
 
-  // Create lane-based layout
+  // Create lane-based layout with proper spacing like the demo
   const createLaneLayout = (conceptsData: EnhancedConcept[], connections: Connection[]): CategoryLane[] => {
-    const laneHeight = 120
-    const laneSpacing = 20
-    const nodeWidth = 180
-    const nodeHeight = 60
-    const nodeSpacing = 20
-    const laneStartX = 60
+    const laneHeaderHeight = 60
+    const laneSpacing = 40
+    const nodeWidth = 140
+    const nodeHeight = 80
+    const nodeSpacing = 24
+    const laneStartX = 200
+    const laneContentPadding = 20
+    const maxLaneWidth = 1200
     
     // Group concepts by category
     const categoryGroups = conceptsData.reduce((groups, concept) => {
@@ -216,7 +218,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     }, {} as Record<string, EnhancedConcept[]>)
 
     const lanes: CategoryLane[] = []
-    let currentY = 40
+    let currentY = 80
 
     Object.entries(categoryGroups).forEach(([category, categoryConcepts], laneIndex) => {
       const config = categoryConfig[category as keyof typeof categoryConfig] || categoryConfig.default
@@ -229,21 +231,31 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         struggling: 0
       }
       
-      // Sort concepts by understanding strength
+      // Sort concepts by understanding strength (highest first)
       const sortedConcepts = categoryConcepts.sort((a, b) => 
         calculateUnderstandingStrength(b) - calculateUnderstandingStrength(a)
       )
       
-      // Position concepts in rows within the lane
-      const conceptsPerRow = Math.floor((1200 - laneStartX * 2) / (nodeWidth + nodeSpacing))
+      // Calculate optimal layout - limit concepts per row for readability
+      const availableWidth = maxLaneWidth - laneStartX - 100
+      const maxConceptsPerRow = Math.floor(availableWidth / (nodeWidth + nodeSpacing))
+      const optimalConceptsPerRow = Math.min(4, Math.max(2, maxConceptsPerRow))
+      const actualConceptsPerRow = Math.min(optimalConceptsPerRow, sortedConcepts.length)
+      const totalRows = Math.ceil(sortedConcepts.length / actualConceptsPerRow)
+      
       const nodes: ConceptNode[] = []
       
       sortedConcepts.forEach((concept, index) => {
-        const row = Math.floor(index / conceptsPerRow)
-        const col = index % conceptsPerRow
+        const row = Math.floor(index / actualConceptsPerRow)
+        const col = index % actualConceptsPerRow
+        const conceptsInThisRow = Math.min(actualConceptsPerRow, sortedConcepts.length - (row * actualConceptsPerRow))
         
-        const x = laneStartX + col * (nodeWidth + nodeSpacing)
-        const y = currentY + 40 + row * (nodeHeight + 10)
+        // Center concepts in each row
+        const thisRowWidth = (conceptsInThisRow * nodeWidth) + ((conceptsInThisRow - 1) * nodeSpacing)
+        const thisRowStartX = laneStartX + (availableWidth - thisRowWidth) / 2
+        
+        const x = thisRowStartX + col * (nodeWidth + nodeSpacing)
+        const y = currentY + laneHeaderHeight + laneContentPadding + row * (nodeHeight + 20)
         
         const strength = calculateUnderstandingStrength(concept)
         
@@ -263,8 +275,9 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         })
       })
       
-      const maxRows = Math.ceil(sortedConcepts.length / conceptsPerRow)
-      const actualLaneHeight = Math.max(laneHeight, 80 + maxRows * (nodeHeight + 10))
+      // Calculate actual lane height based on content
+      const laneContentHeight = Math.max(100, totalRows * nodeHeight + (totalRows - 1) * 20 + (laneContentPadding * 2))
+      const actualLaneHeight = laneHeaderHeight + laneContentHeight
       
       lanes.push({
         category,
@@ -417,6 +430,17 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     setFocusedLanes(new Set())
   }
 
+  // Calculate total graph dimensions
+  const graphDimensions = useMemo(() => {
+    if (lanes.length === 0) return { width: 1400, height: 800 }
+    
+    const maxY = Math.max(...lanes.map(lane => lane.y + lane.height))
+    const width = 1400
+    const height = Math.max(800, maxY + 100)
+    
+    return { width, height }
+  }, [lanes])
+
   // Abbreviate long titles
   const abbreviateTitle = (title: string, maxLength: number = 20): string => {
     if (title.length <= maxLength) return title
@@ -525,6 +549,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       <svg
         ref={svgRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
+        viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${graphDimensions.width / zoom} ${graphDimensions.height / zoom}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -564,14 +589,14 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
               <g key={lane.category}>
                 {/* Lane Background */}
                 <rect
-                  x="20"
-                  y={lane.y}
-                  width="1160"
-                  height={lane.collapsed ? 60 : lane.height}
+                  x="50"
+                  y={lane.y - 10}
+                  width="1300"
+                  height={lane.collapsed ? 60 : lane.height + 20}
                   fill={config.bgColor}
                   stroke={lane.color}
-                  strokeWidth="1"
-                  rx="8"
+                  strokeWidth="2"
+                  rx="16"
                   opacity={isHighlighted ? 1 : 0.3}
                   className="transition-opacity duration-300"
                 />
@@ -579,45 +604,89 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                 {/* Lane Header */}
                 <g className="cursor-pointer" onClick={() => toggleLaneCollapse(lane.category)}>
                   <rect
-                    x="30"
-                    y={lane.y + 10}
-                    width="1140"
-                    height="40"
+                    x="70"
+                    y={lane.y + 5}
+                    width="1260"
+                    height="50"
                     fill={lane.color}
-                    rx="6"
-                    opacity={isHighlighted ? 0.9 : 0.5}
+                    rx="12"
+                    opacity={isHighlighted ? 0.9 : 0.6}
                     className="transition-opacity duration-300"
                   />
                   
-                  {/* Lane Title */}
+                  {/* Lane Icon */}
+                  <circle
+                    cx="100"
+                    cy={lane.y + 30}
+                    r="16"
+                    fill="rgba(255,255,255,0.2)"
+                    className="pointer-events-none"
+                  />
                   <text
-                    x="50"
-                    y={lane.y + 32}
+                    x="100"
+                    y={lane.y + 36}
                     fill="white"
                     fontSize="16"
-                    fontWeight="600"
+                    textAnchor="middle"
                     className="pointer-events-none"
                   >
-                    {lane.icon} {lane.category}
+                    {lane.icon}
+                  </text>
+                  
+                  {/* Lane Title */}
+                  <text
+                    x="130"
+                    y={lane.y + 25}
+                    fill="white"
+                    fontSize="18"
+                    fontWeight="700"
+                    className="pointer-events-none"
+                  >
+                    {lane.category}
                   </text>
                   
                   {/* Lane Stats */}
                   <text
-                    x="400"
-                    y={lane.y + 32}
-                    fill="rgba(255,255,255,0.8)"
-                    fontSize="12"
+                    x="130"
+                    y={lane.y + 42}
+                    fill="rgba(255,255,255,0.9)"
+                    fontSize="13"
                     className="pointer-events-none"
                   >
                     {lane.stats.total} concepts • {lane.stats.mastered} mastered • {lane.stats.learning} learning • {lane.stats.struggling} struggling
                   </text>
                   
+                  {/* Progress Bar */}
+                  <rect
+                    x="600"
+                    y={lane.y + 25}
+                    width="200"
+                    height="6"
+                    fill="rgba(255,255,255,0.2)"
+                    rx="3"
+                    className="pointer-events-none"
+                  />
+                  <rect
+                    x="600"
+                    y={lane.y + 25}
+                    width={200 * (lane.stats.mastered / Math.max(1, lane.stats.total))}
+                    height="6"
+                    fill="rgba(255,255,255,0.8)"
+                    rx="3"
+                    className="pointer-events-none"
+                  />
+                  
                   {/* Collapse Icon */}
-                  {lane.collapsed ? (
-                    <ChevronDown className="w-4 h-4" x="1140" y={lane.y + 26} fill="white" />
-                  ) : (
-                    <ChevronUp className="w-4 h-4" x="1140" y={lane.y + 26} fill="white" />
-                  )}
+                  <text
+                    x="1300"
+                    y={lane.y + 36}
+                    fill="white"
+                    fontSize="14"
+                    textAnchor="middle"
+                    className="pointer-events-none"
+                  >
+                    {lane.collapsed ? '▼' : '▲'}
+                  </text>
                 </g>
               </g>
             )
@@ -693,11 +762,14 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                     className="cursor-pointer transition-all duration-200"
                     onMouseEnter={(e) => {
                       setHoveredNode(node.id)
-                      setTooltip({
-                        x: e.clientX,
-                        y: e.clientY,
-                        concept: node
-                      })
+                      const rect = svgRef.current?.getBoundingClientRect()
+                      if (rect) {
+                        setTooltip({
+                          x: e.clientX - rect.left,
+                          y: e.clientY - rect.top,
+                          concept: node
+                        })
+                      }
                     }}
                     onMouseLeave={() => {
                       setHoveredNode(null)
@@ -723,35 +795,61 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                   
                   {/* Node Title */}
                   <text
-                    x={node.x + 20}
-                    y={node.y + 20}
+                    x={node.x + node.width / 2}
+                    y={node.y + 25}
                     fill="white"
-                    fontSize="13"
+                    fontSize="14"
                     fontWeight="600"
+                    textAnchor="middle"
                     opacity={nodeOpacity}
                     className="pointer-events-none"
                   >
-                    {abbreviateTitle(node.title, 22)}
+                    {node.title.length > 16 ? node.title.substring(0, 14) + '...' : node.title}
                   </text>
                   
                   {/* Understanding Percentage */}
                   <text
-                    x={node.x + 20}
-                    y={node.y + 36}
-                    fill="rgba(255,255,255,0.7)"
-                    fontSize="11"
+                    x={node.x + node.width / 2}
+                    y={node.y + 45}
+                    fill={strength > 70 ? "#10B981" : strength > 40 ? "#F59E0B" : "#EF4444"}
+                    fontSize="12"
+                    fontWeight="600"
+                    textAnchor="middle"
                     opacity={nodeOpacity}
                     className="pointer-events-none"
                   >
-                    Understanding: {strength}%
+                    {Math.round(strength)}%
                   </text>
+                  
+                  {/* Progress Bar */}
+                  <rect
+                    x={node.x + 15}
+                    y={node.y + 55}
+                    width={node.width - 30}
+                    height="4"
+                    fill="rgba(255,255,255,0.2)"
+                    rx="2"
+                    opacity={nodeOpacity}
+                    className="pointer-events-none"
+                  />
+                  <rect
+                    x={node.x + 15}
+                    y={node.y + 55}
+                    width={(node.width - 30) * (strength / 100)}
+                    height="4"
+                    fill={strength > 70 ? "#10B981" : strength > 40 ? "#F59E0B" : "#EF4444"}
+                    rx="2"
+                    opacity={nodeOpacity}
+                    className="pointer-events-none"
+                  />
                   
                   {/* Connection Count */}
                   <text
-                    x={node.x + 20}
-                    y={node.y + 50}
-                    fill="rgba(255,255,255,0.5)"
+                    x={node.x + node.width / 2}
+                    y={node.y + 72}
+                    fill="rgba(255,255,255,0.6)"
                     fontSize="10"
+                    textAnchor="middle"
                     opacity={nodeOpacity}
                     className="pointer-events-none"
                   >
