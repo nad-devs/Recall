@@ -17,7 +17,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react"
-import { SVGKnowledgeGraph } from './components/SVGKnowledgeGraph'
+import { StaticKnowledgeGraph } from './components/StaticKnowledgeGraph'
 import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
@@ -494,9 +494,10 @@ export default function GraphPage() {
               </div>
             ) : (
               <>
-                <SVGKnowledgeGraph 
+                <StaticKnowledgeGraph 
                   concepts={concepts as EnhancedConcept[]}
                   onConceptClick={handleConceptClick}
+                  interviewMode={interviewMode}
                   className="bg-slate-900"
                 />
 
