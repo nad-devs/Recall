@@ -17,7 +17,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react"
-import { RealKnowledgeGraph } from './components/RealKnowledgeGraph'
+import { LaneKnowledgeGraph } from './components/LaneKnowledgeGraph'
 import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
@@ -494,7 +494,7 @@ export default function GraphPage() {
               </div>
             ) : (
               <>
-                <RealKnowledgeGraph 
+                <LaneKnowledgeGraph 
                   concepts={concepts as EnhancedConcept[]}
                   onConceptClick={handleConceptClick}
                   interviewMode={interviewMode}
