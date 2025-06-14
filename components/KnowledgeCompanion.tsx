@@ -218,9 +218,12 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
   return clusters;
 };
 
-// Generate positions for concepts within clusters
-const generateClusterLayout = (clusters: SemanticCluster[]) => {
+// Generate positions for concepts within clusters with dynamic viewport adjustment
+const generateClusterLayout = (clusters: SemanticCluster[], viewBox: { x: number; y: number; width: number; height: number }) => {
   const positions = new Map<string, { x: number; y: number }>();
+  
+  // Calculate the bounds of all concepts
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   
   clusters.forEach(cluster => {
     const { concepts, position } = cluster;
@@ -228,16 +231,17 @@ const generateClusterLayout = (clusters: SemanticCluster[]) => {
     const centerY = position.y;
     
     concepts.forEach((concept, index) => {
+      let x, y;
+      
       if (concepts.length === 1) {
-        positions.set(concept.id, { x: centerX, y: centerY });
+        x = centerX;
+        y = centerY;
       } else if (concepts.length <= 8) {
         // Single ring for small clusters
         const angle = (index / concepts.length) * 2 * Math.PI;
         const radius = Math.min(120, 60 + concepts.length * 10);
-        positions.set(concept.id, {
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
+        x = centerX + Math.cos(angle) * radius;
+        y = centerY + Math.sin(angle) * radius;
       } else {
         // Multiple rings for larger clusters
         const conceptsPerRing = 8;
@@ -247,15 +251,30 @@ const generateClusterLayout = (clusters: SemanticCluster[]) => {
         const ringRadius = 80 + (ring * 60);
         const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
         
-        positions.set(concept.id, {
-          x: centerX + Math.cos(angle) * ringRadius,
-          y: centerY + Math.sin(angle) * ringRadius
-        });
+        x = centerX + Math.cos(angle) * ringRadius;
+        y = centerY + Math.sin(angle) * ringRadius;
       }
+      
+      positions.set(concept.id, { x, y });
+      
+      // Track bounds
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
     });
   });
   
-  return positions;
+  // Add padding
+  const padding = 100;
+  const bounds = {
+    minX: minX - padding,
+    maxX: maxX + padding,
+    minY: minY - padding,
+    maxY: maxY + padding
+  };
+  
+  return { positions, bounds };
 };
 
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
@@ -280,7 +299,21 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 
   // Generate semantic clusters and layout
   const semanticClusters = generateSemanticClusters(concepts);
-  const conceptPositions = generateClusterLayout(semanticClusters);
+  const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
+  
+  // Update viewBox to fit all concepts
+  useEffect(() => {
+    if (bounds && (bounds.minX !== Infinity)) {
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      setViewBox({
+        x: bounds.minX,
+        y: bounds.minY,
+        width: Math.max(width, 1200),
+        height: Math.max(height, 800)
+      });
+    }
+  }, [bounds]);
   
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
@@ -294,11 +327,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-  // Filter concepts
+  // Filter concepts based on search and cluster selection
   const filteredConcepts = concepts.filter(concept => {
-    if (!searchQuery) return true;
-    
-    // Check if concept's cluster is selected
+    // First apply cluster filter
     if (selectedClusters.size > 0) {
       const conceptCluster = semanticClusters.find(cluster => 
         cluster.concepts.some(c => c.id === concept.id)
@@ -307,6 +338,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         return false;
       }
     }
+    
+    // Then apply search filter
+    if (!searchQuery) return true;
     
     return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
            concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -454,7 +488,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       <div className="w-80 bg-slate-800/50 border-r border-white/10 p-4 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">Categories</h3>
-          <span className="text-xs text-gray-400">Ctrl+Click for multi-select</span>
+          <span className="text-xs text-gray-400">Click to filter</span>
         </div>
         
         <div className="space-y-2 mb-6">
@@ -462,6 +496,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             const isSelected = selectedClusters.has(cluster.id);
             const isExpanded = expandedClusters.has(cluster.id);
             const IconComponent = cluster.icon;
+            const visibleConceptsInCluster = cluster.concepts.filter(c => 
+              filteredConcepts.some(fc => fc.id === c.id)
+            ).length;
             
             return (
               <div key={cluster.id}>
@@ -495,18 +532,26 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     </div>
                     <div className="text-left">
                       <div className="text-gray-300 font-medium">{cluster.name}</div>
-                      <div className="text-xs text-gray-400">{cluster.concepts.length} concepts</div>
+                      <div className="text-xs text-gray-400">
+                        {visibleConceptsInCluster}/{cluster.concepts.length} concepts
+                      </div>
                     </div>
                   </div>
                 </button>
                 
                 {isExpanded && (
                   <div className="mt-2 ml-6 space-y-1">
-                    {cluster.concepts.slice(0, 5).map(concept => (
-                      <div key={concept.id} className="text-xs text-gray-400 p-1">
-                        • {concept.title.length > 30 ? concept.title.substring(0, 27) + '...' : concept.title}
-                      </div>
-                    ))}
+                    {cluster.concepts.slice(0, 5).map(concept => {
+                      const isVisible = filteredConcepts.some(fc => fc.id === concept.id);
+                      return (
+                        <div 
+                          key={concept.id} 
+                          className={`text-xs p-1 ${isVisible ? 'text-gray-300' : 'text-gray-500'}`}
+                        >
+                          • {concept.title.length > 30 ? concept.title.substring(0, 27) + '...' : concept.title}
+                        </div>
+                      );
+                    })}
                     {cluster.concepts.length > 5 && (
                       <div className="text-xs text-gray-500 p-1">
                         +{cluster.concepts.length - 5} more...
@@ -627,31 +672,39 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             <rect width="100%" height="100%" fill="url(#grid)" />
 
             {/* Cluster Labels */}
-            {semanticClusters.map(cluster => (
-              <g key={`label-${cluster.id}`}>
-                <text
-                  x={cluster.position.x}
-                  y={cluster.position.y - 150}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.6)"
-                  fontSize="14"
-                  fontWeight="600"
-                  className="pointer-events-none"
-                >
-                  {cluster.name}
-                </text>
-                <text
-                  x={cluster.position.x}
-                  y={cluster.position.y - 135}
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.4)"
-                  fontSize="10"
-                  className="pointer-events-none"
-                >
-                  {cluster.concepts.length} concepts
-                </text>
-              </g>
-            ))}
+            {semanticClusters.map(cluster => {
+              const hasVisibleConcepts = cluster.concepts.some(c => 
+                filteredConcepts.some(fc => fc.id === c.id)
+              );
+              
+              if (!hasVisibleConcepts) return null;
+              
+              return (
+                <g key={`label-${cluster.id}`}>
+                  <text
+                    x={cluster.position.x}
+                    y={cluster.position.y - 150}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.6)"
+                    fontSize="14"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {cluster.name}
+                  </text>
+                  <text
+                    x={cluster.position.x}
+                    y={cluster.position.y - 135}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.4)"
+                    fontSize="10"
+                    className="pointer-events-none"
+                  >
+                    {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
+                  </text>
+                </g>
+              );
+            })}
 
             {/* Connections */}
             {visibleConnections.map((conn, index) => {
@@ -831,7 +884,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           <div className="absolute bottom-4 right-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300">
             <div>Concepts: {filteredConcepts.length}/{concepts.length}</div>
             <div>Connections: {visibleConnections.length}/{connections.length}</div>
-            <div>Clusters: {semanticClusters.length}</div>
+            <div>Clusters: {semanticClusters.filter(c => c.concepts.some(cc => filteredConcepts.some(fc => fc.id === cc.id))).length}</div>
           </div>
         </div>
       </div>
