@@ -51,8 +51,8 @@ class AbbreviationService {
   private pendingRequests = new Map<string, Promise<string>>();
 
   async getAbbreviation(title: string): Promise<string> {
-    // Return immediately if short enough
-    if (title.length <= 15) return title;
+    // Return immediately if short enough - increased threshold for less aggressive abbreviation
+    if (title.length <= 25) return title;
     
     // Check cache first
     if (this.cache.has(title)) {
@@ -250,6 +250,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const [showConnections, setShowConnections] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1600, height: 1000 });
+  
+  // Connection creation state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ conceptId: string; x: number; y: number } | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [highlightConnected, setHighlightConnected] = useState(false);
   
   // Abbreviation service and cache
   const [abbreviationService] = useState(() => new AbbreviationService());
@@ -467,9 +473,50 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
+  // Handle connection creation
+  const handleMouseDown = (event: React.MouseEvent, conceptId: string, position: { x: number; y: number }) => {
+    if (event.button === 2) { // Right click
+      event.preventDefault();
+      setIsDragging(true);
+      setDragStart({ conceptId, x: position.x, y: position.y });
+      setDragCurrent({ x: position.x, y: position.y });
+    }
+  };
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    if (isDragging && dragStart) {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (rect) {
+        const svgX = ((event.clientX - rect.left) * viewBox.width) / rect.width + viewBox.x;
+        const svgY = ((event.clientY - rect.top) * viewBox.height) / rect.height + viewBox.y;
+        setDragCurrent({ x: svgX, y: svgY });
+      }
+    }
+  };
+
+  const handleMouseUp = (event: React.MouseEvent, targetConceptId?: string) => {
+    if (isDragging && dragStart && targetConceptId && targetConceptId !== dragStart.conceptId) {
+      // Create connection logic here
+      console.log(`Creating connection from ${dragStart.conceptId} to ${targetConceptId}`);
+      // You can add API call to save the connection
+    }
+    setIsDragging(false);
+    setDragStart(null);
+    setDragCurrent(null);
+  };
+
+  const getConnectedNodes = (conceptId: string) => {
+    const connected = new Set<string>();
+    connections.forEach(conn => {
+      if (conn?.from === conceptId) connected.add(conn.to);
+      if (conn?.to === conceptId) connected.add(conn.from);
+    });
+    return connected;
+  };
+
   // Get display title for concept
   const getDisplayTitle = (concept: Concept): string => {
-    if (concept.title.length <= 15) return concept.title;
+    if (concept.title.length <= 25) return concept.title;
     
     // Check if abbreviation is available
     if (abbreviations.has(concept.id)) {
@@ -549,7 +596,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       {/* Main Content */}
       <div className="flex h-[calc(100vh-140px)]">
         {/* Left Sidebar - Categories */}
-        <div className="w-80 bg-slate-800/50 border-r border-white/10 p-6 overflow-y-auto">
+        <div className="w-96 bg-slate-800/50 border-r border-white/10 p-6 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-white">Categories</h3>
             <span className="text-sm text-gray-400">Ctrl+Click for multi-select</span>
@@ -601,6 +648,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             ref={svgRef}
             className="w-full h-full cursor-grab active:cursor-grabbing"
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+            onMouseMove={handleMouseMove}
+            onMouseUp={(e) => handleMouseUp(e)}
+            onContextMenu={(e) => e.preventDefault()}
           >
             {/* Background Grid */}
             <defs>
@@ -615,6 +665,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             {visibleConnections.map((conn, index) => {
               if (!conn) return null;
               
+              const isHighlighted = highlightConnected && hoveredConcept && 
+                (conn.from === hoveredConcept || conn.to === hoveredConcept);
+              
               return (
                 <line
                   key={index}
@@ -622,12 +675,26 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   y1={conn.fromPos.y}
                   x2={conn.toPos.x}
                   y2={conn.toPos.y}
-                  stroke="rgba(99, 102, 241, 0.3)"
-                  strokeWidth={Math.max(1, conn.strength * 3)}
+                  stroke={isHighlighted ? "rgba(16, 185, 129, 0.8)" : "rgba(99, 102, 241, 0.3)"}
+                  strokeWidth={isHighlighted ? 4 : Math.max(1, conn.strength * 3)}
                   className="transition-all duration-300"
                 />
               );
             })}
+
+            {/* Drag Connection Line */}
+            {isDragging && dragStart && dragCurrent && (
+              <line
+                x1={dragStart.x}
+                y1={dragStart.y}
+                x2={dragCurrent.x}
+                y2={dragCurrent.y}
+                stroke="rgba(239, 68, 68, 0.8)"
+                strokeWidth="3"
+                strokeDasharray="5,5"
+                className="pointer-events-none"
+              />
+            )}
 
             {/* Concept Nodes */}
             {filteredConcepts.map((concept) => {
@@ -639,6 +706,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               const displayTitle = getDisplayTitle(concept);
               const isSelected = selectedConcept?.id === concept.id;
               const isHovered = hoveredConcept === concept.id;
+              const connectedNodes = getConnectedNodes(concept.id);
+              const isConnected = highlightConnected && hoveredConcept && connectedNodes.has(hoveredConcept);
+              const isBeingDragged = isDragging && dragStart?.conceptId === concept.id;
               
               return (
                 <g key={concept.id}>
@@ -659,14 +729,24 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     cy={position.y}
                     r={nodeSize}
                     fill={generateCategoryColor(concept.category)}
-                    stroke={masteryColor}
-                    strokeWidth={2}
+                    stroke={isConnected ? "#10B981" : isBeingDragged ? "#EF4444" : masteryColor}
+                    strokeWidth={isConnected || isBeingDragged ? 4 : 2}
                     className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                    onMouseEnter={() => setHoveredConcept(concept.id)}
-                    onMouseLeave={() => setHoveredConcept(null)}
+                    onMouseEnter={() => {
+                      setHoveredConcept(concept.id);
+                      setHighlightConnected(true);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredConcept(null);
+                      setHighlightConnected(false);
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
+                    onMouseUp={(e) => handleMouseUp(e, concept.id)}
                     onClick={() => {
-                      setSelectedConcept(concept);
-                      onConceptSelect?.(concept);
+                      if (!isDragging) {
+                        setSelectedConcept(concept);
+                        onConceptSelect?.(concept);
+                      }
                     }}
                   />
 
