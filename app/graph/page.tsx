@@ -17,16 +17,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react"
-import ReactFlow, { 
-  Background, 
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-  Node,
-  Edge
-} from 'reactflow'
-import 'reactflow/dist/style.css'
+import { SVGKnowledgeGraph } from './components/SVGKnowledgeGraph'
 import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
@@ -72,8 +63,6 @@ export default function GraphPage() {
 
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [concepts, setConcepts] = useState<Concept[]>([])
@@ -105,67 +94,9 @@ export default function GraphPage() {
     return colors[category] || colors.default
   }
 
-  // Simple layout creation
-  const createSimpleLayout = (conceptsData: Concept[]) => {
-    const nodes: Node[] = []
-    const edges: Edge[] = []
-    
-    // Create a simple grid layout
-    const cols = Math.ceil(Math.sqrt(conceptsData.length))
-    
-    conceptsData.forEach((concept, index) => {
-      const row = Math.floor(index / cols)
-      const col = index % cols
-      
-      nodes.push({
-        id: concept.id,
-        type: 'default',
-        position: { 
-          x: col * 200 + 100, 
-          y: row * 150 + 100 
-        },
-        data: {
-          label: concept.title
-        },
-        style: {
-          backgroundColor: getConceptColor(concept),
-          color: 'white',
-          border: '2px solid rgba(255,255,255,0.3)',
-          borderRadius: '8px',
-          padding: '10px',
-          width: 150,
-          height: 80,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          textAlign: 'center'
-        }
-      })
-    })
-
-    // Add simple connections between concepts in same category
-    conceptsData.forEach((concept, index) => {
-      conceptsData.forEach((otherConcept, otherIndex) => {
-        if (index < otherIndex && 
-            concept.category === otherConcept.category && 
-            Math.random() > 0.7) { // Random connections for demo
-          edges.push({
-            id: `${concept.id}-${otherConcept.id}`,
-            source: concept.id,
-            target: otherConcept.id,
-          type: 'smoothstep',
-            style: { 
-              stroke: '#6b7280', 
-              strokeWidth: 2,
-              opacity: 0.6 
-            }
-          })
-        }
-      })
-    })
-
-    return { nodes, edges }
+  // Handle concept selection for SVG graph
+  const handleConceptClick = (concept: Concept) => {
+    setSelectedConcept(concept)
   }
 
   // Load concepts with enhanced data inspection
@@ -217,12 +148,6 @@ export default function GraphPage() {
 
       setConcepts(conceptsData)
       
-      if (conceptsData.length > 0) {
-        const layout = createSimpleLayout(conceptsData)
-        setNodes(layout.nodes)
-        setEdges(layout.edges)
-      }
-      
       setLoading(false)
     } catch (err) {
       console.error('Error loading concepts:', err)
@@ -238,13 +163,7 @@ export default function GraphPage() {
     }
   }, [mounted])
 
-  // Node click handler
-  const onNodeClick = (event: any, node: any) => {
-    const concept = concepts.find(c => c.id === node.id)
-    if (concept) {
-      setSelectedConcept(concept)
-    }
-  }
+
 
   // Enhanced Concept Modal Component with Rich Data Display
   const ConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
@@ -575,35 +494,11 @@ export default function GraphPage() {
               </div>
             ) : (
               <>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                  onNodeClick={onNodeClick}
-                fitView
-                fitViewOptions={{ 
-                  padding: 0.1,
-                    maxZoom: 1.2 
-                }}
-                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                  minZoom={0.3}
-                maxZoom={2}
-                className="bg-slate-900"
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background 
-                  gap={20} 
-                  size={1} 
-                  color="rgba(148, 163, 184, 0.1)" 
+                <SVGKnowledgeGraph 
+                  concepts={concepts as EnhancedConcept[]}
+                  onConceptClick={handleConceptClick}
+                  className="bg-slate-900"
                 />
-                <Controls className="bg-slate-800 border-slate-600 text-white" />
-                <MiniMap 
-                    nodeColor="#3b82f6"
-                  maskColor="rgba(15, 23, 42, 0.8)"
-                  className="bg-slate-800 border-slate-600"
-                />
-              </ReactFlow>
 
                 {/* Simple Insight Panel */}
                 {showReflectionPanel && (
