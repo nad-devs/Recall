@@ -970,95 +970,172 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Create dynamic position map with physics-based layout for ALL concepts
   const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
   
-  // Apply physics-based positioning to ALL concepts in each cluster
+  // Advanced physics-based positioning with proper boundary understanding
+  const allNodes: Array<{
+    id: string;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    radius: number;
+    mass: number;
+    clusterId: string;
+    clusterX: number;
+    clusterY: number;
+    concept: any;
+    textWidth: number;
+    textHeight: number;
+  }> = [];
+
+  // Initialize all nodes with proper text boundary calculations
   semanticClusters.forEach(cluster => {
     const clusterConcepts = cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id));
     
-    if (clusterConcepts.length > 0) {
-      // Apply physics simulation to prevent overlaps
-      const nodes = clusterConcepts.map((concept, index) => {
-        // Start with basic circular arrangement
-        const angle = (index / clusterConcepts.length) * 2 * Math.PI;
-        const baseRadius = Math.min(120, 60 + clusterConcepts.length * 8);
-        
-        return {
-          id: concept.id,
-          x: cluster.position.x + Math.cos(angle) * baseRadius,
-          y: cluster.position.y + Math.sin(angle) * baseRadius,
-          radius: 20, // Concept node radius
-          vx: 0,
-          vy: 0,
-          concept: concept
-        };
+    clusterConcepts.forEach((concept, index) => {
+      // Calculate actual text dimensions for proper spacing
+      const title = concept.title || '';
+      const textWidth = Math.max(80, title.length * 8 + 20); // Approximate text width
+      const textHeight = 40; // Standard text height with padding
+      const nodeRadius = Math.max(25, Math.sqrt(textWidth * textHeight) / 3); // Dynamic radius based on text
+      
+      // Initial positioning in expanding spiral to avoid immediate overlaps
+      const spiralRadius = 60 + (index * 30);
+      const spiralAngle = index * 2.4; // Golden angle for optimal distribution
+      
+      allNodes.push({
+        id: concept.id,
+        x: cluster.position.x + Math.cos(spiralAngle) * spiralRadius,
+        y: cluster.position.y + Math.sin(spiralAngle) * spiralRadius,
+        vx: 0,
+        vy: 0,
+        radius: nodeRadius,
+        mass: 1 + (textWidth * textHeight) / 1000, // Mass proportional to text area
+        clusterId: cluster.id,
+        clusterX: cluster.position.x,
+        clusterY: cluster.position.y,
+        concept: concept,
+        textWidth: textWidth,
+        textHeight: textHeight
       });
+    });
+  });
+
+  // Advanced multi-force physics simulation
+  const iterations = 50; // More iterations for better convergence
+  const timeStep = 0.1;
+  const damping = 0.95; // High damping for stability
+  
+  for (let iter = 0; iter < iterations; iter++) {
+    // Calculate forces for each node
+    allNodes.forEach(node => {
+      let fx = 0, fy = 0;
       
-      // Physics simulation to spread out overlapping nodes
-      const iterations = 25;
-      const damping = 0.85;
-      const clusterAttraction = 0.05; // Weak pull toward cluster center
-      const nodeRepulsion = 300; // Strong push away from other nodes
-      const maxDistance = 200; // Don't go too far from cluster
+      // 1. CLUSTER COHESION FORCE - Keeps nodes near their cluster
+      const clusterDx = node.clusterX - node.x;
+      const clusterDy = node.clusterY - node.y;
+      const clusterDist = Math.sqrt(clusterDx * clusterDx + clusterDy * clusterDy);
       
-      for (let iter = 0; iter < iterations; iter++) {
-        nodes.forEach(node => {
-          let fx = 0, fy = 0;
-          
-          // 1. Weak attraction to cluster center
-          const dcx = cluster.position.x - node.x;
-          const dcy = cluster.position.y - node.y;
-          const clusterDist = Math.sqrt(dcx * dcx + dcy * dcy);
-          
-          if (clusterDist > 80) {
-            fx += dcx * clusterAttraction;
-            fy += dcy * clusterAttraction;
-          }
-          
-          // 2. Strong repulsion from other nodes
-          nodes.forEach(other => {
-            if (other === node) return;
-            
-            const dx = node.x - other.x;
-            const dy = node.y - other.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const minDist = node.radius + other.radius + 25; // Minimum separation
-            
-            if (dist < minDist && dist > 0) {
-              const force = nodeRepulsion / (dist * dist);
-              fx += (dx / dist) * force;
-              fy += (dy / dist) * force;
-            }
-          });
-          
-          // Apply forces
-          node.vx += fx;
-          node.vy += fy;
-          node.vx *= damping;
-          node.vy *= damping;
-          
-          // Update position
-          node.x += node.vx;
-          node.y += node.vy;
-          
-          // Constrain to cluster area
-          const newDcx = cluster.position.x - node.x;
-          const newDcy = cluster.position.y - node.y;
-          const newClusterDist = Math.sqrt(newDcx * newDcx + newDcy * newDcy);
-          
-          if (newClusterDist > maxDistance) {
-            const angle = Math.atan2(newDcy, newDcx);
-            node.x = cluster.position.x - Math.cos(angle) * maxDistance;
-            node.y = cluster.position.y - Math.sin(angle) * maxDistance;
-            node.vx = 0;
-            node.vy = 0;
-          }
-        });
+      // Adaptive cluster attraction based on distance and cluster size
+      const clusterSize = allNodes.filter(n => n.clusterId === node.clusterId).length;
+      const optimalClusterRadius = Math.max(150, clusterSize * 40);
+      
+      if (clusterDist > optimalClusterRadius * 0.5) {
+        const clusterForce = 0.02 * (clusterDist - optimalClusterRadius * 0.5);
+        fx += (clusterDx / clusterDist) * clusterForce;
+        fy += (clusterDy / clusterDist) * clusterForce;
       }
       
-      // Store final positions
-      nodes.forEach(node => {
-        dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
+      // 2. NODE REPULSION FORCE - Prevents overlaps with proper text boundary consideration
+      allNodes.forEach(other => {
+        if (other.id === node.id) return;
+        
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 0.1) return; // Avoid division by zero
+        
+        // Calculate minimum safe distance based on text boundaries
+        const minDistance = Math.max(
+          node.radius + other.radius + 30, // Basic node separation
+          (node.textWidth + other.textWidth) / 2 + 20, // Text width consideration
+          60 // Absolute minimum for readability
+        );
+        
+        if (distance < minDistance) {
+          // Strong repulsion force with inverse square law
+          const repulsionForce = (minDistance - distance) * 500 / (distance * distance);
+          const forceX = (dx / distance) * repulsionForce;
+          const forceY = (dy / distance) * repulsionForce;
+          
+          // Apply force proportional to mass ratio
+          const massRatio = other.mass / (node.mass + other.mass);
+          fx += forceX * massRatio;
+          fy += forceY * massRatio;
+        }
+      });
+      
+      // 3. INTER-CLUSTER SEPARATION FORCE - Prevents clusters from overlapping
+      allNodes.forEach(other => {
+        if (other.clusterId === node.clusterId) return;
+        
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 100 && distance > 0.1) { // Close to nodes from other clusters
+          const separationForce = (100 - distance) * 0.5;
+          fx += (dx / distance) * separationForce;
+          fy += (dy / distance) * separationForce;
+        }
+      });
+      
+      // 4. BOUNDARY FORCES - Keep nodes within reasonable viewport bounds
+      const viewportMargin = 200;
+      const leftBound = -viewBox.width / 2 + viewportMargin;
+      const rightBound = viewBox.width / 2 - viewportMargin;
+      const topBound = -viewBox.height / 2 + viewportMargin;
+      const bottomBound = viewBox.height / 2 - viewportMargin;
+      
+      if (node.x < leftBound) fx += (leftBound - node.x) * 0.1;
+      if (node.x > rightBound) fx += (rightBound - node.x) * 0.1;
+      if (node.y < topBound) fy += (topBound - node.y) * 0.1;
+      if (node.y > bottomBound) fy += (bottomBound - node.y) * 0.1;
+      
+      // Apply forces with proper physics integration
+      const acceleration = 1 / node.mass;
+      node.vx += fx * acceleration * timeStep;
+      node.vy += fy * acceleration * timeStep;
+      
+      // Apply damping
+      node.vx *= damping;
+      node.vy *= damping;
+      
+      // Velocity limiting to prevent instability
+      const maxVelocity = 10;
+      const velocity = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+      if (velocity > maxVelocity) {
+        node.vx = (node.vx / velocity) * maxVelocity;
+        node.vy = (node.vy / velocity) * maxVelocity;
+      }
+      
+      // Update position
+      node.x += node.vx * timeStep;
+      node.y += node.vy * timeStep;
+    });
+    
+    // Adaptive cooling - reduce forces as system stabilizes
+    if (iter > iterations * 0.7) {
+      allNodes.forEach(node => {
+        node.vx *= 0.98;
+        node.vy *= 0.98;
       });
     }
+  }
+
+  // Store final optimized positions
+  allNodes.forEach(node => {
+    dynamicConceptPositions.set(node.id, { x: node.x, y: node.y });
   });
   
   // Calculate physics-based positions for subcategories and their concepts
