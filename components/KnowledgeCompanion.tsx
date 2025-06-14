@@ -55,43 +55,15 @@ interface SemanticCluster {
   keywords: string[];
 }
 
-// Cluster boundary system
-interface ClusterBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  innerBounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-}
-
-// Enhanced node interface with cluster ownership
+// Node types for hierarchical spacing
 interface HierarchicalNode {
   id: string;
   type: 'cluster_name' | 'category' | 'concept';
   x: number;
   y: number;
   radius: number;
-  clusterId: string;
-  parentId?: string;
   textWidth?: number;
   textHeight?: number;
-}
-
-// Enhanced force-directed system with better spacing
-interface ForceNode {
-  id: string;
-  type: 'cluster' | 'category' | 'concept';
-  x: number;
-  y: number;
-  radius: number;
-  clusterId: string;
-  parentId?: string;
-  velocity?: { x: number; y: number };
 }
 
 // Collision detection with hierarchical rules
@@ -153,7 +125,6 @@ const calculateHierarchicalLayout = (cluster: SemanticCluster, subcategories: an
     x: clusterRegion.centerX,
     y: zones.clusterName.centerY,
     radius: 0, // Text element
-    clusterId: cluster.id,
     textWidth: cluster.name.length * 12 + 40, // Estimate text width
     textHeight: 24 + 20 // Font height + padding
   };
@@ -192,8 +163,7 @@ const calculateHierarchicalLayout = (cluster: SemanticCluster, subcategories: an
         type: 'category',
         x: categoryX,
         y: categoryY,
-        radius: bubbleRadius,
-        clusterId: cluster.id
+        radius: bubbleRadius
       };
       
       // Check for collisions with existing nodes and adjust
@@ -259,9 +229,7 @@ const calculateConceptPositions = (
         type: 'concept',
         x: conceptX,
         y: conceptY,
-        radius: conceptRadius,
-        clusterId: category.clusterId,
-        parentId: category.id
+        radius: conceptRadius
       };
       
       // Check collisions and adjust
@@ -318,9 +286,7 @@ const calculateConceptPositions = (
         type: 'concept',
         x: conceptX,
         y: conceptY,
-        radius: conceptRadius,
-        clusterId: category.clusterId,
-        parentId: category.id
+        radius: conceptRadius
       };
       
       conceptNodes.push(conceptNode);
@@ -579,436 +545,6 @@ const generateClusterLayout = (clusters: SemanticCluster[], viewBox: { x: number
   return { positions, bounds };
 };
 
-// Calculate cluster boundary rectangles
-const calculateClusterBounds = (clusters: SemanticCluster[], viewportBounds: any): Map<string, ClusterBounds> => {
-  const clusterBounds = new Map<string, ClusterBounds>();
-  const totalClusters = clusters.length;
-  
-  // Calculate grid layout for clusters
-  const cols = Math.ceil(Math.sqrt(totalClusters));
-  const rows = Math.ceil(totalClusters / cols);
-  
-  const clusterWidth = viewportBounds.width / cols;
-  const clusterHeight = viewportBounds.height / rows;
-  
-  clusters.forEach((cluster, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    
-    const bounds: ClusterBounds = {
-      x: viewportBounds.x + col * clusterWidth,
-      y: viewportBounds.y + row * clusterHeight,
-      width: clusterWidth,
-      height: clusterHeight,
-      innerBounds: {
-        x: viewportBounds.x + col * clusterWidth + 20, // 20px padding
-        y: viewportBounds.y + row * clusterHeight + 20,
-        width: clusterWidth - 40,
-        height: clusterHeight - 40
-      }
-    };
-    
-    clusterBounds.set(cluster.id, bounds);
-  });
-  
-  return clusterBounds;
-};
-
-// Boundary clamping function
-const clampToClusterBounds = (position: {x: number, y: number}, nodeRadius: number, clusterBounds: ClusterBounds): {x: number, y: number} => {
-  const bounds = clusterBounds.innerBounds;
-  
-  return {
-    x: Math.max(
-      bounds.x + nodeRadius,
-      Math.min(position.x, bounds.x + bounds.width - nodeRadius)
-    ),
-    y: Math.max(
-      bounds.y + nodeRadius + 100, // Leave space for cluster title
-      Math.min(position.y, bounds.y + bounds.height - nodeRadius)
-    )
-  };
-};
-
-// Force calculation with cluster containment
-const applyClusterForces = (node: HierarchicalNode, allNodes: HierarchicalNode[]): {x: number, y: number} => {
-  let force = {x: 0, y: 0};
-  
-  // Only calculate forces from nodes in SAME CLUSTER
-  const clusterNodes = allNodes.filter(n => n.clusterId === node.clusterId && n.id !== node.id);
-  
-  for (const other of clusterNodes) {
-    // Repulsion force
-    const distance = Math.sqrt(Math.pow(node.x - other.x, 2) + Math.pow(node.y - other.y, 2));
-    const minDistance = (node.radius + other.radius) * 1.5;
-    
-    if (distance < minDistance && distance > 0) {
-      const repulsion = (minDistance - distance) / distance;
-      force.x += (node.x - other.x) * repulsion * 0.5;
-      force.y += (node.y - other.y) * repulsion * 0.5;
-    }
-  }
-  
-  // Attraction to parent (if not cluster root)
-  if (node.parentId) {
-    const parent = allNodes.find(n => n.id === node.parentId);
-    if (parent) {
-      const parentAttraction = 0.1;
-      force.x += (parent.x - node.x) * parentAttraction;
-      force.y += (parent.y - node.y) * parentAttraction;
-    }
-  }
-  
-  return force;
-};
-
-// Calculate cluster-contained hierarchical layout
-const calculateClusterContainedLayout = (
-  cluster: SemanticCluster, 
-  subcategories: any[], 
-  clusterBounds: ClusterBounds
-) => {
-  const nodes: HierarchicalNode[] = [];
-  const positions = new Map<string, { x: number; y: number }>();
-  
-  const bounds = clusterBounds.innerBounds;
-  
-  // 1. CLUSTER NAME POSITIONING (Fixed at top-center of cluster bounds)
-  const clusterNameNode: HierarchicalNode = {
-    id: `cluster-name-${cluster.id}`,
-    type: 'cluster_name',
-    x: bounds.x + bounds.width / 2,
-    y: bounds.y + 30, // Top of cluster region
-    radius: 0,
-    clusterId: cluster.id,
-    textWidth: cluster.name.length * 12 + 40,
-    textHeight: 24 + 20
-  };
-  nodes.push(clusterNameNode);
-  
-  // 2. CATEGORY GRID LAYOUT (within cluster bounds)
-  if (subcategories.length > 0) {
-    const categoriesPerRow = Math.ceil(Math.sqrt(subcategories.length));
-    const categorySpacing = Math.min(120, bounds.width / (categoriesPerRow + 1));
-    
-    subcategories.forEach((subcategory, index) => {
-      const row = Math.floor(index / categoriesPerRow);
-      const col = index % categoriesPerRow;
-      
-      // Calculate initial position within cluster bounds
-      let categoryX = bounds.x + bounds.width * 0.2 + (col * categorySpacing);
-      let categoryY = bounds.y + 120 + (row * 80);
-      
-      // Dynamic bubble size
-      const nameLength = subcategory.name.length;
-      const baseSizeFromName = Math.max(25, nameLength * 2);
-      const baseSizeFromCount = subcategory.count * 3;
-      const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-      
-      // Clamp to cluster bounds
-      const clampedPosition = clampToClusterBounds({x: categoryX, y: categoryY}, bubbleRadius, clusterBounds);
-      
-      const categoryNode: HierarchicalNode = {
-        id: `category-${cluster.id}-${subcategory.name}`,
-        type: 'category',
-        x: clampedPosition.x,
-        y: clampedPosition.y,
-        radius: bubbleRadius,
-        clusterId: cluster.id,
-        parentId: clusterNameNode.id
-      };
-      
-      nodes.push(categoryNode);
-      positions.set(`subcategory-${cluster.id}-${subcategory.name}`, { 
-        x: categoryNode.x, 
-        y: categoryNode.y 
-      });
-    });
-  }
-  
-  return { nodes, positions, clusterBounds };
-};
-
-// Calculate concept positions within cluster bounds
-const calculateClusterConceptPositions = (
-  category: HierarchicalNode,
-  concepts: any[],
-  clusterBounds: ClusterBounds,
-  existingNodes: HierarchicalNode[]
-) => {
-  const conceptPositions = new Map<string, { x: number; y: number }>();
-  const conceptNodes: HierarchicalNode[] = [];
-  
-  if (concepts.length === 0) return { conceptPositions, conceptNodes };
-  
-  const conceptRadius = 18;
-  
-  // Radial arrangement around parent category (within cluster bounds)
-  concepts.forEach((concept, index) => {
-    const angle = (2 * Math.PI * index) / concepts.length;
-    const radius = Math.max(60, category.radius + 45);
-    
-    // Calculate ideal position
-    let idealX = category.x + radius * Math.cos(angle);
-    let idealY = category.y + radius * Math.sin(angle);
-    
-    // Clamp to cluster bounds
-    const clampedPosition = clampToClusterBounds({x: idealX, y: idealY}, conceptRadius, clusterBounds);
-    
-    const conceptNode: HierarchicalNode = {
-      id: concept.id,
-      type: 'concept',
-      x: clampedPosition.x,
-      y: clampedPosition.y,
-      radius: conceptRadius,
-      clusterId: category.clusterId,
-      parentId: category.id
-    };
-    
-    // Apply forces within cluster bounds
-    let force = applyClusterForces(conceptNode, [...existingNodes, ...conceptNodes]);
-    
-    // Apply force but stay within bounds
-    let newX = conceptNode.x + force.x;
-    let newY = conceptNode.y + force.y;
-    
-    const finalPosition = clampToClusterBounds({x: newX, y: newY}, conceptRadius, clusterBounds);
-    conceptNode.x = finalPosition.x;
-    conceptNode.y = finalPosition.y;
-    
-    conceptNodes.push(conceptNode);
-    conceptPositions.set(concept.id, { x: conceptNode.x, y: conceptNode.y });
-  });
-  
-  return { conceptPositions, conceptNodes };
-};
-
-// Enhanced repulsion force based on node types
-const calculateRepulsionForce = (nodeA: ForceNode, nodeB: ForceNode): { x: number; y: number } => {
-  const dx = nodeA.x - nodeB.x;
-  const dy = nodeA.y - nodeB.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  
-  if (distance === 0) return { x: 0, y: 0 };
-  
-  let baseForce = 500;
-  let multiplier = 1;
-  
-  // Enhanced force multipliers based on node types
-  if (nodeA.type === 'cluster' || nodeB.type === 'cluster') {
-    multiplier = 3; // Cluster names need more space
-  } else if (nodeA.type === 'category' && nodeB.type === 'category') {
-    multiplier = 2; // Categories need medium space
-  } else if (nodeA.clusterId !== nodeB.clusterId) {
-    multiplier = 4; // Different clusters push harder
-  }
-  
-  const force = (baseForce * multiplier) / (distance * distance);
-  const normalizedX = dx / distance;
-  const normalizedY = dy / distance;
-  
-  return {
-    x: normalizedX * force,
-    y: normalizedY * force
-  };
-};
-
-// Soft cluster boundaries (not rigid boxes!)
-const addClusterCohesion = (node: ForceNode, clusterCenter: { x: number; y: number }): { x: number; y: number } => {
-  const dx = clusterCenter.x - node.x;
-  const dy = clusterCenter.y - node.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const maxRadius = 400; // soft boundary
-  
-  if (distance > maxRadius) {
-    // Gentle pull back, not a hard boundary
-    const pullStrength = 0.02 * (distance - maxRadius);
-    return {
-      x: dx * pullStrength,
-      y: dy * pullStrength
-    };
-  }
-  return { x: 0, y: 0 };
-};
-
-// Hierarchical attraction between parent and child
-const parentChildAttraction = (child: ForceNode, parent: ForceNode): { x: number; y: number } => {
-  const idealDistance = 150; // flexible, not fixed
-  const dx = parent.x - child.x;
-  const dy = parent.y - child.y;
-  const currentDistance = Math.sqrt(dx * dx + dy * dy);
-  const strength = 0.1;
-  
-  if (currentDistance > idealDistance) {
-    return {
-      x: dx * strength,
-      y: dy * strength
-    };
-  }
-  return { x: 0, y: 0 };
-};
-
-// Collision prevention while keeping organic feel
-const preventOverlap = (nodeA: ForceNode, nodeB: ForceNode): { x: number; y: number } => {
-  const minDistance = (nodeA.radius + nodeB.radius) * 1.2;
-  const dx = nodeB.x - nodeA.x;
-  const dy = nodeB.y - nodeA.y;
-  const currentDistance = Math.sqrt(dx * dx + dy * dy);
-  
-  if (currentDistance < minDistance && currentDistance > 0) {
-    const overlap = minDistance - currentDistance;
-    const angle = Math.atan2(dy, dx);
-    
-    // Push apart gently
-    return {
-      x: -Math.cos(angle) * overlap * 0.5,
-      y: -Math.sin(angle) * overlap * 0.5
-    };
-  }
-  return { x: 0, y: 0 };
-};
-
-// Natural cluster separation using invisible charge centers
-const getClusterSeparationForces = (node: ForceNode, viewportBounds: any): { x: number; y: number } => {
-  // Place invisible high-charge points between clusters
-  const clusterSeparators = [
-    { x: viewportBounds.x + viewportBounds.width * 0.33, y: viewportBounds.y + viewportBounds.height * 0.5, charge: 2000 },
-    { x: viewportBounds.x + viewportBounds.width * 0.66, y: viewportBounds.y + viewportBounds.height * 0.5, charge: 2000 }
-  ];
-  
-  let totalForce = { x: 0, y: 0 };
-  
-  clusterSeparators.forEach(separator => {
-    const dx = node.x - separator.x;
-    const dy = node.y - separator.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance > 0) {
-      const force = separator.charge / (distance * distance);
-      totalForce.x += (dx / distance) * force;
-      totalForce.y += (dy / distance) * force;
-    }
-  });
-  
-  return totalForce;
-};
-
-// Enhanced organic layout calculation
-const calculateEnhancedOrganicLayout = (clusters: SemanticCluster[], viewportBounds: any) => {
-  const positions = new Map<string, { x: number; y: number }>();
-  const allNodes: ForceNode[] = [];
-  
-  // First, set up basic cluster positions (keep your original organic arrangement)
-  clusters.forEach((cluster, index) => {
-    const angle = (index / clusters.length) * 2 * Math.PI;
-    const radius = Math.min(300, 200 + clusters.length * 20);
-    const centerX = viewportBounds.x + viewportBounds.width / 2 + Math.cos(angle) * radius;
-    const centerY = viewportBounds.y + viewportBounds.height / 2 + Math.sin(angle) * radius;
-    
-    // Update cluster position
-    cluster.position = { x: centerX, y: centerY };
-    
-    // Create cluster node for force calculations
-    const clusterNode: ForceNode = {
-      id: cluster.id,
-      type: 'cluster',
-      x: centerX,
-      y: centerY,
-      radius: 50,
-      clusterId: cluster.id,
-      velocity: { x: 0, y: 0 }
-    };
-    allNodes.push(clusterNode);
-  });
-  
-  // Apply organic force simulation for better spacing
-  for (let iteration = 0; iteration < 100; iteration++) {
-    allNodes.forEach(node => {
-      let totalForce = { x: 0, y: 0 };
-      
-      // Repulsion from other nodes
-      allNodes.forEach(other => {
-        if (node.id !== other.id) {
-          const repulsion = calculateRepulsionForce(node, other);
-          totalForce.x += repulsion.x;
-          totalForce.y += repulsion.y;
-        }
-      });
-      
-      // Cluster cohesion (soft boundaries)
-      if (node.type !== 'cluster') {
-        const clusterCenter = clusters.find(c => c.id === node.clusterId)?.position;
-        if (clusterCenter) {
-          const cohesion = addClusterCohesion(node, clusterCenter);
-          totalForce.x += cohesion.x;
-          totalForce.y += cohesion.y;
-        }
-      }
-      
-      // Natural cluster separation
-      const separation = getClusterSeparationForces(node, viewportBounds);
-      totalForce.x += separation.x * 0.1;
-      totalForce.y += separation.y * 0.1;
-      
-      // Apply forces with damping
-      if (!node.velocity) node.velocity = { x: 0, y: 0 };
-      node.velocity.x = (node.velocity.x + totalForce.x * 0.01) * 0.9;
-      node.velocity.y = (node.velocity.y + totalForce.y * 0.01) * 0.9;
-      
-      // Update position
-      node.x += node.velocity.x;
-      node.y += node.velocity.y;
-    });
-  }
-  
-  // Update cluster positions from simulation
-  allNodes.forEach(node => {
-    if (node.type === 'cluster') {
-      const cluster = clusters.find(c => c.id === node.clusterId);
-      if (cluster) {
-        cluster.position = { x: node.x, y: node.y };
-      }
-    }
-  });
-  
-  // Now position concepts around clusters organically (keep your original logic)
-  clusters.forEach(cluster => {
-    const { concepts } = cluster;
-    const centerX = cluster.position.x;
-    const centerY = cluster.position.y;
-    
-    concepts.forEach((concept, index) => {
-      let x, y;
-      
-      if (concepts.length === 1) {
-        x = centerX;
-        y = centerY;
-      } else if (concepts.length <= 8) {
-        // Single ring for small clusters
-        const angle = (index / concepts.length) * 2 * Math.PI;
-        const radius = Math.min(120, 60 + concepts.length * 10);
-        x = centerX + Math.cos(angle) * radius;
-        y = centerY + Math.sin(angle) * radius;
-      } else {
-        // Multiple rings for larger clusters
-        const conceptsPerRing = 8;
-        const ring = Math.floor(index / conceptsPerRing);
-        const indexInRing = index % conceptsPerRing;
-        const conceptsInThisRing = Math.min(conceptsPerRing, concepts.length - ring * conceptsPerRing);
-        const ringRadius = 80 + (ring * 60);
-        const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
-        
-        x = centerX + Math.cos(angle) * ringRadius;
-        y = centerY + Math.sin(angle) * ringRadius;
-      }
-      
-      positions.set(concept.id, { x, y });
-    });
-  });
-  
-  return { positions, clusters };
-};
-
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   concepts,
   categories,
@@ -1033,18 +569,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Subcategory expansion state
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
 
-  // Generate semantic clusters
+  // Generate semantic clusters and layout
   const semanticClusters = generateSemanticClusters(concepts);
+  const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
+  
+
   
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
-    if (!jsonString) return fallback;
-    
+    if (!jsonString || jsonString.trim() === '') return fallback;
     try {
       const parsed = JSON.parse(jsonString);
       return Array.isArray(parsed) ? parsed : fallback;
     } catch (error) {
-      console.warn(`Failed to parse JSON field:`, jsonString, error);
+      console.warn('Failed to parse JSON field:', jsonString, error);
       return fallback;
     }
   };
@@ -1068,70 +606,52 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
-
-  // Calculate initial viewport bounds
-  const initialViewportBounds = {
-    x: -600,
-    y: -400, 
-    width: 2400,
-    height: 1600
-  };
   
-  // Use enhanced organic layout instead of rigid boundaries
-  const { positions: conceptPositions, clusters: enhancedClusters } = calculateEnhancedOrganicLayout(
-    semanticClusters, 
-    initialViewportBounds
-  );
-  
-  // Create dynamic position map with enhanced organic system
+  // Create dynamic position map with hierarchical layout
   const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
+  const allHierarchicalNodes: HierarchicalNode[] = [];
   
-  // Add all organic positions
+  // Add positions from conceptPositions (for non-subcategory concepts)
   conceptPositions.forEach((pos, id) => {
     dynamicConceptPositions.set(id, pos);
   });
   
-  // For expanded subcategories, use enhanced positioning with soft boundaries
-  enhancedClusters.forEach(cluster => {
+  // Calculate hierarchical layout for expanded subcategory concepts
+  semanticClusters.forEach(cluster => {
     const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
     
     if (subcategories.length > 0) {
+      // Calculate hierarchical layout for this cluster
+      const { nodes, positions: subPositions, zones, clusterRegion } = calculateHierarchicalLayout(cluster, subcategories);
+      allHierarchicalNodes.push(...nodes);
+      
+      // Add subcategory positions
+      subPositions.forEach((pos, key) => {
+        dynamicConceptPositions.set(key, pos);
+      });
+      
+      // Calculate concept positions for expanded subcategories
       subcategories.forEach((subcategory, index) => {
-        // Position subcategories around cluster center organically
-        const angle = (index / subcategories.length) * 2 * Math.PI;
-        const radius = 80 + subcategories.length * 10; // Dynamic spacing
-        const x = cluster.position.x + Math.cos(angle) * radius;
-        const y = cluster.position.y + Math.sin(angle) * radius;
-        
-        // Store subcategory position
-        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-        dynamicConceptPositions.set(subcategoryKey, { x, y });
-        
-        // For expanded subcategories, position concepts with enhanced forces
         const key = `${cluster.id}-${subcategory.name}`;
         if (expandedSubcategories.has(key)) {
-          subcategory.concepts.forEach((concept, conceptIndex) => {
-            // Use organic radial positioning with collision prevention
-            const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-            const conceptRadius = 60 + subcategory.concepts.length * 5;
+          // Find the category node for this subcategory
+          const categoryNode = nodes.find(n => n.id === `category-${cluster.id}-${subcategory.name}`);
+          if (categoryNode) {
+            const { conceptPositions: subConceptPositions, conceptNodes } = calculateConceptPositions(
+              categoryNode,
+              subcategory.concepts,
+              zones,
+              allHierarchicalNodes
+            );
             
-            let conceptX = x + Math.cos(conceptAngle) * conceptRadius;
-            let conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+            // Add concept positions to the map
+            subConceptPositions.forEach((pos, conceptId) => {
+              dynamicConceptPositions.set(conceptId, pos);
+            });
             
-            // Apply soft cluster boundaries - gentle pull toward cluster center
-            const clusterDx = cluster.position.x - conceptX;
-            const clusterDy = cluster.position.y - conceptY;
-            const distanceFromCluster = Math.sqrt(clusterDx * clusterDx + clusterDy * clusterDy);
-            const maxDistance = 300; // Soft boundary
-            
-            if (distanceFromCluster > maxDistance) {
-              const pullStrength = 0.3;
-              conceptX += clusterDx * pullStrength;
-              conceptY += clusterDy * pullStrength;
-            }
-            
-            dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
-          });
+            // Add concept nodes to global tracking
+            allHierarchicalNodes.push(...conceptNodes);
+          }
         }
       });
     }
@@ -1147,6 +667,16 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       minY = Math.min(minY, cluster.position.y);
       maxX = Math.max(maxX, cluster.position.x);
       maxY = Math.max(maxY, cluster.position.y);
+    });
+    
+    // Include all hierarchical node positions
+    allHierarchicalNodes.forEach(node => {
+      // Account for node size in bounds
+      const nodeExtent = node.type === 'cluster_name' ? 50 : node.radius;
+      minX = Math.min(minX, node.x - nodeExtent);
+      minY = Math.min(minY, node.y - nodeExtent);
+      maxX = Math.max(maxX, node.x + nodeExtent);
+      maxY = Math.max(maxY, node.y + nodeExtent);
     });
     
     // Include all dynamic concept positions
@@ -1587,16 +1117,146 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
             onMouseMove={handleMouseMove}
             onMouseUp={(e) => handleMouseUp(e)}
+            onContextMenu={(e) => e.preventDefault()}
           >
+            {/* Background Grid */}
             <defs>
               <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
+                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1"/>
               </pattern>
             </defs>
-            
-            {/* Background grid */}
             <rect width="100%" height="100%" fill="url(#grid)" />
-            
+
+            {/* Cluster Labels and Subcategory Bubbles */}
+            {semanticClusters.map(cluster => {
+              const hasVisibleConcepts = cluster.concepts.some(c => 
+                filteredConcepts.some(fc => fc.id === c.id)
+              );
+              
+              if (!hasVisibleConcepts) return null;
+              
+              const subcategories = generateSubcategories(cluster.concepts);
+              const isExpanded = expandedClusters.has(cluster.id);
+              
+              return (
+                <g key={`label-${cluster.id}`}>
+                  {/* Main Cluster Label */}
+                  <text
+                    x={cluster.position.x}
+                    y={cluster.position.y - 150}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.6)"
+                    fontSize="14"
+                    fontWeight="600"
+                    className="pointer-events-none"
+                  >
+                    {cluster.name}
+                  </text>
+                  <text
+                    x={cluster.position.x}
+                    y={cluster.position.y - 135}
+                    textAnchor="middle"
+                    fill="rgba(255,255,255,0.4)"
+                    fontSize="10"
+                    className="pointer-events-none"
+                  >
+                    {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
+                  </text>
+                  
+                  {/* Subcategory Expansion Button */}
+                  {subcategories.length > 1 && (
+                    <circle
+                      cx={cluster.position.x + 80}
+                      cy={cluster.position.y - 140}
+                      r="8"
+                      fill={cluster.color}
+                      stroke="rgba(255,255,255,0.3)"
+                      strokeWidth="1"
+                      className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                      onClick={() => {
+                        const newExpanded = new Set(expandedSubcategories);
+                        if (newExpanded.has(cluster.id)) {
+                          newExpanded.delete(cluster.id);
+                        } else {
+                          newExpanded.add(cluster.id);
+                        }
+                        setExpandedSubcategories(newExpanded);
+                      }}
+                    />
+                  )}
+                  
+                  {/* Subcategory Count */}
+                  {subcategories.length > 1 && (
+                    <text
+                      x={cluster.position.x + 80}
+                      y={cluster.position.y - 137}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize="8"
+                      fontWeight="600"
+                      className="pointer-events-none"
+                    >
+                      {subcategories.length}
+                    </text>
+                  )}
+                  
+                  {/* Expanded Subcategory Bubbles */}
+                  {isExpanded && subcategories.length > 1 && subcategories.map((subcategory, index) => {
+                    // Get hierarchical position for this subcategory
+                    const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+                    const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
+                    
+                    if (!subcategoryPosition) return null;
+                    
+                    const x = subcategoryPosition.x;
+                    const y = subcategoryPosition.y;
+                    
+                    // Dynamic bubble size based on name length and concept count
+                    const nameLength = subcategory.name.length;
+                    const baseSizeFromName = Math.max(25, nameLength * 2);
+                    const baseSizeFromCount = subcategory.count * 3;
+                    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+                    
+                    return (
+                      <g key={`subcat-${cluster.id}-${index}`}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={bubbleRadius}
+                          fill={`${cluster.color}80`}
+                          stroke={cluster.color}
+                          strokeWidth="2"
+                          className="transition-all duration-300"
+                        />
+                        <text
+                          x={x}
+                          y={y + 2}
+                          textAnchor="middle"
+                          fill="white"
+                          fontSize="8"
+                          fontWeight="500"
+                          className="pointer-events-none"
+                        >
+                          {subcategory.count}
+                        </text>
+                        <text
+                          x={x}
+                          y={y + 25}
+                          textAnchor="middle"
+                          fill="rgba(255,255,255,0.8)"
+                          fontSize="9"
+                          fontWeight="400"
+                          className="pointer-events-none"
+                        >
+                          {subcategory.name.length > 8 ? subcategory.name.substring(0, 6) + '..' : subcategory.name}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
+
             {/* Connections */}
             {visibleConnections.map((conn, index) => {
               if (!conn) return null;
@@ -1639,211 +1299,314 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 className="pointer-events-none"
               />
             )}
-            
-            {/* Cluster Content - Enhanced Organic Layout */}
-            {enhancedClusters.map(cluster => {
-              const hasVisibleConcepts = cluster.concepts.some(c => 
-                filteredConcepts.some(fc => fc.id === c.id)
-              );
-              
-              if (!hasVisibleConcepts) return null;
-              
+
+            {/* Subcategory Bubbles and Individual Concepts */}
+            {semanticClusters.map(cluster => {
               const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+              const isExpanded = expandedClusters.has(cluster.id);
               
-              return (
-                <g key={`cluster-content-${cluster.id}`}>
-                  {/* Cluster Name (organic positioning) */}
-                  <text
-                    x={cluster.position.x}
-                    y={cluster.position.y - 150}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.9)"
-                    fontSize="16"
-                    fontWeight="700"
-                    className="pointer-events-none"
-                  >
-                    {cluster.name}
-                  </text>
-                  <text
-                    x={cluster.position.x}
-                    y={cluster.position.y - 135}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.6)"
-                    fontSize="11"
-                    className="pointer-events-none"
-                  >
-                    {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
-                  </text>
-                  
-                  {/* Subcategory Nodes (organically positioned) */}
-                  {subcategories.map((subcategory, index) => {
-                    const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-                    const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
-                    
-                    if (!subcategoryPosition) return null;
-                    
-                    const x = subcategoryPosition.x;
-                    const y = subcategoryPosition.y;
-                    
-                    // Dynamic bubble size
-                    const nameLength = subcategory.name.length;
-                    const baseSizeFromName = Math.max(25, nameLength * 2);
-                    const baseSizeFromCount = subcategory.count * 3;
-                    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+              // If cluster has subcategories, show subcategory bubbles
+              if (subcategories.length > 0) {
+                return (
+                  <g key={`subcategories-${cluster.id}`}>
+                    {subcategories.map((subcategory, index) => {
+                      // Get hierarchical position for this subcategory
+                      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+                      const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
+                      
+                      if (!subcategoryPosition) return null;
+                      
+                      const x = subcategoryPosition.x;
+                      const y = subcategoryPosition.y;
+                      
+                      // Dynamic bubble size based on name length and concept count
+                      const nameLength = subcategory.name.length;
+                      const baseSizeFromName = Math.max(25, nameLength * 2);
+                      const baseSizeFromCount = subcategory.count * 3;
+                      const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
+                      
+                      return (
+                        <g key={`subcategory-${cluster.id}-${subcategory.name}`}>
+                          {/* Subcategory Bubble */}
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={bubbleRadius}
+                            fill={cluster.color}
+                            fillOpacity={0.7}
+                            stroke={cluster.color}
+                            strokeWidth={2}
+                            className="cursor-pointer transition-all duration-300 hover:opacity-90"
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSubcategories);
+                              const key = `${cluster.id}-${subcategory.name}`;
+                              if (newExpanded.has(key)) {
+                                newExpanded.delete(key);
+                              } else {
+                                newExpanded.add(key);
+                              }
+                              setExpandedSubcategories(newExpanded);
+                            }}
+                          />
+                          
+                          {/* Subcategory Name - Multi-line for longer names */}
+                          {subcategory.name.length > 15 ? (
+                            <>
+                              <text
+                                x={x}
+                                y={y - 8}
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="9"
+                                fontWeight="600"
+                                className="pointer-events-none"
+                              >
+                                {subcategory.name.substring(0, 12)}
+                              </text>
+                              <text
+                                x={x}
+                                y={y + 2}
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="9"
+                                fontWeight="600"
+                                className="pointer-events-none"
+                              >
+                                {subcategory.name.substring(12, 24)}...
+                              </text>
+                            </>
+                          ) : (
+                            <text
+                              x={x}
+                              y={y - 3}
+                              textAnchor="middle"
+                              fill="white"
+                              fontSize="10"
+                              fontWeight="600"
+                              className="pointer-events-none"
+                            >
+                              {subcategory.name}
+                            </text>
+                          )}
+                          
+                          {/* Concept Count */}
+                          <text
+                            x={x}
+                            y={subcategory.name.length > 15 ? y + 15 : y + 8}
+                            textAnchor="middle"
+                            fill="white"
+                            fontSize="9"
+                            className="pointer-events-none"
+                          >
+                            {subcategory.count}
+                          </text>
+                          
+                          {/* Expanded Individual Concepts */}
+                          {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
+                            subcategory.concepts.map((concept, conceptIndex) => {
+                              // Get hierarchical position for this concept
+                              const conceptPosition = dynamicConceptPositions.get(concept.id);
+                              if (!conceptPosition) return null;
+                              
+                              const conceptX = conceptPosition.x;
+                              const conceptY = conceptPosition.y;
+                              
+                              const masteryColor = getMasteryColor(concept.masteryLevel);
+                              const isSelected = selectedConcept?.id === concept.id;
+                              const isHovered = hoveredConcept === concept.id;
+                              const progress = concept.learningProgress || 0;
+                              const IconComponent = getConceptIcon(concept);
+                              
+                              return (
+                                <g key={`expanded-concept-${concept.id}`}>
+                                  {/* Connection line to subcategory */}
+                                  <line
+                                    x1={x}
+                                    y1={y}
+                                    x2={conceptX}
+                                    y2={conceptY}
+                                    stroke={cluster.color}
+                                    strokeWidth={1}
+                                    strokeOpacity={0.5}
+                                  />
+                                  
+                                  {/* Individual Concept Node */}
+                                  <circle
+                                    cx={conceptX}
+                                    cy={conceptY}
+                                    r="18"
+                                    fill={cluster.color}
+                                    stroke={masteryColor}
+                                    strokeWidth={2}
+                                    className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                                    onMouseEnter={() => setHoveredConcept(concept.id)}
+                                    onMouseLeave={() => setHoveredConcept(null)}
+                                    onMouseDown={(e) => handleMouseDown(e, concept.id, { x: conceptX, y: conceptY })}
+                                    onMouseUp={(e) => handleMouseUp(e, concept.id)}
+                                    onClick={() => {
+                                      if (!isDragging) {
+                                        setSelectedConcept(concept);
+                                        onConceptSelect?.(concept);
+                                      }
+                                    }}
+                                  />
+                                  
+                                  {/* Progress Ring */}
+                                  <circle
+                                    cx={conceptX}
+                                    cy={conceptY}
+                                    r="20"
+                                    fill="none"
+                                    stroke={masteryColor}
+                                    strokeWidth="1"
+                                    strokeDasharray={`${(progress / 100) * (2 * Math.PI * 20)} ${2 * Math.PI * 20}`}
+                                    className="transition-all duration-300"
+                                    transform={`rotate(-90 ${conceptX} ${conceptY})`}
+                                  />
+                                  
+                                  {/* Icon */}
+                                  <foreignObject
+                                    x={conceptX - 6}
+                                    y={conceptY - 6}
+                                    width="12"
+                                    height="12"
+                                    className="pointer-events-none"
+                                  >
+                                    <IconComponent className="w-3 h-3 text-white" />
+                                  </foreignObject>
+                                  
+                                  {/* Title */}
+                                  <text
+                                    x={conceptX}
+                                    y={conceptY + 30}
+                                    textAnchor="middle"
+                                    fill="white"
+                                    fontSize="9"
+                                    fontWeight="400"
+                                    className="pointer-events-none"
+                                  >
+                                    {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
+                                  </text>
+                                </g>
+                              );
+                            })
+                          }
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              } else {
+                // If no subcategories, show individual concepts as before (for clusters without subcategories)
+                return cluster.concepts
+                  .filter(concept => filteredConcepts.some(fc => fc.id === concept.id))
+                  .map((concept) => {
+                    const position = dynamicConceptPositions.get(concept.id);
+                    if (!position) return null;
+
+                    const masteryColor = getMasteryColor(concept.masteryLevel);
+                    const isSelected = selectedConcept?.id === concept.id;
+                    const isHovered = hoveredConcept === concept.id;
+                    const connectedNodes = getConnectedNodes(concept.id);
+                    const isConnected = hoveredConcept && connectedNodes.has(hoveredConcept);
+                    const progress = concept.learningProgress || 0;
+                    const IconComponent = getConceptIcon(concept);
                     
                     return (
-                      <g key={`subcategory-${cluster.id}-${subcategory.name}`}>
-                        {/* Subcategory Bubble */}
+                      <g key={concept.id}>
+                        {/* Node Glow */}
+                        {(isSelected || isHovered) && (
+                          <circle
+                            cx={position.x}
+                            cy={position.y}
+                            r="40"
+                            fill={`${cluster.color}20`}
+                            className="transition-all duration-300"
+                          />
+                        )}
+                        
+                        {/* Progress Ring */}
                         <circle
-                          cx={x}
-                          cy={y}
-                          r={bubbleRadius}
-                          fill={cluster.color}
-                          stroke="rgba(255,255,255,0.4)"
+                          cx={position.x}
+                          cy={position.y}
+                          r="26"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.1)"
                           strokeWidth="2"
-                          className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                          onClick={() => {
-                            const key = `${cluster.id}-${subcategory.name}`;
-                            const newExpanded = new Set(expandedSubcategories);
-                            if (newExpanded.has(key)) {
-                              newExpanded.delete(key);
-                            } else {
-                              newExpanded.add(key);
-                            }
-                            setExpandedSubcategories(newExpanded);
-                          }}
+                        />
+                        <circle
+                          cx={position.x}
+                          cy={position.y}
+                          r="26"
+                          fill="none"
+                          stroke={masteryColor}
+                          strokeWidth="2"
+                          strokeDasharray={`${(progress / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
+                          className="transition-all duration-300"
+                          transform={`rotate(-90 ${position.x} ${position.y})`}
                         />
                         
-                        {/* Subcategory Icon */}
+                        {/* Main Node */}
+                        <circle
+                          cx={position.x}
+                          cy={position.y}
+                          r="22"
+                          fill={cluster.color}
+                          stroke={isConnected ? "#10B981" : masteryColor}
+                          strokeWidth={isConnected ? 3 : 2}
+                          className="cursor-pointer transition-all duration-300 hover:stroke-white"
+                          onMouseEnter={() => setHoveredConcept(concept.id)}
+                          onMouseLeave={() => setHoveredConcept(null)}
+                          onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
+                          onMouseUp={(e) => handleMouseUp(e, concept.id)}
+                          onClick={() => {
+                            if (!isDragging) {
+                              setSelectedConcept(concept);
+                              onConceptSelect?.(concept);
+                            }
+                          }}
+                        />
+
+                        {/* Icon */}
                         <foreignObject
-                          x={x - 8}
-                          y={y - 8}
+                          x={position.x - 8}
+                          y={position.y - 8}
                           width="16"
                           height="16"
                           className="pointer-events-none"
                         >
-                          <cluster.icon className="w-4 h-4 text-white" />
+                          <IconComponent className="w-4 h-4 text-white" />
                         </foreignObject>
-                        
-                        {/* Subcategory Name */}
+
+                        {/* Title */}
                         <text
-                          x={x}
-                          y={subcategory.name.length > 15 ? y + 15 : y + 8}
+                          x={position.x}
+                          y={position.y + 40}
                           textAnchor="middle"
                           fill="white"
-                          fontSize="9"
+                          fontSize="11"
+                          fontWeight="500"
                           className="pointer-events-none"
                         >
-                          {subcategory.name.length > 12 ? subcategory.name.substring(0, 10) + '..' : subcategory.name}
+                          {concept.title.length > 20 ? concept.title.substring(0, 17) + '...' : concept.title}
                         </text>
-                        
-                        {/* Concept Count */}
-                        <text
-                          x={x}
-                          y={subcategory.name.length > 15 ? y + 15 : y + 8}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="9"
-                          className="pointer-events-none"
-                        >
-                          {subcategory.count}
-                        </text>
-                        
-                        {/* Expanded Individual Concepts (organic positioning) */}
-                        {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
-                          subcategory.concepts.map((concept, conceptIndex) => {
-                            // Get organic position for this concept
-                            const conceptPosition = dynamicConceptPositions.get(concept.id);
-                            if (!conceptPosition) return null;
-                            
-                            const conceptX = conceptPosition.x;
-                            const conceptY = conceptPosition.y;
-                            
-                            const masteryColor = getMasteryColor(concept.masteryLevel);
-                            const isSelected = selectedConcept?.id === concept.id;
-                            const isHovered = hoveredConcept === concept.id;
-                            const progress = concept.learningProgress || 0;
-                            const IconComponent = getConceptIcon(concept);
-                            
-                            return (
-                              <g key={`organic-concept-${concept.id}`}>
-                                {/* Connection line to subcategory */}
-                                <line
-                                  x1={x}
-                                  y1={y}
-                                  x2={conceptX}
-                                  y2={conceptY}
-                                  stroke={cluster.color}
-                                  strokeWidth={1}
-                                  strokeOpacity={0.3}
-                                />
-                                
-                                {/* Individual Concept Node */}
-                                <circle
-                                  cx={conceptX}
-                                  cy={conceptY}
-                                  r="18"
-                                  fill={cluster.color}
-                                  stroke={masteryColor}
-                                  strokeWidth={2}
-                                  className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                                  onMouseEnter={() => setHoveredConcept(concept.id)}
-                                  onMouseLeave={() => setHoveredConcept(null)}
-                                  onMouseDown={(e) => handleMouseDown(e, concept.id, { x: conceptX, y: conceptY })}
-                                  onMouseUp={(e) => handleMouseUp(e, concept.id)}
-                                  onClick={() => {
-                                    if (!isDragging) {
-                                      setSelectedConcept(concept);
-                                      onConceptSelect?.(concept);
-                                    }
-                                  }}
-                                />
-                                
-                                {/* Progress Ring */}
-                                <circle
-                                  cx={conceptX}
-                                  cy={conceptY}
-                                  r="20"
-                                  fill="none"
-                                  stroke={masteryColor}
-                                  strokeWidth="1"
-                                  strokeDasharray={`${(progress / 100) * (2 * Math.PI * 20)} ${2 * Math.PI * 20}`}
-                                  className="transition-all duration-300"
-                                  transform={`rotate(-90 ${conceptX} ${conceptY})`}
-                                />
-                                
-                                {/* Icon */}
-                                <foreignObject
-                                  x={conceptX - 6}
-                                  y={conceptY - 6}
-                                  width="12"
-                                  height="12"
-                                  className="pointer-events-none"
-                                >
-                                  <IconComponent className="w-3 h-3 text-white" />
-                                </foreignObject>
-                                
-                                {/* Title */}
-                                <text
-                                  x={conceptX}
-                                  y={conceptY + 30}
-                                  textAnchor="middle"
-                                  fill="white"
-                                  fontSize="9"
-                                  fontWeight="400"
-                                  className="pointer-events-none"
-                                >
-                                  {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
-                                </text>
-                              </g>
-                            );
-                          })
-                        }
+
+                        {/* Bookmarked indicator */}
+                        {concept.bookmarked && (
+                          <text
+                            x={position.x + 18}
+                            y={position.y - 12}
+                            textAnchor="middle"
+                            fontSize="10"
+                            className="pointer-events-none"
+                          >
+                            ⭐
+                          </text>
+                        )}
                       </g>
                     );
-                  })}
-                </g>
-              );
+                  });
+              }
             })}
           </svg>
 
