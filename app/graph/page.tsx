@@ -154,7 +154,7 @@ export default function GraphPage() {
             id: `${concept.id}-${otherConcept.id}`,
             source: concept.id,
             target: otherConcept.id,
-            type: 'smoothstep',
+          type: 'smoothstep',
             style: { 
               stroke: '#6b7280', 
               strokeWidth: 2,
@@ -186,30 +186,34 @@ export default function GraphPage() {
       const data = await response.json()
       const conceptsData = (data.concepts || []) as Concept[]
 
-      // ✨ LOG RICH DATA INSPECTION - Let's see what we already have!
-      if (conceptsData.length > 0) {
-        const sampleConcept = conceptsData[0]
-        console.log('🔍 RICH DATA INSPECTION:', {
-          title: sampleConcept.title,
-          hasLearningProgress: sampleConcept.learningProgress !== undefined,
-          hasMasteryLevel: sampleConcept.masteryLevel !== undefined,
-          hasPersonalNotes: sampleConcept.personalNotes !== undefined,
-          hasVideoResources: sampleConcept.videoResources !== undefined,
-          hasRealWorldExamples: sampleConcept.realWorldExamples !== undefined,
-          hasPracticeCount: sampleConcept.practiceCount !== undefined,
-          hasBookmarked: sampleConcept.bookmarked !== undefined,
-          allFields: Object.keys(sampleConcept)
-        })
+              // ✨ LOG RICH DATA INSPECTION - Let's see what we already have!
+        if (conceptsData.length > 0) {
+          const sampleConcept = conceptsData[0]
+          console.log('🔍 RICH DATA INSPECTION:', {
+            title: sampleConcept.title,
+            hasLearningProgress: sampleConcept.learningProgress !== undefined,
+            hasMasteryLevel: sampleConcept.masteryLevel !== undefined,
+            hasPersonalNotes: sampleConcept.personalNotes !== undefined,
+            hasVideoResources: sampleConcept.videoResources !== undefined,
+            hasRealWorldExamples: sampleConcept.realWorldExamples !== undefined,
+            hasPracticeCount: sampleConcept.practiceCount !== undefined,
+            hasBookmarked: sampleConcept.bookmarked !== undefined,
+            allFieldsCount: Object.keys(sampleConcept).length
+          })
 
-        // Process enhanced concepts to see parsed data
-        const processedSample = processEnhancedConcept(sampleConcept as EnhancedConcept)
-        console.log('🎯 PROCESSED RICH DATA:', {
-          videoResources: processedSample.videoResourcesParsed,
-          realWorldExamples: processedSample.realWorldExamplesParsed,
-          learningTips: processedSample.learningTipsParsed,
-          tags: processedSample.tagsParsed
-        })
-      }
+          // Process enhanced concepts to see parsed data
+          try {
+            const processedSample = processEnhancedConcept(sampleConcept as EnhancedConcept)
+            console.log('🎯 PROCESSED RICH DATA:', {
+              videoResourcesCount: processedSample.videoResourcesParsed?.length || 0,
+              realWorldExamplesCount: processedSample.realWorldExamplesParsed?.length || 0,
+              learningTipsCount: processedSample.learningTipsParsed?.length || 0,
+              tagsCount: processedSample.tagsParsed?.length || 0
+            })
+          } catch (error) {
+            console.log('🔧 Error processing rich data:', error)
+          }
+        }
 
       setConcepts(conceptsData)
       
@@ -284,7 +288,7 @@ export default function GraphPage() {
               <X className="h-6 w-6" />
             </button>
           </div>
-
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column */}
             <div className="space-y-4">
@@ -363,14 +367,15 @@ export default function GraphPage() {
                     Connected Concepts
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {enhanced.relatedConceptsParsed.map((relatedId: string, idx: number) => {
-                      const relatedConcept = concepts.find(c => c.id === relatedId)
-                      return (
-                        <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-sm">
-                          {relatedConcept?.title || relatedId}
-                        </span>
-                      )
-                    })}
+                                         {enhanced.relatedConceptsParsed.map((relatedId: string, idx: number) => {
+                       const relatedConcept = concepts.find(c => c.id === relatedId)
+                       const displayText = relatedConcept?.title || String(relatedId)
+                       return (
+                         <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-sm">
+                           {displayText}
+                         </span>
+                       )
+                     })}
                   </div>
                 </div>
               )}
@@ -407,8 +412,8 @@ export default function GraphPage() {
                     </>
                   )}
                 </div>
-              </div>
-
+          </div>
+          
               {/* Real World Examples */}
               {enhanced.realWorldExamplesParsed?.length > 0 && (
                 <div>
@@ -417,12 +422,12 @@ export default function GraphPage() {
                     Real World Applications
                   </h3>
                   <div className="space-y-1">
-                    {enhanced.realWorldExamplesParsed.map((example: string, idx: number) => (
-                      <div key={idx} className="text-sm text-slate-300 flex items-start gap-2">
-                        <span className="text-yellow-400 mt-0.5">•</span>
-                        <span>{example}</span>
-                      </div>
-                    ))}
+                                         {enhanced.realWorldExamplesParsed.map((example: string, idx: number) => (
+                       <div key={idx} className="text-sm text-slate-300 flex items-start gap-2">
+                         <span className="text-yellow-400 mt-0.5">•</span>
+                         <span>{String(example)}</span>
+                       </div>
+                     ))}
                   </div>
                 </div>
               )}
@@ -432,11 +437,11 @@ export default function GraphPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-2">Tags</h3>
                   <div className="flex flex-wrap gap-1">
-                    {enhanced.tagsParsed.map((tag: string, idx: number) => (
-                      <span key={idx} className="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-full text-xs">
-                        #{tag}
-                      </span>
-                    ))}
+                                         {enhanced.tagsParsed.map((tag: string, idx: number) => (
+                       <span key={idx} className="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-full text-xs">
+                         #{String(tag)}
+                       </span>
+                     ))}
                   </div>
                 </div>
               )}
@@ -483,7 +488,7 @@ export default function GraphPage() {
         <PageTransition>
           <div className="flex flex-col h-screen bg-slate-900">
             <div className="flex-1 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
             </div>
           </div>
         </PageTransition>
@@ -521,15 +526,15 @@ export default function GraphPage() {
                   Interview Mode
                 </Button>
                 
-                <Button
-                  variant="outline"
-                  size="sm"
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
                   onClick={() => setShowReflectionPanel(!showReflectionPanel)}
-                  className="text-white border-slate-600 hover:bg-slate-700"
-                >
+                    className="text-white border-slate-600 hover:bg-slate-700"
+                  >
                   <Lightbulb className="h-4 w-4 mr-2" />
                   Insights
-                </Button>
+                  </Button>
                 
                 <Button variant="outline" size="sm" asChild className="text-white border-slate-600 hover:bg-slate-700">
                   <Link href="/concepts">
@@ -570,35 +575,35 @@ export default function GraphPage() {
               </div>
             ) : (
               <>
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
                   onNodeClick={onNodeClick}
-                  fitView
-                  fitViewOptions={{ 
-                    padding: 0.1,
+                fitView
+                fitViewOptions={{ 
+                  padding: 0.1,
                     maxZoom: 1.2 
-                  }}
-                  defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                   minZoom={0.3}
-                  maxZoom={2}
-                  className="bg-slate-900"
-                  proOptions={{ hideAttribution: true }}
-                >
-                  <Background 
-                    gap={20} 
-                    size={1} 
-                    color="rgba(148, 163, 184, 0.1)" 
-                  />
-                  <Controls className="bg-slate-800 border-slate-600 text-white" />
-                  <MiniMap 
+                maxZoom={2}
+                className="bg-slate-900"
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background 
+                  gap={20} 
+                  size={1} 
+                  color="rgba(148, 163, 184, 0.1)" 
+                />
+                <Controls className="bg-slate-800 border-slate-600 text-white" />
+                <MiniMap 
                     nodeColor="#3b82f6"
-                    maskColor="rgba(15, 23, 42, 0.8)"
-                    className="bg-slate-800 border-slate-600"
-                  />
-                </ReactFlow>
+                  maskColor="rgba(15, 23, 42, 0.8)"
+                  className="bg-slate-800 border-slate-600"
+                />
+              </ReactFlow>
 
                 {/* Simple Insight Panel */}
                 {showReflectionPanel && (
@@ -642,9 +647,9 @@ export default function GraphPage() {
 
             {/* Concept Modal */}
             <ConceptModal 
-              concept={selectedConcept} 
-              onClose={() => setSelectedConcept(null)} 
-            />
+            concept={selectedConcept} 
+            onClose={() => setSelectedConcept(null)} 
+          />
           </div>
         </div>
       </PageTransition>
