@@ -56,6 +56,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
   const [focusedLanes, setFocusedLanes] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [weightFilter, setWeightFilter] = useState(0.3)
+  const [layoutDirection, setLayoutDirection] = useState<'horizontal' | 'vertical'>('horizontal')
   // Removed zoom/pan state - making it static
   const [tooltip, setTooltip] = useState<{ x: number, y: number, concept: EnhancedConcept } | null>(null)
 
@@ -128,20 +129,27 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     return Math.round(Math.min(100, Math.max(0, percentage)))
   }
 
-  // Build connections between concepts
+  // Build meaningful connections between concepts
   const buildConnections = (conceptsData: EnhancedConcept[]): Connection[] => {
     const connections: Connection[] = []
+    
+    // Helper function to check if connection already exists
+    const connectionExists = (from: string, to: string) => {
+      return connections.find(c => 
+        (c.from === from && c.to === to) || (c.from === to && c.to === from)
+      )
+    }
     
     conceptsData.forEach(concept => {
       const processed = processEnhancedConcept(concept)
       
-      // Prerequisites connections
+      // 1. Prerequisites connections (highest priority)
       if (processed.prerequisitesParsed && Array.isArray(processed.prerequisitesParsed)) {
         processed.prerequisitesParsed.forEach((prereqId: string) => {
-          const targetConcept = conceptsData.find(c => c.id === prereqId)
-          if (targetConcept) {
+          const targetConcept = conceptsData.find(c => c.id === prereqId || c.title.toLowerCase().includes(prereqId.toLowerCase()))
+          if (targetConcept && !connectionExists(prereqId, concept.id)) {
             connections.push({
-              from: prereqId,
+              from: targetConcept.id,
               to: concept.id,
               weight: 0.9,
               type: 'prerequisite',
@@ -151,50 +159,91 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         })
       }
       
-      // Related concepts connections
+      // 2. Related concepts connections
       if (processed.relatedConceptsParsed && Array.isArray(processed.relatedConceptsParsed)) {
         processed.relatedConceptsParsed.forEach((relatedId: string) => {
-          const targetConcept = conceptsData.find(c => c.id === relatedId)
-          if (targetConcept) {
-            const existingConnection = connections.find(c => 
-              (c.from === concept.id && c.to === relatedId) ||
-              (c.from === relatedId && c.to === concept.id)
-            )
-            if (!existingConnection) {
-              connections.push({
-                from: concept.id,
-                to: relatedId,
-                weight: 0.8,
-                type: 'related',
-                label: 'related'
-              })
-            }
+          const targetConcept = conceptsData.find(c => c.id === relatedId || c.title.toLowerCase().includes(relatedId.toLowerCase()))
+          if (targetConcept && !connectionExists(concept.id, targetConcept.id)) {
+            connections.push({
+              from: concept.id,
+              to: targetConcept.id,
+              weight: 0.8,
+              type: 'related',
+              label: 'related'
+            })
           }
         })
       }
       
-      // Same conversation connections
+      // 3. Smart semantic connections based on title similarity
+      conceptsData.forEach(otherConcept => {
+        if (otherConcept.id !== concept.id && !connectionExists(concept.id, otherConcept.id)) {
+          const title1 = concept.title.toLowerCase()
+          const title2 = otherConcept.title.toLowerCase()
+          
+          // Check for common keywords that indicate relationships
+          const dataStructureKeywords = ['hash', 'table', 'array', 'tree', 'graph', 'stack', 'queue', 'heap']
+          const algorithmKeywords = ['sort', 'search', 'dynamic', 'programming', 'recursion', 'iteration']
+          const mlKeywords = ['neural', 'network', 'learning', 'model', 'training', 'algorithm']
+          
+          let shouldConnect = false
+          let connectionType: 'related' | 'prerequisite' = 'related'
+          let weight = 0.5
+          
+          // Hash Table specific connections
+          if (title1.includes('hash') && title2.includes('table')) {
+            shouldConnect = true
+            weight = 0.9
+          }
+          // Data structure relationships
+          else if (dataStructureKeywords.some(keyword => title1.includes(keyword) && title2.includes(keyword))) {
+            shouldConnect = true
+            weight = 0.7
+          }
+          // Algorithm relationships
+          else if (algorithmKeywords.some(keyword => title1.includes(keyword) && title2.includes(keyword))) {
+            shouldConnect = true
+            weight = 0.7
+          }
+          // ML relationships
+          else if (mlKeywords.some(keyword => title1.includes(keyword) && title2.includes(keyword))) {
+            shouldConnect = true
+            weight = 0.7
+          }
+          // Same category but different subcategory
+          else if (concept.category.split(' > ')[0] === otherConcept.category.split(' > ')[0]) {
+            shouldConnect = true
+            weight = 0.4
+          }
+          
+          if (shouldConnect) {
+            connections.push({
+              from: concept.id,
+              to: otherConcept.id,
+              weight,
+              type: connectionType,
+              label: connectionType
+            })
+          }
+        }
+      })
+      
+      // 4. Same conversation connections (lowest priority)
       if (concept.occurrences) {
         concept.occurrences.forEach(occurrence => {
           conceptsData.forEach(otherConcept => {
-            if (otherConcept.id !== concept.id && otherConcept.occurrences) {
+            if (otherConcept.id !== concept.id && otherConcept.occurrences && !connectionExists(concept.id, otherConcept.id)) {
               const sharedConversation = otherConcept.occurrences.some(
                 otherOcc => otherOcc.conversationId === occurrence.conversationId
               )
               if (sharedConversation) {
-                const existingConnection = connections.find(c => 
-                  (c.from === concept.id && c.to === otherConcept.id) ||
-                  (c.from === otherConcept.id && c.to === concept.id)
-                )
-                if (!existingConnection) {
-                  connections.push({
-                    from: concept.id,
-                    to: otherConcept.id,
-                    weight: 0.6,
-                    type: 'conversation',
-                    label: 'discussed together'
-                  })
-                }
+                connections.push({
+                  from: concept.id,
+                  to: otherConcept.id,
+                  weight: 0.3,
+                  type: 'conversation',
+                  label: 'discussed together'
+                })
               }
             }
           })
@@ -202,7 +251,23 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       }
     })
     
-    return connections
+    // Limit connections per concept to avoid clutter (max 5 connections per concept)
+    const connectionCounts = new Map<string, number>()
+    const filteredConnections = connections
+      .sort((a, b) => b.weight - a.weight) // Sort by weight (highest first)
+      .filter(conn => {
+        const fromCount = connectionCounts.get(conn.from) || 0
+        const toCount = connectionCounts.get(conn.to) || 0
+        
+        if (fromCount < 5 && toCount < 5) {
+          connectionCounts.set(conn.from, fromCount + 1)
+          connectionCounts.set(conn.to, toCount + 1)
+          return true
+        }
+        return false
+      })
+    
+    return filteredConnections
   }
 
   // Create lane-based layout with proper spacing like the demo
@@ -216,13 +281,18 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     const laneContentPadding = 20
     const maxLaneWidth = 1200
     
-    // Group concepts by category
+    // Group concepts by main category (before ' > ')
     const categoryGroups = conceptsData.reduce((groups, concept) => {
-      const category = concept.category.split(' > ')[0] || 'General'
-      if (!groups[category]) groups[category] = []
-      groups[category].push(concept)
+      const mainCategory = concept.category.split(' > ')[0] || 'General'
+      const subCategory = concept.category.split(' > ')[1] || undefined
+      
+      if (!groups[mainCategory]) groups[mainCategory] = []
+      groups[mainCategory].push({
+        ...concept,
+        subCategory // Store subcategory for later separation
+      })
       return groups
-    }, {} as Record<string, EnhancedConcept[]>)
+    }, {} as Record<string, (EnhancedConcept & { subCategory?: string })[]>)
 
     const lanes: CategoryLane[] = []
     let currentY = 80
@@ -238,10 +308,16 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         struggling: 0
       }
       
-      // Sort concepts by understanding strength (highest first)
-      const sortedConcepts = categoryConcepts.sort((a, b) => 
-        calculateUnderstandingStrength(b) - calculateUnderstandingStrength(a)
-      )
+      // Sort concepts: first by subcategory, then by understanding strength
+      const sortedConcepts = categoryConcepts.sort((a, b) => {
+        // First sort by subcategory to group them
+        const subA = a.subCategory || 'ZZZ' // Put concepts without subcategory at the end
+        const subB = b.subCategory || 'ZZZ'
+        if (subA !== subB) return subA.localeCompare(subB)
+        
+        // Then sort by understanding strength within each subcategory
+        return calculateUnderstandingStrength(b) - calculateUnderstandingStrength(a)
+      })
       
       // Calculate optimal layout - limit concepts per row for readability
       const availableWidth = maxLaneWidth - laneStartX - 100
@@ -251,11 +327,22 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
       const totalRows = Math.ceil(sortedConcepts.length / actualConceptsPerRow)
       
       const nodes: ConceptNode[] = []
+      let currentSubCategory = ''
+      let rowOffset = 0
       
       sortedConcepts.forEach((concept, index) => {
-        const row = Math.floor(index / actualConceptsPerRow)
-        const col = index % actualConceptsPerRow
-        const conceptsInThisRow = Math.min(actualConceptsPerRow, sortedConcepts.length - (row * actualConceptsPerRow))
+        // Add extra spacing between subcategories
+        if (concept.subCategory && concept.subCategory !== currentSubCategory) {
+          if (currentSubCategory !== '') {
+            rowOffset += 0.5 // Add half row spacing between subcategories
+          }
+          currentSubCategory = concept.subCategory
+        }
+        
+        const adjustedIndex = index
+        const row = Math.floor(adjustedIndex / actualConceptsPerRow) + rowOffset
+        const col = adjustedIndex % actualConceptsPerRow
+        const conceptsInThisRow = Math.min(actualConceptsPerRow, sortedConcepts.length - (Math.floor(adjustedIndex / actualConceptsPerRow) * actualConceptsPerRow))
         
         // Center concepts in each row
         const thisRowWidth = (conceptsInThisRow * nodeWidth) + ((conceptsInThisRow - 1) * nodeSpacing)
@@ -282,8 +369,9 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
         })
       })
       
-      // Calculate actual lane height based on content
-      const laneContentHeight = Math.max(100, totalRows * nodeHeight + (totalRows - 1) * 20 + (laneContentPadding * 2))
+      // Calculate actual lane height based on content (including subcategory spacing)
+      const totalRowsWithSpacing = totalRows + Math.max(0, new Set(sortedConcepts.map(c => c.subCategory).filter(Boolean)).size - 1) * 0.5
+      const laneContentHeight = Math.max(100, totalRowsWithSpacing * nodeHeight + (totalRowsWithSpacing - 1) * 20 + (laneContentPadding * 2))
       const actualLaneHeight = laneHeaderHeight + laneContentHeight
       
       lanes.push({
@@ -467,16 +555,22 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
           <div>{filteredConnections.length} connections</div>
         </div>
         
-        {/* Controls */}
-        <div className="flex gap-2">
-
-          <button
-            onClick={resetView}
-            className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
-            title="Reset View"
-          >
-            <RotateCcw className="w-3 h-3" />
-          </button>
+                  {/* Controls */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLayoutDirection(layoutDirection === 'horizontal' ? 'vertical' : 'horizontal')}
+              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 text-xs"
+              title={`Switch to ${layoutDirection === 'horizontal' ? 'vertical' : 'horizontal'} layout`}
+            >
+              {layoutDirection === 'horizontal' ? '↕️ Vertical' : '↔️ Horizontal'}
+            </button>
+            <button
+              onClick={resetView}
+              className="p-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300"
+              title="Reset View"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
         </div>
       </div>
 

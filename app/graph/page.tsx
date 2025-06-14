@@ -178,12 +178,12 @@ export default function GraphPage() {
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 rounded-xl p-6 max-w-4xl max-h-[90vh] overflow-auto border border-slate-600 shadow-2xl"
+          className="bg-slate-800 rounded-xl p-4 max-w-3xl max-h-[85vh] overflow-auto border border-slate-600 shadow-2xl text-sm"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-start mb-6">
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">{concept.title}</h2>
+              <h2 className="text-xl font-bold text-white mb-2">{concept.title}</h2>
               <div className="flex items-center gap-3">
                 <span className="inline-block bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-sm">
                   📁 {concept.category}
@@ -214,7 +214,7 @@ export default function GraphPage() {
               {/* Summary */}
               {concept.summary && (
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                     <BookOpen className="h-4 w-4" />
                     Understanding
                   </h3>
@@ -241,7 +241,7 @@ export default function GraphPage() {
               {/* Personal Notes */}
               {concept.personalNotes && (
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                     <Brain className="h-4 w-4" />
                     Personal Notes
                   </h3>
@@ -254,7 +254,7 @@ export default function GraphPage() {
               {/* Learning Sources (if available) */}
               {(enhanced.documentationLinksParsed?.length > 0 || enhanced.videoResourcesParsed?.length > 0) && (
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                     <ExternalLink className="h-4 w-4" />
                     Learning Sources
                   </h3>
@@ -281,27 +281,29 @@ export default function GraphPage() {
               {/* Connected Concepts */}
               {enhanced.relatedConceptsParsed?.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                     <Network className="h-4 w-4" />
                     Connected Concepts
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                                         {enhanced.relatedConceptsParsed.map((relatedId: string, idx: number) => {
-                       const relatedConcept = concepts.find(c => c.id === relatedId)
-                       const displayText = relatedConcept?.title || String(relatedId)
-                       return (
-                         <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-sm">
-                           {displayText}
-                         </span>
-                       )
-                     })}
+                    {enhanced.relatedConceptsParsed.map((relatedId: any, idx: number) => {
+                      // Handle both string IDs and objects
+                      const actualId = typeof relatedId === 'string' ? relatedId : relatedId?.id || relatedId?.title
+                      const relatedConcept = concepts.find(c => c.id === actualId || c.title === actualId)
+                      const displayText = relatedConcept?.title || (typeof relatedId === 'string' ? relatedId : 'Unknown')
+                      return (
+                        <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-xs">
+                          {displayText}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Learning Stats */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                <h3 className="text-base font-semibold text-white mb-2 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   Learning Journey
                 </h3>
