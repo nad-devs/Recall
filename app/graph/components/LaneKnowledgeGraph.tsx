@@ -57,6 +57,7 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [weightFilter, setWeightFilter] = useState(0.3)
   const [layoutDirection, setLayoutDirection] = useState<'horizontal' | 'vertical'>('horizontal')
+  const [clickPosition, setClickPosition] = useState<{ x: number, y: number } | null>(null)
   // Removed zoom/pan state - making it static
   const [tooltip, setTooltip] = useState<{ x: number, y: number, concept: EnhancedConcept } | null>(null)
 
@@ -301,8 +302,9 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
   const createLaneLayout = (conceptsData: EnhancedConcept[], connections: Connection[]): CategoryLane[] => {
     const laneHeaderHeight = 60
     const laneSpacing = 40
-    const nodeWidth = 140
-    const nodeHeight = 80
+    // Use rem units for better browser zoom support
+    const nodeWidth = 140 // Will be styled with em units in CSS
+    const nodeHeight = 80  // Will be styled with em units in CSS
     const nodeSpacing = 24
     const laneStartX = 200
     const laneContentPadding = 20
@@ -544,47 +546,71 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
     return title.substring(0, maxLength - 3) + '...'
   }
 
-  return (
-    <div className={`relative w-full h-full ${className}`}>
-      {/* Controls */}
-      <div className="absolute top-4 left-4 z-10 bg-slate-800/95 backdrop-blur rounded-lg p-4 space-y-3 max-w-xs">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search concepts..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+  // Handle concept click with position tracking
+  const handleConceptClick = (concept: EnhancedConcept, event: React.MouseEvent) => {
+    // Store click position for better modal positioning
+    setClickPosition({ x: event.clientX, y: event.clientY })
+    onConceptClick(concept)
+  }
 
-        {/* Weight Filter */}
-        <div>
-          <label className="text-xs text-slate-400 mb-2 block flex items-center gap-2">
-            <Filter className="w-3 h-3" />
-            Connection Strength ({weightFilter.toFixed(1)})
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={weightFilter}
-            onChange={(e) => setWeightFilter(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-        
-        {/* Stats */}
-        <div className="text-xs text-slate-400 space-y-1">
-          <div>{filteredLanes.length} lanes visible</div>
-          <div>{filteredLanes.reduce((sum, lane) => sum + lane.concepts.length, 0)} concepts</div>
-          <div>{filteredConnections.length} connections</div>
-        </div>
-        
-                  {/* Controls */}
+  return (
+    <div className={`relative w-full h-full bg-slate-900 ${className}`}>
+      {/* Add CSS for better browser zoom support */}
+      <style jsx>{`
+        svg text {
+          font-size: 0.875rem; /* 14px base, scales with browser zoom */
+        }
+        svg rect {
+          stroke-width: 0.125rem; /* 2px base, scales with browser zoom */
+        }
+        .concept-node {
+          font-size: 1rem; /* Scales with browser zoom */
+        }
+        .concept-title {
+          font-size: 0.875rem;
+          font-weight: 500;
+        }
+        .concept-percentage {
+          font-size: 0.75rem;
+          font-weight: 400;
+        }
+        .connection-count {
+          font-size: 0.625rem;
+        }
+      `}</style>
+
+      {/* Header with search and controls */}
+      <div className="absolute top-4 left-4 right-4 z-10">
+        <div className="flex items-center justify-between bg-slate-800/95 backdrop-blur rounded-lg p-3 border border-slate-700">
+          {/* Search */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search concepts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-slate-400" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={weightFilter}
+                onChange={(e) => setWeightFilter(parseFloat(e.target.value))}
+                className="w-24"
+              />
+              <span className="text-slate-300 text-sm min-w-[3rem]">{Math.round(weightFilter * 100)}%</span>
+            </div>
+          </div>
+
+          {/* Controls */}
           <div className="flex gap-2">
             <button
               onClick={() => setLayoutDirection(layoutDirection === 'horizontal' ? 'vertical' : 'horizontal')}
@@ -600,7 +626,26 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
             >
               <RotateCcw className="w-3 h-3" />
             </button>
+          </div>
         </div>
+
+        {/* Focus Lanes Controls */}
+        {focusedLanes.size > 0 && (
+          <div className="mt-2 flex items-center gap-2 bg-blue-900/50 backdrop-blur rounded-lg p-2 border border-blue-700">
+            <span className="text-blue-300 text-sm">Focused:</span>
+            {Array.from(focusedLanes).map(lane => (
+              <span key={lane} className="px-2 py-1 bg-blue-700 text-blue-100 rounded text-xs">
+                {lane}
+              </span>
+            ))}
+            <button
+              onClick={() => setFocusedLanes(new Set())}
+              className="ml-2 text-blue-300 hover:text-white text-xs"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Lane Focus Controls */}
@@ -838,32 +883,19 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                     y={node.y}
                     width={node.width}
                     height={node.height}
-                    fill="rgba(30, 41, 59, 0.95)"
-                    stroke={isSelected ? "#FFFFFF" : lane.color}
-                    strokeWidth={isSelected ? 3 : isHovered ? 2 : 1}
                     rx="8"
-                    opacity={nodeOpacity}
-                    filter={isHovered ? "url(#dropshadow)" : "none"}
-                    className="cursor-pointer transition-all duration-200"
-                    onMouseEnter={(e) => {
-                      setHoveredNode(node.id)
-                      const rect = svgRef.current?.getBoundingClientRect()
-                      if (rect) {
-                        setTooltip({
-                          x: e.clientX - rect.left,
-                          y: e.clientY - rect.top,
-                          concept: node
-                        })
-                      }
+                    fill={isHighlighted ? `${lane.color}40` : `${lane.color}20`}
+                    stroke={lane.color}
+                    strokeWidth={isHighlighted ? "3" : "2"}
+                    className="cursor-pointer transition-all duration-200 hover:brightness-110"
+                    style={{
+                      // Use em units for better zoom support
+                      fontSize: '0.875em', // 14px equivalent
+                      filter: isHighlighted ? 'brightness(1.2)' : 'none'
                     }}
-                    onMouseLeave={() => {
-                      setHoveredNode(null)
-                      setTooltip(null)
-                    }}
-                    onClick={() => {
-                      setSelectedNode(selectedNode === node.id ? null : node.id)
-                      onConceptClick(node)
-                    }}
+                    onClick={(e) => handleConceptClick(node, e)}
+                    onMouseEnter={() => setHoveredNode(node.id)}
+                    onMouseLeave={() => setHoveredNode(null)}
                   />
                   
                   {/* Progress Indicator */}
@@ -881,29 +913,21 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                   {/* Node Title */}
                   <text
                     x={node.x + node.width / 2}
-                    y={node.y + 25}
-                    fill="white"
-                    fontSize="14"
-                    fontWeight="600"
+                    y={node.y + 20}
                     textAnchor="middle"
-                    opacity={nodeOpacity}
-                    className="pointer-events-none"
+                    className="fill-white font-medium pointer-events-none select-none concept-title"
                   >
-                    {node.title.length > 16 ? node.title.substring(0, 14) + '...' : node.title}
+                    {abbreviateTitle(node.title, 16)}
                   </text>
                   
-                  {/* Understanding Percentage */}
+                  {/* Progress indicator */}
                   <text
                     x={node.x + node.width / 2}
-                    y={node.y + 45}
-                    fill={strength > 70 ? "#10B981" : strength > 40 ? "#F59E0B" : "#EF4444"}
-                    fontSize="12"
-                    fontWeight="600"
+                    y={node.y + 40}
                     textAnchor="middle"
-                    opacity={nodeOpacity}
-                    className="pointer-events-none"
+                    className="fill-slate-300 pointer-events-none select-none concept-percentage"
                   >
-                    {Math.round(strength)}%
+                    {strength}%
                   </text>
                   
                   {/* Progress Bar */}
@@ -933,10 +957,9 @@ export const LaneKnowledgeGraph: React.FC<LaneKnowledgeGraphProps> = ({
                     x={node.x + node.width / 2}
                     y={node.y + 72}
                     fill="rgba(255,255,255,0.6)"
-                    fontSize="10"
                     textAnchor="middle"
                     opacity={nodeOpacity}
-                    className="pointer-events-none"
+                    className="pointer-events-none connection-count"
                   >
                     {filteredConnections.filter(c => c.from === node.id || c.to === node.id).length} connections
                   </text>

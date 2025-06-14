@@ -69,6 +69,7 @@ export default function GraphPage() {
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null)
   const [showReflectionPanel, setShowReflectionPanel] = useState(false)
   const [interviewMode, setInterviewMode] = useState(false)
+  const [modalPosition, setModalPosition] = useState<{ x: number, y: number } | null>(null)
 
   // Mount effect
   useEffect(() => {
@@ -97,6 +98,16 @@ export default function GraphPage() {
   // Handle concept selection for SVG graph
   const handleConceptClick = (concept: Concept) => {
     setSelectedConcept(concept)
+  }
+
+  // Handle concept click with position tracking
+  const handleConceptClickWithPosition = (concept: Concept, clickX?: number, clickY?: number) => {
+    setSelectedConcept(concept)
+    if (clickX !== undefined && clickY !== undefined) {
+      setModalPosition({ x: clickX, y: clickY })
+    } else {
+      setModalPosition(null) // Center if no position provided
+    }
   }
 
   // Load concepts with enhanced data inspection
@@ -174,11 +185,11 @@ export default function GraphPage() {
     
     return (
       <div
-        className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]"
+        className="fixed inset-0 bg-black/80 z-[1000] flex items-start justify-center pt-16 pb-8"
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 rounded-xl p-4 max-w-3xl max-h-[85vh] overflow-auto border border-slate-600 shadow-2xl text-sm"
+          className="bg-slate-800 rounded-xl p-4 max-w-3xl max-h-[85vh] overflow-auto border border-slate-600 shadow-2xl text-sm mx-4"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-start mb-4">
@@ -498,7 +509,7 @@ export default function GraphPage() {
               <>
                 <LaneKnowledgeGraph 
                   concepts={concepts as EnhancedConcept[]}
-                  onConceptClick={handleConceptClick}
+                  onConceptClick={handleConceptClickWithPosition}
                   interviewMode={interviewMode}
                   className="bg-slate-900"
                 />
