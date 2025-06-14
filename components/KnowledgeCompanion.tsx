@@ -82,6 +82,18 @@ interface HierarchicalNode {
   textHeight?: number;
 }
 
+// Enhanced force-directed system with better spacing
+interface ForceNode {
+  id: string;
+  type: 'cluster' | 'category' | 'concept';
+  x: number;
+  y: number;
+  radius: number;
+  clusterId: string;
+  parentId?: string;
+  velocity?: { x: number; y: number };
+}
+
 // Collision detection with hierarchical rules
 const checkCollision = (nodeA: HierarchicalNode, nodeB: HierarchicalNode): boolean => {
   const distance = Math.sqrt(Math.pow(nodeA.x - nodeB.x, 2) + Math.pow(nodeA.y - nodeB.y, 2));
@@ -771,6 +783,232 @@ const calculateClusterConceptPositions = (
   return { conceptPositions, conceptNodes };
 };
 
+// Enhanced repulsion force based on node types
+const calculateRepulsionForce = (nodeA: ForceNode, nodeB: ForceNode): { x: number; y: number } => {
+  const dx = nodeA.x - nodeB.x;
+  const dy = nodeA.y - nodeB.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  if (distance === 0) return { x: 0, y: 0 };
+  
+  let baseForce = 500;
+  let multiplier = 1;
+  
+  // Enhanced force multipliers based on node types
+  if (nodeA.type === 'cluster' || nodeB.type === 'cluster') {
+    multiplier = 3; // Cluster names need more space
+  } else if (nodeA.type === 'category' && nodeB.type === 'category') {
+    multiplier = 2; // Categories need medium space
+  } else if (nodeA.clusterId !== nodeB.clusterId) {
+    multiplier = 4; // Different clusters push harder
+  }
+  
+  const force = (baseForce * multiplier) / (distance * distance);
+  const normalizedX = dx / distance;
+  const normalizedY = dy / distance;
+  
+  return {
+    x: normalizedX * force,
+    y: normalizedY * force
+  };
+};
+
+// Soft cluster boundaries (not rigid boxes!)
+const addClusterCohesion = (node: ForceNode, clusterCenter: { x: number; y: number }): { x: number; y: number } => {
+  const dx = clusterCenter.x - node.x;
+  const dy = clusterCenter.y - node.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const maxRadius = 400; // soft boundary
+  
+  if (distance > maxRadius) {
+    // Gentle pull back, not a hard boundary
+    const pullStrength = 0.02 * (distance - maxRadius);
+    return {
+      x: dx * pullStrength,
+      y: dy * pullStrength
+    };
+  }
+  return { x: 0, y: 0 };
+};
+
+// Hierarchical attraction between parent and child
+const parentChildAttraction = (child: ForceNode, parent: ForceNode): { x: number; y: number } => {
+  const idealDistance = 150; // flexible, not fixed
+  const dx = parent.x - child.x;
+  const dy = parent.y - child.y;
+  const currentDistance = Math.sqrt(dx * dx + dy * dy);
+  const strength = 0.1;
+  
+  if (currentDistance > idealDistance) {
+    return {
+      x: dx * strength,
+      y: dy * strength
+    };
+  }
+  return { x: 0, y: 0 };
+};
+
+// Collision prevention while keeping organic feel
+const preventOverlap = (nodeA: ForceNode, nodeB: ForceNode): { x: number; y: number } => {
+  const minDistance = (nodeA.radius + nodeB.radius) * 1.2;
+  const dx = nodeB.x - nodeA.x;
+  const dy = nodeB.y - nodeA.y;
+  const currentDistance = Math.sqrt(dx * dx + dy * dy);
+  
+  if (currentDistance < minDistance && currentDistance > 0) {
+    const overlap = minDistance - currentDistance;
+    const angle = Math.atan2(dy, dx);
+    
+    // Push apart gently
+    return {
+      x: -Math.cos(angle) * overlap * 0.5,
+      y: -Math.sin(angle) * overlap * 0.5
+    };
+  }
+  return { x: 0, y: 0 };
+};
+
+// Natural cluster separation using invisible charge centers
+const getClusterSeparationForces = (node: ForceNode, viewportBounds: any): { x: number; y: number } => {
+  // Place invisible high-charge points between clusters
+  const clusterSeparators = [
+    { x: viewportBounds.x + viewportBounds.width * 0.33, y: viewportBounds.y + viewportBounds.height * 0.5, charge: 2000 },
+    { x: viewportBounds.x + viewportBounds.width * 0.66, y: viewportBounds.y + viewportBounds.height * 0.5, charge: 2000 }
+  ];
+  
+  let totalForce = { x: 0, y: 0 };
+  
+  clusterSeparators.forEach(separator => {
+    const dx = node.x - separator.x;
+    const dy = node.y - separator.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+      const force = separator.charge / (distance * distance);
+      totalForce.x += (dx / distance) * force;
+      totalForce.y += (dy / distance) * force;
+    }
+  });
+  
+  return totalForce;
+};
+
+// Enhanced organic layout calculation
+const calculateEnhancedOrganicLayout = (clusters: SemanticCluster[], viewportBounds: any) => {
+  const positions = new Map<string, { x: number; y: number }>();
+  const allNodes: ForceNode[] = [];
+  
+  // First, set up basic cluster positions (keep your original organic arrangement)
+  clusters.forEach((cluster, index) => {
+    const angle = (index / clusters.length) * 2 * Math.PI;
+    const radius = Math.min(300, 200 + clusters.length * 20);
+    const centerX = viewportBounds.x + viewportBounds.width / 2 + Math.cos(angle) * radius;
+    const centerY = viewportBounds.y + viewportBounds.height / 2 + Math.sin(angle) * radius;
+    
+    // Update cluster position
+    cluster.position = { x: centerX, y: centerY };
+    
+    // Create cluster node for force calculations
+    const clusterNode: ForceNode = {
+      id: cluster.id,
+      type: 'cluster',
+      x: centerX,
+      y: centerY,
+      radius: 50,
+      clusterId: cluster.id,
+      velocity: { x: 0, y: 0 }
+    };
+    allNodes.push(clusterNode);
+  });
+  
+  // Apply organic force simulation for better spacing
+  for (let iteration = 0; iteration < 100; iteration++) {
+    allNodes.forEach(node => {
+      let totalForce = { x: 0, y: 0 };
+      
+      // Repulsion from other nodes
+      allNodes.forEach(other => {
+        if (node.id !== other.id) {
+          const repulsion = calculateRepulsionForce(node, other);
+          totalForce.x += repulsion.x;
+          totalForce.y += repulsion.y;
+        }
+      });
+      
+      // Cluster cohesion (soft boundaries)
+      if (node.type !== 'cluster') {
+        const clusterCenter = clusters.find(c => c.id === node.clusterId)?.position;
+        if (clusterCenter) {
+          const cohesion = addClusterCohesion(node, clusterCenter);
+          totalForce.x += cohesion.x;
+          totalForce.y += cohesion.y;
+        }
+      }
+      
+      // Natural cluster separation
+      const separation = getClusterSeparationForces(node, viewportBounds);
+      totalForce.x += separation.x * 0.1;
+      totalForce.y += separation.y * 0.1;
+      
+      // Apply forces with damping
+      if (!node.velocity) node.velocity = { x: 0, y: 0 };
+      node.velocity.x = (node.velocity.x + totalForce.x * 0.01) * 0.9;
+      node.velocity.y = (node.velocity.y + totalForce.y * 0.01) * 0.9;
+      
+      // Update position
+      node.x += node.velocity.x;
+      node.y += node.velocity.y;
+    });
+  }
+  
+  // Update cluster positions from simulation
+  allNodes.forEach(node => {
+    if (node.type === 'cluster') {
+      const cluster = clusters.find(c => c.id === node.clusterId);
+      if (cluster) {
+        cluster.position = { x: node.x, y: node.y };
+      }
+    }
+  });
+  
+  // Now position concepts around clusters organically (keep your original logic)
+  clusters.forEach(cluster => {
+    const { concepts } = cluster;
+    const centerX = cluster.position.x;
+    const centerY = cluster.position.y;
+    
+    concepts.forEach((concept, index) => {
+      let x, y;
+      
+      if (concepts.length === 1) {
+        x = centerX;
+        y = centerY;
+      } else if (concepts.length <= 8) {
+        // Single ring for small clusters
+        const angle = (index / concepts.length) * 2 * Math.PI;
+        const radius = Math.min(120, 60 + concepts.length * 10);
+        x = centerX + Math.cos(angle) * radius;
+        y = centerY + Math.sin(angle) * radius;
+      } else {
+        // Multiple rings for larger clusters
+        const conceptsPerRing = 8;
+        const ring = Math.floor(index / conceptsPerRing);
+        const indexInRing = index % conceptsPerRing;
+        const conceptsInThisRing = Math.min(conceptsPerRing, concepts.length - ring * conceptsPerRing);
+        const ringRadius = 80 + (ring * 60);
+        const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
+        
+        x = centerX + Math.cos(angle) * ringRadius;
+        y = centerY + Math.sin(angle) * ringRadius;
+      }
+      
+      positions.set(concept.id, { x, y });
+    });
+  });
+  
+  return { positions, clusters };
+};
+
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   concepts,
   categories,
@@ -795,12 +1033,77 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Subcategory expansion state
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
 
-  // Generate semantic clusters and layout
+  // Generate semantic clusters and enhanced organic layout
   const semanticClusters = generateSemanticClusters(concepts);
-  const { positions: conceptPositions, bounds } = generateClusterLayout(semanticClusters, viewBox);
   
+  // Calculate initial viewport bounds
+  const initialViewportBounds = {
+    x: -600,
+    y: -400, 
+    width: 2400,
+    height: 1600
+  };
+  
+  // Use enhanced organic layout instead of rigid boundaries
+  const { positions: conceptPositions, clusters: enhancedClusters } = calculateEnhancedOrganicLayout(
+    semanticClusters, 
+    initialViewportBounds
+  );
+  
+  // Create dynamic position map with enhanced organic system
+  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
+  
+  // Add all organic positions
+  conceptPositions.forEach((pos, id) => {
+    dynamicConceptPositions.set(id, pos);
+  });
+  
+  // For expanded subcategories, use enhanced positioning with soft boundaries
+  enhancedClusters.forEach(cluster => {
+    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
+    
+    if (subcategories.length > 0) {
+      subcategories.forEach((subcategory, index) => {
+        // Position subcategories around cluster center organically
+        const angle = (index / subcategories.length) * 2 * Math.PI;
+        const radius = 80 + subcategories.length * 10; // Dynamic spacing
+        const x = cluster.position.x + Math.cos(angle) * radius;
+        const y = cluster.position.y + Math.sin(angle) * radius;
+        
+        // Store subcategory position
+        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
+        dynamicConceptPositions.set(subcategoryKey, { x, y });
+        
+        // For expanded subcategories, position concepts with enhanced forces
+        const key = `${cluster.id}-${subcategory.name}`;
+        if (expandedSubcategories.has(key)) {
+          subcategory.concepts.forEach((concept, conceptIndex) => {
+            // Use organic radial positioning with collision prevention
+            const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+            const conceptRadius = 60 + subcategory.concepts.length * 5;
+            
+            let conceptX = x + Math.cos(conceptAngle) * conceptRadius;
+            let conceptY = y + Math.sin(conceptAngle) * conceptRadius;
+            
+            // Apply soft cluster boundaries - gentle pull toward cluster center
+            const clusterDx = cluster.position.x - conceptX;
+            const clusterDy = cluster.position.y - conceptY;
+            const distanceFromCluster = Math.sqrt(clusterDx * clusterDx + clusterDy * clusterDy);
+            const maxDistance = 300; // Soft boundary
+            
+            if (distanceFromCluster > maxDistance) {
+              const pullStrength = 0.3;
+              conceptX += clusterDx * pullStrength;
+              conceptY += clusterDy * pullStrength;
+            }
+            
+            dynamicConceptPositions.set(concept.id, { x: conceptX, y: conceptY });
+          });
+        }
+      });
+    }
+  });
 
-  
   // Parse JSON fields safely with better error handling
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
     if (!jsonString || jsonString.trim() === '') return fallback;
@@ -833,68 +1136,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
            (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
   
-  // Create dynamic position map with cluster boundary system
-  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
-  const allHierarchicalNodes: HierarchicalNode[] = [];
-  
-  // First calculate initial viewport bounds for cluster boundary calculation
-  const initialViewportBounds = {
-    x: -600,
-    y: -400,
-    width: 2400,
-    height: 1600
-  };
-  
-  // Calculate cluster boundaries
-  const clusterBounds = calculateClusterBounds(semanticClusters, initialViewportBounds);
-  
-  // Add positions from conceptPositions (for non-subcategory concepts)
-  conceptPositions.forEach((pos, id) => {
-    dynamicConceptPositions.set(id, pos);
-  });
-  
-  // Calculate cluster-contained hierarchical layout for expanded subcategory concepts
-  semanticClusters.forEach(cluster => {
-    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-    const bounds = clusterBounds.get(cluster.id);
-    
-    if (subcategories.length > 0 && bounds) {
-      // Calculate cluster-contained hierarchical layout for this cluster
-      const { nodes, positions } = calculateClusterContainedLayout(cluster, subcategories, bounds);
-      allHierarchicalNodes.push(...nodes);
-      
-      // Add subcategory positions
-      positions.forEach((pos, key) => {
-        dynamicConceptPositions.set(key, pos);
-      });
-      
-      // Calculate concept positions for expanded subcategories
-      subcategories.forEach((subcategory, index) => {
-        const key = `${cluster.id}-${subcategory.name}`;
-        if (expandedSubcategories.has(key)) {
-          // Find the category node for this subcategory
-          const categoryNode = nodes.find(n => n.id === `category-${cluster.id}-${subcategory.name}`);
-          if (categoryNode && bounds) {
-            const { conceptPositions: subConceptPositions, conceptNodes } = calculateClusterConceptPositions(
-              categoryNode,
-              subcategory.concepts,
-              bounds,
-              allHierarchicalNodes
-            );
-            
-            // Add concept positions to the map
-            subConceptPositions.forEach((pos, conceptId) => {
-              dynamicConceptPositions.set(conceptId, pos);
-            });
-            
-            // Add concept nodes to global tracking
-            allHierarchicalNodes.push(...conceptNodes);
-          }
-        }
-      });
-    }
-  });
-
   // Calculate dynamic viewport bounds for hierarchical layout
   const calculateViewportBounds = () => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -905,16 +1146,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       minY = Math.min(minY, cluster.position.y);
       maxX = Math.max(maxX, cluster.position.x);
       maxY = Math.max(maxY, cluster.position.y);
-    });
-    
-    // Include all hierarchical node positions
-    allHierarchicalNodes.forEach(node => {
-      // Account for node size in bounds
-      const nodeExtent = node.type === 'cluster_name' ? 50 : node.radius;
-      minX = Math.min(minX, node.x - nodeExtent);
-      minY = Math.min(minY, node.y - nodeExtent);
-      maxX = Math.max(maxX, node.x + nodeExtent);
-      maxY = Math.max(maxY, node.y + nodeExtent);
     });
     
     // Include all dynamic concept positions
@@ -1365,51 +1596,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             {/* Background grid */}
             <rect width="100%" height="100%" fill="url(#grid)" />
             
-            {/* Cluster Boundary Visualization (for debugging) */}
-            {semanticClusters.map(cluster => {
-              const bounds = clusterBounds.get(cluster.id);
-              if (!bounds) return null;
-              
-              return (
-                <g key={`cluster-bounds-${cluster.id}`}>
-                  {/* Outer cluster boundary */}
-                  <rect
-                    x={bounds.x}
-                    y={bounds.y}
-                    width={bounds.width}
-                    height={bounds.height}
-                    fill="none"
-                    stroke={cluster.color}
-                    strokeWidth="2"
-                    strokeOpacity="0.3"
-                    strokeDasharray="5,5"
-                  />
-                  
-                  {/* Inner working area */}
-                  <rect
-                    x={bounds.innerBounds.x}
-                    y={bounds.innerBounds.y}
-                    width={bounds.innerBounds.width}
-                    height={bounds.innerBounds.height}
-                    fill={`${cluster.color}08`}
-                    stroke={cluster.color}
-                    strokeWidth="1"
-                    strokeOpacity="0.2"
-                  />
-                  
-                  {/* Cluster title area */}
-                  <rect
-                    x={bounds.innerBounds.x}
-                    y={bounds.innerBounds.y}
-                    width={bounds.innerBounds.width}
-                    height="60"
-                    fill={`${cluster.color}15`}
-                    stroke="none"
-                  />
-                </g>
-              );
-            })}
-
             {/* Connections */}
             {visibleConnections.map((conn, index) => {
               if (!conn) return null;
@@ -1452,26 +1638,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 className="pointer-events-none"
               />
             )}
-
-            {/* Cluster Content - Names, Categories, and Concepts */}
-            {semanticClusters.map(cluster => {
+            
+            {/* Cluster Content - Enhanced Organic Layout */}
+            {enhancedClusters.map(cluster => {
               const hasVisibleConcepts = cluster.concepts.some(c => 
                 filteredConcepts.some(fc => fc.id === c.id)
               );
               
               if (!hasVisibleConcepts) return null;
               
-              const bounds = clusterBounds.get(cluster.id);
-              if (!bounds) return null;
-              
               const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
               
               return (
                 <g key={`cluster-content-${cluster.id}`}>
-                  {/* Cluster Name (within title area) */}
+                  {/* Cluster Name (organic positioning) */}
                   <text
-                    x={bounds.innerBounds.x + bounds.innerBounds.width / 2}
-                    y={bounds.innerBounds.y + 25}
+                    x={cluster.position.x}
+                    y={cluster.position.y - 150}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.9)"
                     fontSize="16"
@@ -1481,8 +1664,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     {cluster.name}
                   </text>
                   <text
-                    x={bounds.innerBounds.x + bounds.innerBounds.width / 2}
-                    y={bounds.innerBounds.y + 40}
+                    x={cluster.position.x}
+                    y={cluster.position.y - 135}
                     textAnchor="middle"
                     fill="rgba(255,255,255,0.6)"
                     fontSize="11"
@@ -1491,7 +1674,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
                   </text>
                   
-                  {/* Subcategory Nodes (positioned within cluster bounds) */}
+                  {/* Subcategory Nodes (organically positioned) */}
                   {subcategories.map((subcategory, index) => {
                     const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
                     const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
@@ -1565,10 +1748,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           {subcategory.count}
                         </text>
                         
-                        {/* Expanded Individual Concepts (within cluster bounds) */}
+                        {/* Expanded Individual Concepts (organic positioning) */}
                         {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                           subcategory.concepts.map((concept, conceptIndex) => {
-                            // Get cluster-contained position for this concept
+                            // Get organic position for this concept
                             const conceptPosition = dynamicConceptPositions.get(concept.id);
                             if (!conceptPosition) return null;
                             
@@ -1582,7 +1765,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                             const IconComponent = getConceptIcon(concept);
                             
                             return (
-                              <g key={`cluster-concept-${concept.id}`}>
+                              <g key={`organic-concept-${concept.id}`}>
                                 {/* Connection line to subcategory */}
                                 <line
                                   x1={x}
