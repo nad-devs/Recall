@@ -12,7 +12,10 @@ import {
   ExternalLink,
   Brain,
   Target,
-  Lightbulb
+  Lightbulb,
+  Star,
+  Clock,
+  TrendingUp
 } from "lucide-react"
 import ReactFlow, { 
   Background, 
@@ -28,9 +31,11 @@ import { PageTransition } from "@/components/page-transition"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
 import featureFlags from '@/lib/feature-flags'
+import { EnhancedConcept, SimpleConcept, processEnhancedConcept } from './types'
 
-// Simplified types
-interface Concept {
+// Use the enhanced type but with fallback for compatibility
+interface Concept extends Partial<EnhancedConcept> {
+  // Ensure basic fields are always present
   id: string
   title: string
   category: string
@@ -163,7 +168,7 @@ export default function GraphPage() {
     return { nodes, edges }
   }
 
-  // Load concepts
+  // Load concepts with enhanced data inspection
   const loadConcepts = async () => {
     if (!mounted) return
     
@@ -180,6 +185,31 @@ export default function GraphPage() {
 
       const data = await response.json()
       const conceptsData = (data.concepts || []) as Concept[]
+
+      // ✨ LOG RICH DATA INSPECTION - Let's see what we already have!
+      if (conceptsData.length > 0) {
+        const sampleConcept = conceptsData[0]
+        console.log('🔍 RICH DATA INSPECTION:', {
+          title: sampleConcept.title,
+          hasLearningProgress: sampleConcept.learningProgress !== undefined,
+          hasMasteryLevel: sampleConcept.masteryLevel !== undefined,
+          hasPersonalNotes: sampleConcept.personalNotes !== undefined,
+          hasVideoResources: sampleConcept.videoResources !== undefined,
+          hasRealWorldExamples: sampleConcept.realWorldExamples !== undefined,
+          hasPracticeCount: sampleConcept.practiceCount !== undefined,
+          hasBookmarked: sampleConcept.bookmarked !== undefined,
+          allFields: Object.keys(sampleConcept)
+        })
+
+        // Process enhanced concepts to see parsed data
+        const processedSample = processEnhancedConcept(sampleConcept as EnhancedConcept)
+        console.log('🎯 PROCESSED RICH DATA:', {
+          videoResources: processedSample.videoResourcesParsed,
+          realWorldExamples: processedSample.realWorldExamplesParsed,
+          learningTips: processedSample.learningTipsParsed,
+          tags: processedSample.tagsParsed
+        })
+      }
 
       setConcepts(conceptsData)
       
@@ -212,9 +242,12 @@ export default function GraphPage() {
     }
   }
 
-  // Concept Modal Component
+  // Enhanced Concept Modal Component with Rich Data Display
   const ConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
     if (!concept) return null
+    
+    // Process enhanced concept data safely
+    const enhanced = processEnhancedConcept(concept as EnhancedConcept)
     
     return (
       <div
@@ -222,11 +255,28 @@ export default function GraphPage() {
         onClick={onClose}
       >
         <div
-          className="bg-slate-800 rounded-xl p-6 max-w-2xl max-h-[80vh] overflow-auto border border-slate-600 shadow-2xl"
+          className="bg-slate-800 rounded-xl p-6 max-w-4xl max-h-[90vh] overflow-auto border border-slate-600 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-start mb-4">
-            <h2 className="text-2xl font-bold text-white">{concept.title}</h2>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2">{concept.title}</h2>
+              <div className="flex items-center gap-3">
+                <span className="inline-block bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-sm">
+                  📁 {concept.category}
+                </span>
+                {concept.masteryLevel && (
+                  <span className="inline-block bg-green-600/20 text-green-400 px-3 py-1 rounded-full text-sm">
+                    🎯 {concept.masteryLevel}
+                  </span>
+                )}
+                {concept.bookmarked && (
+                  <span className="inline-block bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded-full text-sm">
+                    ⭐ Bookmarked
+                  </span>
+                )}
+              </div>
+            </div>
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-white transition-colors"
@@ -234,32 +284,175 @@ export default function GraphPage() {
               <X className="h-6 w-6" />
             </button>
           </div>
-          
-          <div className="mb-4">
-            <span className="inline-block bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-sm">
-              📁 {concept.category}
-            </span>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-4">
+              {/* Summary */}
+              {concept.summary && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" />
+                    Understanding
+                  </h3>
+                  <p className="text-slate-300 leading-relaxed">{concept.summary}</p>
+                  
+                  {/* Learning Progress Bar (if available) */}
+                  {concept.learningProgress !== undefined && (
+                    <div className="mt-3">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-slate-400">Understanding Strength</span>
+                        <span className="text-blue-400">{concept.learningProgress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${concept.learningProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Personal Notes */}
+              {concept.personalNotes && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Brain className="h-4 w-4" />
+                    Personal Notes
+                  </h3>
+                  <p className="text-slate-300 bg-slate-700/50 p-3 rounded-lg leading-relaxed">
+                    {concept.personalNotes}
+                  </p>
+                </div>
+              )}
+
+              {/* Learning Sources (if available) */}
+              {(enhanced.documentationLinksParsed?.length > 0 || enhanced.videoResourcesParsed?.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    Learning Sources
+                  </h3>
+                  <div className="space-y-2">
+                    {enhanced.documentationLinksParsed?.map((link: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg">
+                        <span className="text-green-400">📄</span>
+                        <span className="text-slate-300 text-sm">{link}</span>
+                      </div>
+                    ))}
+                    {enhanced.videoResourcesParsed?.map((video: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg">
+                        <span className="text-red-400">🎥</span>
+                        <span className="text-slate-300 text-sm">{video}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-4">
+              {/* Connected Concepts */}
+              {enhanced.relatedConceptsParsed?.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Network className="h-4 w-4" />
+                    Connected Concepts
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {enhanced.relatedConceptsParsed.map((relatedId: string, idx: number) => {
+                      const relatedConcept = concepts.find(c => c.id === relatedId)
+                      return (
+                        <span key={idx} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-sm">
+                          {relatedConcept?.title || relatedId}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Learning Stats */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Learning Journey
+                </h3>
+                <div className="space-y-2">
+                  {concept.practiceCount !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Practice Sessions</span>
+                      <span className="text-blue-400">{concept.practiceCount}</span>
+                    </div>
+                  )}
+                  {concept.reviewCount !== undefined && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Times Reviewed</span>
+                      <span className="text-green-400">{concept.reviewCount}</span>
+                    </div>
+                  )}
+                  {concept.occurrences && concept.occurrences.length > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">First Learned</span>
+                        <span className="text-slate-300">{new Date(concept.occurrences[0].createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Appearances</span>
+                        <span className="text-purple-400">{concept.occurrences.length} conversations</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Real World Examples */}
+              {enhanced.realWorldExamplesParsed?.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <Star className="h-4 w-4" />
+                    Real World Applications
+                  </h3>
+                  <div className="space-y-1">
+                    {enhanced.realWorldExamplesParsed.map((example: string, idx: number) => (
+                      <div key={idx} className="text-sm text-slate-300 flex items-start gap-2">
+                        <span className="text-yellow-400 mt-0.5">•</span>
+                        <span>{example}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {enhanced.tagsParsed?.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Tags</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {enhanced.tagsParsed.map((tag: string, idx: number) => (
+                      <span key={idx} className="px-2 py-1 bg-purple-600/20 text-purple-400 rounded-full text-xs">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           
-          {concept.summary && (
-            <div className="mb-4">
-              <p className="text-slate-300 leading-relaxed">{concept.summary}</p>
-            </div>
-          )}
-
-          {concept.occurrences && concept.occurrences.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-white mb-2">Learning History</h3>
-              <div className="text-sm text-slate-400">
-                First learned: {new Date(concept.occurrences[0].createdAt).toLocaleDateString()}
-              </div>
-              <div className="text-sm text-slate-400">
-                Appearances: {concept.occurrences.length} conversation{concept.occurrences.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex gap-3">
+          {/* Action Buttons */}
+          <div className="flex gap-3 mt-6 pt-4 border-t border-slate-700">
+            <button
+              onClick={() => setShowReflectionPanel(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <Lightbulb className="h-4 w-4" />
+              Add to Reflection
+            </button>
+            
             <button
               onClick={() => {
                 router.push(`/concept/${concept.id}`)
@@ -268,7 +461,7 @@ export default function GraphPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
             >
               <ExternalLink className="h-4 w-4" />
-              View Details
+              View Full Details
             </button>
             
             <button
