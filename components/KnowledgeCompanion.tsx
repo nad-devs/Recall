@@ -355,15 +355,40 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       console.log(`Concept "${concept.title}" has related concepts:`, relatedIds);
     }
     
-    return relatedIds.map((relatedId: string) => {
-      const targetConcept = concepts.find(c => c.id === relatedId);
-      if (!targetConcept) {
-        console.warn(`Related concept not found: ${relatedId} for concept ${concept.title}`);
+    return relatedIds.map((relatedItem: any) => {
+      // Handle different formats of related concepts
+      let targetConceptId: string | null = null;
+      let targetConcept: any;
+      
+      if (typeof relatedItem === 'string') {
+        // Direct ID reference
+        targetConceptId = relatedItem;
+        targetConcept = concepts.find(c => c.id === targetConceptId);
+      } else if (typeof relatedItem === 'object' && relatedItem !== null) {
+        // Object with id, title, or other properties
+        if (relatedItem.id) {
+          targetConceptId = relatedItem.id;
+          targetConcept = concepts.find(c => c.id === targetConceptId);
+        } else if (relatedItem.title) {
+          // Try to find by title
+          targetConcept = concepts.find(c => c.title === relatedItem.title);
+          targetConceptId = targetConcept?.id || null;
+        } else {
+          console.warn(`Invalid related concept format:`, relatedItem, `for concept ${concept.title}`);
+          return null;
+        }
+      } else {
+        console.warn(`Unknown related concept format:`, relatedItem, `for concept ${concept.title}`);
+        return null;
+      }
+      
+      if (!targetConcept || !targetConceptId) {
+        console.warn(`Related concept not found:`, relatedItem, `for concept ${concept.title}`);
         return null;
       }
       
       const fromPos = conceptPositions.get(concept.id);
-      const toPos = conceptPositions.get(targetConcept.id);
+      const toPos = targetConceptId ? conceptPositions.get(targetConceptId) : null;
       
       if (!fromPos || !toPos) {
         console.warn(`Position not found for connection: ${concept.title} -> ${targetConcept.title}`);
@@ -372,7 +397,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       
       return {
         from: concept.id,
-        to: relatedId,
+        to: targetConceptId,
         fromPos,
         toPos,
         fromConcept: concept,
