@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, memo } from 'react'
+import { createPortal } from 'react-dom'
 import Link from "next/link"
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
@@ -194,7 +195,7 @@ export default function GraphPage() {
       }
     }, [])
     
-    return (
+    const modalContent = (
       <div
         className="fixed inset-0 bg-black/80 z-[2000] flex items-center justify-center p-4"
         onClick={onClose}
@@ -429,6 +430,9 @@ export default function GraphPage() {
         </div>
       </div>
     )
+    
+    // Use portal to render modal at document body level
+    return typeof window !== 'undefined' ? createPortal(modalContent, document.body) : null
   })
 
   // Early return for unmounted state
