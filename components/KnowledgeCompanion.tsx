@@ -388,10 +388,113 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     setPan({ x: 0, y: 0 });
   };
 
-  // Generate dynamic semantic clusters and layout
+  // Helper functions for physics and positioning
+  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 10) => {
+    const positionArray = Array.from(positions.entries()).map(([id, pos]) => ({
+      id,
+      x: pos.x,
+      y: pos.y,
+      vx: 0,
+      vy: 0
+    }));
+
+    for (let iter = 0; iter < iterations; iter++) {
+      // Calculate gentle repulsion forces
+      positionArray.forEach(node => {
+        let fx = 0, fy = 0;
+        
+        positionArray.forEach(other => {
+          if (other.id === node.id) return;
+          
+          const dx = node.x - other.x;
+          const dy = node.y - other.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < 120 && distance > 0) { // Gentle spacing
+            const force = (120 - distance) * 0.1; // Gentle force
+            fx += (dx / distance) * force;
+            fy += (dy / distance) * force;
+          }
+        });
+        
+        // Apply gentle movement
+        node.vx += fx * 0.1;
+        node.vy += fy * 0.1;
+        node.vx *= 0.8; // Damping
+        node.vy *= 0.8;
+        
+        node.x += node.vx;
+        node.y += node.vy;
+      });
+    }
+
+    // Update positions map
+    positionArray.forEach(node => {
+      positions.set(node.id, { x: node.x, y: node.y });
+    });
+  };
+
+  const getSmartConceptPositions = (
+    centerX: number, 
+    centerY: number, 
+    conceptCount: number, 
+    radius: number
+  ): Array<{ x: number; y: number }> => {
+    const positions: Array<{ x: number; y: number }> = [];
+    
+    if (conceptCount === 1) {
+      positions.push({ x: centerX, y: centerY + radius });
+    } else if (conceptCount === 2) {
+      // Left and right
+      positions.push({ x: centerX - radius, y: centerY });
+      positions.push({ x: centerX + radius, y: centerY });
+    } else if (conceptCount === 3) {
+      // Triangle: top, bottom-left, bottom-right
+      positions.push({ x: centerX, y: centerY - radius }); // Top
+      positions.push({ x: centerX - radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-left
+      positions.push({ x: centerX + radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-right
+    } else if (conceptCount === 4) {
+      // Cardinal directions: top, right, bottom, left
+      positions.push({ x: centerX, y: centerY - radius }); // Top
+      positions.push({ x: centerX + radius, y: centerY }); // Right
+      positions.push({ x: centerX, y: centerY + radius }); // Bottom
+      positions.push({ x: centerX - radius, y: centerY }); // Left
+    } else if (conceptCount === 5) {
+      // Pentagon-like but more natural
+      const angles = [-Math.PI/2, -Math.PI/6, Math.PI/6, Math.PI/2, 5*Math.PI/6];
+      angles.forEach(angle => {
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      });
+    } else if (conceptCount === 6) {
+      // Hexagon but starting from top
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * 2 * Math.PI - Math.PI/2; // Start from top
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      }
+    } else {
+      // For larger numbers, use regular circle
+      for (let i = 0; i < conceptCount; i++) {
+        const angle = (i / conceptCount) * 2 * Math.PI - Math.PI/2; // Start from top
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      }
+    }
+    
+    return positions;
+  };
+
+  // Generate dynamic semantic clusters first
   const semanticClusters = generateDynamicSemanticClusters(concepts);
 
-  // Filter concepts based on search and cluster selection BEFORE using them
+  // Filter concepts based on search and cluster selection
   const filteredConcepts = concepts.filter(concept => {
     // First apply cluster filter
     if (selectedClusters.size > 0) {
@@ -838,109 +941,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     setExpandedClusters(newExpanded);
   };
 
-  // Simple collision detection and gentle physics
-  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 10) => {
-    const positionArray = Array.from(positions.entries()).map(([id, pos]) => ({
-      id,
-      x: pos.x,
-      y: pos.y,
-      vx: 0,
-      vy: 0
-    }));
 
-    for (let iter = 0; iter < iterations; iter++) {
-      // Calculate gentle repulsion forces
-      positionArray.forEach(node => {
-        let fx = 0, fy = 0;
-        
-        positionArray.forEach(other => {
-          if (other.id === node.id) return;
-          
-          const dx = node.x - other.x;
-          const dy = node.y - other.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          
-          if (distance < 120 && distance > 0) { // Gentle spacing
-            const force = (120 - distance) * 0.1; // Gentle force
-            fx += (dx / distance) * force;
-            fy += (dy / distance) * force;
-          }
-        });
-        
-        // Apply gentle movement
-        node.vx += fx * 0.1;
-        node.vy += fy * 0.1;
-        node.vx *= 0.8; // Damping
-        node.vy *= 0.8;
-        
-        node.x += node.vx;
-        node.y += node.vy;
-      });
-    }
-
-    // Update positions map
-    positionArray.forEach(node => {
-      positions.set(node.id, { x: node.x, y: node.y });
-    });
-  };
-
-  // Smart concept positioning with better patterns
-  const getSmartConceptPositions = (
-    centerX: number, 
-    centerY: number, 
-    conceptCount: number, 
-    radius: number
-  ): Array<{ x: number; y: number }> => {
-    const positions: Array<{ x: number; y: number }> = [];
-    
-    if (conceptCount === 1) {
-      positions.push({ x: centerX, y: centerY + radius });
-    } else if (conceptCount === 2) {
-      // Left and right
-      positions.push({ x: centerX - radius, y: centerY });
-      positions.push({ x: centerX + radius, y: centerY });
-    } else if (conceptCount === 3) {
-      // Triangle: top, bottom-left, bottom-right
-      positions.push({ x: centerX, y: centerY - radius }); // Top
-      positions.push({ x: centerX - radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-left
-      positions.push({ x: centerX + radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-right
-    } else if (conceptCount === 4) {
-      // Cardinal directions: top, right, bottom, left
-      positions.push({ x: centerX, y: centerY - radius }); // Top
-      positions.push({ x: centerX + radius, y: centerY }); // Right
-      positions.push({ x: centerX, y: centerY + radius }); // Bottom
-      positions.push({ x: centerX - radius, y: centerY }); // Left
-    } else if (conceptCount === 5) {
-      // Pentagon-like but more natural
-      const angles = [-Math.PI/2, -Math.PI/6, Math.PI/6, Math.PI/2, 5*Math.PI/6];
-      angles.forEach(angle => {
-        positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
-      });
-    } else if (conceptCount === 6) {
-      // Hexagon but starting from top
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * 2 * Math.PI - Math.PI/2; // Start from top
-        positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
-      }
-    } else {
-      // For larger numbers, use regular circle
-      for (let i = 0; i < conceptCount; i++) {
-        const angle = (i / conceptCount) * 2 * Math.PI - Math.PI/2; // Start from top
-        positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
-      }
-    }
-    
-    return positions;
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex">
