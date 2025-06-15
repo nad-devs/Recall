@@ -436,7 +436,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           
           if (subcategories.length <= 6) {
             angle = (index / subcategories.length) * 2 * Math.PI;
-            radius = 180 + (subcategories.length * 8); // Reduced radius
+            radius = 320 + (subcategories.length * 20); // RESTORED larger radius
             
             const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
             const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
@@ -445,19 +445,19 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             const cols = Math.ceil(Math.sqrt(subcategories.length));
             const row = Math.floor(index / cols);
             const col = index % cols;
-            const gridX = cluster.position.x + (col - cols/2) * 200; // Reduced grid spacing
-            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 200; // Reduced grid spacing
+            const gridX = cluster.position.x + (col - cols/2) * 380; // RESTORED larger grid spacing
+            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 380; // RESTORED larger grid spacing
             geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 50, type: 'subcategory', fixed: false };
           }
 
           const node = geometricNodes[key];
           if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
             const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
-            const arcSpan = Math.PI * 1.5; 
+            const arcSpan = Math.PI * 1.8; 
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 90; // Reduced concept orbit
+              const conceptRadius = 200; // RESTORED larger concept orbit
               let conceptAngle;
 
               if (totalConcepts === 1) {
@@ -476,13 +476,13 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
         clusterConcepts.forEach((concept, index) => {
           let angle, radius;
-          const baseRadius = 150; // Reduced base radius
+          const baseRadius = 260; // RESTORED larger base radius
           if (clusterConcepts.length <= 8) {
             angle = (index / clusterConcepts.length) * 2 * Math.PI;
             radius = baseRadius + (clusterConcepts.length * 20);
           } else {
             const spiralFactor = index / clusterConcepts.length;
-            angle = spiralFactor * 5 * Math.PI; // More rotations
+            angle = spiralFactor * 5 * Math.PI; 
             radius = baseRadius + spiralFactor * 220;
           }
           const conceptX = cluster.position.x + Math.cos(angle) * radius;
@@ -578,19 +578,19 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     });
   }, [connections, showConnections, visibleConceptIds]);
 
-  // Calculate viewport bounds - more stable to prevent shrinking
+  // Calculate viewport bounds - reverted to be more dynamic and prevent shrinking
   const viewportBounds = React.useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
-    // Base the bounds on the cluster centers first
+    // First, establish a base viewport from clusters
     semanticClusters.forEach(cluster => {
-      minX = Math.min(minX, cluster.position.x - 500); // Generous static boundary
-      minY = Math.min(minY, cluster.position.y - 500);
-      maxX = Math.max(maxX, cluster.position.x + 500);
-      maxY = Math.max(maxY, cluster.position.y + 500);
+      minX = Math.min(minX, cluster.position.x - 100);
+      minY = Math.min(minY, cluster.position.y - 100);
+      maxX = Math.max(maxX, cluster.position.x + 100);
+      maxY = Math.max(maxY, cluster.position.y + 100);
     });
     
-    // Expand bounds if any nodes go outside the initial area
+    // Then, expand the bounds to include all nodes, ensuring nothing is cut off
     Object.values(physicsNodes).forEach(node => {
       minX = Math.min(minX, node.x - node.radius);
       minY = Math.min(minY, node.y - node.radius);
@@ -598,7 +598,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       maxY = Math.max(maxY, node.y + node.radius);
     });
     
-    const padding = 150; // Reduced padding as base is larger
+    const padding = 200; // Restore generous padding
     return {
       x: minX - padding,
       y: minY - padding,
