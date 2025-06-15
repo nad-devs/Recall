@@ -578,17 +578,19 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     });
   }, [connections, showConnections, visibleConceptIds]);
 
-  // Calculate viewport bounds
+  // Calculate viewport bounds - more stable to prevent shrinking
   const viewportBounds = React.useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     
+    // Base the bounds on the cluster centers first
     semanticClusters.forEach(cluster => {
-      minX = Math.min(minX, cluster.position.x - 100);
-      minY = Math.min(minY, cluster.position.y - 100);
-      maxX = Math.max(maxX, cluster.position.x + 100);
-      maxY = Math.max(maxY, cluster.position.y + 100);
+      minX = Math.min(minX, cluster.position.x - 500); // Generous static boundary
+      minY = Math.min(minY, cluster.position.y - 500);
+      maxX = Math.max(maxX, cluster.position.x + 500);
+      maxY = Math.max(maxY, cluster.position.y + 500);
     });
     
+    // Expand bounds if any nodes go outside the initial area
     Object.values(physicsNodes).forEach(node => {
       minX = Math.min(minX, node.x - node.radius);
       minY = Math.min(minY, node.y - node.radius);
@@ -596,7 +598,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       maxY = Math.max(maxY, node.y + node.radius);
     });
     
-    const padding = 200;
+    const padding = 150; // Reduced padding as base is larger
     return {
       x: minX - padding,
       y: minY - padding,
@@ -962,19 +964,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
 
-            {/* Render Connections */}
-            {showConnections && visibleConnections.map((connection, index) => (
-              <line
-                key={`connection-${index}`}
-                x1={connection.fromPos.x}
-                y1={connection.fromPos.y}
-                x2={connection.toPos.x}
-                y2={connection.toPos.y}
-                stroke="rgba(139, 92, 246, 0.4)"
-                strokeWidth="1"
-                strokeDasharray="3,3"
-              />
-            ))}
+            {/* Render Connections with hover highlight */}
+            {showConnections && visibleConnections.map((connection, index) => {
+              const isHighlighted = hoveredConcept === connection.from || hoveredConcept === connection.to;
+              return (
+                <line
+                  key={`connection-${index}`}
+                  x1={connection.fromPos.x}
+                  y1={connection.fromPos.y}
+                  x2={connection.toPos.x}
+                  y2={connection.toPos.y}
+                  stroke={isHighlighted ? 'rgba(255, 255, 255, 0.9)' : 'rgba(139, 92, 246, 0.4)'}
+                  strokeWidth={isHighlighted ? 2 : 1}
+                  strokeDasharray="3,3"
+                  className="transition-all duration-200"
+                />
+              );
+            })}
 
             {/* Render Cluster Centers */}
             {semanticClusters.map(cluster => {
@@ -1110,10 +1116,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       })}
                     </foreignObject>
                     
-                    {/* Concept Label with proper readable size */}
+                    {/* Concept Label with more spacing */}
                     <text
                       x={node.x}
-                      y={node.y + 50}
+                      y={node.y + 55}
                       textAnchor="middle"
                       className="pointer-events-none"
                       fill="rgba(255,255,255,0.9)"
