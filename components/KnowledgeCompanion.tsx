@@ -348,7 +348,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   // Generate semantic clusters - MEMOIZED to prevent recalculation
   const semanticClusters = React.useMemo(() => 
     generateDynamicSemanticClusters(concepts), 
-    [concepts.length] // Only recalculate if concept count changes
+    [concepts]
   );
 
   // Filter concepts - MEMOIZED
@@ -384,86 +384,87 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-  // Generate and update geometric nodes
-  useEffect(() => {
-    const generateGeometricPositions = (): { [key: string]: GeometricNode } => {
-      const geometricNodes: { [key: string]: GeometricNode } = {};
+  // Memoize the geometric position generation function
+  const generateGeometricPositions = React.useCallback((): { [key: string]: GeometricNode } => {
+    const geometricNodes: { [key: string]: GeometricNode } = {};
+    
+    semanticClusters.forEach(cluster => {
+      const subcategories = generateSubcategories(
+        cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
+      );
       
-      semanticClusters.forEach(cluster => {
-        const subcategories = generateSubcategories(
-          cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
-        );
-        
-        if (subcategories.length > 0) {
-          subcategories.forEach((subcategory, index) => {
-            const key = `subcategory-${cluster.id}-${subcategory.name}`;
-            let angle, radius;
+      if (subcategories.length > 0) {
+        subcategories.forEach((subcategory, index) => {
+          const key = `subcategory-${cluster.id}-${subcategory.name}`;
+          let angle, radius;
+          
+          if (subcategories.length <= 6) {
+            // Circular arrangement for small numbers
+            angle = (index / subcategories.length) * 2 * Math.PI;
+            radius = 250 + (subcategories.length * 10); // Significantly increased radius
             
-            if (subcategories.length <= 6) {
-              // Circular arrangement for small numbers
-              angle = (index / subcategories.length) * 2 * Math.PI;
-              radius = 250 + (subcategories.length * 10); // Significantly increased radius
+            const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
+            const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
+            geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 60, type: 'subcategory', fixed: false };
+          } else {
+            // Grid-like arrangement for larger numbers
+            const cols = Math.ceil(Math.sqrt(subcategories.length));
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+            const gridX = cluster.position.x + (col - cols/2) * 280; // Increased grid spacing
+            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 280; // Increased grid spacing
+            geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 60, type: 'subcategory', fixed: false };
+          }
+
+          const node = geometricNodes[key];
+          if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
+            const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
+            const arcSpan = Math.PI * 1.4; // Wider fan to prevent concept label collision
+            const totalConcepts = subcategory.concepts.length;
+
+            subcategory.concepts.forEach((concept, conceptIndex) => {
+              const conceptRadius = 140; // Increased distance from subcategory to prevent label overlap
+              let conceptAngle;
+
+              if (totalConcepts === 1) {
+                conceptAngle = baseAngle;
+              } else {
+                conceptAngle = baseAngle - (arcSpan / 2) + (conceptIndex / (totalConcepts - 1)) * arcSpan;
+              }
               
-              const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
-              const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 60, type: 'subcategory', fixed: false };
-            } else {
-              // Grid-like arrangement for larger numbers
-              const cols = Math.ceil(Math.sqrt(subcategories.length));
-              const row = Math.floor(index / cols);
-              const col = index % cols;
-              const gridX = cluster.position.x + (col - cols/2) * 280; // Increased grid spacing
-              const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 280; // Increased grid spacing
-              geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 60, type: 'subcategory', fixed: false };
-            }
-
-            const node = geometricNodes[key];
-            if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
-              const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
-              const arcSpan = Math.PI * 1.4; // Wider fan to prevent concept label collision
-              const totalConcepts = subcategory.concepts.length;
-
-              subcategory.concepts.forEach((concept, conceptIndex) => {
-                const conceptRadius = 140; // Increased distance from subcategory to prevent label overlap
-                let conceptAngle;
-
-                if (totalConcepts === 1) {
-                  conceptAngle = baseAngle;
-                } else {
-                  conceptAngle = baseAngle - (arcSpan / 2) + (conceptIndex / (totalConcepts - 1)) * arcSpan;
-                }
-                
-                const conceptX = node.x + Math.cos(conceptAngle) * conceptRadius;
-                const conceptY = node.y + Math.sin(conceptAngle) * conceptRadius;
-                geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
-              });
-            }
-          });
-        } else {
-          const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
-          clusterConcepts.forEach((concept, index) => {
-            let angle, radius;
-            const baseRadius = 200; // Much larger base radius
-            if (clusterConcepts.length <= 8) {
-              angle = (index / clusterConcepts.length) * 2 * Math.PI;
-              radius = baseRadius + (clusterConcepts.length * 10);
-            } else {
-              const spiralFactor = index / clusterConcepts.length;
-              angle = spiralFactor * 5 * Math.PI; // More rotations
-              radius = baseRadius + spiralFactor * 150;
-            }
-            const conceptX = cluster.position.x + Math.cos(angle) * radius;
-            const conceptY = cluster.position.y + Math.sin(angle) * radius;
-            geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
-          });
-        }
-      });
-      
-      return detectAndResolveCollisions(geometricNodes);
-    };
-
-    setPhysicsNodes(generateGeometricPositions());
+              const conceptX = node.x + Math.cos(conceptAngle) * conceptRadius;
+              const conceptY = node.y + Math.sin(conceptAngle) * conceptRadius;
+              geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
+            });
+          }
+        });
+      } else {
+        const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
+        clusterConcepts.forEach((concept, index) => {
+          let angle, radius;
+          const baseRadius = 200; // Much larger base radius
+          if (clusterConcepts.length <= 8) {
+            angle = (index / clusterConcepts.length) * 2 * Math.PI;
+            radius = baseRadius + (clusterConcepts.length * 10);
+          } else {
+            const spiralFactor = index / clusterConcepts.length;
+            angle = spiralFactor * 5 * Math.PI; // More rotations
+            radius = baseRadius + spiralFactor * 150;
+          }
+          const conceptX = cluster.position.x + Math.cos(angle) * radius;
+          const conceptY = cluster.position.y + Math.sin(angle) * radius;
+          geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
+        });
+      }
+    });
+    
+    return detectAndResolveCollisions(geometricNodes);
   }, [semanticClusters, filteredConcepts, expandedSubcategories]);
+
+  // Generate and update geometric nodes
+  React.useEffect(() => {
+    setPhysicsNodes(generateGeometricPositions());
+  }, [generateGeometricPositions]);
 
   // Generate connections - MEMOIZED to stop infinite recalculation
   const connections = React.useMemo(() => {
@@ -990,163 +991,125 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   const isExpanded = expandedSubcategories.has(key);
                   
                   return (
-                    <AnimatePresence key={node.id}>
-                      {node.type === 'concept' && (() => {
-                        const concept = concepts.find(c => `${clusterId}-${subcategoryName}-${c.title}` === node.id);
-                        const subcategory = categories.find(s => s.name === subcategoryName);
-                        if (!concept || !subcategory) return null;
-
-                        const Icon = getConceptIcon(concept);
-
-                        return (
-                          <motion.g
-                            key={node.id}
-                            layout
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.5 }}
-                            transition={{ duration: 0.3, ease: 'easeOut' }}
-                            style={{ x: node.x, y: node.y }}
-                            className="cursor-pointer"
-                            onClick={() => window.open(`/concept/${concept.id}`, '_blank')}
-                          >
-                            {/* Concept Circle */}
-                            <circle
-                              r={node.radius}
-                              fill={cluster?.color || '#6B7280'}
-                              stroke="rgba(255,255,255,0.7)"
-                              strokeWidth="2"
-                            />
-
-                            {/* Concept Icon */}
-                            <foreignObject
-                              x={-node.radius / 2}
-                              y={-node.radius / 2}
-                              width={node.radius}
-                              height={node.radius}
-                              className="pointer-events-none"
-                            >
-                              <Icon className="w-full h-full text-white" />
-                            </foreignObject>
-
-                            {/* Concept Label */}
-                            <text
-                              y={node.radius + 28}
-                              textAnchor="middle"
-                              className="text-xl font-semibold pointer-events-none"
-                              fill="rgba(255,255,255,0.85)"
-                            >
-                              {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
-                            </text>
-                            
-                            {/* Progress indicator */}
-                            {(concept.learningProgress || 0) > 0 && (
-                              <g transform={`translate(${node.radius * 0.7}, ${-node.radius * 0.7})`}>
-                                <circle r="10" fill="rgba(0,0,0,0.5)" />
-                                <text
-                                  textAnchor="middle"
-                                  dy="0.35em"
-                                  className="text-xs font-bold"
-                                  fill="#fff"
-                                >
-                                  {concept.learningProgress}%
-                                </text>
-                              </g>
-                            )}
-                          </motion.g>
-                        );
-                      })()}
-                    </AnimatePresence>
+                    <g key={node.id} className="node-enter-active">
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={node.radius}
+                        fill={cluster?.color || '#6B7280'}
+                        stroke="white"
+                        strokeWidth="3"
+                        className="cursor-pointer transition-all"
+                        onClick={() => toggleSubcategoryExpansion(key)}
+                      />
+                      <text
+                        x={node.x}
+                        y={node.y + 8}
+                        textAnchor="middle"
+                        className="text-2xl font-bold pointer-events-none"
+                        fill="white"
+                        style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.5)' }}
+                      >
+                        {subcategoryName.length > 10 ? subcategoryName.substring(0, 9) + '...' : subcategoryName}
+                      </text>
+                      {isExpanded && (
+                        <text
+                          x={node.x}
+                          y={node.y - node.radius - 15}
+                          textAnchor="middle"
+                          className="text-sm"
+                          fill="white"
+                        >
+                          ▼
+                        </text>
+                      )}
+                    </g>
                   );
                 }
                 return null;
               }
 
-              // Individual concept
+              // Individual concept with animation
               const conceptColor = getConceptColor(concept);
               const isHovered = hoveredConcept === concept.id;
               const connectedNodes = getConnectedNodes(concept.id);
               
               return (
-                <g key={node.id} className="node-enter-active" style={{ transformOrigin: `${node.x}px ${node.y}px` }}>
-                  <circle
-                    cx={node.x}
-                    cy={node.y}
-                    r={node.radius}
-                    data-radius={node.radius}
-                    fill={conceptColor}
-                    stroke={isHovered ? 'white' : 'rgba(255,255,255,0.3)'}
-                    strokeWidth={isHovered ? 3 : 1}
-                    className="cursor-pointer transition-all"
+                <AnimatePresence key={node.id}>
+                  <motion.g
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    className="cursor-pointer"
                     onMouseEnter={(e) => handleConceptHover(concept.id, e)}
                     onMouseLeave={() => handleConceptHover(null)}
                     onClick={() => setSelectedConcept(concept)}
-                  />
-                  
-                  {/* Concept Icon */}
-                  <foreignObject
-                    x={node.x - 14}
-                    y={node.y - 14}
-                    width="28"
-                    height="28"
-                    className="pointer-events-none"
                   >
-                    {React.createElement(getConceptIcon(concept), {
-                      size: 28,
-                      color: 'white'
-                    })}
-                  </foreignObject>
-                  
-                  {/* Concept Label */}
-                  <text
-                    x={node.x}
-                    y={node.y + node.radius + 28}
-                    textAnchor="middle"
-                    className="text-xl font-semibold pointer-events-none"
-                    fill="rgba(255,255,255,0.85)"
-                  >
-                    {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
-                  </text>
-                  
-                  {/* Progress indicator */}
-                  {(concept.learningProgress || 0) > 0 && (
                     <circle
-                      cx={node.x + node.radius - 8}
-                      cy={node.y - node.radius + 8}
-                      r="6"
-                      fill="rgba(34, 197, 94, 0.8)"
-                      stroke="white"
-                      strokeWidth="1"
-                      className="pointer-events-none"
+                      cx={node.x}
+                      cy={node.y}
+                      r={node.radius}
+                      fill={conceptColor}
+                      stroke={isHovered ? 'white' : 'rgba(255,255,255,0.3)'}
+                      strokeWidth={isHovered ? 3 : 1}
+                      className="transition-all"
                     />
-                  )}
-                  
-                  {/* Progress text */}
-                  {(concept.learningProgress || 0) > 0 && (
-                    <text
-                      x={node.x + node.radius - 8}
-                      y={node.y - node.radius + 12}
-                      textAnchor="middle"
-                      className="text-xs font-bold pointer-events-none"
-                      fill="white"
+                    
+                    {/* Concept Icon */}
+                    <foreignObject
+                      x={node.x - 14}
+                      y={node.y - 14}
+                      width="28"
+                      height="28"
+                      className="pointer-events-none"
                     >
-                      {Math.round(concept.learningProgress || 0)}
+                      {React.createElement(getConceptIcon(concept), {
+                        size: 28,
+                        color: 'white'
+                      })}
+                    </foreignObject>
+                    
+                    {/* Concept Label */}
+                    <text
+                      x={node.x}
+                      y={node.y + node.radius + 28}
+                      textAnchor="middle"
+                      className="text-xl font-semibold pointer-events-none"
+                      fill="rgba(255,255,255,0.85)"
+                    >
+                      {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
                     </text>
-                  )}
-                  
-                  {/* Connection indicators */}
-                  {connectedNodes.size > 0 && (
-                    <circle
-                      cx={node.x - node.radius + 10}
-                      cy={node.y - node.radius + 10}
-                      r="6"
-                      fill="rgba(59, 130, 246, 0.9)"
-                      stroke="white"
-                      strokeWidth="1.5"
-                      className="pointer-events-none"
-                    />
-                  )}
-                </g>
+                    
+                    {/* Progress indicator */}
+                    {(concept.learningProgress || 0) > 0 && (
+                      <g transform={`translate(${node.x + node.radius - 8}, ${node.y - node.radius + 8})`}>
+                        <circle r="6" fill="rgba(34, 197, 94, 0.8)" stroke="white" strokeWidth="1" />
+                        <text
+                          textAnchor="middle"
+                          dy="0.35em"
+                          className="text-xs font-bold"
+                          fill="white"
+                        >
+                          {Math.round(concept.learningProgress || 0)}
+                        </text>
+                      </g>
+                    )}
+                    
+                    {/* Connection indicators */}
+                    {connectedNodes.size > 0 && (
+                      <circle
+                        cx={node.x - node.radius + 10}
+                        cy={node.y - node.radius + 10}
+                        r="6"
+                        fill="rgba(59, 130, 246, 0.9)"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        className="pointer-events-none"
+                      />
+                    )}
+                  </motion.g>
+                </AnimatePresence>
               );
             })}
 
