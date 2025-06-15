@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Brain, Target, BookOpen, Search, Eye, EyeOff, Code, Cloud, Database, Cpu, Network, Shield, Zap, Settings, FileText, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Types compatible with existing graph page
 interface Category {
@@ -405,7 +406,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               
               const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
               const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 45, type: 'subcategory', fixed: false };
+              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 60, type: 'subcategory', fixed: false };
             } else {
               // Grid-like arrangement for larger numbers
               const cols = Math.ceil(Math.sqrt(subcategories.length));
@@ -413,17 +414,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               const col = index % cols;
               const gridX = cluster.position.x + (col - cols/2) * 280; // Increased grid spacing
               const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 280; // Increased grid spacing
-              geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 45, type: 'subcategory', fixed: false };
+              geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 60, type: 'subcategory', fixed: false };
             }
 
             const node = geometricNodes[key];
             if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
               const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
-              const arcSpan = Math.PI * 1.2; // 216 degrees for a wide fan
+              const arcSpan = Math.PI * 1.4; // Wider fan to prevent concept label collision
               const totalConcepts = subcategory.concepts.length;
 
               subcategory.concepts.forEach((concept, conceptIndex) => {
-                const conceptRadius = 110; // Slightly reduced to tighten the arc
+                const conceptRadius = 140; // Increased distance from subcategory to prevent label overlap
                 let conceptAngle;
 
                 if (totalConcepts === 1) {
@@ -989,39 +990,73 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   const isExpanded = expandedSubcategories.has(key);
                   
                   return (
-                    <g key={node.id} className="node-enter-active">
-                      <circle
-                        cx={node.x}
-                        cy={node.y}
-                        r={node.radius}
-                        fill={cluster?.color || '#6B7280'}
-                        stroke="white"
-                        strokeWidth="3"
-                        className="cursor-pointer transition-all"
-                        onClick={() => toggleSubcategoryExpansion(key)}
-                      />
-                      <text
-                        x={node.x}
-                        y={node.y + 8}
-                        textAnchor="middle"
-                        className="text-2xl font-bold pointer-events-none"
-                        fill="white"
-                        style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.5)' }}
-                      >
-                        {subcategoryName.length > 10 ? subcategoryName.substring(0, 9) + '...' : subcategoryName}
-                      </text>
-                      {isExpanded && (
-                        <text
-                          x={node.x}
-                          y={node.y - node.radius - 15}
-                          textAnchor="middle"
-                          className="text-sm"
-                          fill="white"
-                        >
-                          ▼
-                        </text>
-                      )}
-                    </g>
+                    <AnimatePresence key={node.id}>
+                      {node.type === 'concept' && (() => {
+                        const concept = concepts.find(c => `${clusterId}-${subcategoryName}-${c.title}` === node.id);
+                        const subcategory = categories.find(s => s.name === subcategoryName);
+                        if (!concept || !subcategory) return null;
+
+                        const Icon = getConceptIcon(concept);
+
+                        return (
+                          <motion.g
+                            key={node.id}
+                            layout
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.5 }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                            style={{ x: node.x, y: node.y }}
+                            className="cursor-pointer"
+                            onClick={() => window.open(`/concept/${concept.id}`, '_blank')}
+                          >
+                            {/* Concept Circle */}
+                            <circle
+                              r={node.radius}
+                              fill={cluster?.color || '#6B7280'}
+                              stroke="rgba(255,255,255,0.7)"
+                              strokeWidth="2"
+                            />
+
+                            {/* Concept Icon */}
+                            <foreignObject
+                              x={-node.radius / 2}
+                              y={-node.radius / 2}
+                              width={node.radius}
+                              height={node.radius}
+                              className="pointer-events-none"
+                            >
+                              <Icon className="w-full h-full text-white" />
+                            </foreignObject>
+
+                            {/* Concept Label */}
+                            <text
+                              y={node.radius + 28}
+                              textAnchor="middle"
+                              className="text-xl font-semibold pointer-events-none"
+                              fill="rgba(255,255,255,0.85)"
+                            >
+                              {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
+                            </text>
+                            
+                            {/* Progress indicator */}
+                            {(concept.learningProgress || 0) > 0 && (
+                              <g transform={`translate(${node.radius * 0.7}, ${-node.radius * 0.7})`}>
+                                <circle r="10" fill="rgba(0,0,0,0.5)" />
+                                <text
+                                  textAnchor="middle"
+                                  dy="0.35em"
+                                  className="text-xs font-bold"
+                                  fill="#fff"
+                                >
+                                  {concept.learningProgress}%
+                                </text>
+                              </g>
+                            )}
+                          </motion.g>
+                        );
+                      })()}
+                    </AnimatePresence>
                   );
                 }
                 return null;
@@ -1065,9 +1100,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   {/* Concept Label */}
                   <text
                     x={node.x}
-                    y={node.y + node.radius + 25}
+                    y={node.y + node.radius + 28}
                     textAnchor="middle"
-                    className="text-lg font-semibold pointer-events-none"
+                    className="text-xl font-semibold pointer-events-none"
                     fill="rgba(255,255,255,0.85)"
                   >
                     {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
