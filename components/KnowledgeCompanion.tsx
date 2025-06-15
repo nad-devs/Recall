@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Brain, Target, BookOpen, Search, Eye, EyeOff, Code, Cloud, Database, Cpu, Network, Shield, Zap, Settings, FileText, Users, ChevronDown, ChevronRight } from 'lucide-react';
 
 // Types compatible with existing graph page
@@ -53,6 +53,19 @@ interface SemanticCluster {
   icon: React.ComponentType<any>;
   position: { x: number; y: number };
   keywords: string[];
+}
+
+// Physics node interface
+interface PhysicsNode {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  mass: number;
+  fixed?: boolean;
+  type: 'concept' | 'subcategory';
 }
 
 // Add tooltip state interface
@@ -140,8 +153,7 @@ const generateSubcategories = (clusterConcepts: Concept[]) => {
   }));
 };
 
-// AI-powered semantic clustering
-const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
+const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
   // Define semantic groups with keywords and patterns
   const semanticGroups = [
     {
@@ -241,8 +253,8 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
         color: group.color,
         icon: group.icon,
         position: {
-          x: col * 500 + 300, // Increased spacing from 450 to 500
-          y: row * 400 + 250  // Increased spacing from 350 to 400
+          x: col * 600 + 400, // Much more spacing
+          y: row * 500 + 300  // Much more spacing
         },
         keywords: group.keywords
       });
@@ -252,92 +264,6 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
   return clusters;
 };
 
-// Dynamic clustering based on actual concept data
-const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
-  // Analyze concepts to find natural clusters
-  const categoryGroups = new Map<string, Concept[]>();
-  const categoryKeywords = new Map<string, Set<string>>();
-  
-  // First pass: group by main category and collect keywords
-  concepts.forEach(concept => {
-    const mainCategory = concept.category.split(' > ')[0] || 'Other';
-    
-    if (!categoryGroups.has(mainCategory)) {
-      categoryGroups.set(mainCategory, []);
-      categoryKeywords.set(mainCategory, new Set());
-    }
-    
-    categoryGroups.get(mainCategory)!.push(concept);
-    
-    // Extract keywords from title and summary
-    const text = `${concept.title} ${concept.summary || ''}`.toLowerCase();
-    const words = text.split(/\s+/).filter(word => word.length > 3);
-    words.forEach(word => categoryKeywords.get(mainCategory)!.add(word));
-  });
-  
-  // Define color palette for dynamic clusters
-  const colors = [
-    "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", 
-    "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F",
-    "#FF9F43", "#54A0FF", "#5F27CD", "#00D2D3"
-  ];
-  
-  const clusters: SemanticCluster[] = [];
-  let colorIndex = 0;
-  
-  // Create clusters from natural categories
-  categoryGroups.forEach((groupConcepts, categoryName) => {
-    if (groupConcepts.length > 0) {
-      // Determine icon based on keywords
-      const keywords = Array.from(categoryKeywords.get(categoryName) || []);
-      let icon = Settings; // default
-      
-      if (keywords.some(k => ['algorithm', 'leetcode', 'programming', 'code'].includes(k))) {
-        icon = Code;
-      } else if (keywords.some(k => ['cloud', 'aws', 'kubernetes', 'docker'].includes(k))) {
-        icon = Cloud;
-      } else if (keywords.some(k => ['machine', 'learning', 'ai', 'neural'].includes(k))) {
-        icon = Brain;
-      } else if (keywords.some(k => ['data', 'database', 'sql', 'query'].includes(k))) {
-        icon = Database;
-      } else if (keywords.some(k => ['system', 'architecture', 'microservice'].includes(k))) {
-        icon = Cpu;
-      } else if (keywords.some(k => ['security', 'auth', 'token'].includes(k))) {
-        icon = Shield;
-      } else if (keywords.some(k => ['performance', 'optimization', 'load'].includes(k))) {
-        icon = Zap;
-      } else if (keywords.some(k => ['web', 'frontend', 'backend', 'api'].includes(k))) {
-        icon = Network;
-      }
-      
-      // Calculate cluster position in grid
-      const cols = 3;
-      const row = Math.floor(clusters.length / cols);
-      const col = clusters.length % cols;
-      
-      clusters.push({
-        id: `cluster-${clusters.length}`,
-        name: categoryName,
-        concepts: groupConcepts,
-        color: colors[colorIndex % colors.length],
-        icon: icon,
-        position: {
-          x: col * 450 + 250,
-          y: row * 350 + 200
-        },
-        keywords: keywords.slice(0, 10) // Top 10 keywords
-      });
-      
-      colorIndex++;
-    }
-  });
-  
-  return clusters;
-};
-
-// Physics-based positioning with constraints
-
-
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   concepts,
   categories,
@@ -345,6 +271,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<number>();
+  
   const [mode, setMode] = useState<'learning' | 'interview'>('learning');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
@@ -352,23 +280,15 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const [showConnections, setShowConnections] = useState(true);
   const [selectedClusters, setSelectedClusters] = useState<Set<string>>(new Set());
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
-  const [viewBox, setViewBox] = useState({ x: -200, y: -100, width: 1800, height: 1200 });
   
-  // Connection creation state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ conceptId: string; x: number; y: number } | null>(null);
-  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
-  const [userConnections, setUserConnections] = useState<Array<{from: string, to: string}>>([]);
-  
-  // Subcategory expansion state with animation support
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
   const [animatingSubcategories, setAnimatingSubcategories] = useState<Set<string>>(new Set());
   
-  // Add zoom and pan functionality
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Physics state
+  const [physicsNodes, setPhysicsNodes] = useState<{ [key: string]: PhysicsNode }>({});
+  const [physicsRunning, setPhysicsRunning] = useState(false);
   
-  // Dynamic tooltip state
+  // Tooltip state
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
@@ -376,119 +296,298 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     content: null
   });
 
-  // Keyboard zoom handler (Ctrl+/Ctrl-)
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.ctrlKey) {
-      if (event.key === '=' || event.key === '+') {
-        event.preventDefault();
-        setZoom(prev => Math.min(3, prev * 1.2));
-      } else if (event.key === '-') {
-        event.preventDefault();
-        setZoom(prev => Math.max(0.3, prev * 0.8));
+  // Generate semantic clusters - MEMOIZED to prevent recalculation
+  const semanticClusters = React.useMemo(() => 
+    generateDynamicSemanticClusters(concepts), 
+    [concepts.length] // Only recalculate if concept count changes
+  );
+
+  // Filter concepts - MEMOIZED
+  const filteredConcepts = React.useMemo(() => {
+    return concepts.filter(concept => {
+      // First apply cluster filter
+      if (selectedClusters.size > 0) {
+        const conceptCluster = semanticClusters.find(cluster => 
+          cluster.concepts.some(c => c.id === concept.id)
+        );
+        if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
+          return false;
+        }
       }
-    }
-  };
+      
+      // Then apply search filter
+      if (!searchQuery) return true;
+      
+      return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [concepts, selectedClusters, searchQuery, semanticClusters]);
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const resetZoom = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  // Improved physics with stronger separation forces
-  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 20) => {
-    const positionArray = Array.from(positions.entries()).map(([id, pos]) => ({
-      id,
-      x: pos.x,
-      y: pos.y,
-      vx: 0,
-      vy: 0
-    }));
-
-    for (let iter = 0; iter < iterations; iter++) {
-      // Calculate stronger repulsion forces
-      positionArray.forEach(node => {
+  // REAL PHYSICS ENGINE
+  const runPhysicsStep = useCallback(() => {
+    setPhysicsNodes(prevNodes => {
+      const nodes = { ...prevNodes };
+      const nodeArray = Object.values(nodes);
+      
+      // Apply forces
+      nodeArray.forEach(node => {
+        if (node.fixed) return;
+        
         let fx = 0, fy = 0;
         
-        positionArray.forEach(other => {
+        // Repulsion forces (anti-gravity)
+        nodeArray.forEach(other => {
           if (other.id === node.id) return;
           
           const dx = node.x - other.x;
           const dy = node.y - other.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          // Stronger separation requirements
-          const minDistance = 80; // Minimum distance between nodes
-          if (distance < minDistance && distance > 0) {
-            const force = (minDistance - distance) * 0.5; // Stronger force
+          if (distance > 0 && distance < 200) {
+            const force = (200 - distance) * 0.8;
             fx += (dx / distance) * force;
             fy += (dy / distance) * force;
           }
         });
         
-        // Apply movement with stronger acceleration
-        node.vx += fx * 0.3;
-        node.vy += fy * 0.3;
-        node.vx *= 0.8; // More damping for stability
-        node.vy *= 0.8;
+        // Apply velocity
+        node.vx = (node.vx + fx * 0.1) * 0.85; // Add force and damping
+        node.vy = (node.vy + fy * 0.1) * 0.85;
         
+        // Update position
         node.x += node.vx;
         node.y += node.vy;
+        
+        // Store back
+        nodes[node.id] = { ...node };
       });
-    }
-
-    // Update positions map
-    positionArray.forEach(node => {
-      positions.set(node.id, { x: node.x, y: node.y });
+      
+      return nodes;
     });
+  }, []);
+
+  // Physics animation loop
+  useEffect(() => {
+    if (!physicsRunning) return;
+    
+    const animate = () => {
+      runPhysicsStep();
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    
+    // Stop after 5 seconds
+    const timeout = setTimeout(() => {
+      setPhysicsRunning(false);
+    }, 5000);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      clearTimeout(timeout);
+    };
+  }, [physicsRunning, runPhysicsStep]);
+
+  // Initialize physics nodes when subcategories expand
+  useEffect(() => {
+    const newNodes: { [key: string]: PhysicsNode } = {};
+    
+    semanticClusters.forEach(cluster => {
+      const subcategories = generateSubcategories(
+        cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
+      );
+      
+      // Add subcategory bubbles as physics nodes
+      subcategories.forEach((subcategory, index) => {
+        const key = `subcategory-${cluster.id}-${subcategory.name}`;
+        const angle = (index / subcategories.length) * 2 * Math.PI;
+        const radius = 150;
+        
+        newNodes[key] = {
+          id: key,
+          x: cluster.position.x + Math.cos(angle) * radius,
+          y: cluster.position.y + Math.sin(angle) * radius,
+          vx: 0,
+          vy: 0,
+          radius: 40,
+          mass: 2,
+          fixed: false,
+          type: 'subcategory'
+        };
+        
+        // Add individual concepts when subcategory is expanded
+        if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
+          subcategory.concepts.forEach((concept, conceptIndex) => {
+            const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+            const conceptRadius = 100;
+            const subcategoryNode = newNodes[key];
+            
+            newNodes[concept.id] = {
+              id: concept.id,
+              x: subcategoryNode.x + Math.cos(conceptAngle) * conceptRadius,
+              y: subcategoryNode.y + Math.sin(conceptAngle) * conceptRadius,
+              vx: 0,
+              vy: 0,
+              radius: 25, // Proper size!
+              mass: 1,
+              fixed: false,
+              type: 'concept'
+            };
+          });
+        }
+      });
+      
+      // Add individual concepts for clusters without subcategories
+      if (subcategories.length === 0) {
+        cluster.concepts
+          .filter(concept => filteredConcepts.some(fc => fc.id === concept.id))
+          .forEach((concept, index) => {
+            const angle = (index / cluster.concepts.length) * 2 * Math.PI;
+            const radius = 100;
+            
+            newNodes[concept.id] = {
+              id: concept.id,
+              x: cluster.position.x + Math.cos(angle) * radius,
+              y: cluster.position.y + Math.sin(angle) * radius,
+              vx: 0,
+              vy: 0,
+              radius: 25, // Proper size!
+              mass: 1,
+              fixed: false,
+              type: 'concept'
+            };
+          });
+      }
+    });
+    
+    setPhysicsNodes(newNodes);
+    
+    // Start physics when we have nodes
+    if (Object.keys(newNodes).length > 0) {
+      setPhysicsRunning(true);
+    }
+  }, [expandedSubcategories, filteredConcepts, semanticClusters]);
+
+  // Parse JSON fields safely
+  const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
+    if (!jsonString || jsonString.trim() === '') return fallback;
+    try {
+      const parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch (error) {
+      return fallback;
+    }
   };
 
-  // Improved smart positioning with collision detection
-  const getSmartConceptPositions = (
-    centerX: number, 
-    centerY: number, 
-    conceptCount: number, 
-    radius: number
-  ): Array<{ x: number; y: number }> => {
-    const positions: Array<{ x: number; y: number }> = [];
+  // Generate connections - MEMOIZED to stop infinite recalculation
+  const connections = React.useMemo(() => {
+    return concepts.flatMap(concept => {
+      const relatedIds = parseJsonField(concept.relatedConcepts, []);
+      
+      return relatedIds.map((relatedItem: any) => {
+        let targetConceptId: string | null = null;
+        let targetConcept: any;
+        
+        if (typeof relatedItem === 'string') {
+          targetConceptId = relatedItem;
+          targetConcept = concepts.find(c => c.id === targetConceptId);
+        } else if (typeof relatedItem === 'object' && relatedItem !== null) {
+          if (relatedItem.id) {
+            targetConceptId = relatedItem.id;
+            targetConcept = concepts.find(c => c.id === targetConceptId);
+          } else if (relatedItem.title) {
+            targetConcept = concepts.find(c => c.title === relatedItem.title);
+            targetConceptId = targetConcept?.id || null;
+          }
+        }
+        
+        if (!targetConcept || !targetConceptId) return null;
+        
+        const fromPos = physicsNodes[concept.id];
+        const toPos = physicsNodes[targetConceptId];
+        
+        if (!fromPos || !toPos) return null;
+        
+        return {
+          from: concept.id,
+          to: targetConceptId,
+          fromPos: { x: fromPos.x, y: fromPos.y },
+          toPos: { x: toPos.x, y: toPos.y },
+          fromConcept: concept,
+          toConcept: targetConcept
+        };
+      }).filter(Boolean);
+    });
+  }, [concepts, physicsNodes]);
+
+  // Get visible concept IDs
+  const visibleConceptIds = React.useMemo(() => {
+    const visibleIds = new Set<string>();
     
-    if (conceptCount === 1) {
-      positions.push({ x: centerX, y: centerY + radius });
-    } else if (conceptCount === 2) {
-      // Left and right with more spacing
-      positions.push({ x: centerX - radius * 1.2, y: centerY });
-      positions.push({ x: centerX + radius * 1.2, y: centerY });
-    } else if (conceptCount === 3) {
-      // Triangle with better spacing
-      positions.push({ x: centerX, y: centerY - radius * 1.1 }); // Top
-      positions.push({ x: centerX - radius * 1.0, y: centerY + radius * 0.8 }); // Bottom-left
-      positions.push({ x: centerX + radius * 1.0, y: centerY + radius * 0.8 }); // Bottom-right
-    } else if (conceptCount === 4) {
-      // Cardinal directions with better spacing
-      positions.push({ x: centerX, y: centerY - radius * 1.2 }); // Top
-      positions.push({ x: centerX + radius * 1.2, y: centerY }); // Right
-      positions.push({ x: centerX, y: centerY + radius * 1.2 }); // Bottom
-      positions.push({ x: centerX - radius * 1.2, y: centerY }); // Left
-    } else {
-      // For larger numbers, use circles with better spacing
-      for (let i = 0; i < conceptCount; i++) {
-        const angle = (i / conceptCount) * 2 * Math.PI - Math.PI/2; // Start from top
-        const adjustedRadius = radius * (1 + Math.floor(conceptCount / 8) * 0.3); // Scale radius based on count
-        positions.push({
-          x: centerX + Math.cos(angle) * adjustedRadius,
-          y: centerY + Math.sin(angle) * adjustedRadius
+    semanticClusters.forEach(cluster => {
+      const subcategories = generateSubcategories(
+        cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
+      );
+      
+      if (subcategories.length > 0) {
+        subcategories.forEach(subcategory => {
+          const key = `${cluster.id}-${subcategory.name}`;
+          if (expandedSubcategories.has(key)) {
+            subcategory.concepts.forEach(concept => {
+              visibleIds.add(concept.id);
+            });
+          }
+        });
+      } else {
+        cluster.concepts.forEach(concept => {
+          if (filteredConcepts.some(fc => fc.id === concept.id)) {
+            visibleIds.add(concept.id);
+          }
         });
       }
-    }
+    });
     
-    return positions;
-  };
+    return visibleIds;
+  }, [semanticClusters, filteredConcepts, expandedSubcategories]);
 
-  // Dynamic mouse position handler for tooltips
+  const visibleConnections = React.useMemo(() => {
+    return connections.filter(conn => {
+      if (!conn || !showConnections) return false;
+      return visibleConceptIds.has(conn.from) && visibleConceptIds.has(conn.to);
+    });
+  }, [connections, showConnections, visibleConceptIds]);
+
+  // Calculate viewport bounds
+  const viewportBounds = React.useMemo(() => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    semanticClusters.forEach(cluster => {
+      minX = Math.min(minX, cluster.position.x - 100);
+      minY = Math.min(minY, cluster.position.y - 100);
+      maxX = Math.max(maxX, cluster.position.x + 100);
+      maxY = Math.max(maxY, cluster.position.y + 100);
+    });
+    
+    Object.values(physicsNodes).forEach(node => {
+      minX = Math.min(minX, node.x - node.radius);
+      minY = Math.min(minY, node.y - node.radius);
+      maxX = Math.max(maxX, node.x + node.radius);
+      maxY = Math.max(maxY, node.y + node.radius);
+    });
+    
+    const padding = 200;
+    return {
+      x: minX - padding,
+      y: minY - padding,
+      width: Math.max(1400, (maxX - minX) + padding * 2),
+      height: Math.max(1000, (maxY - minY) + padding * 2)
+    };
+  }, [semanticClusters, physicsNodes]);
+
+  // Event handlers
   const handleMouseMove = (event: React.MouseEvent) => {
     if (!containerRef.current) return;
     
@@ -503,19 +602,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         y
       }));
     }
-    
-    // Handle drag connection if dragging
-    if (isDragging && dragStart) {
-      const svgRect = svgRef.current?.getBoundingClientRect();
-      if (svgRect) {
-        const svgX = ((event.clientX - svgRect.left) * viewBox.width) / svgRect.width + viewBox.x;
-        const svgY = ((event.clientY - svgRect.top) * viewBox.height) / svgRect.height + viewBox.y;
-        setDragCurrent({ x: svgX, y: svgY });
-      }
-    }
+
   };
 
-  // Enhanced concept hover handler
   const handleConceptHover = (conceptId: string | null, event?: React.MouseEvent) => {
     if (conceptId) {
       const concept = concepts.find(c => c.id === conceptId);
@@ -537,11 +626,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     setHoveredConcept(conceptId);
   };
 
-  // Smooth subcategory expansion with animation
   const toggleSubcategoryExpansion = (key: string) => {
     setAnimatingSubcategories(prev => new Set(prev).add(key));
     
-    // Toggle expansion state
     setExpandedSubcategories(prev => {
       const newSet = new Set(prev);
       if (newSet.has(key)) {
@@ -552,444 +639,15 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       return newSet;
     });
     
-    // Remove animation state after animation completes
     setTimeout(() => {
       setAnimatingSubcategories(prev => {
         const newSet = new Set(prev);
         newSet.delete(key);
         return newSet;
       });
-    }, 300); // Match CSS transition duration
+    }, 300);
   };
 
-  // Generate dynamic semantic clusters first
-  const semanticClusters = generateDynamicSemanticClusters(concepts);
-
-  // Filter concepts based on search and cluster selection
-  const filteredConcepts = concepts.filter(concept => {
-    // First apply cluster filter
-    if (selectedClusters.size > 0) {
-      const conceptCluster = semanticClusters.find(cluster => 
-        cluster.concepts.some(c => c.id === concept.id)
-      );
-      if (!conceptCluster || !selectedClusters.has(conceptCluster.id)) {
-        return false;
-      }
-    }
-    
-    // Then apply search filter
-    if (!searchQuery) return true;
-    
-    return concept.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           concept.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           (concept.summary || '').toLowerCase().includes(searchQuery.toLowerCase());
-  });
-  
-  // Create dynamic position map with organized layout
-  const dynamicConceptPositions = new Map<string, { x: number; y: number }>();
-  
-  // ORGANIZED LAYOUT: Position subcategories and individual concepts
-  semanticClusters.forEach(cluster => {
-    const clusterConcepts = cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id));
-    const subcategories = generateSubcategories(clusterConcepts);
-    
-    if (subcategories.length > 0) {
-      // CLUSTER HAS SUBCATEGORIES - position them in organized circles
-      subcategories.forEach((subcategory, index) => {
-        const totalSubcategories = subcategories.length;
-        let x, y;
-        
-        if (totalSubcategories === 1) {
-          // Single subcategory - place at cluster center
-          x = cluster.position.x;
-          y = cluster.position.y;
-        } else if (totalSubcategories <= 6) {
-          // Small clusters - compact circle
-          const angle = (index / totalSubcategories) * 2 * Math.PI;
-          const radius = 100; // Compact radius
-          x = cluster.position.x + Math.cos(angle) * radius;
-          y = cluster.position.y + Math.sin(angle) * radius;
-        } else {
-          // Larger clusters - concentric circles
-          const innerCount = 6;
-          if (index < innerCount) {
-            // Inner circle
-            const angle = (index / innerCount) * 2 * Math.PI;
-            const radius = 80;
-            x = cluster.position.x + Math.cos(angle) * radius;
-            y = cluster.position.y + Math.sin(angle) * radius;
-          } else {
-            // Outer circle
-            const outerIndex = index - innerCount;
-            const outerCount = totalSubcategories - innerCount;
-            const angle = (outerIndex / outerCount) * 2 * Math.PI;
-            const radius = 130;
-            x = cluster.position.x + Math.cos(angle) * radius;
-            y = cluster.position.y + Math.sin(angle) * radius;
-          }
-        }
-        
-        const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-        dynamicConceptPositions.set(subcategoryKey, { x, y });
-      });
-      
-      // Apply gentle physics to subcategories to avoid overlaps
-      const subcategoryPositions = new Map<string, { x: number; y: number }>();
-      subcategories.forEach((subcategory) => {
-        const key = `subcategory-${cluster.id}-${subcategory.name}`;
-        const pos = dynamicConceptPositions.get(key);
-        if (pos) subcategoryPositions.set(key, pos);
-      });
-      applyGentlePhysics(subcategoryPositions, 5);
-      subcategoryPositions.forEach((pos, key) => {
-        dynamicConceptPositions.set(key, pos);
-      });
-    } else {
-      // CLUSTER HAS NO SUBCATEGORIES - position individual concepts directly
-      clusterConcepts.forEach((concept, index) => {
-        let x, y;
-        
-        if (clusterConcepts.length === 1) {
-          x = cluster.position.x;
-          y = cluster.position.y;
-        } else if (clusterConcepts.length <= 8) {
-          // Small circle around cluster center
-          const angle = (index / clusterConcepts.length) * 2 * Math.PI;
-          const radius = 60;
-          x = cluster.position.x + Math.cos(angle) * radius;
-          y = cluster.position.y + Math.sin(angle) * radius;
-        } else {
-          // Multiple rings for larger clusters
-          const conceptsPerRing = 8;
-          const ring = Math.floor(index / conceptsPerRing);
-          const indexInRing = index % conceptsPerRing;
-          const conceptsInThisRing = Math.min(conceptsPerRing, clusterConcepts.length - ring * conceptsPerRing);
-          const ringRadius = 60 + (ring * 50);
-          const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
-          
-          x = cluster.position.x + Math.cos(angle) * ringRadius;
-          y = cluster.position.y + Math.sin(angle) * ringRadius;
-        }
-        
-        dynamicConceptPositions.set(concept.id, { x, y });
-      });
-      
-      // Apply gentle physics to individual concepts in this cluster
-      const clusterConceptPositions = new Map<string, { x: number; y: number }>();
-      clusterConcepts.forEach((concept) => {
-        const pos = dynamicConceptPositions.get(concept.id);
-        if (pos) clusterConceptPositions.set(concept.id, pos);
-      });
-      applyGentlePhysics(clusterConceptPositions, 5);
-      clusterConceptPositions.forEach((pos, conceptId) => {
-        dynamicConceptPositions.set(conceptId, pos);
-      });
-    }
-  });
-
-  // Handle expanded subcategory concepts (when user clicks to expand)
-  semanticClusters.forEach(cluster => {
-    const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-    
-    subcategories.forEach((subcategory) => {
-      const key = `${cluster.id}-${subcategory.name}`;
-      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-      const subcategoryPos = dynamicConceptPositions.get(subcategoryKey);
-      
-      if (expandedSubcategories.has(key) && subcategoryPos) {
-        // Calculate bubble size
-        const nameLength = subcategory.name.length;
-        const baseSizeFromName = Math.max(25, nameLength * 2);
-        const baseSizeFromCount = subcategory.count * 3;
-        const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-        
-        // Smart concept positioning around subcategory with much more space
-        const conceptRadius = bubbleRadius + 120; // Increased significantly for better separation
-        const conceptPositions = getSmartConceptPositions(
-          subcategoryPos.x,
-          subcategoryPos.y,
-          subcategory.concepts.length,
-          conceptRadius
-        );
-        
-        subcategory.concepts.forEach((concept: any, index: number) => {
-          if (index < conceptPositions.length) {
-            dynamicConceptPositions.set(concept.id, conceptPositions[index]);
-          }
-        });
-        
-        // Apply much stronger physics to concepts around this subcategory
-        const conceptPosMap = new Map<string, { x: number; y: number }>();
-        subcategory.concepts.forEach((concept: any) => {
-          const pos = dynamicConceptPositions.get(concept.id);
-          if (pos) conceptPosMap.set(concept.id, pos);
-        });
-        
-        // Apply physics multiple times for better separation
-        applyGentlePhysics(conceptPosMap, 25); // Much more iterations
-        
-        conceptPosMap.forEach((pos, conceptId) => {
-          dynamicConceptPositions.set(conceptId, pos);
-        });
-      }
-    });
-  });
-
-  // Parse JSON fields safely with better error handling
-  const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
-    if (!jsonString || jsonString.trim() === '') return fallback;
-    try {
-      const parsed = JSON.parse(jsonString);
-      return Array.isArray(parsed) ? parsed : fallback;
-    } catch (error) {
-      console.warn('Failed to parse JSON field:', jsonString, error);
-      return fallback;
-    }
-  };
-  
-  // Calculate dynamic viewport bounds for simple layout
-  const calculateViewportBounds = () => {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
-    // Include all base cluster positions
-    semanticClusters.forEach(cluster => {
-      minX = Math.min(minX, cluster.position.x - 50);
-      minY = Math.min(minY, cluster.position.y - 50);
-      maxX = Math.max(maxX, cluster.position.x + 50);
-      maxY = Math.max(maxY, cluster.position.y + 50);
-    });
-    
-    // Include all dynamic concept positions
-    dynamicConceptPositions.forEach(position => {
-      minX = Math.min(minX, position.x - 30);
-      minY = Math.min(minY, position.y - 30);
-      maxX = Math.max(maxX, position.x + 30);
-      maxY = Math.max(maxY, position.y + 30);
-    });
-    
-    // Add reasonable padding
-    const padding = 100;
-    
-    return {
-      x: minX - padding,
-      y: minY - padding,
-      width: Math.max(1200, (maxX - minX) + padding * 2),
-      height: Math.max(800, (maxY - minY) + padding * 2)
-    };
-  };
-  
-  // Optimize viewport bounds calculation - only recalculate when necessary
-  const viewportBounds = React.useMemo(() => calculateViewportBounds(), [
-    semanticClusters.length, 
-    dynamicConceptPositions.size, 
-    expandedSubcategories.size
-  ]);
-
-  // Generate connections with better debugging
-  const connections = concepts.flatMap(concept => {
-    const relatedIds = parseJsonField(concept.relatedConcepts, []);
-    
-    if (relatedIds.length > 0) {
-      console.log(`Concept "${concept.title}" has related concepts:`, relatedIds);
-    }
-    
-    return relatedIds.map((relatedItem: any) => {
-      // Handle different formats of related concepts
-      let targetConceptId: string | null = null;
-      let targetConcept: any;
-      
-      if (typeof relatedItem === 'string') {
-        // Direct ID reference
-        targetConceptId = relatedItem;
-        targetConcept = concepts.find(c => c.id === targetConceptId);
-      } else if (typeof relatedItem === 'object' && relatedItem !== null) {
-        // Object with id, title, or other properties
-        if (relatedItem.id) {
-          targetConceptId = relatedItem.id;
-          targetConcept = concepts.find(c => c.id === targetConceptId);
-        } else if (relatedItem.title) {
-          // Try to find by title
-          targetConcept = concepts.find(c => c.title === relatedItem.title);
-          targetConceptId = targetConcept?.id || null;
-        } else {
-          console.warn(`Invalid related concept format:`, relatedItem, `for concept ${concept.title}`);
-          return null;
-        }
-      } else {
-        console.warn(`Unknown related concept format:`, relatedItem, `for concept ${concept.title}`);
-        return null;
-      }
-      
-      if (!targetConcept || !targetConceptId) {
-        console.warn(`Related concept not found:`, relatedItem, `for concept ${concept.title}`);
-        return null;
-      }
-      
-      const fromPos = dynamicConceptPositions.get(concept.id);
-      const toPos = targetConceptId ? dynamicConceptPositions.get(targetConceptId) : null;
-      
-      if (!fromPos || !toPos) {
-        console.warn(`Position not found for connection: ${concept.title} -> ${targetConcept.title}`);
-        return null;
-      }
-      
-      return {
-        from: concept.id,
-        to: targetConceptId,
-        fromPos,
-        toPos,
-        fromConcept: concept,
-        toConcept: targetConcept
-      };
-    }).filter(Boolean);
-  });
-
-  // Add user-created connections
-  const userConnectionsWithPositions = userConnections.map(conn => {
-    const fromPos = dynamicConceptPositions.get(conn.from);
-    const toPos = dynamicConceptPositions.get(conn.to);
-    const fromConcept = concepts.find(c => c.id === conn.from);
-    const toConcept = concepts.find(c => c.id === conn.to);
-    
-    if (fromPos && toPos && fromConcept && toConcept) {
-      return {
-        from: conn.from,
-        to: conn.to,
-        fromPos,
-        toPos,
-        fromConcept,
-        toConcept,
-        isUserCreated: true
-      };
-    }
-    return null;
-  }).filter(Boolean);
-
-  const allConnections = [...connections, ...userConnectionsWithPositions];
-  console.log(`Total connections found: ${allConnections.length} (${userConnections.length} user-created)`);
-
-  // Get currently visible concept IDs (only expanded individual concepts, not subcategory bubbles)
-  const getVisibleConceptIds = () => {
-    const visibleIds = new Set<string>();
-    
-    semanticClusters.forEach(cluster => {
-      const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-      
-      if (subcategories.length > 0) {
-        // Only add concepts from expanded subcategories
-        subcategories.forEach(subcategory => {
-          const key = `${cluster.id}-${subcategory.name}`;
-          if (expandedSubcategories.has(key)) {
-            subcategory.concepts.forEach(concept => {
-              visibleIds.add(concept.id);
-            });
-          }
-        });
-      } else {
-        // Add all concepts from clusters without subcategories
-        cluster.concepts.forEach(concept => {
-          if (filteredConcepts.some(fc => fc.id === concept.id)) {
-            visibleIds.add(concept.id);
-          }
-        });
-      }
-    });
-    
-    return visibleIds;
-  };
-
-  const visibleConceptIds = getVisibleConceptIds();
-  const visibleConnections = allConnections.filter(conn => {
-    if (!conn || !showConnections) return false;
-    // Only show connections between concepts that are actually visible as individual nodes
-    return visibleConceptIds.has(conn.from) && visibleConceptIds.has(conn.to);
-  });
-
-  console.log(`Visible connections: ${visibleConnections.length}`);
-
-  // Get mastery color
-  const getMasteryColor = (masteryLevel: string | null | undefined): string => {
-    switch (masteryLevel) {
-      case 'EXPERT': return '#10B981';
-      case 'ADVANCED': return '#3B82F6';
-      case 'INTERMEDIATE': return '#F59E0B';
-      case 'BEGINNER': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
-
-  // Handle connection creation
-  const handleMouseDown = (event: React.MouseEvent, conceptId: string, position: { x: number; y: number }) => {
-    if (event.button === 2) { // Right click
-      event.preventDefault();
-      setIsDragging(true);
-      setDragStart({ conceptId, x: position.x, y: position.y });
-      setDragCurrent({ x: position.x, y: position.y });
-    }
-  };
-
-  const handleMouseUp = async (event: React.MouseEvent, targetConceptId?: string) => {
-    if (isDragging && dragStart && targetConceptId && targetConceptId !== dragStart.conceptId) {
-      const sourceConcept = concepts.find(c => c.id === dragStart.conceptId);
-      const targetConcept = concepts.find(c => c.id === targetConceptId);
-      
-      if (sourceConcept && targetConcept) {
-        // Check if connection already exists
-        const existingConnection = allConnections.find(conn => 
-          (conn?.from === dragStart.conceptId && conn?.to === targetConceptId) ||
-          (conn?.from === targetConceptId && conn?.to === dragStart.conceptId)
-        );
-        
-        const isRemoving = !!existingConnection;
-        const method = isRemoving ? 'DELETE' : 'POST';
-        const action = isRemoving ? 'unlink' : 'link';
-        
-        try {
-          // Call the API to persist or remove the connection
-          const response = await fetch('/api/concepts/link', {
-            method,
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              conceptId1: dragStart.conceptId,
-              conceptId2: targetConceptId
-            })
-          });
-          
-          const result = await response.json();
-          
-          if (result.success) {
-            const actionText = isRemoving ? 'Removed' : 'Created';
-            const symbol = isRemoving ? '🗑️' : '✅';
-            console.log(`${symbol} ${actionText} persistent connection: ${sourceConcept.title} ↔ ${targetConcept.title}`);
-            // Refresh the page to show the updated connections
-            window.location.reload();
-          } else {
-            console.error(`❌ Failed to ${action} connection: ${result.error}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error ${action}ing connection:`, error);
-        }
-      }
-    }
-    
-    setIsDragging(false);
-    setDragStart(null);
-    setDragCurrent(null);
-  };
-
-  // Get connected nodes for highlighting
-  const getConnectedNodes = (conceptId: string) => {
-    const connected = new Set<string>();
-    allConnections.forEach(conn => {
-      if (conn?.from === conceptId) connected.add(conn.to);
-      if (conn?.to === conceptId) connected.add(conn.from);
-    });
-    return connected;
-  };
-
-  // Handle cluster selection
   const handleClusterClick = (clusterId: string, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1021,9 +679,30 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     setExpandedClusters(newExpanded);
   };
 
+  const getMasteryColor = (masteryLevel: string | null | undefined): string => {
+    switch (masteryLevel) {
+      case 'EXPERT': return '#10B981';
+      case 'ADVANCED': return '#3B82F6';
+      case 'INTERMEDIATE': return '#F59E0B';
+      case 'BEGINNER': return '#EF4444';
+      default: return '#6B7280';
+    }
+  };
+
+
+
+  const getConnectedNodes = (conceptId: string) => {
+    const connected = new Set<string>();
+    connections.forEach(conn => {
+      if (conn?.from === conceptId) connected.add(conn.to);
+      if (conn?.to === conceptId) connected.add(conn.from);
+    });
+    return connected;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex">
-      {/* Left Sidebar - Semantic Clusters */}
+      {/* Left Sidebar */}
       <div className="w-80 bg-slate-800/50 border-r border-white/10 p-4 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">Categories</h3>
@@ -1112,9 +791,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           </button>
         )}
 
-        {/* Connection Controls */}
         <div className="border-t border-white/10 pt-4">
-          <h4 className="text-sm font-medium text-white mb-3">Connections</h4>
+          <h4 className="text-sm font-medium text-white mb-3">Physics Controls</h4>
+          
+          <button
+            onClick={() => setPhysicsRunning(!physicsRunning)}
+            className={`flex items-center space-x-2 p-2 rounded-lg text-sm transition-all w-full mb-2 ${
+              physicsRunning ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+            }`}
+          >
+            <span>{physicsRunning ? '⚡ Physics Running' : '⏸️ Physics Stopped'}</span>
+          </button>
           
           <button
             onClick={() => setShowConnections(!showConnections)}
@@ -1127,19 +814,16 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           </button>
           
           <div className="mt-3 text-xs text-gray-400">
-            <div>Auto: {connections.length} connections</div>
-            <div>User: {userConnections.length} connections</div>
+            <div>Physics Nodes: {Object.keys(physicsNodes).length}</div>
+            <div>Connections: {connections.length}</div>
             <div>Visible: {visibleConnections.length}</div>
-            <div className="mt-2 text-yellow-400">🟡 User connections</div>
-            <div className="text-blue-400">🔵 Auto connections</div>
-            <div className="mt-2">Right-click + drag to connect/disconnect</div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Compact Header */}
+        {/* Header */}
         <header className="border-b border-white/10 backdrop-blur-sm">
           <div className="px-6 py-3">
             <div className="flex items-center justify-between">
@@ -1149,12 +833,11 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 </div>
                 <div>
                   <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                    Knowledge Graph
+                    Knowledge Graph - Real Physics
                   </h1>
                 </div>
               </div>
 
-              {/* Mode Toggle */}
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setMode('learning')}
@@ -1179,7 +862,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               </div>
             </div>
 
-            {/* Search */}
             <div className="mt-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1195,7 +877,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           </div>
         </header>
 
-        {/* Main Graph */}
+        {/* Physics-Based Graph */}
         <div 
           ref={containerRef}
           className="flex-1 relative"
@@ -1203,546 +885,203 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         >
           <svg
             ref={svgRef}
-            className="w-full h-full cursor-grab active:cursor-grabbing"
+            className="w-full h-full"
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
-            onMouseMove={handleMouseMove}
-            onMouseUp={(e) => handleMouseUp(e)}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
             {/* Background Grid */}
             <defs>
-              <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1"/>
+              <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
 
-            {/* Cluster Labels and Subcategory Bubbles */}
+            {/* Render Connections */}
+            {showConnections && visibleConnections.map((connection, index) => (
+              <line
+                key={`connection-${index}`}
+                x1={connection.fromPos.x}
+                y1={connection.fromPos.y}
+                x2={connection.toPos.x}
+                y2={connection.toPos.y}
+                stroke="rgba(139, 92, 246, 0.3)"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+              />
+            ))}
+
+            {/* Render Cluster Centers */}
             {semanticClusters.map(cluster => {
-              const hasVisibleConcepts = cluster.concepts.some(c => 
-                filteredConcepts.some(fc => fc.id === c.id)
-              );
-              
-              if (!hasVisibleConcepts) return null;
-              
-              const subcategories = generateSubcategories(cluster.concepts);
-              const isExpanded = expandedClusters.has(cluster.id);
-              
+              const IconComponent = cluster.icon;
               return (
-                <g key={`label-${cluster.id}`}>
-                  {/* Main Cluster Label */}
+                <g key={`cluster-${cluster.id}`}>
+                  <circle
+                    cx={cluster.position.x}
+                    cy={cluster.position.y}
+                    r="50"
+                    fill={`${cluster.color}20`}
+                    stroke={cluster.color}
+                    strokeWidth="2"
+                    strokeDasharray="10,5"
+                    className="opacity-60"
+                  />
                   <text
                     x={cluster.position.x}
-                    y={cluster.position.y - 150}
+                    y={cluster.position.y - 60}
                     textAnchor="middle"
-                    fill="rgba(255,255,255,0.6)"
-                    fontSize="14"
-                    fontWeight="600"
-                    className="pointer-events-none"
+                    className="text-sm font-medium"
+                    fill={cluster.color}
                   >
                     {cluster.name}
                   </text>
-                  <text
-                    x={cluster.position.x}
-                    y={cluster.position.y - 135}
-                    textAnchor="middle"
-                    fill="rgba(255,255,255,0.4)"
-                    fontSize="10"
-                    className="pointer-events-none"
+                  <foreignObject
+                    x={cluster.position.x - 12}
+                    y={cluster.position.y - 12}
+                    width="24"
+                    height="24"
                   >
-                    {cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)).length} concepts
-                  </text>
-                  
-                  {/* Subcategory Expansion Button */}
-                  {subcategories.length > 1 && (
-                    <circle
-                      cx={cluster.position.x + 80}
-                      cy={cluster.position.y - 140}
-                      r="8"
-                      fill={cluster.color}
-                      stroke="rgba(255,255,255,0.3)"
-                      strokeWidth="1"
-                      className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                      onClick={() => {
-                        const newExpanded = new Set(expandedSubcategories);
-                        if (newExpanded.has(cluster.id)) {
-                          newExpanded.delete(cluster.id);
-                        } else {
-                          newExpanded.add(cluster.id);
-                        }
-                        setExpandedSubcategories(newExpanded);
-                      }}
-                    />
-                  )}
-                  
-                  {/* Subcategory Count */}
-                  {subcategories.length > 1 && (
-                    <text
-                      x={cluster.position.x + 80}
-                      y={cluster.position.y - 137}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize="8"
-                      fontWeight="600"
-                      className="pointer-events-none"
-                    >
-                      {subcategories.length}
-                    </text>
-                  )}
-                  
-                  {/* Expanded Subcategory Bubbles */}
-                  {isExpanded && subcategories.length > 1 && subcategories.map((subcategory, index) => {
-                    // Get hierarchical position for this subcategory
-                    const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-                    const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
-                    
-                    if (!subcategoryPosition) return null;
-                    
-                    const x = subcategoryPosition.x;
-                    const y = subcategoryPosition.y;
-                    
-                    // Dynamic bubble size based on name length and concept count
-                    const nameLength = subcategory.name.length;
-                    const baseSizeFromName = Math.max(25, nameLength * 2);
-                    const baseSizeFromCount = subcategory.count * 3;
-                    const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-                    
-                    return (
-                      <g key={`subcat-${cluster.id}-${index}`}>
-                        <circle
-                          cx={x}
-                          cy={y}
-                          r={bubbleRadius}
-                          fill={`${cluster.color}80`}
-                          stroke={cluster.color}
-                          strokeWidth="2"
-                          className="transition-all duration-300"
-                        />
-                        <text
-                          x={x}
-                          y={y + 2}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="8"
-                          fontWeight="500"
-                          className="pointer-events-none"
-                        >
-                          {subcategory.count}
-                        </text>
-                        <text
-                          x={x}
-                          y={y + 25}
-                          textAnchor="middle"
-                          fill="rgba(255,255,255,0.8)"
-                          fontSize="9"
-                          fontWeight="400"
-                          className="pointer-events-none"
-                        >
-                          {subcategory.name.length > 8 ? subcategory.name.substring(0, 6) + '..' : subcategory.name}
-                        </text>
-                      </g>
-                    );
-                  })}
+                    <IconComponent size={24} color={cluster.color} />
+                  </foreignObject>
                 </g>
               );
             })}
 
-            {/* Connections */}
-            {visibleConnections.map((conn, index) => {
-              if (!conn) return null;
+            {/* Render Physics Nodes */}
+            {Object.values(physicsNodes).map(node => {
+              const concept = concepts.find(c => c.id === node.id);
               
-              const isHighlighted = hoveredConcept && 
-                (conn.from === hoveredConcept || conn.to === hoveredConcept);
-              const isUserCreated = (conn as any).isUserCreated;
+              if (!concept) {
+                // Subcategory bubble
+                const subcategoryMatch = node.id.match(/subcategory-(.+)-(.+)/);
+                if (subcategoryMatch) {
+                  const [, clusterId, subcategoryName] = subcategoryMatch;
+                  const cluster = semanticClusters.find(c => c.id === clusterId);
+                  const key = `${clusterId}-${subcategoryName}`;
+                  const isExpanded = expandedSubcategories.has(key);
+                  
+                  return (
+                    <g key={node.id}>
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={node.radius}
+                        fill={cluster?.color || '#6B7280'}
+                        stroke="white"
+                        strokeWidth="2"
+                        className="cursor-pointer"
+                        onClick={() => toggleSubcategoryExpansion(key)}
+                      />
+                      <text
+                        x={node.x}
+                        y={node.y + 4}
+                        textAnchor="middle"
+                        className="text-xs font-medium pointer-events-none"
+                        fill="white"
+                      >
+                        {subcategoryName.length > 8 ? subcategoryName.substring(0, 6) + '...' : subcategoryName}
+                      </text>
+                      {isExpanded && (
+                        <text
+                          x={node.x}
+                          y={node.y - node.radius - 10}
+                          textAnchor="middle"
+                          className="text-xs"
+                          fill="white"
+                        >
+                          ▼
+                        </text>
+                      )}
+                    </g>
+                  );
+                }
+                return null;
+              }
+
+              // Individual concept
+              const masteryColor = getMasteryColor(concept.masteryLevel);
+              const isHovered = hoveredConcept === concept.id;
+              const connectedNodes = getConnectedNodes(concept.id);
               
               return (
-                <line
-                  key={index}
-                  x1={conn.fromPos.x}
-                  y1={conn.fromPos.y}
-                  x2={conn.toPos.x}
-                  y2={conn.toPos.y}
-                  stroke={
-                    isHighlighted 
-                      ? "#10B981" 
-                      : isUserCreated 
-                        ? "#F59E0B" 
-                        : "rgba(99, 102, 241, 0.6)"
-                  }
-                  strokeWidth={isHighlighted ? 3 : isUserCreated ? 3 : 2}
-                  strokeDasharray={isHighlighted ? "none" : isUserCreated ? "none" : "5,5"}
-                  className="transition-all duration-300"
-                />
+                <g key={node.id}>
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={node.radius}
+                    fill={masteryColor}
+                    stroke={isHovered ? 'white' : 'rgba(255,255,255,0.3)'}
+                    strokeWidth={isHovered ? 3 : 1}
+                    className="cursor-pointer transition-all duration-200"
+                    onMouseEnter={(e) => handleConceptHover(concept.id, e)}
+                    onMouseLeave={() => handleConceptHover(null)}
+                    onClick={() => setSelectedConcept(concept)}
+                  />
+                  
+                  {/* Concept Icon */}
+                  <foreignObject
+                    x={node.x - 8}
+                    y={node.y - 8}
+                    width="16"
+                    height="16"
+                    className="pointer-events-none"
+                  >
+                    {React.createElement(getConceptIcon(concept), {
+                      size: 16,
+                      color: 'white'
+                    })}
+                  </foreignObject>
+                  
+                  {/* Concept Label */}
+                  <text
+                    x={node.x}
+                    y={node.y + node.radius + 15}
+                    textAnchor="middle"
+                    className="text-xs font-medium pointer-events-none"
+                    fill="white"
+                  >
+                    {concept.title.length > 12 ? concept.title.substring(0, 10) + '...' : concept.title}
+                  </text>
+                  
+                  {/* Connection indicators */}
+                  {connectedNodes.size > 0 && (
+                    <circle
+                      cx={node.x + node.radius - 5}
+                      cy={node.y - node.radius + 5}
+                      r="4"
+                      fill="rgba(59, 130, 246, 0.8)"
+                      className="pointer-events-none"
+                    />
+                  )}
+                </g>
               );
             })}
 
-            {/* Drag Connection Line */}
-            {isDragging && dragStart && dragCurrent && (
-              <line
-                x1={dragStart.x}
-                y1={dragStart.y}
-                x2={dragCurrent.x}
-                y2={dragCurrent.y}
-                stroke="rgba(239, 68, 68, 0.8)"
-                strokeWidth="2"
-                strokeDasharray="5,5"
-                className="pointer-events-none"
-              />
-            )}
 
-            {/* Subcategory Bubbles and Individual Concepts */}
-            {semanticClusters.map(cluster => {
-              const subcategories = generateSubcategories(cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id)));
-              const isExpanded = expandedClusters.has(cluster.id);
-              
-              // If cluster has subcategories, show subcategory bubbles
-              if (subcategories.length > 0) {
-                return (
-                  <g key={`subcategories-${cluster.id}`}>
-                    {subcategories.map((subcategory, index) => {
-                      // Get hierarchical position for this subcategory
-                      const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
-                      const subcategoryPosition = dynamicConceptPositions.get(subcategoryKey);
-                      
-                      if (!subcategoryPosition) return null;
-                      
-                      const x = subcategoryPosition.x;
-                      const y = subcategoryPosition.y;
-                      
-                      // Dynamic bubble size based on name length and concept count
-                      const nameLength = subcategory.name.length;
-                      const baseSizeFromName = Math.max(25, nameLength * 2);
-                      const baseSizeFromCount = subcategory.count * 3;
-                      const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
-                      
-                      const isAnimating = animatingSubcategories.has(`${cluster.id}-${subcategory.name}`);
-                      
-                      return (
-                        <g 
-                          key={`subcategory-${cluster.id}-${subcategory.name}`}
-                          className={`transition-all duration-300 ${isAnimating ? 'animate-pulse' : ''}`}
-                        >
-                          {/* Subcategory Bubble */}
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r={bubbleRadius}
-                            fill={cluster.color}
-                            fillOpacity={0.7}
-                            stroke={cluster.color}
-                            strokeWidth={2}
-                            className="cursor-pointer transition-all duration-300 hover:opacity-90"
-                            onClick={() => {
-                              const key = `${cluster.id}-${subcategory.name}`;
-                              toggleSubcategoryExpansion(key);
-                            }}
-                          />
-                          
-                          {/* Subcategory Name - Multi-line for longer names */}
-                          {subcategory.name.length > 15 ? (
-                            <>
-                              <text
-                                x={x}
-                                y={y - 8}
-                                textAnchor="middle"
-                                fill="white"
-                                fontSize="9"
-                                fontWeight="600"
-                                className="pointer-events-none"
-                              >
-                                {subcategory.name.substring(0, 12)}
-                              </text>
-                              <text
-                                x={x}
-                                y={y + 2}
-                                textAnchor="middle"
-                                fill="white"
-                                fontSize="9"
-                                fontWeight="600"
-                                className="pointer-events-none"
-                              >
-                                {subcategory.name.substring(12, 24)}...
-                              </text>
-                            </>
-                          ) : (
-                            <text
-                              x={x}
-                              y={y - 3}
-                              textAnchor="middle"
-                              fill="white"
-                              fontSize="10"
-                              fontWeight="600"
-                              className="pointer-events-none"
-                            >
-                              {subcategory.name}
-                            </text>
-                          )}
-                          
-                          {/* Concept Count */}
-                          <text
-                            x={x}
-                            y={subcategory.name.length > 15 ? y + 15 : y + 8}
-                            textAnchor="middle"
-                            fill="white"
-                            fontSize="9"
-                            className="pointer-events-none"
-                          >
-                            {subcategory.count}
-                          </text>
-                          
-                          {/* Expanded Individual Concepts with Animation */}
-                          {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
-                            subcategory.concepts.map((concept, conceptIndex) => {
-                              // Get hierarchical position for this concept
-                              const conceptPosition = dynamicConceptPositions.get(concept.id);
-                              if (!conceptPosition) return null;
-                              
-                              const conceptX = conceptPosition.x;
-                              const conceptY = conceptPosition.y;
-                              
-                              const masteryColor = getMasteryColor(concept.masteryLevel);
-                              const isSelected = selectedConcept?.id === concept.id;
-                              const isHovered = hoveredConcept === concept.id;
-                              const progress = concept.learningProgress || 0;
-                              const IconComponent = getConceptIcon(concept);
-                              
-                              const isAnimating = animatingSubcategories.has(`${cluster.id}-${subcategory.name}`);
-                              
-                              return (
-                                <g 
-                                  key={`expanded-concept-${concept.id}`}
-                                  className={`transition-all duration-300 ${isAnimating ? 'animate-pulse' : ''}`}
-                                  style={{
-                                    opacity: isAnimating ? 0.7 : 1,
-                                    transform: isAnimating ? 'scale(0.95)' : 'scale(1)'
-                                  }}
-                                >
-                                  {/* Connection line to subcategory */}
-                                  <line
-                                    x1={x}
-                                    y1={y}
-                                    x2={conceptX}
-                                    y2={conceptY}
-                                    stroke={cluster.color}
-                                    strokeWidth={1}
-                                    strokeOpacity={0.5}
-                                  />
-                                  
-                                  {/* Individual Concept Node */}
-                                  <circle
-                                    cx={conceptX}
-                                    cy={conceptY}
-                                    r="18"
-                                    fill={cluster.color}
-                                    stroke={masteryColor}
-                                    strokeWidth={2}
-                                    className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                                    onMouseEnter={(e) => handleConceptHover(concept.id, e)}
-                                    onMouseLeave={() => handleConceptHover(null)}
-                                    onMouseDown={(e) => handleMouseDown(e, concept.id, { x: conceptX, y: conceptY })}
-                                    onMouseUp={(e) => handleMouseUp(e, concept.id)}
-                                    onClick={() => {
-                                      if (!isDragging) {
-                                        setSelectedConcept(concept);
-                                        onConceptSelect?.(concept);
-                                      }
-                                    }}
-                                  />
-                                  
-                                  {/* Progress Ring */}
-                                  <circle
-                                    cx={conceptX}
-                                    cy={conceptY}
-                                    r="20"
-                                    fill="none"
-                                    stroke={masteryColor}
-                                    strokeWidth="1"
-                                    strokeDasharray={`${(progress / 100) * (2 * Math.PI * 20)} ${2 * Math.PI * 20}`}
-                                    className="transition-all duration-300"
-                                    transform={`rotate(-90 ${conceptX} ${conceptY})`}
-                                  />
-                                  
-                                  {/* Icon */}
-                                  <foreignObject
-                                    x={conceptX - 6}
-                                    y={conceptY - 6}
-                                    width="12"
-                                    height="12"
-                                    className="pointer-events-none"
-                                  >
-                                    <IconComponent className="w-3 h-3 text-white" />
-                                  </foreignObject>
-                                  
-                                  {/* Title */}
-                                  <text
-                                    x={conceptX}
-                                    y={conceptY + 30}
-                                    textAnchor="middle"
-                                    fill="white"
-                                    fontSize="9"
-                                    fontWeight="400"
-                                    className="pointer-events-none"
-                                  >
-                                    {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
-                                  </text>
-                                </g>
-                              );
-                            })
-                          }
-                        </g>
-                      );
-                    })}
-                  </g>
-                );
-              } else {
-                // If no subcategories, show individual concepts as before (for clusters without subcategories)
-                return cluster.concepts
-                  .filter(concept => filteredConcepts.some(fc => fc.id === concept.id))
-                  .map((concept) => {
-                    const position = dynamicConceptPositions.get(concept.id);
-                    if (!position) return null;
-
-                    const masteryColor = getMasteryColor(concept.masteryLevel);
-                    const isSelected = selectedConcept?.id === concept.id;
-                    const isHovered = hoveredConcept === concept.id;
-                    const connectedNodes = getConnectedNodes(concept.id);
-                    const isConnected = hoveredConcept && connectedNodes.has(hoveredConcept);
-                    const progress = concept.learningProgress || 0;
-                    const IconComponent = getConceptIcon(concept);
-                    
-                    return (
-                      <g key={concept.id}>
-                        {/* Node Glow */}
-                        {(isSelected || isHovered) && (
-                          <circle
-                            cx={position.x}
-                            cy={position.y}
-                            r="40"
-                            fill={`${cluster.color}20`}
-                            className="transition-all duration-300"
-                          />
-                        )}
-                        
-                        {/* Progress Ring */}
-                        <circle
-                          cx={position.x}
-                          cy={position.y}
-                          r="26"
-                          fill="none"
-                          stroke="rgba(255,255,255,0.1)"
-                          strokeWidth="2"
-                        />
-                        <circle
-                          cx={position.x}
-                          cy={position.y}
-                          r="26"
-                          fill="none"
-                          stroke={masteryColor}
-                          strokeWidth="2"
-                          strokeDasharray={`${(progress / 100) * (2 * Math.PI * 26)} ${2 * Math.PI * 26}`}
-                          className="transition-all duration-300"
-                          transform={`rotate(-90 ${position.x} ${position.y})`}
-                        />
-                        
-                        {/* Main Node */}
-                        <circle
-                          cx={position.x}
-                          cy={position.y}
-                          r="22"
-                          fill={cluster.color}
-                          stroke={isConnected ? "#10B981" : masteryColor}
-                          strokeWidth={isConnected ? 3 : 2}
-                          className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                          onMouseEnter={(e) => handleConceptHover(concept.id, e)}
-                          onMouseLeave={() => handleConceptHover(null)}
-                          onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
-                          onMouseUp={(e) => handleMouseUp(e, concept.id)}
-                          onClick={() => {
-                            if (!isDragging) {
-                              setSelectedConcept(concept);
-                              onConceptSelect?.(concept);
-                            }
-                          }}
-                        />
-
-                        {/* Icon */}
-                        <foreignObject
-                          x={position.x - 8}
-                          y={position.y - 8}
-                          width="16"
-                          height="16"
-                          className="pointer-events-none"
-                        >
-                          <IconComponent className="w-4 h-4 text-white" />
-                        </foreignObject>
-
-                        {/* Title */}
-                        <text
-                          x={position.x}
-                          y={position.y + 40}
-                          textAnchor="middle"
-                          fill="white"
-                          fontSize="11"
-                          fontWeight="500"
-                          className="pointer-events-none"
-                        >
-                          {concept.title.length > 20 ? concept.title.substring(0, 17) + '...' : concept.title}
-                        </text>
-
-                        {/* Bookmarked indicator */}
-                        {concept.bookmarked && (
-                          <text
-                            x={position.x + 18}
-                            y={position.y - 12}
-                            textAnchor="middle"
-                            fontSize="10"
-                            className="pointer-events-none"
-                          >
-                            ⭐
-                          </text>
-                        )}
-                      </g>
-                    );
-                  });
-              }
-            })}
-            </g>
           </svg>
 
-          {/* Dynamic Hover Tooltip */}
+          {/* Dynamic Tooltip */}
           {tooltip.visible && tooltip.content && (
             <div 
-              className="absolute pointer-events-none bg-slate-800/95 backdrop-blur-lg rounded-lg border border-white/10 p-3 max-w-sm z-50 transition-all duration-200 opacity-100"
+              className="absolute pointer-events-none bg-slate-800/95 backdrop-blur-lg rounded-lg border border-white/10 p-3 max-w-sm z-50 transform -translate-x-1/2 -translate-y-full"
               style={{ 
-                left: Math.min(tooltip.x + 10, window.innerWidth - 250), 
-                top: Math.max(tooltip.y - 10, 10),
-                transform: tooltip.y > window.innerHeight / 2 ? 'translateY(-100%)' : 'translateY(0)'
+                left: Math.min(Math.max(tooltip.x, 150), window.innerWidth - 150),
+                top: Math.max(tooltip.y - 10, 10)
               }}
             >
-              <div>
-                <h4 className="font-semibold text-white mb-1">{tooltip.content.title}</h4>
-                <p className="text-sm text-gray-300 mb-2">{tooltip.content.category}</p>
-                {tooltip.content.summary && (
-                  <p className="text-xs text-gray-400 line-clamp-3 mb-2">{tooltip.content.summary}</p>
-                )}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Progress: {tooltip.content.learningProgress || 0}%</span>
-                  <span className="text-gray-400">{tooltip.content.masteryLevel || 'No level'}</span>
-                </div>
-                {tooltip.content.bookmarked && (
-                  <div className="mt-1 text-xs text-yellow-400">⭐ Bookmarked</div>
-                )}
+              <h4 className="font-semibold text-white mb-1">{tooltip.content.title}</h4>
+              <p className="text-sm text-gray-300 mb-2">{tooltip.content.category}</p>
+              <p className="text-xs text-gray-400 line-clamp-3">{tooltip.content.summary}</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-gray-500">
+                  {tooltip.content.masteryLevel || 'Not Practiced'}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Progress: {tooltip.content.learningProgress || 0}%
+                </span>
               </div>
             </div>
           )}
-
-          {/* Stats Overlay */}
-          <div className="absolute bottom-4 right-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300">
-            <div>Concepts: {filteredConcepts.length}/{concepts.length}</div>
-            <div>Connections: {visibleConnections.length}/{connections.length}</div>
-            <div>Clusters: {semanticClusters.filter(c => c.concepts.some(cc => filteredConcepts.some(fc => fc.id === cc.id))).length}</div>
-          </div>
         </div>
       </div>
     </div>
