@@ -399,18 +399,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             let angle, radius;
             
             if (subcategories.length <= 6) {
+              // Circular arrangement for small numbers
               angle = (index / subcategories.length) * 2 * Math.PI;
-              radius = 120 + (subcategories.length * 5);
+              radius = 250 + (subcategories.length * 10); // Significantly increased radius
               
               const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
               const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 65, type: 'subcategory', fixed: false };
+              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 45, type: 'subcategory', fixed: false };
             } else {
+              // Grid-like arrangement for larger numbers
               const cols = Math.ceil(Math.sqrt(subcategories.length));
               const row = Math.floor(index / cols);
               const col = index % cols;
-              const gridX = cluster.position.x + (col - cols/2) * 200;
-              const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 200;
+              const gridX = cluster.position.x + (col - cols/2) * 280; // Increased grid spacing
+              const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 280; // Increased grid spacing
               geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 45, type: 'subcategory', fixed: false };
             }
 
@@ -421,7 +423,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               const totalConcepts = subcategory.concepts.length;
 
               subcategory.concepts.forEach((concept, conceptIndex) => {
-                const conceptRadius = 130; // Distance from subcategory
+                const conceptRadius = 110; // Slightly reduced to tighten the arc
                 let conceptAngle;
 
                 if (totalConcepts === 1) {
@@ -1000,19 +1002,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       />
                       <text
                         x={node.x}
-                        y={node.y + 6}
+                        y={node.y + 8}
                         textAnchor="middle"
-                        className="text-lg font-bold pointer-events-none"
+                        className="text-2xl font-bold pointer-events-none"
                         fill="white"
+                        style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.5)' }}
                       >
                         {subcategoryName.length > 10 ? subcategoryName.substring(0, 9) + '...' : subcategoryName}
                       </text>
                       {isExpanded && (
                         <text
                           x={node.x}
-                          y={node.y - node.radius - 12}
+                          y={node.y - node.radius - 15}
                           textAnchor="middle"
-                          className="text-xs"
+                          className="text-sm"
                           fill="white"
                         >
                           ▼
@@ -1062,10 +1065,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   {/* Concept Label */}
                   <text
                     x={node.x}
-                    y={node.y + node.radius + 24}
+                    y={node.y + node.radius + 25}
                     textAnchor="middle"
-                    className="text-base font-semibold pointer-events-none"
-                    fill="rgba(255,255,255,0.8)"
+                    className="text-lg font-semibold pointer-events-none"
+                    fill="rgba(255,255,255,0.85)"
                   >
                     {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
                   </text>
