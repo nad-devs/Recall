@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Target, BookOpen, Search, Eye, EyeOff, Code, Cloud, Database, Cpu, Network, Shield, Zap, Settings, FileText, Users, ChevronDown, ChevronRight } from 'lucide-react';
 
 // Types compatible with existing graph page
@@ -281,11 +281,11 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
       // Different minimum distances based on node types
       let minDistance;
       if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-        minDistance = nodeA.radius + nodeB.radius + 20; // 20px padding between concepts
+        minDistance = nodeA.radius + nodeB.radius + 35; // More padding between concepts
       } else if (nodeA.type === 'subcategory' || nodeB.type === 'subcategory') {
-        minDistance = nodeA.radius + nodeB.radius + 30; // 30px padding with subcategories
+        minDistance = nodeA.radius + nodeB.radius + 45; // Much more padding with subcategories
       } else {
-        minDistance = nodeA.radius + nodeB.radius + 15; // Default padding
+        minDistance = nodeA.radius + nodeB.radius + 25; // Better default padding
       }
       
       if (distance < minDistance && distance > 0) {
@@ -335,7 +335,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
   
   const [mode, setMode] = useState<'learning' | 'interview'>('learning');
   const [searchQuery, setSearchQuery] = useState('');
@@ -350,8 +349,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   
   // Physics state
   const [physicsNodes, setPhysicsNodes] = useState<{ [key: string]: GeometricNode }>({});
-  const [physicsRunning, setPhysicsRunning] = useState(false);
-  
+
   // Tooltip state
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
@@ -388,157 +386,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     });
   }, [concepts, selectedClusters, searchQuery, semanticClusters]);
 
-  // Generate geometric positions (moved inside component to access state)
-  const generateGeometricPositions = useCallback((): { [key: string]: GeometricNode } => {
-    const geometricNodes: { [key: string]: GeometricNode } = {};
-    
-    semanticClusters.forEach(cluster => {
-      const subcategories = generateSubcategories(
-        cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
-      );
-      
-      if (subcategories.length > 0) {
-        // Create subcategory nodes in clean geometric patterns
-        subcategories.forEach((subcategory, index) => {
-          const key = `subcategory-${cluster.id}-${subcategory.name}`;
-          
-          // Use systematic geometric positioning
-          let angle, radius;
-          
-          if (subcategories.length <= 6) {
-            // Circular arrangement for small numbers
-            angle = (index / subcategories.length) * 2 * Math.PI;
-            radius = 120 + (subcategories.length * 5); // Scale with count
-          } else {
-            // Grid-like arrangement for larger numbers
-            const cols = Math.ceil(Math.sqrt(subcategories.length));
-            const row = Math.floor(index / cols);
-            const col = index % cols;
-            
-            const gridX = cluster.position.x + (col - cols/2) * 140;
-            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 140;
-            
-            geometricNodes[key] = {
-              id: key,
-              x: gridX,
-              y: gridY,
-              originalX: gridX,
-              originalY: gridY,
-              radius: 45, // Increased subcategory size
-              type: 'subcategory',
-              fixed: false
-            };
-            
-            // Add concepts around this subcategory if expanded
-            if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
-              subcategory.concepts.forEach((concept, conceptIndex) => {
-                const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-                const conceptRadius = 100; // Increased spacing
-                const conceptX = gridX + Math.cos(conceptAngle) * conceptRadius;
-                const conceptY = gridY + Math.sin(conceptAngle) * conceptRadius;
-                
-                geometricNodes[concept.id] = {
-                  id: concept.id,
-                  x: conceptX,
-                  y: conceptY,
-                  originalX: conceptX,
-                  originalY: conceptY,
-                  radius: 40, // Much larger concept size
-                  type: 'concept',
-                  fixed: false
-                };
-              });
-            }
-            return;
-          }
-          
-          // Circular arrangement
-          const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
-          const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-          
-          geometricNodes[key] = {
-            id: key,
-            x: subcategoryX,
-            y: subcategoryY,
-            originalX: subcategoryX,
-            originalY: subcategoryY,
-            radius: 45, // Increased subcategory size
-            type: 'subcategory',
-            fixed: false
-          };
-          
-          // Add individual concepts when subcategory is expanded
-          if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
-            subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
-              const conceptRadius = 100; // Increased spacing
-              const conceptX = subcategoryX + Math.cos(conceptAngle) * conceptRadius;
-              const conceptY = subcategoryY + Math.sin(conceptAngle) * conceptRadius;
-              
-              geometricNodes[concept.id] = {
-                id: concept.id,
-                x: conceptX,
-                y: conceptY,
-                originalX: conceptX,
-                originalY: conceptY,
-                radius: 40, // Much larger concept size
-                type: 'concept',
-                fixed: false
-              };
-            });
-          }
-        });
-      } else {
-        // Direct concepts around cluster (no subcategories)
-        const clusterConcepts = cluster.concepts.filter(concept => 
-          filteredConcepts.some(fc => fc.id === concept.id)
-        );
-        
-        clusterConcepts.forEach((concept, index) => {
-          let angle, radius;
-          
-          if (clusterConcepts.length <= 8) {
-            // Circular arrangement with proper separation from cluster center
-            angle = (index / clusterConcepts.length) * 2 * Math.PI;
-            // Ensure minimum 150px clearance from cluster center (50px) + concept radius (40px) + safety margin (60px)
-            const minRadius = 50 + 40 + 60; // 150px minimum
-            radius = Math.max(minRadius, 160 + (clusterConcepts.length * 10)); // Increased base and scaling
-          } else {
-            // Spiral arrangement for many concepts with better spacing
-            const spiralFactor = index / clusterConcepts.length;
-            angle = spiralFactor * 4 * Math.PI; // 2 full rotations
-            // Ensure concepts spiral outward with proper spacing
-            const minRadius = 50 + 40 + 60; // 150px minimum
-            radius = Math.max(minRadius, 160 + spiralFactor * 120); // Increased expanding radius
-          }
-          
-          const conceptX = cluster.position.x + Math.cos(angle) * radius;
-          const conceptY = cluster.position.y + Math.sin(angle) * radius;
-          
-          geometricNodes[concept.id] = {
-            id: concept.id,
-            x: conceptX,
-            y: conceptY,
-            originalX: conceptX,
-            originalY: conceptY,
-            radius: 40, // Much larger concept size
-            type: 'concept',
-            fixed: false
-          };
-        });
-      }
-    });
-    
-    // Apply collision detection to prevent overlaps while preserving structure
-    return detectAndResolveCollisions(geometricNodes);
-  }, [semanticClusters, filteredConcepts, expandedSubcategories]); // Fixed dependencies
-
-  // Initialize geometric nodes when subcategories expand  
-  useEffect(() => {
-    const newNodes = generateGeometricPositions();
-    setPhysicsNodes(newNodes);
-  }, [generateGeometricPositions]);
-
   // Parse JSON fields safely
   const parseJsonField = (jsonString: string | undefined, fallback: any = []) => {
     if (!jsonString || jsonString.trim() === '') return fallback;
@@ -549,6 +396,75 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       return fallback;
     }
   };
+
+  // Generate and update geometric nodes
+  useEffect(() => {
+    const generateGeometricPositions = (): { [key: string]: GeometricNode } => {
+      const geometricNodes: { [key: string]: GeometricNode } = {};
+      
+      semanticClusters.forEach(cluster => {
+        const subcategories = generateSubcategories(
+          cluster.concepts.filter(c => filteredConcepts.some(fc => fc.id === c.id))
+        );
+        
+        if (subcategories.length > 0) {
+          subcategories.forEach((subcategory, index) => {
+            const key = `subcategory-${cluster.id}-${subcategory.name}`;
+            let angle, radius;
+            
+            if (subcategories.length <= 6) {
+              angle = (index / subcategories.length) * 2 * Math.PI;
+              radius = 120 + (subcategories.length * 5);
+              
+              const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
+              const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
+              geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 65, type: 'subcategory', fixed: false };
+            } else {
+              const cols = Math.ceil(Math.sqrt(subcategories.length));
+              const row = Math.floor(index / cols);
+              const col = index % cols;
+              const gridX = cluster.position.x + (col - cols/2) * 140;
+              const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 140;
+              geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 65, type: 'subcategory', fixed: false };
+            }
+
+            const node = geometricNodes[key];
+            if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
+              subcategory.concepts.forEach((concept, conceptIndex) => {
+                const conceptAngle = (conceptIndex / subcategory.concepts.length) * 2 * Math.PI;
+                const conceptRadius = 160;
+                const conceptX = node.x + Math.cos(conceptAngle) * conceptRadius;
+                const conceptY = node.y + Math.sin(conceptAngle) * conceptRadius;
+                geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 30, type: 'concept', fixed: false };
+              });
+            }
+          });
+        } else {
+          const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
+          clusterConcepts.forEach((concept, index) => {
+            let angle, radius;
+            if (clusterConcepts.length <= 8) {
+              angle = (index / clusterConcepts.length) * 2 * Math.PI;
+              const minRadius = 50 + 30 + 80;
+              radius = Math.max(minRadius, 180 + (clusterConcepts.length * 15));
+            } else {
+              const spiralFactor = index / clusterConcepts.length;
+              angle = spiralFactor * 4 * Math.PI;
+              const minRadius = 50 + 30 + 80;
+              radius = Math.max(minRadius, 180 + spiralFactor * 140);
+            }
+            const conceptX = cluster.position.x + Math.cos(angle) * radius;
+            const conceptY = cluster.position.y + Math.sin(angle) * radius;
+            geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 30, type: 'concept', fixed: false };
+          });
+        }
+      });
+      
+      return detectAndResolveCollisions(geometricNodes);
+    };
+
+    setPhysicsNodes(generateGeometricPositions());
+  }, [semanticClusters, filteredConcepts, expandedSubcategories]);
 
   // Generate connections - MEMOIZED to stop infinite recalculation
   const connections = React.useMemo(() => {
@@ -1074,12 +990,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       />
                       <text
                         x={node.x}
-                        y={node.y + 4}
+                        y={node.y + 5}
                         textAnchor="middle"
-                        className="text-xs font-medium pointer-events-none"
+                        className="text-base font-semibold pointer-events-none"
                         fill="white"
                       >
-                        {subcategoryName.length > 8 ? subcategoryName.substring(0, 6) + '...' : subcategoryName}
+                        {subcategoryName.length > 12 ? subcategoryName.substring(0, 10) + '...' : subcategoryName}
                       </text>
                       {isExpanded && (
                         <text
@@ -1120,14 +1036,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   
                   {/* Concept Icon */}
                   <foreignObject
-                    x={node.x - 10}
-                    y={node.y - 10}
-                    width="20"
-                    height="20"
+                    x={node.x - 12}
+                    y={node.y - 12}
+                    width="24"
+                    height="24"
                     className="pointer-events-none"
                   >
                     {React.createElement(getConceptIcon(concept), {
-                      size: 20,
+                      size: 24,
                       color: 'white'
                     })}
                   </foreignObject>
@@ -1135,12 +1051,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   {/* Concept Label */}
                   <text
                     x={node.x}
-                    y={node.y + node.radius + 18}
+                    y={node.y + node.radius + 22}
                     textAnchor="middle"
-                    className="text-sm font-medium pointer-events-none"
+                    className="text-base font-medium pointer-events-none"
                     fill="white"
                   >
-                    {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
+                    {concept.title.length > 18 ? concept.title.substring(0, 15) + '...' : concept.title}
                   </text>
                   
                   {/* Progress indicator */}
