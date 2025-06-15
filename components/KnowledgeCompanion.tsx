@@ -410,18 +410,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const dy = node.y - other.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          if (distance < 120 && distance > 0) { // Gentle spacing
-            const force = (120 - distance) * 0.1; // Gentle force
+          if (distance < 150 && distance > 0) { // Increased spacing requirement
+            const force = (150 - distance) * 0.3; // Stronger force
             fx += (dx / distance) * force;
             fy += (dy / distance) * force;
           }
         });
         
-        // Apply gentle movement
-        node.vx += fx * 0.1;
-        node.vy += fy * 0.1;
-        node.vx *= 0.8; // Damping
-        node.vy *= 0.8;
+        // Apply stronger movement
+        node.vx += fx * 0.2; // Stronger acceleration
+        node.vy += fy * 0.2;
+        node.vx *= 0.85; // Less damping for more movement
+        node.vy *= 0.85;
         
         node.x += node.vx;
         node.y += node.vy;
@@ -632,8 +632,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const baseSizeFromCount = subcategory.count * 3;
         const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
         
-        // Smart concept positioning around subcategory
-        const conceptRadius = bubbleRadius + 50;
+        // Smart concept positioning around subcategory with more space
+        const conceptRadius = bubbleRadius + 80; // Increased from 50 to 80
         const conceptPositions = getSmartConceptPositions(
           subcategoryPos.x,
           subcategoryPos.y,
@@ -647,13 +647,28 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           }
         });
         
-        // Apply gentle physics to concepts around this subcategory
+        // Apply stronger physics to concepts around this subcategory
         const conceptPosMap = new Map<string, { x: number; y: number }>();
         subcategory.concepts.forEach((concept: any) => {
           const pos = dynamicConceptPositions.get(concept.id);
           if (pos) conceptPosMap.set(concept.id, pos);
         });
-        applyGentlePhysics(conceptPosMap, 3);
+        
+        console.log(`🔧 Applying physics to ${conceptPosMap.size} concepts in subcategory "${subcategory.name}"`);
+        const beforePositions = new Map(conceptPosMap);
+        applyGentlePhysics(conceptPosMap, 15); // More iterations for better separation
+        
+        // Log position changes
+        conceptPosMap.forEach((afterPos, conceptId) => {
+          const beforePos = beforePositions.get(conceptId);
+          if (beforePos) {
+            const distance = Math.sqrt(Math.pow(afterPos.x - beforePos.x, 2) + Math.pow(afterPos.y - beforePos.y, 2));
+            if (distance > 5) {
+              console.log(`  📍 Concept ${conceptId} moved ${distance.toFixed(1)}px`);
+            }
+          }
+        });
+        
         conceptPosMap.forEach((pos, conceptId) => {
           dynamicConceptPositions.set(conceptId, pos);
         });
@@ -866,10 +881,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       const targetConcept = concepts.find(c => c.id === targetConceptId);
       
       if (sourceConcept && targetConcept) {
+        // Check if connection already exists
+        const existingConnection = allConnections.find(conn => 
+          (conn?.from === dragStart.conceptId && conn?.to === targetConceptId) ||
+          (conn?.from === targetConceptId && conn?.to === dragStart.conceptId)
+        );
+        
+        const isRemoving = !!existingConnection;
+        const method = isRemoving ? 'DELETE' : 'POST';
+        const action = isRemoving ? 'unlink' : 'link';
+        
         try {
-          // Call the API to persist the connection
+          // Call the API to persist or remove the connection
           const response = await fetch('/api/concepts/link', {
-            method: 'POST',
+            method,
             headers: {
               'Content-Type': 'application/json',
             },
@@ -882,14 +907,16 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const result = await response.json();
           
           if (result.success) {
-            console.log(`✅ Created persistent connection: ${sourceConcept.title} → ${targetConcept.title}`);
-            // Refresh the page to show the new connection
+            const actionText = isRemoving ? 'Removed' : 'Created';
+            const symbol = isRemoving ? '🗑️' : '✅';
+            console.log(`${symbol} ${actionText} persistent connection: ${sourceConcept.title} ↔ ${targetConcept.title}`);
+            // Refresh the page to show the updated connections
             window.location.reload();
           } else {
-            console.error(`❌ Failed to create connection: ${result.error}`);
+            console.error(`❌ Failed to ${action} connection: ${result.error}`);
           }
         } catch (error) {
-          console.error(`❌ Error creating connection:`, error);
+          console.error(`❌ Error ${action}ing connection:`, error);
         }
       }
     }
@@ -1054,7 +1081,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             <div>Visible: {visibleConnections.length}</div>
             <div className="mt-2 text-yellow-400">🟡 User connections</div>
             <div className="text-blue-400">🔵 Auto connections</div>
-            <div className="mt-2">Right-click + drag to connect</div>
+            <div className="mt-2">Right-click + drag to connect/disconnect</div>
           </div>
         </div>
       </div>
