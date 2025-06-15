@@ -55,6 +55,14 @@ interface SemanticCluster {
   keywords: string[];
 }
 
+// Add tooltip state interface
+interface TooltipState {
+  visible: boolean;
+  x: number;
+  y: number;
+  content: any;
+}
+
 // Get icon for concept category/type
 const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   const title = concept.title.toLowerCase();
@@ -221,7 +229,7 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
       .map(item => item.concept);
     
     if (groupConcepts.length > 0) {
-      // Calculate cluster position in a better grid
+      // Calculate cluster position in a better grid with more spacing
       const cols = 3;
       const row = Math.floor(clusters.length / cols);
       const col = clusters.length % cols;
@@ -233,8 +241,8 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
         color: group.color,
         icon: group.icon,
         position: {
-          x: col * 450 + 250,
-          y: row * 350 + 200
+          x: col * 500 + 300, // Increased spacing from 450 to 500
+          y: row * 400 + 250  // Increased spacing from 350 to 400
         },
         keywords: group.keywords
       });
@@ -243,11 +251,6 @@ const generateSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
 
   return clusters;
 };
-
-// Generate positions for concepts within clusters with dynamic viewport adjustment
-
-
-
 
 // Dynamic clustering based on actual concept data
 const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
@@ -341,6 +344,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   onConceptSelect
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'learning' | 'interview'>('learning');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConcept, setSelectedConcept] = useState<Concept | null>(null);
@@ -356,13 +360,22 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
   const [userConnections, setUserConnections] = useState<Array<{from: string, to: string}>>([]);
   
-  // Subcategory expansion state
+  // Subcategory expansion state with animation support
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
+  const [animatingSubcategories, setAnimatingSubcategories] = useState<Set<string>>(new Set());
   
   // Add zoom and pan functionality
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   
+  // Dynamic tooltip state
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    content: null
+  });
+
   // Keyboard zoom handler (Ctrl+/Ctrl-)
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.ctrlKey) {
@@ -376,20 +389,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-  // Add keyboard event listener
-  React.useEffect(() => {
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  
-  // Reset zoom
+
   const resetZoom = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
   };
 
-  // Helper functions for physics and positioning
-  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 10) => {
+  // Improved physics with stronger separation forces
+  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 20) => {
     const positionArray = Array.from(positions.entries()).map(([id, pos]) => ({
       id,
       x: pos.x,
@@ -399,7 +410,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }));
 
     for (let iter = 0; iter < iterations; iter++) {
-      // Calculate gentle repulsion forces
+      // Calculate stronger repulsion forces
       positionArray.forEach(node => {
         let fx = 0, fy = 0;
         
@@ -410,18 +421,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const dy = node.y - other.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           
-          if (distance < 150 && distance > 0) { // Increased spacing requirement
-            const force = (150 - distance) * 0.3; // Stronger force
+          // Stronger separation requirements
+          const minDistance = 80; // Minimum distance between nodes
+          if (distance < minDistance && distance > 0) {
+            const force = (minDistance - distance) * 0.5; // Stronger force
             fx += (dx / distance) * force;
             fy += (dy / distance) * force;
           }
         });
         
-        // Apply stronger movement
-        node.vx += fx * 0.2; // Stronger acceleration
-        node.vy += fy * 0.2;
-        node.vx *= 0.85; // Less damping for more movement
-        node.vy *= 0.85;
+        // Apply movement with stronger acceleration
+        node.vx += fx * 0.3;
+        node.vy += fy * 0.3;
+        node.vx *= 0.8; // More damping for stability
+        node.vy *= 0.8;
         
         node.x += node.vx;
         node.y += node.vy;
@@ -434,6 +447,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     });
   };
 
+  // Improved smart positioning with collision detection
   const getSmartConceptPositions = (
     centerX: number, 
     centerY: number, 
@@ -445,50 +459,107 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     if (conceptCount === 1) {
       positions.push({ x: centerX, y: centerY + radius });
     } else if (conceptCount === 2) {
-      // Left and right
-      positions.push({ x: centerX - radius, y: centerY });
-      positions.push({ x: centerX + radius, y: centerY });
+      // Left and right with more spacing
+      positions.push({ x: centerX - radius * 1.2, y: centerY });
+      positions.push({ x: centerX + radius * 1.2, y: centerY });
     } else if (conceptCount === 3) {
-      // Triangle: top, bottom-left, bottom-right
-      positions.push({ x: centerX, y: centerY - radius }); // Top
-      positions.push({ x: centerX - radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-left
-      positions.push({ x: centerX + radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-right
+      // Triangle with better spacing
+      positions.push({ x: centerX, y: centerY - radius * 1.1 }); // Top
+      positions.push({ x: centerX - radius * 1.0, y: centerY + radius * 0.8 }); // Bottom-left
+      positions.push({ x: centerX + radius * 1.0, y: centerY + radius * 0.8 }); // Bottom-right
     } else if (conceptCount === 4) {
-      // Cardinal directions: top, right, bottom, left
-      positions.push({ x: centerX, y: centerY - radius }); // Top
-      positions.push({ x: centerX + radius, y: centerY }); // Right
-      positions.push({ x: centerX, y: centerY + radius }); // Bottom
-      positions.push({ x: centerX - radius, y: centerY }); // Left
-    } else if (conceptCount === 5) {
-      // Pentagon-like but more natural
-      const angles = [-Math.PI/2, -Math.PI/6, Math.PI/6, Math.PI/2, 5*Math.PI/6];
-      angles.forEach(angle => {
-        positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
-      });
-    } else if (conceptCount === 6) {
-      // Hexagon but starting from top
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * 2 * Math.PI - Math.PI/2; // Start from top
-        positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
-        });
-      }
+      // Cardinal directions with better spacing
+      positions.push({ x: centerX, y: centerY - radius * 1.2 }); // Top
+      positions.push({ x: centerX + radius * 1.2, y: centerY }); // Right
+      positions.push({ x: centerX, y: centerY + radius * 1.2 }); // Bottom
+      positions.push({ x: centerX - radius * 1.2, y: centerY }); // Left
     } else {
-      // For larger numbers, use regular circle
+      // For larger numbers, use circles with better spacing
       for (let i = 0; i < conceptCount; i++) {
         const angle = (i / conceptCount) * 2 * Math.PI - Math.PI/2; // Start from top
+        const adjustedRadius = radius * (1 + Math.floor(conceptCount / 8) * 0.3); // Scale radius based on count
         positions.push({
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
+          x: centerX + Math.cos(angle) * adjustedRadius,
+          y: centerY + Math.sin(angle) * adjustedRadius
         });
       }
     }
     
     return positions;
+  };
+
+  // Dynamic mouse position handler for tooltips
+  const handleMouseMove = (event: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    if (tooltip.visible) {
+      setTooltip(prev => ({
+        ...prev,
+        x,
+        y
+      }));
+    }
+    
+    // Handle drag connection if dragging
+    if (isDragging && dragStart) {
+      const svgRect = svgRef.current?.getBoundingClientRect();
+      if (svgRect) {
+        const svgX = ((event.clientX - svgRect.left) * viewBox.width) / svgRect.width + viewBox.x;
+        const svgY = ((event.clientY - svgRect.top) * viewBox.height) / svgRect.height + viewBox.y;
+        setDragCurrent({ x: svgX, y: svgY });
+      }
+    }
+  };
+
+  // Enhanced concept hover handler
+  const handleConceptHover = (conceptId: string | null, event?: React.MouseEvent) => {
+    if (conceptId) {
+      const concept = concepts.find(c => c.id === conceptId);
+      if (concept && event && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        setTooltip({
+          visible: true,
+          x,
+          y,
+          content: concept
+        });
+      }
+    } else {
+      setTooltip(prev => ({ ...prev, visible: false }));
+    }
+    setHoveredConcept(conceptId);
+  };
+
+  // Smooth subcategory expansion with animation
+  const toggleSubcategoryExpansion = (key: string) => {
+    setAnimatingSubcategories(prev => new Set(prev).add(key));
+    
+    // Toggle expansion state
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+    
+    // Remove animation state after animation completes
+    setTimeout(() => {
+      setAnimatingSubcategories(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    }, 300); // Match CSS transition duration
   };
 
   // Generate dynamic semantic clusters first
@@ -632,8 +703,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const baseSizeFromCount = subcategory.count * 3;
         const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
         
-        // Smart concept positioning around subcategory with more space
-        const conceptRadius = bubbleRadius + 80; // Increased from 50 to 80
+        // Smart concept positioning around subcategory with much more space
+        const conceptRadius = bubbleRadius + 120; // Increased significantly for better separation
         const conceptPositions = getSmartConceptPositions(
           subcategoryPos.x,
           subcategoryPos.y,
@@ -647,27 +718,15 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           }
         });
         
-        // Apply stronger physics to concepts around this subcategory
+        // Apply much stronger physics to concepts around this subcategory
         const conceptPosMap = new Map<string, { x: number; y: number }>();
         subcategory.concepts.forEach((concept: any) => {
           const pos = dynamicConceptPositions.get(concept.id);
           if (pos) conceptPosMap.set(concept.id, pos);
         });
         
-        console.log(`🔧 Applying physics to ${conceptPosMap.size} concepts in subcategory "${subcategory.name}"`);
-        const beforePositions = new Map(conceptPosMap);
-        applyGentlePhysics(conceptPosMap, 15); // More iterations for better separation
-        
-        // Log position changes
-        conceptPosMap.forEach((afterPos, conceptId) => {
-          const beforePos = beforePositions.get(conceptId);
-          if (beforePos) {
-            const distance = Math.sqrt(Math.pow(afterPos.x - beforePos.x, 2) + Math.pow(afterPos.y - beforePos.y, 2));
-            if (distance > 5) {
-              console.log(`  📍 Concept ${conceptId} moved ${distance.toFixed(1)}px`);
-            }
-          }
-        });
+        // Apply physics multiple times for better separation
+        applyGentlePhysics(conceptPosMap, 25); // Much more iterations
         
         conceptPosMap.forEach((pos, conceptId) => {
           dynamicConceptPositions.set(conceptId, pos);
@@ -719,7 +778,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     };
   };
   
-  const viewportBounds = calculateViewportBounds();
+  // Optimize viewport bounds calculation - only recalculate when necessary
+  const viewportBounds = React.useMemo(() => calculateViewportBounds(), [
+    semanticClusters.length, 
+    dynamicConceptPositions.size, 
+    expandedSubcategories.size
+  ]);
 
   // Generate connections with better debugging
   const connections = concepts.flatMap(concept => {
@@ -864,17 +928,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-  const handleMouseMove = (event: React.MouseEvent) => {
-    if (isDragging && dragStart) {
-      const rect = svgRef.current?.getBoundingClientRect();
-      if (rect) {
-        const svgX = ((event.clientX - rect.left) * viewportBounds.width) / rect.width + viewportBounds.x;
-        const svgY = ((event.clientY - rect.top) * viewportBounds.height) / rect.height + viewportBounds.y;
-        setDragCurrent({ x: svgX, y: svgY });
-      }
-    }
-  };
-
   const handleMouseUp = async (event: React.MouseEvent, targetConceptId?: string) => {
     if (isDragging && dragStart && targetConceptId && targetConceptId !== dragStart.conceptId) {
       const sourceConcept = concepts.find(c => c.id === dragStart.conceptId);
@@ -967,8 +1020,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
     setExpandedClusters(newExpanded);
   };
-
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex">
@@ -1145,14 +1196,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         </header>
 
         {/* Main Graph */}
-        <div className="flex-1 relative">
+        <div 
+          ref={containerRef}
+          className="flex-1 relative"
+          onMouseMove={handleMouseMove}
+        >
           <svg
             ref={svgRef}
             className="w-full h-full cursor-grab active:cursor-grabbing"
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
             onMouseMove={handleMouseMove}
             onMouseUp={(e) => handleMouseUp(e)}
-
             onContextMenu={(e) => e.preventDefault()}
           >
             <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
@@ -1362,8 +1416,13 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       const baseSizeFromCount = subcategory.count * 3;
                       const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
                       
+                      const isAnimating = animatingSubcategories.has(`${cluster.id}-${subcategory.name}`);
+                      
                       return (
-                        <g key={`subcategory-${cluster.id}-${subcategory.name}`}>
+                        <g 
+                          key={`subcategory-${cluster.id}-${subcategory.name}`}
+                          className={`transition-all duration-300 ${isAnimating ? 'animate-pulse' : ''}`}
+                        >
                           {/* Subcategory Bubble */}
                           <circle
                             cx={x}
@@ -1375,14 +1434,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                             strokeWidth={2}
                             className="cursor-pointer transition-all duration-300 hover:opacity-90"
                             onClick={() => {
-                              const newExpanded = new Set(expandedSubcategories);
                               const key = `${cluster.id}-${subcategory.name}`;
-                              if (newExpanded.has(key)) {
-                                newExpanded.delete(key);
-                              } else {
-                                newExpanded.add(key);
-                              }
-                              setExpandedSubcategories(newExpanded);
+                              toggleSubcategoryExpansion(key);
                             }}
                           />
                           
@@ -1438,7 +1491,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                             {subcategory.count}
                           </text>
                           
-                          {/* Expanded Individual Concepts */}
+                          {/* Expanded Individual Concepts with Animation */}
                           {expandedSubcategories.has(`${cluster.id}-${subcategory.name}`) && 
                             subcategory.concepts.map((concept, conceptIndex) => {
                               // Get hierarchical position for this concept
@@ -1454,8 +1507,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                               const progress = concept.learningProgress || 0;
                               const IconComponent = getConceptIcon(concept);
                               
+                              const isAnimating = animatingSubcategories.has(`${cluster.id}-${subcategory.name}`);
+                              
                               return (
-                                <g key={`expanded-concept-${concept.id}`}>
+                                <g 
+                                  key={`expanded-concept-${concept.id}`}
+                                  className={`transition-all duration-300 ${isAnimating ? 'animate-pulse' : ''}`}
+                                  style={{
+                                    opacity: isAnimating ? 0.7 : 1,
+                                    transform: isAnimating ? 'scale(0.95)' : 'scale(1)'
+                                  }}
+                                >
                                   {/* Connection line to subcategory */}
                                   <line
                                     x1={x}
@@ -1476,8 +1538,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                                     stroke={masteryColor}
                                     strokeWidth={2}
                                     className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                                    onMouseEnter={() => setHoveredConcept(concept.id)}
-                                    onMouseLeave={() => setHoveredConcept(null)}
+                                    onMouseEnter={(e) => handleConceptHover(concept.id, e)}
+                                    onMouseLeave={() => handleConceptHover(null)}
                                     onMouseDown={(e) => handleMouseDown(e, concept.id, { x: conceptX, y: conceptY })}
                                     onMouseUp={(e) => handleMouseUp(e, concept.id)}
                                     onClick={() => {
@@ -1592,8 +1654,8 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                           stroke={isConnected ? "#10B981" : masteryColor}
                           strokeWidth={isConnected ? 3 : 2}
                           className="cursor-pointer transition-all duration-300 hover:stroke-white"
-                          onMouseEnter={() => setHoveredConcept(concept.id)}
-                          onMouseLeave={() => setHoveredConcept(null)}
+                          onMouseEnter={(e) => handleConceptHover(concept.id, e)}
+                          onMouseLeave={() => handleConceptHover(null)}
                           onMouseDown={(e) => handleMouseDown(e, concept.id, position)}
                           onMouseUp={(e) => handleMouseUp(e, concept.id)}
                           onClick={() => {
@@ -1648,30 +1710,30 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             </g>
           </svg>
 
-          {/* Hover Tooltip */}
-          {hoveredConcept && (
-            <div className="absolute pointer-events-none bg-slate-800/95 backdrop-blur-lg rounded-lg border border-white/10 p-3 max-w-sm z-50"
-                 style={{ 
-                   left: '50%', 
-                   top: '10%', 
-                   transform: 'translateX(-50%)' 
-                 }}>
-              {(() => {
-                const concept = concepts.find(c => c.id === hoveredConcept);
-                if (!concept) return null;
-                
-                return (
-                  <div>
-                    <h4 className="font-semibold text-white mb-1">{concept.title}</h4>
-                    <p className="text-sm text-gray-300 mb-2">{concept.category}</p>
-                    <p className="text-xs text-gray-400 line-clamp-3">{concept.summary}</p>
-                    <div className="flex items-center justify-between mt-2 text-xs">
-                      <span className="text-gray-400">Progress: {concept.learningProgress || 0}%</span>
-                      <span className="text-gray-400">{concept.masteryLevel || 'No level'}</span>
-                    </div>
-                  </div>
-                );
-              })()}
+          {/* Dynamic Hover Tooltip */}
+          {tooltip.visible && tooltip.content && (
+            <div 
+              className="absolute pointer-events-none bg-slate-800/95 backdrop-blur-lg rounded-lg border border-white/10 p-3 max-w-sm z-50 transition-all duration-200 opacity-100"
+              style={{ 
+                left: Math.min(tooltip.x + 10, window.innerWidth - 250), 
+                top: Math.max(tooltip.y - 10, 10),
+                transform: tooltip.y > window.innerHeight / 2 ? 'translateY(-100%)' : 'translateY(0)'
+              }}
+            >
+              <div>
+                <h4 className="font-semibold text-white mb-1">{tooltip.content.title}</h4>
+                <p className="text-sm text-gray-300 mb-2">{tooltip.content.category}</p>
+                {tooltip.content.summary && (
+                  <p className="text-xs text-gray-400 line-clamp-3 mb-2">{tooltip.content.summary}</p>
+                )}
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-400">Progress: {tooltip.content.learningProgress || 0}%</span>
+                  <span className="text-gray-400">{tooltip.content.masteryLevel || 'No level'}</span>
+                </div>
+                {tooltip.content.bookmarked && (
+                  <div className="mt-1 text-xs text-yellow-400">⭐ Bookmarked</div>
+                )}
+              </div>
             </div>
           )}
 
