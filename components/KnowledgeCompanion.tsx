@@ -412,7 +412,7 @@ const generateGeometricPositions = (
               y: conceptY,
               originalX: conceptX,
               originalY: conceptY,
-              radius: 22,
+              radius: 30,
               type: 'concept',
               fixed: false
             };
@@ -448,7 +448,7 @@ const generateGeometricPositions = (
           y: conceptY,
           originalX: conceptX,
           originalY: conceptY,
-          radius: 22,
+          radius: 30,
           type: 'concept',
           fixed: false
         };
@@ -579,7 +579,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   y: conceptY,
                   originalX: conceptX,
                   originalY: conceptY,
-                  radius: 22,
+                  radius: 30,
                   type: 'concept',
                   fixed: false
                 };
@@ -889,7 +889,42 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     }
   };
 
-
+  // Enhanced concept color based on category and mastery
+  const getConceptColor = (concept: Concept): string => {
+    // First check mastery level
+    if (concept.masteryLevel) {
+      return getMasteryColor(concept.masteryLevel);
+    }
+    
+    // Fallback to category-based colors
+    const category = concept.category.toLowerCase();
+    
+    if (category.includes('machine learning') || category.includes('ai') || category.includes('artificial')) {
+      return '#8B5CF6'; // Purple for AI/ML
+    } else if (category.includes('leetcode') || category.includes('algorithm') || category.includes('programming')) {
+      return '#F59E0B'; // Orange for algorithms
+    } else if (category.includes('cloud') || category.includes('aws') || category.includes('infrastructure')) {
+      return '#06B6D4'; // Cyan for cloud
+    } else if (category.includes('data') || category.includes('database') || category.includes('sql')) {
+      return '#10B981'; // Green for data
+    } else if (category.includes('security') || category.includes('auth')) {
+      return '#EC4899'; // Pink for security
+    } else if (category.includes('system') || category.includes('architecture')) {
+      return '#3B82F6'; // Blue for systems
+    } else if (category.includes('frontend') || category.includes('ui') || category.includes('react')) {
+      return '#14B8A6'; // Teal for frontend
+    } else if (category.includes('backend') || category.includes('api')) {
+      return '#F97316'; // Orange for backend
+    } else {
+      // Use learning progress as fallback
+      const progress = concept.learningProgress || 0;
+      if (progress >= 80) return '#10B981'; // Green for high progress
+      if (progress >= 60) return '#3B82F6'; // Blue for medium progress
+      if (progress >= 40) return '#F59E0B'; // Yellow for some progress
+      if (progress >= 20) return '#EF4444'; // Red for low progress
+      return '#8B5CF6'; // Purple for no progress
+    }
+  };
 
   const getConnectedNodes = (conceptId: string) => {
     const connected = new Set<string>();
@@ -1078,7 +1113,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           <svg
             ref={svgRef}
             className="w-full h-full"
+            style={{
+              minHeight: '100vh',
+              background: 'transparent'
+            }}
             viewBox={`${viewportBounds.x} ${viewportBounds.y} ${viewportBounds.width} ${viewportBounds.height}`}
+            preserveAspectRatio="xMidYMid meet"
             onContextMenu={(e) => e.preventDefault()}
           >
             {/* Background Grid */}
@@ -1191,7 +1231,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               }
 
               // Individual concept
-              const masteryColor = getMasteryColor(concept.masteryLevel);
+              const conceptColor = getConceptColor(concept);
               const isHovered = hoveredConcept === concept.id;
               const connectedNodes = getConnectedNodes(concept.id);
               
@@ -1201,7 +1241,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     cx={node.x}
                     cy={node.y}
                     r={node.radius}
-                    fill={masteryColor}
+                    fill={conceptColor}
                     stroke={isHovered ? 'white' : 'rgba(255,255,255,0.3)'}
                     strokeWidth={isHovered ? 3 : 1}
                     className="cursor-pointer transition-all duration-200"
@@ -1212,14 +1252,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   
                   {/* Concept Icon */}
                   <foreignObject
-                    x={node.x - 8}
-                    y={node.y - 8}
-                    width="16"
-                    height="16"
+                    x={node.x - 10}
+                    y={node.y - 10}
+                    width="20"
+                    height="20"
                     className="pointer-events-none"
                   >
                     {React.createElement(getConceptIcon(concept), {
-                      size: 16,
+                      size: 20,
                       color: 'white'
                     })}
                   </foreignObject>
@@ -1227,28 +1267,55 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                   {/* Concept Label */}
                   <text
                     x={node.x}
-                    y={node.y + node.radius + 15}
+                    y={node.y + node.radius + 18}
                     textAnchor="middle"
-                    className="text-xs font-medium pointer-events-none"
+                    className="text-sm font-medium pointer-events-none"
                     fill="white"
                   >
-                    {concept.title.length > 12 ? concept.title.substring(0, 10) + '...' : concept.title}
+                    {concept.title.length > 15 ? concept.title.substring(0, 12) + '...' : concept.title}
                   </text>
+                  
+                  {/* Progress indicator */}
+                  {(concept.learningProgress || 0) > 0 && (
+                    <circle
+                      cx={node.x + node.radius - 8}
+                      cy={node.y - node.radius + 8}
+                      r="6"
+                      fill="rgba(34, 197, 94, 0.8)"
+                      stroke="white"
+                      strokeWidth="1"
+                      className="pointer-events-none"
+                    />
+                  )}
+                  
+                  {/* Progress text */}
+                  {(concept.learningProgress || 0) > 0 && (
+                    <text
+                      x={node.x + node.radius - 8}
+                      y={node.y - node.radius + 12}
+                      textAnchor="middle"
+                      className="text-xs font-bold pointer-events-none"
+                      fill="white"
+                    >
+                      {Math.round(concept.learningProgress || 0)}
+                    </text>
+                  )}
                   
                   {/* Connection indicators */}
                   {connectedNodes.size > 0 && (
                     <circle
-                      cx={node.x + node.radius - 5}
-                      cy={node.y - node.radius + 5}
-                      r="4"
+                      cx={node.x - node.radius + 8}
+                      cy={node.y - node.radius + 8}
+                      r="5"
                       fill="rgba(59, 130, 246, 0.8)"
+                      stroke="white"
+                      strokeWidth="1"
                       className="pointer-events-none"
                     />
                   )}
                 </g>
               );
             })}
-
 
           </svg>
 
