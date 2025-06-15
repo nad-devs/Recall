@@ -504,18 +504,18 @@ const generateClusterLayout = (clusters: SemanticCluster[], viewBox: { x: number
         x = centerX;
         y = centerY;
       } else if (concepts.length <= 8) {
-        // Single ring for small clusters
+        // Single compact ring for small clusters
         const angle = (index / concepts.length) * 2 * Math.PI;
-        const radius = Math.min(120, 60 + concepts.length * 10);
+        const radius = Math.min(80, 40 + concepts.length * 5); // Much smaller radius
         x = centerX + Math.cos(angle) * radius;
         y = centerY + Math.sin(angle) * radius;
       } else {
-        // Multiple rings for larger clusters
+        // Multiple compact rings for larger clusters
         const conceptsPerRing = 8;
         const ring = Math.floor(index / conceptsPerRing);
         const indexInRing = index % conceptsPerRing;
         const conceptsInThisRing = Math.min(conceptsPerRing, concepts.length - ring * conceptsPerRing);
-        const ringRadius = 80 + (ring * 60);
+        const ringRadius = 50 + (ring * 40); // Much smaller ring spacing
         const angle = (indexInRing / conceptsInThisRing) * 2 * Math.PI;
         
         x = centerX + Math.cos(angle) * ringRadius;
@@ -1182,26 +1182,26 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         x = cluster.position.x;
         y = cluster.position.y;
       } else if (totalSubcategories <= 6) {
-        // Small clusters - perfect circle with better spacing
+        // Small clusters - compact circle that stays within cluster area
         const angle = (index / totalSubcategories) * 2 * Math.PI;
-        const radius = 200; // Fixed larger radius for clean circles
+        const radius = 120; // Smaller radius to keep within cluster bounds
         x = cluster.position.x + Math.cos(angle) * radius;
         y = cluster.position.y + Math.sin(angle) * radius;
               } else {
-          // Larger clusters - concentric circles with better spacing
+          // Larger clusters - compact concentric circles
           const innerCount = 6;
           if (index < innerCount) {
-            // Inner circle
+            // Inner circle - compact
             const angle = (index / innerCount) * 2 * Math.PI;
-            const radius = 150; // Larger inner radius
+            const radius = 80; // Much smaller inner radius
             x = cluster.position.x + Math.cos(angle) * radius;
             y = cluster.position.y + Math.sin(angle) * radius;
           } else {
-            // Outer circle
+            // Outer circle - still compact
             const outerIndex = index - innerCount;
             const outerCount = totalSubcategories - innerCount;
             const angle = (outerIndex / outerCount) * 2 * Math.PI;
-            const radius = 280; // Much larger outer radius
+            const radius = 140; // Smaller outer radius
             x = cluster.position.x + Math.cos(angle) * radius;
             y = cluster.position.y + Math.sin(angle) * radius;
           }
