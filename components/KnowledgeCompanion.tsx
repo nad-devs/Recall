@@ -295,11 +295,11 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }, clu
         let minDistance = nodeA.radius + nodeB.radius;
         
         if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-          minDistance += 45; 
+          minDistance += 60; 
         } else if (nodeA.type === 'subcategory' && nodeB.type === 'subcategory') {
-          minDistance += 30;
+          minDistance += 50;
         } else {
-          minDistance += 35; 
+          minDistance += 45; 
         }
         
         if (distance < minDistance && distance > 0) {
@@ -598,14 +598,30 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       maxY = Math.max(maxY, node.y + node.radius);
     });
     
-    const padding = 200; // Restore generous padding
+    const padding = 250; // Restore generous padding
+    // Calculate a static viewport based on clusters only to prevent shrinking on node expansion
+    semanticClusters.forEach(cluster => {
+      const radius = 600; // Account for the max possible expansion
+      minX = Math.min(minX, cluster.position.x - radius);
+      minY = Math.min(minY, cluster.position.y - radius);
+      maxX = Math.max(maxX, cluster.position.x + radius);
+      maxY = Math.max(maxY, cluster.position.y + radius);
+    });
+
+    if (minX === Infinity) { // Handle case with no clusters
+        minX = -500;
+        minY = -500;
+        maxX = 500;
+        maxY = 500;
+    }
+
     return {
       x: minX - padding,
       y: minY - padding,
-      width: Math.max(1400, (maxX - minX) + padding * 2),
-      height: Math.max(1000, (maxY - minY) + padding * 2)
+      width: (maxX - minX) + padding * 2,
+      height: (maxY - minY) + padding * 2
     };
-  }, [semanticClusters, physicsNodes]);
+  }, [semanticClusters]);
 
   // Event handlers
   const handleMouseMove = (event: React.MouseEvent) => {
@@ -880,7 +896,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 </div>
                 <div>
                   <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                    Knowledge Graph - Real Physics
+                    Knowledge Companion
                   </h1>
                 </div>
               </div>
@@ -1036,7 +1052,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       <circle
                         cx={node.x}
                         cy={node.y}
-                        r="50"
+                        r="80"
                         fill={cluster?.color || '#6B7280'}
                         stroke="white"
                         strokeWidth="2"
@@ -1050,7 +1066,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                         className="pointer-events-none"
                         fill="white"
                         style={{ 
-                          fontSize: '15px', 
+                          fontSize: '18px', 
                           fontWeight: 500,
                           textShadow: '0px 1px 3px rgba(0,0,0,0.5)' 
                         }}
@@ -1086,8 +1102,10 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     initial={{ opacity: 0, scale: 0.5 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.5 }}
+                    whileHover={{ scale: 1.15, zIndex: 10 }}
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                     className="cursor-pointer"
+                    style={{ position: 'relative' }}
                     onMouseEnter={(e) => handleConceptHover(concept.id, e)}
                     onMouseLeave={() => handleConceptHover(null)}
                     onClick={() => setSelectedConcept(concept)}
@@ -1095,7 +1113,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     <circle
                       cx={node.x}
                       cy={node.y}
-                      r="35"
+                      r="60"
                       fill={conceptColor}
                       stroke={isHovered ? 'white' : 'rgba(255,255,255,0.4)'}
                       strokeWidth={isHovered ? 2 : 1}
@@ -1104,14 +1122,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     
                     {/* Concept Icon - bigger but still fits in circle */}
                     <foreignObject
-                      x={node.x - 12}
-                      y={node.y - 12}
-                      width="24"
-                      height="24"
+                      x={node.x - 16}
+                      y={node.y - 16}
+                      width="32"
+                      height="32"
                       className="pointer-events-none"
                     >
                       {React.createElement(getConceptIcon(concept), {
-                        size: 24,
+                        size: 32,
                         color: 'white'
                       })}
                     </foreignObject>
@@ -1119,14 +1137,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     {/* Concept Label with more spacing */}
                     <text
                       x={node.x}
-                      y={node.y + 55}
+                      y={node.y + 75}
                       textAnchor="middle"
                       className="pointer-events-none"
                       fill="rgba(255,255,255,0.9)"
                       style={{ 
-                        fontSize: '14px', 
-                        fontWeight: 400,
-                        textShadow: '0px 1px 2px rgba(0,0,0,0.7)' 
+                        fontSize: '18px', 
+                        fontWeight: 500,
+                        textShadow: '0px 1px 3px rgba(0,0,0,0.8)' 
                       }}
                     >
                       {concept.title.length > 16 ? concept.title.substring(0, 14) + '...' : concept.title}
