@@ -458,6 +458,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const subcategoryKey = `subcategory-${cluster.id}-${subcategory.name}`;
         dynamicConceptPositions.set(subcategoryKey, { x, y });
       });
+      
+      // Apply gentle physics to subcategories to avoid overlaps
+      const subcategoryPositions = new Map<string, { x: number; y: number }>();
+      subcategories.forEach((subcategory) => {
+        const key = `subcategory-${cluster.id}-${subcategory.name}`;
+        const pos = dynamicConceptPositions.get(key);
+        if (pos) subcategoryPositions.set(key, pos);
+      });
+      applyGentlePhysics(subcategoryPositions, 5);
+      subcategoryPositions.forEach((pos, key) => {
+        dynamicConceptPositions.set(key, pos);
+      });
     } else {
       // CLUSTER HAS NO SUBCATEGORIES - position individual concepts directly
       clusterConcepts.forEach((concept, index) => {
@@ -487,6 +499,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         
         dynamicConceptPositions.set(concept.id, { x, y });
       });
+      
+      // Apply gentle physics to individual concepts in this cluster
+      const clusterConceptPositions = new Map<string, { x: number; y: number }>();
+      clusterConcepts.forEach((concept) => {
+        const pos = dynamicConceptPositions.get(concept.id);
+        if (pos) clusterConceptPositions.set(concept.id, pos);
+      });
+      applyGentlePhysics(clusterConceptPositions, 5);
+      clusterConceptPositions.forEach((pos, conceptId) => {
+        dynamicConceptPositions.set(conceptId, pos);
+      });
     }
   });
 
@@ -506,13 +529,30 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const baseSizeFromCount = subcategory.count * 3;
         const bubbleRadius = Math.max(30, Math.min(50, Math.max(baseSizeFromName, baseSizeFromCount)));
         
-        // Simple concept positioning around subcategory
+        // Smart concept positioning around subcategory
         const conceptRadius = bubbleRadius + 50;
+        const conceptPositions = getSmartConceptPositions(
+          subcategoryPos.x,
+          subcategoryPos.y,
+          subcategory.concepts.length,
+          conceptRadius
+        );
+        
         subcategory.concepts.forEach((concept: any, index: number) => {
-          const angle = (index / subcategory.concepts.length) * 2 * Math.PI;
-          const x = subcategoryPos.x + Math.cos(angle) * conceptRadius;
-          const y = subcategoryPos.y + Math.sin(angle) * conceptRadius;
-          dynamicConceptPositions.set(concept.id, { x, y });
+          if (index < conceptPositions.length) {
+            dynamicConceptPositions.set(concept.id, conceptPositions[index]);
+          }
+        });
+        
+        // Apply gentle physics to concepts around this subcategory
+        const conceptPosMap = new Map<string, { x: number; y: number }>();
+        subcategory.concepts.forEach((concept: any) => {
+          const pos = dynamicConceptPositions.get(concept.id);
+          if (pos) conceptPosMap.set(concept.id, pos);
+        });
+        applyGentlePhysics(conceptPosMap, 3);
+        conceptPosMap.forEach((pos, conceptId) => {
+          dynamicConceptPositions.set(conceptId, pos);
         });
       }
     });
@@ -796,6 +836,110 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       newExpanded.add(clusterId);
     }
     setExpandedClusters(newExpanded);
+  };
+
+  // Simple collision detection and gentle physics
+  const applyGentlePhysics = (positions: Map<string, { x: number; y: number }>, iterations: number = 10) => {
+    const positionArray = Array.from(positions.entries()).map(([id, pos]) => ({
+      id,
+      x: pos.x,
+      y: pos.y,
+      vx: 0,
+      vy: 0
+    }));
+
+    for (let iter = 0; iter < iterations; iter++) {
+      // Calculate gentle repulsion forces
+      positionArray.forEach(node => {
+        let fx = 0, fy = 0;
+        
+        positionArray.forEach(other => {
+          if (other.id === node.id) return;
+          
+          const dx = node.x - other.x;
+          const dy = node.y - other.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < 120 && distance > 0) { // Gentle spacing
+            const force = (120 - distance) * 0.1; // Gentle force
+            fx += (dx / distance) * force;
+            fy += (dy / distance) * force;
+          }
+        });
+        
+        // Apply gentle movement
+        node.vx += fx * 0.1;
+        node.vy += fy * 0.1;
+        node.vx *= 0.8; // Damping
+        node.vy *= 0.8;
+        
+        node.x += node.vx;
+        node.y += node.vy;
+      });
+    }
+
+    // Update positions map
+    positionArray.forEach(node => {
+      positions.set(node.id, { x: node.x, y: node.y });
+    });
+  };
+
+  // Smart concept positioning with better patterns
+  const getSmartConceptPositions = (
+    centerX: number, 
+    centerY: number, 
+    conceptCount: number, 
+    radius: number
+  ): Array<{ x: number; y: number }> => {
+    const positions: Array<{ x: number; y: number }> = [];
+    
+    if (conceptCount === 1) {
+      positions.push({ x: centerX, y: centerY + radius });
+    } else if (conceptCount === 2) {
+      // Left and right
+      positions.push({ x: centerX - radius, y: centerY });
+      positions.push({ x: centerX + radius, y: centerY });
+    } else if (conceptCount === 3) {
+      // Triangle: top, bottom-left, bottom-right
+      positions.push({ x: centerX, y: centerY - radius }); // Top
+      positions.push({ x: centerX - radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-left
+      positions.push({ x: centerX + radius * 0.8, y: centerY + radius * 0.6 }); // Bottom-right
+    } else if (conceptCount === 4) {
+      // Cardinal directions: top, right, bottom, left
+      positions.push({ x: centerX, y: centerY - radius }); // Top
+      positions.push({ x: centerX + radius, y: centerY }); // Right
+      positions.push({ x: centerX, y: centerY + radius }); // Bottom
+      positions.push({ x: centerX - radius, y: centerY }); // Left
+    } else if (conceptCount === 5) {
+      // Pentagon-like but more natural
+      const angles = [-Math.PI/2, -Math.PI/6, Math.PI/6, Math.PI/2, 5*Math.PI/6];
+      angles.forEach(angle => {
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      });
+    } else if (conceptCount === 6) {
+      // Hexagon but starting from top
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * 2 * Math.PI - Math.PI/2; // Start from top
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      }
+    } else {
+      // For larger numbers, use regular circle
+      for (let i = 0; i < conceptCount; i++) {
+        const angle = (i / conceptCount) * 2 * Math.PI - Math.PI/2; // Start from top
+        positions.push({
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius
+        });
+      }
+    }
+    
+    return positions;
   };
 
   return (
