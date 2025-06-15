@@ -267,52 +267,93 @@ const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[]
 // Collision detection and minimal adjustment
 const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { [key: string]: GeometricNode } => {
   const nodeArray = Object.values(nodes);
-  const adjustedNodes = { ...nodes };
-  
-  // More aggressive collision detection
-  for (let iter = 0; iter < 5; iter++) { // Run multiple iterations for stability
+  const maxIterations = 50;
+  let iteration = 0;
+
+  while (iteration < maxIterations) {
+    let hasCollisions = false;
+    
     for (let i = 0; i < nodeArray.length; i++) {
       for (let j = i + 1; j < nodeArray.length; j++) {
         const nodeA = nodeArray[i];
         const nodeB = nodeArray[j];
         
-        const dx = nodeA.x - nodeB.x;
-        const dy = nodeA.y - nodeB.y;
+        const dx = nodeB.x - nodeA.x;
+        const dy = nodeB.y - nodeA.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Different minimum distances based on node types
-        let minDistance;
+        // Calculate minimum distance based on node types and text spacing
+        let minDistance = nodeA.radius + nodeB.radius;
+        
+        // Add extra spacing for text labels (concepts need more space for labels)
         if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-          minDistance = nodeA.radius + nodeB.radius + 25; // Decent padding
+          minDistance += 60; // Extra space for concept labels (12px font + 35px label position + 5px minimum)
+        } else if (nodeA.type === 'subcategory' && nodeB.type === 'subcategory') {
+          minDistance += 40; // Space for subcategory labels
         } else {
-          minDistance = nodeA.radius + nodeB.radius + 40; // More padding for subcategories
+          minDistance += 30; // Mixed types
         }
         
         if (distance < minDistance && distance > 0) {
+          hasCollisions = true;
+          
+          // Calculate overlap and correction
           const overlap = minDistance - distance;
-          const adjustmentFactor = overlap / (2 * distance);
+          const correctionFactor = overlap / distance * 0.5;
           
-          const adjustX = dx * adjustmentFactor;
-          const adjustY = dy * adjustmentFactor;
+          // Apply stronger force for concept-concept collisions to prevent text overlap
+          const forceMultiplier = (nodeA.type === 'concept' && nodeB.type === 'concept') ? 1.2 : 1.0;
           
-          const maxAdjustment = 30; // Allow larger adjustments
-          const clampedAdjustX = Math.max(-maxAdjustment, Math.min(maxAdjustment, adjustX));
-          const clampedAdjustY = Math.max(-maxAdjustment, Math.min(maxAdjustment, adjustY));
+          const correctionX = dx * correctionFactor * forceMultiplier;
+          const correctionY = dy * correctionFactor * forceMultiplier;
           
-          if (!nodeA.fixed) {
-            adjustedNodes[nodeA.id].x += clampedAdjustX;
-            adjustedNodes[nodeA.id].y += clampedAdjustY;
+          // Move nodes apart
+          nodeA.x -= correctionX;
+          nodeA.y -= correctionY;
+          nodeB.x += correctionX;
+          nodeB.y += correctionY;
+          
+          // Keep concepts within reasonable bounds of their original position
+          if (nodeA.type === 'concept') {
+            const maxDrift = 80;
+            const driftX = nodeA.x - nodeA.originalX;
+            const driftY = nodeA.y - nodeA.originalY;
+            const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
+            
+            if (driftDistance > maxDrift) {
+              const scale = maxDrift / driftDistance;
+              nodeA.x = nodeA.originalX + driftX * scale;
+              nodeA.y = nodeA.originalY + driftY * scale;
+            }
           }
-          if (!nodeB.fixed) {
-            adjustedNodes[nodeB.id].x -= clampedAdjustX;
-            adjustedNodes[nodeB.id].y -= clampedAdjustY;
+          
+          if (nodeB.type === 'concept') {
+            const maxDrift = 80;
+            const driftX = nodeB.x - nodeB.originalX;
+            const driftY = nodeB.y - nodeB.originalY;
+            const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
+            
+            if (driftDistance > maxDrift) {
+              const scale = maxDrift / driftDistance;
+              nodeB.x = nodeB.originalX + driftX * scale;
+              nodeB.y = nodeB.originalY + driftY * scale;
+            }
           }
         }
       }
     }
+    
+    if (!hasCollisions) break;
+    iteration++;
   }
+
+  // Convert back to object format
+  const result: { [key: string]: GeometricNode } = {};
+  nodeArray.forEach(node => {
+    result[node.id] = node;
+  });
   
-  return adjustedNodes;
+  return result;
 };
 
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
@@ -399,31 +440,31 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let angle, radius;
           
           if (subcategories.length <= 6) {
-            // Circular arrangement for small numbers
+            // Circular arrangement for small numbers with increased spacing
             angle = (index / subcategories.length) * 2 * Math.PI;
-            radius = 250 + (subcategories.length * 10); // Significantly increased radius
+            radius = 280 + (subcategories.length * 15); // Increased radius for better spacing
             
             const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
             const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-            geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 60, type: 'subcategory', fixed: false };
+            geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 45, type: 'subcategory', fixed: false };
           } else {
-            // Grid-like arrangement for larger numbers
+            // Grid-like arrangement for larger numbers with increased spacing
             const cols = Math.ceil(Math.sqrt(subcategories.length));
             const row = Math.floor(index / cols);
             const col = index % cols;
-            const gridX = cluster.position.x + (col - cols/2) * 280; // Increased grid spacing
-            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 280; // Increased grid spacing
-            geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 60, type: 'subcategory', fixed: false };
+            const gridX = cluster.position.x + (col - cols/2) * 320; // Increased grid spacing
+            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 320; // Increased grid spacing
+            geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 45, type: 'subcategory', fixed: false };
           }
 
           const node = geometricNodes[key];
           if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
             const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
-            const arcSpan = Math.PI * 1.4; // Wider fan to prevent concept label collision
+            const arcSpan = Math.PI * 1.6; // Wider fan to prevent concept label collision
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 140; // Increased distance from subcategory to prevent label overlap
+              const conceptRadius = 160; // Increased distance from subcategory to prevent label overlap
               let conceptAngle;
 
               if (totalConcepts === 1) {
@@ -434,7 +475,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               
               const conceptX = node.x + Math.cos(conceptAngle) * conceptRadius;
               const conceptY = node.y + Math.sin(conceptAngle) * conceptRadius;
-              geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
+              geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 22, type: 'concept', fixed: false };
             });
           }
         });
@@ -442,18 +483,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
         clusterConcepts.forEach((concept, index) => {
           let angle, radius;
-          const baseRadius = 200; // Much larger base radius
+          const baseRadius = 220; // Increased base radius
           if (clusterConcepts.length <= 8) {
             angle = (index / clusterConcepts.length) * 2 * Math.PI;
-            radius = baseRadius + (clusterConcepts.length * 10);
+            radius = baseRadius + (clusterConcepts.length * 15);
           } else {
             const spiralFactor = index / clusterConcepts.length;
             angle = spiralFactor * 5 * Math.PI; // More rotations
-            radius = baseRadius + spiralFactor * 150;
+            radius = baseRadius + spiralFactor * 180;
           }
           const conceptX = cluster.position.x + Math.cos(angle) * radius;
           const conceptY = cluster.position.y + Math.sin(angle) * radius;
-          geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
+          geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 22, type: 'concept', fixed: false };
         });
       }
     });
@@ -936,9 +977,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 y1={connection.fromPos.y}
                 x2={connection.toPos.x}
                 y2={connection.toPos.y}
-                stroke="rgba(139, 92, 246, 0.3)"
-                strokeWidth="2"
-                strokeDasharray="5,5"
+                stroke="rgba(139, 92, 246, 0.4)"
+                strokeWidth="1"
+                strokeDasharray="3,3"
               />
             ))}
 
@@ -962,16 +1003,17 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     textAnchor="middle"
                     className="text-lg font-semibold"
                     fill={cluster.color}
+                    style={{ fontSize: '18px', fontWeight: 600 }}
                   >
                     {cluster.name}
                   </text>
                   <foreignObject
-                    x={cluster.position.x - 12}
-                    y={cluster.position.y - 12}
-                    width="24"
-                    height="24"
+                    x={cluster.position.x - 16}
+                    y={cluster.position.y - 16}
+                    width="32"
+                    height="32"
                   >
-                    <IconComponent size={24} color={cluster.color} />
+                    <IconComponent size={32} color={cluster.color} />
                   </foreignObject>
                 </g>
               );
@@ -995,30 +1037,50 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                       <circle
                         cx={node.x}
                         cy={node.y}
-                        r={node.radius}
+                        r="45"
                         fill={cluster?.color || '#6B7280'}
                         stroke="white"
-                        strokeWidth="3"
+                        strokeWidth="2"
                         className="cursor-pointer transition-all"
                         onClick={() => toggleSubcategoryExpansion(key)}
                       />
+                      
+                      {/* Subcategory Icon */}
+                      <foreignObject
+                        x={node.x - 11}
+                        y={node.y - 20}
+                        width="22"
+                        height="22"
+                        className="pointer-events-none"
+                      >
+                        {React.createElement(cluster?.icon || Code, {
+                          size: 22,
+                          color: 'white'
+                        })}
+                      </foreignObject>
+                      
                       <text
                         x={node.x}
                         y={node.y + 8}
                         textAnchor="middle"
-                        className="text-2xl font-bold pointer-events-none"
+                        className="pointer-events-none"
                         fill="white"
-                        style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.5)' }}
+                        style={{ 
+                          fontSize: '14px', 
+                          fontWeight: 500,
+                          textShadow: '0px 1px 3px rgba(0,0,0,0.5)' 
+                        }}
                       >
-                        {subcategoryName.length > 10 ? subcategoryName.substring(0, 9) + '...' : subcategoryName}
+                        {subcategoryName.length > 8 ? subcategoryName.substring(0, 7) + '...' : subcategoryName}
                       </text>
                       {isExpanded && (
                         <text
                           x={node.x}
-                          y={node.y - node.radius - 15}
+                          y={node.y - 55}
                           textAnchor="middle"
-                          className="text-sm"
+                          className="text-xs"
                           fill="white"
+                          style={{ fontSize: '12px' }}
                         >
                           ▼
                         </text>
@@ -1029,7 +1091,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 return null;
               }
 
-              // Individual concept with animation
+              // Individual concept with proper sizing and collision prevention
               const conceptColor = getConceptColor(concept);
               const isHovered = hoveredConcept === concept.id;
               const connectedNodes = getConnectedNodes(concept.id);
@@ -1049,47 +1111,53 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     <circle
                       cx={node.x}
                       cy={node.y}
-                      r={node.radius}
+                      r="22"
                       fill={conceptColor}
-                      stroke={isHovered ? 'white' : 'rgba(255,255,255,0.3)'}
-                      strokeWidth={isHovered ? 3 : 1}
+                      stroke={isHovered ? 'white' : 'rgba(255,255,255,0.4)'}
+                      strokeWidth={isHovered ? 2 : 1}
                       className="transition-all"
                     />
                     
                     {/* Concept Icon */}
                     <foreignObject
-                      x={node.x - 14}
-                      y={node.y - 14}
-                      width="28"
-                      height="28"
+                      x={node.x - 8}
+                      y={node.y - 8}
+                      width="16"
+                      height="16"
                       className="pointer-events-none"
                     >
                       {React.createElement(getConceptIcon(concept), {
-                        size: 28,
+                        size: 16,
                         color: 'white'
                       })}
                     </foreignObject>
                     
-                    {/* Concept Label */}
+                    {/* Concept Label with proper spacing */}
                     <text
                       x={node.x}
-                      y={node.y + node.radius + 28}
+                      y={node.y + 35}
                       textAnchor="middle"
-                      className="text-xl font-semibold pointer-events-none"
-                      fill="rgba(255,255,255,0.85)"
+                      className="pointer-events-none"
+                      fill="rgba(255,255,255,0.9)"
+                      style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 400,
+                        textShadow: '0px 1px 2px rgba(0,0,0,0.7)' 
+                      }}
                     >
-                      {concept.title.length > 20 ? concept.title.substring(0, 18) + '...' : concept.title}
+                      {concept.title.length > 18 ? concept.title.substring(0, 16) + '...' : concept.title}
                     </text>
                     
                     {/* Progress indicator */}
                     {(concept.learningProgress || 0) > 0 && (
-                      <g transform={`translate(${node.x + node.radius - 8}, ${node.y - node.radius + 8})`}>
-                        <circle r="6" fill="rgba(34, 197, 94, 0.8)" stroke="white" strokeWidth="1" />
+                      <g transform={`translate(${node.x + 16}, ${node.y - 16})`}>
+                        <circle r="5" fill="rgba(34, 197, 94, 0.9)" stroke="white" strokeWidth="1" />
                         <text
                           textAnchor="middle"
                           dy="0.35em"
-                          className="text-xs font-bold"
+                          className="pointer-events-none"
                           fill="white"
+                          style={{ fontSize: '8px', fontWeight: 600 }}
                         >
                           {Math.round(concept.learningProgress || 0)}
                         </text>
@@ -1099,12 +1167,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     {/* Connection indicators */}
                     {connectedNodes.size > 0 && (
                       <circle
-                        cx={node.x - node.radius + 10}
-                        cy={node.y - node.radius + 10}
-                        r="6"
+                        cx={node.x - 16}
+                        cy={node.y - 16}
+                        r="4"
                         fill="rgba(59, 130, 246, 0.9)"
                         stroke="white"
-                        strokeWidth="1.5"
+                        strokeWidth="1"
                         className="pointer-events-none"
                       />
                     )}
