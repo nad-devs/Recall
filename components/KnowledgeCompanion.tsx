@@ -268,7 +268,7 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
   const nodeArray = Object.values(nodes);
   const adjustedNodes = { ...nodes };
   
-  // Only perform minimal adjustments to prevent overlaps
+  // Enhanced collision detection with cluster awareness
   for (let i = 0; i < nodeArray.length; i++) {
     for (let j = i + 1; j < nodeArray.length; j++) {
       const nodeA = nodeArray[i];
@@ -277,7 +277,16 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
       const dx = nodeA.x - nodeB.x;
       const dy = nodeA.y - nodeB.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      const minDistance = nodeA.radius + nodeB.radius + 10; // 10px padding
+      
+      // Different minimum distances based on node types
+      let minDistance;
+      if (nodeA.type === 'concept' && nodeB.type === 'concept') {
+        minDistance = nodeA.radius + nodeB.radius + 20; // 20px padding between concepts
+      } else if (nodeA.type === 'subcategory' || nodeB.type === 'subcategory') {
+        minDistance = nodeA.radius + nodeB.radius + 30; // 30px padding with subcategories
+      } else {
+        minDistance = nodeA.radius + nodeB.radius + 15; // Default padding
+      }
       
       if (distance < minDistance && distance > 0) {
         // Calculate minimal adjustment needed
@@ -287,12 +296,12 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
         const adjustX = dx * adjustmentFactor;
         const adjustY = dy * adjustmentFactor;
         
-        // Only make small adjustments to preserve geometric structure
-        const maxAdjustment = 15; // Maximum pixels to move
+        // Larger adjustment for better separation
+        const maxAdjustment = 25; // Increased from 15px to 25px
         const clampedAdjustX = Math.max(-maxAdjustment, Math.min(maxAdjustment, adjustX));
         const clampedAdjustY = Math.max(-maxAdjustment, Math.min(maxAdjustment, adjustY));
         
-        // Apply minimal adjustments
+        // Apply adjustments
         if (!nodeA.fixed) {
           adjustedNodes[nodeA.id] = {
             ...adjustedNodes[nodeA.id],
@@ -311,6 +320,10 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
       }
     }
   }
+  
+  // Additional step: Ensure concepts don't overlap with cluster centers
+  // We need to check against cluster positions from generateDynamicSemanticClusters
+  // This will be done in the main positioning function
   
   return adjustedNodes;
 };
@@ -485,14 +498,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let angle, radius;
           
           if (clusterConcepts.length <= 8) {
-            // Circular arrangement
+            // Circular arrangement with proper separation from cluster center
             angle = (index / clusterConcepts.length) * 2 * Math.PI;
-            radius = 120 + (clusterConcepts.length * 5); // Increased spacing
+            // Ensure minimum 150px clearance from cluster center (50px) + concept radius (40px) + safety margin (60px)
+            const minRadius = 50 + 40 + 60; // 150px minimum
+            radius = Math.max(minRadius, 160 + (clusterConcepts.length * 10)); // Increased base and scaling
           } else {
-            // Spiral arrangement for many concepts
+            // Spiral arrangement for many concepts with better spacing
             const spiralFactor = index / clusterConcepts.length;
             angle = spiralFactor * 4 * Math.PI; // 2 full rotations
-            radius = 120 + spiralFactor * 80; // Increased expanding radius
+            // Ensure concepts spiral outward with proper spacing
+            const minRadius = 50 + 40 + 60; // 150px minimum
+            radius = Math.max(minRadius, 160 + spiralFactor * 120); // Increased expanding radius
           }
           
           const conceptX = cluster.position.x + Math.cos(angle) * radius;
