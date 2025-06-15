@@ -265,10 +265,20 @@ const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[]
 };
 
 // Collision detection and minimal adjustment
-const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { [key: string]: GeometricNode } => {
+const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }, clusters: SemanticCluster[]): { [key: string]: GeometricNode } => {
   const nodeArray = Object.values(nodes);
   const maxIterations = 50;
   let iteration = 0;
+
+  // Create a map for quick cluster lookup for each node
+  const nodeToClusterMap = new Map<string, SemanticCluster>();
+  nodeArray.forEach(node => {
+    const cluster = clusters.find(c => c.concepts.some(concept => concept.id === node.id || `subcategory-${c.id}-${node.id.split('-')[2]}` === node.id));
+    if(cluster) {
+      nodeToClusterMap.set(node.id, cluster);
+    }
+  });
+
 
   while (iteration < maxIterations) {
     let hasCollisions = false;
@@ -282,72 +292,57 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }): { 
         const dy = nodeB.y - nodeA.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Calculate minimum distance based on node types and text spacing
         let minDistance = nodeA.radius + nodeB.radius;
         
-        // Add extra spacing for text labels - concepts need much more space for 14px labels
         if (nodeA.type === 'concept' && nodeB.type === 'concept') {
-          minDistance += 80; // Extra space for concept labels (14px font + 50px label position + spacing)
+          minDistance += 45; 
         } else if (nodeA.type === 'subcategory' && nodeB.type === 'subcategory') {
-          minDistance += 60; // Space for subcategory labels (15px font + positioning)
+          minDistance += 30;
         } else {
-          minDistance += 50; // Mixed types
+          minDistance += 35; 
         }
         
         if (distance < minDistance && distance > 0) {
           hasCollisions = true;
           
-          // Calculate overlap and correction
           const overlap = minDistance - distance;
           const correctionFactor = overlap / distance * 0.5;
           
-          // Apply stronger force for concept-concept collisions to prevent text overlap
-          const forceMultiplier = (nodeA.type === 'concept' && nodeB.type === 'concept') ? 1.3 : 1.0;
+          const forceMultiplier = 0.7; // Reduced repulsion force
           
           const correctionX = dx * correctionFactor * forceMultiplier;
           const correctionY = dy * correctionFactor * forceMultiplier;
           
-          // Move nodes apart
           nodeA.x -= correctionX;
           nodeA.y -= correctionY;
           nodeB.x += correctionX;
           nodeB.y += correctionY;
-          
-          // Keep concepts within reasonable bounds of their original position
-          if (nodeA.type === 'concept') {
-            const maxDrift = 100; // Allow more drift for better spacing
-            const driftX = nodeA.x - nodeA.originalX;
-            const driftY = nodeA.y - nodeA.originalY;
-            const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
-            
-            if (driftDistance > maxDrift) {
-              const scale = maxDrift / driftDistance;
-              nodeA.x = nodeA.originalX + driftX * scale;
-              nodeA.y = nodeA.originalY + driftY * scale;
-            }
-          }
-          
-          if (nodeB.type === 'concept') {
-            const maxDrift = 100; // Allow more drift for better spacing
-            const driftX = nodeB.x - nodeB.originalX;
-            const driftY = nodeB.y - nodeB.originalY;
-            const driftDistance = Math.sqrt(driftX * driftX + driftY * driftY);
-            
-            if (driftDistance > maxDrift) {
-              const scale = maxDrift / driftDistance;
-              nodeB.x = nodeB.originalX + driftX * scale;
-              nodeB.y = nodeB.originalY + driftY * scale;
-            }
-          }
         }
       }
     }
+
+    // Boundary enforcement
+    nodeArray.forEach(node => {
+      const parentCluster = nodeToClusterMap.get(node.id);
+      if (parentCluster) {
+        const boundaryRadius = 450; // Tighter boundary
+        const dx = node.x - parentCluster.position.x;
+        const dy = node.y - parentCluster.position.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist > boundaryRadius) {
+          hasCollisions = true;
+          const pullFactor = (dist - boundaryRadius) / dist * 0.1; // Gentle pull back
+          node.x -= dx * pullFactor;
+          node.y -= dy * pullFactor;
+        }
+      }
+    });
     
     if (!hasCollisions) break;
     iteration++;
   }
 
-  // Convert back to object format
   const result: { [key: string]: GeometricNode } = {};
   nodeArray.forEach(node => {
     result[node.id] = node;
@@ -440,31 +435,29 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let angle, radius;
           
           if (subcategories.length <= 6) {
-            // Circular arrangement with much more spacing
             angle = (index / subcategories.length) * 2 * Math.PI;
-            radius = 320 + (subcategories.length * 20); // Much larger radius for proper spacing
+            radius = 180 + (subcategories.length * 8); // Reduced radius
             
             const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
             const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
             geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 50, type: 'subcategory', fixed: false };
           } else {
-            // Grid-like arrangement with much more spacing
             const cols = Math.ceil(Math.sqrt(subcategories.length));
             const row = Math.floor(index / cols);
             const col = index % cols;
-            const gridX = cluster.position.x + (col - cols/2) * 380; // Much larger grid spacing
-            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 380; // Much larger grid spacing
+            const gridX = cluster.position.x + (col - cols/2) * 200; // Reduced grid spacing
+            const gridY = cluster.position.y + (row - Math.ceil(subcategories.length/cols)/2) * 200; // Reduced grid spacing
             geometricNodes[key] = { id: key, x: gridX, y: gridY, originalX: gridX, originalY: gridY, radius: 50, type: 'subcategory', fixed: false };
           }
 
           const node = geometricNodes[key];
           if (expandedSubcategories.has(`${cluster.id}-${subcategory.name}`)) {
             const baseAngle = Math.atan2(node.y - cluster.position.y, node.x - cluster.position.x);
-            const arcSpan = Math.PI * 1.8; // Much wider fan to prevent concept label collision
+            const arcSpan = Math.PI * 1.5; 
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 200; // Much larger distance from subcategory to prevent label overlap
+              const conceptRadius = 90; // Reduced concept orbit
               let conceptAngle;
 
               if (totalConcepts === 1) {
@@ -483,7 +476,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
         clusterConcepts.forEach((concept, index) => {
           let angle, radius;
-          const baseRadius = 260; // Much larger base radius
+          const baseRadius = 150; // Reduced base radius
           if (clusterConcepts.length <= 8) {
             angle = (index / clusterConcepts.length) * 2 * Math.PI;
             radius = baseRadius + (clusterConcepts.length * 20);
@@ -499,7 +492,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       }
     });
     
-    return detectAndResolveCollisions(geometricNodes);
+    return detectAndResolveCollisions(geometricNodes, semanticClusters);
   }, [semanticClusters, filteredConcepts, expandedSubcategories]);
 
   // Generate and update geometric nodes
@@ -1024,7 +1017,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               const concept = concepts.find(c => c.id === node.id);
               
               if (!concept) {
-                // Subcategory bubble
+                // Subcategory bubble - TEXT ONLY
                 const subcategoryMatch = node.id.match(/subcategory-(.+)-(.+)/);
                 if (subcategoryMatch) {
                   const [, clusterId, subcategoryName] = subcategoryMatch;
@@ -1044,24 +1037,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                         className="cursor-pointer transition-all"
                         onClick={() => toggleSubcategoryExpansion(key)}
                       />
-                      
-                      {/* Subcategory Icon */}
-                      <foreignObject
-                        x={node.x - 14}
-                        y={node.y - 22}
-                        width="28"
-                        height="28"
-                        className="pointer-events-none"
-                      >
-                        {React.createElement(cluster?.icon || Code, {
-                          size: 28,
-                          color: 'white'
-                        })}
-                      </foreignObject>
-                      
                       <text
                         x={node.x}
-                        y={node.y + 12}
+                        y={node.y + 5} // Centered text
                         textAnchor="middle"
                         className="pointer-events-none"
                         fill="white"
