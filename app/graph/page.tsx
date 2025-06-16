@@ -125,12 +125,15 @@ export default function GraphPage() {
         (typeof rel === 'string' && rel === conceptId2)
       ) || false;
 
-      console.log('Linking check:', {
-        conceptId1,
-        conceptId2,
-        relatedConcepts: processed.relatedConceptsParsed,
-        isAlreadyLinked
-      });
+      // CLIENT-SIDE ONLY: Debug logging to prevent hydration mismatches
+      if (typeof window !== 'undefined') {
+        console.log('Linking check:', {
+          conceptId1,
+          conceptId2,
+          relatedConcepts: processed.relatedConceptsParsed,
+          isAlreadyLinked
+        });
+      }
 
       const response = await fetch('/api/concepts/link', {
         method: isAlreadyLinked ? 'DELETE' : 'POST',
@@ -143,7 +146,11 @@ export default function GraphPage() {
       }
 
       const result = await response.json();
-      console.log('Link/unlink result:', result);
+      
+      // CLIENT-SIDE ONLY: Debug logging to prevent hydration mismatches
+      if (typeof window !== 'undefined') {
+        console.log('Link/unlink result:', result);
+      }
 
       // Refresh the concepts data to reflect the change in the graph
       await loadConcepts();
@@ -172,34 +179,34 @@ export default function GraphPage() {
       const data = await response.json()
       const conceptsData = (data.concepts || []) as Concept[]
 
-              // ✨ LOG RICH DATA INSPECTION - Let's see what we already have!
-        if (conceptsData.length > 0) {
-          const sampleConcept = conceptsData[0]
-          console.log('🔍 RICH DATA INSPECTION:', {
-            title: sampleConcept.title,
-            hasLearningProgress: sampleConcept.learningProgress !== undefined,
-            hasMasteryLevel: sampleConcept.masteryLevel !== undefined,
-            hasPersonalNotes: sampleConcept.personalNotes !== undefined,
-            hasVideoResources: sampleConcept.videoResources !== undefined,
-            hasRealWorldExamples: sampleConcept.realWorldExamples !== undefined,
-            hasPracticeCount: sampleConcept.practiceCount !== undefined,
-            hasBookmarked: sampleConcept.bookmarked !== undefined,
-            allFieldsCount: Object.keys(sampleConcept).length
-          })
+      // ✨ CLIENT-SIDE ONLY: LOG RICH DATA INSPECTION - prevents hydration mismatches
+      if (typeof window !== 'undefined' && conceptsData.length > 0) {
+        const sampleConcept = conceptsData[0]
+        console.log('🔍 RICH DATA INSPECTION:', {
+          title: sampleConcept.title,
+          hasLearningProgress: sampleConcept.learningProgress !== undefined,
+          hasMasteryLevel: sampleConcept.masteryLevel !== undefined,
+          hasPersonalNotes: sampleConcept.personalNotes !== undefined,
+          hasVideoResources: sampleConcept.videoResources !== undefined,
+          hasRealWorldExamples: sampleConcept.realWorldExamples !== undefined,
+          hasPracticeCount: sampleConcept.practiceCount !== undefined,
+          hasBookmarked: sampleConcept.bookmarked !== undefined,
+          allFieldsCount: Object.keys(sampleConcept).length
+        })
 
-          // Process enhanced concepts to see parsed data
-          try {
-            const processedSample = processEnhancedConcept(sampleConcept as EnhancedConcept)
-            console.log('🎯 PROCESSED RICH DATA:', {
-              videoResourcesCount: processedSample.videoResourcesParsed?.length || 0,
-              realWorldExamplesCount: processedSample.realWorldExamplesParsed?.length || 0,
-              learningTipsCount: processedSample.learningTipsParsed?.length || 0,
-              tagsCount: processedSample.tagsParsed?.length || 0
-            })
-          } catch (error) {
-            console.log('🔧 Error processing rich data:', error)
-          }
+        // Process enhanced concepts to see parsed data
+        try {
+          const processedSample = processEnhancedConcept(sampleConcept as EnhancedConcept)
+          console.log('🎯 PROCESSED RICH DATA:', {
+            videoResourcesCount: processedSample.videoResourcesParsed?.length || 0,
+            realWorldExamplesCount: processedSample.realWorldExamplesParsed?.length || 0,
+            learningTipsCount: processedSample.learningTipsParsed?.length || 0,
+            tagsCount: processedSample.tagsParsed?.length || 0
+          })
+        } catch (error) {
+          console.log('🔧 Error processing rich data:', error)
         }
+      }
 
       setConcepts(conceptsData)
       
@@ -222,8 +229,10 @@ export default function GraphPage() {
   const ConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
     if (!concept) return null
     
-    // Add debugging
-    console.log('ConceptModal rendering for:', concept.title)
+    // CLIENT-SIDE ONLY: Add debugging to prevent hydration mismatches
+    if (typeof window !== 'undefined') {
+      console.log('ConceptModal rendering for:', concept.title)
+    }
     
     // Process enhanced concept data safely
     const enhanced = processEnhancedConcept(concept as EnhancedConcept)
