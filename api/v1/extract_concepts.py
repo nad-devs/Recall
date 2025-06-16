@@ -1802,47 +1802,56 @@ Learning Example:
                 logger.info("✅ Returning cached response")
                 return cached_response
 
-            logger.info("🔍 Starting conversation segmentation...")
+            # 💡 SMART ANALYSIS: Use different strategies based on content length
+            # Long content (like YouTube transcripts) gets single-pass analysis to avoid timeouts.
+            # Shorter content gets detailed segmentation for higher accuracy.
+            LONG_CONTENT_THRESHOLD = 12000  # Characters
 
-            # RESTORE SEGMENTATION: This is critical for identifying specific topics like LeetCode problems
-            segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
-            logger.info(f"📊 Found {len(segments)} segments to analyze")
-
-            # Analyze each segment to extract concepts
-            all_concepts = []
-            conversation_summaries = []
-            
-            for i, (topic, segment_text) in enumerate(segments):
-                logger.info(f"🔄 Analyzing segment {i+1}/{len(segments)}: {topic}")
-                
-                segment_result = await self._analyze_segment(
-                    topic, segment_text, req.context, req.category_guidance, req.custom_api_key
+            if len(req.conversation_text) > LONG_CONTENT_THRESHOLD:
+                logger.info(f"📄 Content is long ({len(req.conversation_text)} chars), using single-pass analysis to prevent timeouts.")
+                analysis_result = await self._analyze_segment(
+                    "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
                 )
-                
-                if segment_result.get("concepts"):
-                    all_concepts.extend(segment_result["concepts"])
-                    logger.info(f"✅ Extracted {len(segment_result['concepts'])} concepts from segment {i+1}")
-                
-                if segment_result.get("conversation_summary"):
-                    conversation_summaries.append(segment_result["conversation_summary"])
+            else:
+                logger.info(f"📄 Content is short ({len(req.conversation_text)} chars), using detailed segmentation.")
+                segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
+                logger.info(f"📊 Found {len(segments)} segments to analyze")
 
-            # Create combined result
-            single_pass_result = {
-                "concepts": all_concepts,
-                "conversation_title": segments[0][0] if segments else "Learning Session",
-                "conversation_summary": " | ".join(conversation_summaries) if conversation_summaries else "Key insights extracted from conversation",
-                "metadata": {
-                    "extraction_method": "segmented_insight_extraction",
-                    "segments_analyzed": len(segments),
-                    "extraction_time": datetime.now().isoformat()
+                # Analyze each segment to extract concepts
+                all_concepts = []
+                conversation_summaries = []
+                
+                for i, (topic, segment_text) in enumerate(segments):
+                    logger.info(f"🔄 Analyzing segment {i+1}/{len(segments)}: {topic}")
+                    
+                    segment_result = await self._analyze_segment(
+                        topic, segment_text, req.context, req.category_guidance, req.custom_api_key
+                    )
+                    
+                    if segment_result.get("concepts"):
+                        all_concepts.extend(segment_result["concepts"])
+                        logger.info(f"✅ Extracted {len(segment_result['concepts'])} concepts from segment {i+1}")
+                    
+                    if segment_result.get("conversation_summary"):
+                        conversation_summaries.append(segment_result["conversation_summary"])
+
+                # Create combined result from all segments
+                analysis_result = {
+                    "concepts": all_concepts,
+                    "conversation_title": self._extract_topic_title(segments[0][0]) if segments else "Learning Session",
+                    "conversation_summary": " | ".join(conversation_summaries) if conversation_summaries else "Key insights extracted.",
+                    "metadata": {
+                        "extraction_method": "segmented_insight_extraction",
+                        "segments_analyzed": len(segments),
+                        "extraction_time": datetime.now().isoformat()
+                    }
                 }
-            }
 
             # If we get at least one concept, return it
-            if single_pass_result.get("concepts"):
+            if analysis_result.get("concepts"):
                 # Simple title-based deduplication (keep highest confidence)
                 unique_concepts = {}
-                for concept in single_pass_result.get("concepts", []):
+                for concept in analysis_result.get("concepts", []):
                     # Use exact title for deduplication, not lowercase
                     title_key = concept["title"]
                     if (title_key not in unique_concepts or 
@@ -1988,13 +1997,13 @@ Learning Example:
                                         if concept["title"] not in related_concept["relatedConcepts"]:
                                             related_concept["relatedConcepts"].append(concept["title"])
                 
-                single_pass_result["concepts"] = concepts
-                self.cache[cache_key] = single_pass_result
-                return single_pass_result
+                analysis_result["concepts"] = concepts
+                self.cache[cache_key] = analysis_result
+                return analysis_result
             else:
                 # If no concepts were extracted but we have a summary, create a basic fallback
                 # This is much simpler and doesn't try to be too specific
-                summary = single_pass_result.get("conversation_summary", single_pass_result.get("summary", ""))
+                summary = analysis_result.get("conversation_summary", analysis_result.get("summary", ""))
                 
                 if "contains duplicate" in summary.lower() or "hash table" in summary.lower():
                     # Simple fallback for common patterns without over-engineering
@@ -2015,134 +2024,50 @@ Learning Example:
                         "details": {
                             "implementation": "The Contains Duplicate problem asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen.\n\nAs we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false.\n\nThis approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization.",
                             "complexity": {
-                                "time": "O(n) where n is the length of the array",
-                                "space": "O(n) in the worst case, as we might need to store all elements in the hash table"
+                                "time": "O(n)",
+                                "space": "O(n)"
                             },
-                            "useCases": [
-                                "Checking for duplicate elements in arrays",
-                                "Data validation and integrity checks",
-                                "Preprocessing steps for algorithms requiring unique elements"
-                            ],
-                            "edgeCases": [
-                                "Empty arrays (return false, as there are no duplicates)",
-                                "Arrays with a single element (return false, as there can be no duplicates)",
-                                "Arrays with many duplicates (can return true early)"
-                            ]
+                            "useCases": ["Detecting duplicates in a list", "Checking for unique elements"]
                         },
-                        "codeSnippets": [
-                            {
-                                "language": "Python",
-                                "description": "Hash table implementation",
-                                "code": "def containsDuplicate(nums):\n    seen = {}  # Hash table to track elements\n    \n    for num in nums:\n        # If we've seen this number before, return True\n        if num in seen:\n            return True\n        # Otherwise, add it to our hash table\n        seen[num] = True\n    \n    # If we've checked all elements without finding duplicates\n    return False"
-                            },
-                            {
-                                "language": "JavaScript",
-                                "description": "Using Set for duplicate detection",
-                                "code": "function containsDuplicate(nums) {\n    const seen = new Set();\n    \n    for (const num of nums) {\n        // If we've seen this number before, return true\n        if (seen.has(num)) {\n            return true;\n        }\n        // Otherwise, add it to our set\n        seen.add(num);\n    }\n    \n    // If we've checked all elements without finding duplicates\n    return false;\n}"
-                            }
-                        ],
-                        "relatedConcepts": ["Hash Table"],
-                        "confidence_score": 0.95,
+                        "confidence_score": 0.75,
                         "last_updated": datetime.now().isoformat()
                     })
                     
-                    # Add the hash table concept
+                    # Add the technique concept
                     concepts.append({
                         "title": "Hash Table",
-                        "category": "Data Structure",
-                        "categoryPath": ["Data Structure"],
-                        "summary": "A data structure that maps keys to values using a hash function, enabling efficient lookups.",
+                        "category": "Data Structures",
+                        "categoryPath": ["Data Structures"],
+                        "summary": "A data structure that provides fast key-value lookups.",
                         "keyPoints": [
-                            "Provides O(1) average time complexity for lookups, insertions, and deletions",
-                            "Maps keys to values using a hash function",
-                            "Handles collisions through techniques like chaining or open addressing",
-                            "Essential for problems requiring fast element lookup or counting"
-                        ],
-                        "details": {
-                            "implementation": "Hash tables work by transforming a key into an array index using a hash function. This allows for direct access to values without needing to search through the entire data structure.\n\nWhen a collision occurs (two keys hash to the same index), it can be resolved using techniques like chaining (storing multiple values in linked lists at each index) or open addressing (finding an alternative slot in the array).\n\nIn problems like Contains Duplicate, hash tables enable O(1) lookups to quickly determine if an element has been seen before.",
-                            "complexity": {
-                                "time": "Average: O(1) for lookups, insertions, and deletions. Worst case: O(n) if many collisions occur.",
-                                "space": "O(n) where n is the number of key-value pairs stored"
-                            },
-                            "useCases": [
-                                "Implementing dictionaries and maps",
-                                "Caching data for quick access",
-                                "Finding duplicates or counting occurrences",
-                                "Symbol tables in compilers and interpreters"
-                            ]
-                        },
-                        "codeSnippets": [
-                            {
-                                "language": "Python",
-                                "description": "Using dictionary as hash table",
-                                "code": "# Create a hash table\nhash_table = {}\n\n# Insert a key-value pair\nhash_table[\"key1\"] = \"value1\"\n\n# Check if a key exists\nif \"key1\" in hash_table:\n    print(\"Key exists!\")\n\n# Get a value by key\nvalue = hash_table.get(\"key1\", \"default_value\")"
-                            }
+                            "Ideal for solving problems involving frequency counting or duplicate detection",
+                            "Average time complexity for lookups, insertions, and deletions is O(1)",
+                            "Can be used to optimize algorithms from O(n²) to O(n)"
                         ],
                         "relatedConcepts": ["Contains Duplicate"],
-                        "confidence_score": 0.9,
+                        "confidence_score": 0.75,
                         "last_updated": datetime.now().isoformat()
                     })
                     
-                    result = {
-                        "concepts": concepts,
-                        "summary": summary,
-                        "conversation_summary": summary,
-                        "metadata": {
-                            "extraction_time": datetime.now().isoformat(),
-                            "model_used": self.model,
-                            "concept_count": len(concepts),
-                            "extraction_method": "simple_fallback"
-                        }
-                    }
-                    
-                    self.cache[cache_key] = result
-                    return result
+                    analysis_result["concepts"] = concepts
+                    self.cache[cache_key] = analysis_result
+                    return analysis_result
                 
-            # Fallback: try multi-pass (segmentation + per-segment analysis)
-            print("Single-pass yielded no concepts. Trying multi-pass fallback...")
-            segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
-            all_concepts = []
-            segment_summaries = []
-            for topic, segment_text in segments:
-                segment_result = await self._analyze_segment(
-                    topic, segment_text, req.context, req.category_guidance, req.custom_api_key
-                )
-                for concept in segment_result.get("concepts", []):
-                    concept["source_topic"] = topic
-                    all_concepts.append(concept)
-                segment_summaries.append(
-                    f"{topic}: {segment_result.get('summary', '')}"
-                )
-            # Deduplicate concepts by title (case insensitive)
-            unique_concepts = {}
-            for concept in all_concepts:
-                # Use exact title for deduplication, not lowercase
-                title_key = concept["title"]
-                if title_key in unique_concepts:
-                    existing = unique_concepts[title_key]
-                    if concept.get("confidence_score", 0) > existing.get("confidence_score", 0):
-                        unique_concepts[title_key] = concept
-                    elif (concept.get("confidence_score", 0) == existing.get("confidence_score", 0) and
-                          len(concept.get("codeSnippets", [])) > len(existing.get("codeSnippets", []))):
-                        unique_concepts[title_key] = concept
-                else:
-                    unique_concepts[title_key] = concept
-            deduplicated_concepts = list(unique_concepts.values())
-            result = {
-                "concepts": deduplicated_concepts,
-                "summary": " | ".join(segment_summaries),
-                "metadata": {
-                    "extraction_time": datetime.now().isoformat(),
-                    "model_used": self.model,
-                    "concept_count": len(deduplicated_concepts),
-                    "segment_count": len(segments)
+                # Fallback if no specific pattern is detected
+                logger.warning("No concepts extracted, and no specific fallback triggered. Using generic response.")
+                return {
+                    "concepts": [],
+                    "summary": single_pass_result.get("conversation_summary", "Could not extract specific concepts."),
+                    "metadata": {"extraction_method": "fallback"}
                 }
-            }
-            self.cache[cache_key] = result
-            return result
         except Exception as e:
-            print(f"Error analyzing conversation: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"FATAL: Error during conversation analysis: {str(e)}")
+            logger.error(traceback.format_exc())
+            # Return a structured error response
+            raise HTTPException(
+                status_code=500, 
+                detail=f"An error occurred during analysis: {str(e)}"
+            )
 
     def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
         """Get rich description and key points for a technique."""
