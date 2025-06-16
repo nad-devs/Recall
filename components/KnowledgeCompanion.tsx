@@ -410,21 +410,21 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 90; // Reduced concept orbit
+              const conceptRadius = 110; // Increased from 90 to create more space
               let conceptAngle;
 
               if (totalConcepts === 1) {
                 conceptAngle = baseAngle;
-        } else {
+              } else {
                 conceptAngle = baseAngle - (arcSpan / 2) + (conceptIndex / (totalConcepts - 1)) * arcSpan;
               }
               
               const conceptX = node.x + Math.cos(conceptAngle) * conceptRadius;
               const conceptY = node.y + Math.sin(conceptAngle) * conceptRadius;
               geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
-      });
-    }
-  });
+            });
+          }
+        });
       } else {
         const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
         clusterConcepts.forEach((concept, index) => {
@@ -445,7 +445,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let conceptY = cluster.position.y + Math.sin(angle) * radius;
 
           // Nudge node up if it's in the top position to avoid title collision
-          if (Math.sin(angle) < -0.7 && clusterConcepts.length > 2) {
+          if (Math.sin(angle) < -0.7) {
             conceptY -= 40;
           }
 
