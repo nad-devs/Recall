@@ -380,19 +380,18 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const key = `subcategory-${cluster.id}-${subcategory.name}`;
           let angle, radius;
           
+          // Use a C-shaped arc to avoid the title area
+          const totalNodes = subcategories.length;
+          const startAngle = 0.6 * Math.PI;
+          const endAngle = 2.4 * Math.PI;
+          const angleRange = endAngle - startAngle;
+
           if (subcategories.length <= 6) {
-            // Restore geometric placement
-            angle = (index / subcategories.length) * 2 * Math.PI;
+            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
             radius = 180 + (subcategories.length * 8);
             
-            let subcategoryX = cluster.position.x + Math.cos(angle) * radius;
-            let subcategoryY = cluster.position.y + Math.sin(angle) * radius;
-
-            // Nudge node up if it's in the top position to avoid title collision
-            if (Math.sin(angle) < -0.7) {
-              subcategoryY -= 40;
-            }
-            
+            const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
+            const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
             geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 50, type: 'subcategory', fixed: false };
         } else {
             const cols = Math.ceil(Math.sqrt(subcategories.length));
@@ -410,7 +409,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 110; // Increased from 90 to create more space
+              const conceptRadius = 100; // Slightly increased for label padding
               let conceptAngle;
 
               if (totalConcepts === 1) {
@@ -431,24 +430,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let angle, radius;
           const baseRadius = 150;
 
-          // Restore geometric placement
+          // Use a C-shaped arc to avoid the title area
+          const totalNodes = clusterConcepts.length;
+          const startAngle = 0.6 * Math.PI;
+          const endAngle = 2.4 * Math.PI;
+          const angleRange = endAngle - startAngle;
+
           if (clusterConcepts.length <= 8) {
-            angle = (index / clusterConcepts.length) * 2 * Math.PI;
+            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
             radius = baseRadius + (clusterConcepts.length * 20);
           } else {
             const spiralFactor = index / clusterConcepts.length;
-            angle = spiralFactor * 5 * Math.PI; // More rotations
+            angle = startAngle + spiralFactor * (angleRange * 1.5); // Spiral within the allowed arc
             radius = baseRadius + spiralFactor * 220;
           }
           
-          let conceptX = cluster.position.x + Math.cos(angle) * radius;
-          let conceptY = cluster.position.y + Math.sin(angle) * radius;
-
-          // Nudge node up if it's in the top position to avoid title collision
-          if (Math.sin(angle) < -0.7) {
-            conceptY -= 40;
-          }
-
+          const conceptX = cluster.position.x + Math.cos(angle) * radius;
+          const conceptY = cluster.position.y + Math.sin(angle) * radius;
           geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
         });
       }
