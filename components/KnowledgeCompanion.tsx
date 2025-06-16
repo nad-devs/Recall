@@ -139,6 +139,19 @@ const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   return Settings;
 };
 
+const getClusterIcon = (categoryName: string): React.ComponentType<any> => {
+  const lowerCaseName = categoryName.toLowerCase();
+  if (lowerCaseName.includes('leetcode') || lowerCaseName.includes('algorithm')) return Code;
+  if (lowerCaseName.includes('cloud')) return Cloud;
+  if (lowerCaseName.includes('machine learning') || lowerCaseName.includes('ai') || lowerCaseName.includes('artificial')) return Brain;
+  if (lowerCaseName.includes('data') || lowerCaseName.includes('database') || lowerCaseName.includes('structures')) return Database;
+  if (lowerCaseName.includes('system') || lowerCaseName.includes('architecture')) return Cpu;
+  if (lowerCaseName.includes('security') || lowerCaseName.includes('auth')) return Shield;
+  if (lowerCaseName.includes('performance') || lowerCaseName.includes('optimization')) return Zap;
+  if (lowerCaseName.includes('web') || lowerCaseName.includes('backend') || lowerCaseName.includes('frontend')) return Network;
+  return Settings; // Default for 'General' or others
+}
+
 // Generate subcategories within clusters - only for categories with actual subcategories
 const generateSubcategories = (clusterConcepts: Concept[]) => {
   const subcategoryMap = new Map<string, Concept[]>();
@@ -183,18 +196,6 @@ const generateClustersFromData = (concepts: Concept[]): SemanticCluster[] => {
     "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F"
   ];
 
-  // Define icons for categories - fallback to a default
-  const icons: { [key: string]: React.ComponentType<any> } = {
-    "LeetCode & Algorithms": Code,
-    "Cloud & Infrastructure": Cloud,
-    "Machine Learning & AI": Brain,
-    "Data & Databases": Database,
-    "System Architecture": Cpu,
-    "Security & Authentication": Shield,
-    "Performance & Optimization": Zap,
-    "Web Development": Network,
-  };
-
   const clusters: SemanticCluster[] = [];
   let colorIndex = 0;
 
@@ -208,7 +209,7 @@ const generateClustersFromData = (concepts: Concept[]): SemanticCluster[] => {
       name: name,
       concepts: concepts,
       color: colors[colorIndex % colors.length],
-      icon: icons[name] || Settings,
+      icon: getClusterIcon(name),
       position: {
         x: col * 700 + 450,
         y: row * 600 + 350
