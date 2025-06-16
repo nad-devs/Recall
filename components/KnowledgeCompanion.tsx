@@ -380,8 +380,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const key = `subcategory-${cluster.id}-${subcategory.name}`;
           let angle, radius;
           
+          // Create a "safe zone" for the cluster title at the top
+          const totalNodes = subcategories.length;
+          const startAngle = 0.6 * Math.PI;
+          const endAngle = 2.4 * Math.PI;
+          const angleRange = endAngle - startAngle;
+
           if (subcategories.length <= 6) {
-            angle = (index / subcategories.length) * 2 * Math.PI;
+            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
             radius = 180 + (subcategories.length * 8); // Reduced radius
             
             const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
@@ -1067,7 +1073,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     className="cursor-pointer"
                     onMouseEnter={(e) => handleConceptHover(concept.id, e)}
                     onMouseLeave={() => handleConceptHover(null)}
-                    onClick={() => setSelectedConcept(concept)}
+                    onClick={() => onConceptSelect ? onConceptSelect(concept) : setSelectedConcept(concept)}
                   >
                     <circle
                       cx={node.x}
