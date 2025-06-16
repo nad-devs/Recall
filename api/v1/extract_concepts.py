@@ -669,7 +669,272 @@ Respond with ONLY the exact category name from the list above. If no perfect mat
             logger.warning("🔧 Falling back to TECHNICAL domain")
             return "TECHNICAL"  # Safe fallback to existing behavior
 
-    # OLD METHOD REMOVED - Replaced with _extract_non_technical_insights
+    async def _analyze_non_technical_segment(
+        self, topic: str, segment_text: str, context: Optional[Dict] = None, 
+        category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
+    ) -> Dict:
+        """
+        NON-TECHNICAL SEGMENT ANALYSIS - Specialized analysis for non-technical content
+        Handles conversations about finance, psychology, business, health, etc.
+        """
+        logger.info("=== STARTING NON-TECHNICAL SEGMENT ANALYSIS ===")
+        logger.info(f"📚 Topic: {topic}")
+        logger.info(f"📊 Segment length: {len(segment_text)} characters")
+        logger.debug(f"Segment preview: {segment_text[:200]}...")
+        
+        if context:
+            logger.debug(f"Context provided: {list(context.keys())}")
+        if category_guidance:
+            logger.debug(f"Category guidance provided: {list(category_guidance.keys())}")
+
+        # Handle hierarchical categories for non-technical domains
+        category_instructions = ""
+        if category_guidance and category_guidance.get("use_hierarchical_categories"):
+            existing_categories = category_guidance.get("existing_categories", [])
+            category_keywords = category_guidance.get("category_keywords", {})
+            
+            category_instructions = (
+                "\n\nIMPORTANT - NON-TECHNICAL CATEGORIZATION:\n"
+                f"Use appropriate categories for non-technical content, formatted as arrays: e.g., ['Finance', 'Investment']\n"
+                f"Include the 'categoryPath' field in your response for each concept.\n\n"
+                "NON-TECHNICAL CATEGORIZATION STRATEGY:\n"
+                "1. IDENTIFY DOMAIN: Determine if this is finance, psychology, business, health, etc.\n"
+                "2. USE SPECIFIC SUBCATEGORIES: Prefer specific categories when content clearly matches\n"
+                "3. AVOID TECHNICAL ASSUMPTIONS: Don't force technical categories on non-technical content\n"
+                "4. FALLBACK GRACEFULLY: Use 'General' if no specific category fits\n\n"
+            )
+            
+            # Add existing categories with better formatting
+            if existing_categories:
+                category_instructions += "AVAILABLE CATEGORIES (use these exact paths):\n"
+                for i, path in enumerate(existing_categories[:25]):
+                    path_str = " > ".join(path)
+                    category_instructions += f"- {path_str}\n"
+            
+            category_instructions += (
+                "\nEXAMPLES OF GOOD NON-TECHNICAL CATEGORIZATION:\n"
+                "- Content about 'stock market investing' → categoryPath: ['Finance', 'Investment']\n"
+                "- Content about 'cognitive biases' → categoryPath: ['Psychology', 'Cognitive']\n"
+                "- Content about 'business strategy' → categoryPath: ['Business', 'Strategy']\n"
+                "- Content about 'nutrition planning' → categoryPath: ['Health', 'Nutrition']\n"
+                "- Content about 'general discussion' → categoryPath: ['General']\n\n"
+                "CRITICAL RULES FOR NON-TECHNICAL CONTENT:\n"
+                "- DO NOT use technical categories like 'Programming' or 'Algorithm'\n"
+                "- DO NOT generate code snippets unless specifically requested\n"
+                "- FOCUS on concepts, insights, and practical knowledge\n"
+                "- ALWAYS include categoryPath field in your response\n"
+            )
+
+        # Add JSON format example for non-technical categoryPath
+        categoryPath_example = ',\n            "categoryPath": ["Finance", "Investment"]'
+
+        # NON-TECHNICAL CONTENT FORMAT - Optimized for non-technical domains
+        non_technical_format_guide = """
+NON-TECHNICAL CONCEPT EXTRACTION FORMAT:
+For each concept, provide rich, educational content focused on insights and practical knowledge:
+
+1. SUMMARY: A concise 1-3 sentence overview of the concept or insight.
+   Example: "Discussion of dollar-cost averaging as an investment strategy that reduces the impact 
+   of market volatility by investing fixed amounts at regular intervals regardless of market conditions."
+
+2. INSIGHTS/EXPLANATION: A comprehensive, in-depth explanation (3-6 paragraphs) that MUST be 
+   substantially different from the summary. Include:
+   - Detailed explanation of the concept and its applications
+   - Practical implications and real-world examples
+   - Benefits, drawbacks, and considerations
+   - How this relates to broader principles in the domain
+   - Step-by-step methodology if applicable
+   - Common misconceptions and how to avoid them
+   - Advanced considerations and nuances
+   
+   IMPORTANT: Focus on understanding, insights, and practical knowledge rather than 
+   implementation details.
+   
+   Example: "Dollar-cost averaging represents a systematic investment approach that helps mitigate 
+   the psychological and financial risks associated with market timing. The strategy works by 
+   spreading investment purchases across multiple time periods, which naturally leads to buying 
+   more shares when prices are low and fewer shares when prices are high.
+
+   The conversation explored how this approach addresses the common investor problem of trying to 
+   'time the market' - a practice that even professional investors struggle with consistently. 
+   By removing the emotional decision-making component and focusing on consistent, automated 
+   investing, individuals can avoid the fear and greed cycles that often lead to poor investment 
+   outcomes.
+
+   Advanced considerations discussed included the mathematical principles behind why DCA works 
+   in volatile markets, the importance of maintaining discipline during market downturns, and 
+   how to adapt the strategy for different investment goals and time horizons. The analysis also 
+   covered scenarios where lump-sum investing might be more appropriate, such as when markets 
+   are trending consistently upward over extended periods."
+
+3. KEY INSIGHTS: Instead of code snippets, provide practical insights or actionable takeaways.
+   
+   Example:
+   {
+     "type": "insight",
+     "title": "Implementation Strategy",
+     "description": "Set up automatic monthly investments of $500 into diversified index funds, regardless of market conditions"
+   }
+
+CRITICAL RULE: The 'insights'/'explanation' field must ALWAYS be substantially longer and more 
+detailed than the 'summary' field. Focus on deep understanding rather than surface-level facts."""
+
+        # Build the non-technical analysis prompt
+        base_instructions = (
+            "You are an ELITE knowledge extraction system specialized in NON-TECHNICAL content analysis. "
+            "Your job is to analyze conversations about finance, psychology, business, health, education, "
+            "and other non-technical domains and extract VALUABLE, ACTIONABLE concepts:\n\n"
+            "🎯 NON-TECHNICAL CONCEPT IDENTIFICATION:\n"
+            "1. DOMAIN-SPECIFIC INSIGHTS: Extract key insights, principles, or strategies discussed\n"
+            "2. PRACTICAL KNOWLEDGE: Focus on actionable information and real-world applications\n"
+            "3. CONCEPTUAL UNDERSTANDING: Extract deeper understanding of topics, not just facts\n"
+            "4. METHODOLOGIES: Extract systematic approaches or frameworks discussed\n"
+            "5. BEST PRACTICES: Extract proven techniques and strategies\n\n"
+            "🚫 AVOID THESE FOR NON-TECHNICAL CONTENT:\n"
+            "- Code snippets or programming examples (unless specifically about learning to code)\n"
+            "- Technical implementation details\n"
+            "- Generic concepts like 'Discussion' or 'Conversation'\n"
+            "- Surface-level facts without deeper insights\n\n"
+            "✅ QUALITY STANDARDS FOR NON-TECHNICAL CONTENT:\n"
+            "- Each concept must provide genuine insight or practical value\n"
+            "- Focus on concepts someone would want to review for personal growth or knowledge\n"
+            "- Include the WHY and HOW behind strategies and insights\n"
+            "- Limit to 1-4 HIGH-VALUE concepts maximum\n"
+            "- NO overlapping or duplicate concepts\n\n"
+        )
+        
+        concept_requirements = (
+            "For EACH non-technical concept, provide:\n"
+            "- A clear, specific title focusing on the insight or concept.\n"
+            "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview.\n"
+            "- A different, detailed 'insights' field with comprehensive explanation and practical applications.\n"
+            "- 2-5 key takeaways or action items.\n"
+            "- Related concepts if relevant.\n"
+            "- Practical insights or methodologies instead of code examples.\n"
+        )
+        
+        quality_requirements = (
+            "IMPORTANT: Each concept MUST have unique content - do not copy between concepts.\n"
+            "CRITICAL: The 'insights' field must be 3-5x longer than 'summary' and focus on understanding.\n"
+            "NO CODE SNIPPETS: Focus on insights, strategies, and practical knowledge instead.\n\n"
+        )
+        
+        context_info = (
+            f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
+            f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
+            "ANALYZE THIS NON-TECHNICAL CONVERSATION SEGMENT according to the guidelines above.\n\n"
+        )
+        
+        json_format = (
+            "Respond in this JSON format:\n"
+            "{\n"
+            '    "concepts": [\n'
+            "        {\n"
+            '            "title": "Main Concept or Insight",\n'
+            '            "summary": "A unique, concise summary specific to this concept only.",\n'
+            '            "insights": "A comprehensive 3-6 paragraph explanation focusing on understanding, applications, and practical value rather than technical implementation.",\n'
+            '            "keyPoints": ["Key takeaway 1", "Key takeaway 2"],\n'
+            '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
+            '            "practicalInsights": [\n'
+            "                {\n"
+            '                    "type": "insight",\n'
+            '                    "title": "Practical application or methodology",\n'
+            '                    "description": "Actionable insight or step-by-step approach"\n'
+            "                }\n"
+            "            ],\n"
+            '            "category": "Finance"' + f"{categoryPath_example},\n" + 
+            '            "subcategories": ["Investment"]\n' + 
+            "        }\n" + 
+            "    ],\n" + 
+            '    "conversation_title": "A short, descriptive title for this conversation",\n' + 
+            '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation."\n' + 
+            '}\n\n' + 
+            f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+        )
+        
+        # Combine all sections for non-technical analysis
+        structured_prompt = (
+            base_instructions +
+            concept_requirements +
+            non_technical_format_guide + "\n" +
+            category_instructions + "\n\n" +
+            quality_requirements +
+            context_info +
+            json_format
+        )
+
+        # COMPREHENSIVE LOGGING
+        logger.info("=== PREPARING NON-TECHNICAL LLM REQUEST ===")
+        logger.info(f"🔧 Prompt length: {len(structured_prompt)} characters")
+        logger.info(f"🎯 Temperature: 0.3, Max tokens: 4000")
+        logger.debug("=== FULL NON-TECHNICAL LLM PROMPT ===")
+        logger.debug(structured_prompt)
+
+        logger.info("📤 Sending non-technical analysis request to LLM...")
+        start_time = datetime.now()
+        
+        client = self._get_client(custom_api_key)
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": structured_prompt}],
+            temperature=0.3,
+            max_tokens=4000,
+            response_format={"type": "json_object"}
+        )
+        
+        end_time = datetime.now()
+        response_time = (end_time - start_time).total_seconds()
+        
+        response_text = response.choices[0].message.content
+        
+        # COMPREHENSIVE RESPONSE LOGGING
+        logger.info("📥 Received non-technical LLM response")
+        logger.info(f"⏱️  Response time: {response_time:.2f} seconds")
+        logger.info(f"📊 Response length: {len(response_text)} characters")
+        logger.debug("=== RAW NON-TECHNICAL LLM RESPONSE ===")
+        logger.debug(response_text)
+        
+        logger.info("🔄 Parsing non-technical LLM response...")
+        parsed_result = self._parse_structured_response(response_text)
+        
+        # FALLBACK CATEGORY ASSIGNMENT - Ensure non-technical concepts get appropriate categories
+        if parsed_result.get("concepts"):
+            for concept in parsed_result["concepts"]:
+                if not concept.get("category") or concept.get("category") in ["Uncategorized", "General"]:
+                    # Try to assign a better category based on content
+                    title = concept.get("title", "")
+                    summary = concept.get("summary", "")
+                    content = f"{title} {summary}".lower()
+                    
+                    # Simple heuristic-based category assignment
+                    if any(word in content for word in ['money', 'investment', 'finance', 'stock', 'budget']):
+                        concept["category"] = "Finance"
+                        concept["categoryPath"] = ["Finance"]
+                    elif any(word in content for word in ['psychology', 'mental', 'behavior', 'cognitive']):
+                        concept["category"] = "Psychology"  
+                        concept["categoryPath"] = ["Psychology"]
+                    elif any(word in content for word in ['business', 'strategy', 'management', 'marketing']):
+                        concept["category"] = "Business"
+                        concept["categoryPath"] = ["Business"]
+                    elif any(word in content for word in ['health', 'fitness', 'nutrition', 'wellness']):
+                        concept["category"] = "Health"
+                        concept["categoryPath"] = ["Health"]
+                    else:
+                        concept["category"] = "General"
+                        concept["categoryPath"] = ["General"]
+                    
+                    logger.info(f"🎯 Assigned fallback category '{concept['category']}' to concept '{concept.get('title')}'")
+        
+        # Log parsing results
+        if parsed_result.get("concepts"):
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} non-technical concepts")
+            for i, concept in enumerate(parsed_result["concepts"]):
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')} (category: {concept.get('category', 'UNKNOWN')})")
+        else:
+            logger.warning("⚠️  No concepts extracted from non-technical segment")
+        
+        logger.info("=== NON-TECHNICAL SEGMENT ANALYSIS COMPLETED ===")
+        return parsed_result
 
     def _parse_structured_response(self, response_text: str) -> Dict:
         """Parse the structured response from the LLM with comprehensive error handling and logging."""
@@ -1162,11 +1427,11 @@ Respond with ONLY the exact category name from the list above. If no perfect mat
         self, topic: str, segment_text: str, context: Optional[Dict] = None, category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
     ) -> Dict:
         """
-        TRANSFORMATIVE LEARNING INSIGHT EXTRACTION
-        NEW PHILOSOPHY: Extract only memorable insights that change thinking, not comprehensive information.
-        Focus on actionable takeaways that someone would want to reference 6 months later.
+        ENHANCED SEGMENT ANALYSIS WITH DOMAIN ROUTING
+        Analyze a single conversation segment with comprehensive logging and analysis.
+        Routes to appropriate analysis method based on content domain (technical vs non-technical).
         """
-        logger.info("=== STARTING LEARNING INSIGHT EXTRACTION ===")
+        logger.info("=== STARTING ENHANCED SEGMENT ANALYSIS ===")
         logger.info(f"📝 Topic: {topic}")
         logger.info(f"📊 Segment length: {len(segment_text)} characters")
         logger.debug(f"Segment preview: {segment_text[:200]}...")
@@ -1182,226 +1447,386 @@ Respond with ONLY the exact category name from the list above. If no perfect mat
             logger.info(f"🎯 Detected domain type: {domain_type}")
         except Exception as e:
             logger.error(f"❌ Domain detection failed: {str(e)}")
-            domain_type = "TECHNICAL"  # Safe fallback
+            domain_type = "TECHNICAL"  # Safe fallback to preserve existing behavior
             logger.warning("🔧 Falling back to TECHNICAL domain analysis")
 
         # ROUTING LOGIC - Route to appropriate analysis method based on domain
         if domain_type == "NON_TECHNICAL":
-            logger.info("📚 Routing to non-technical insight extraction")
-            return await self._extract_non_technical_insights(
+            logger.info("📚 Routing to non-technical analysis method")
+            return await self._analyze_non_technical_segment(
                 topic, segment_text, context, category_guidance, custom_api_key
             )
         elif domain_type == "MIXED":
-            logger.info("🔀 Mixed domain detected - using learning-focused analysis")
+            logger.info("🔀 Mixed domain detected - using technical analysis with enhanced categories")
+            # For mixed content, use technical analysis but with expanded category support
+            # This ensures technical concepts are extracted properly while non-technical
+            # concepts get basic extraction through the technical pipeline
         else:  # domain_type == "TECHNICAL" or fallback
-            logger.info("🔧 Using learning-focused technical analysis")
+            logger.info("🔧 Using technical analysis method (preserving existing functionality)")
 
-        # TRANSFORMATIVE INSIGHT EXTRACTION LOGIC
-        # Determine insight context from topic tag
-        insight_context = "LEARNING_JOURNEY"
+        # EXISTING TECHNICAL ANALYSIS LOGIC (PRESERVED UNCHANGED)
+        # Determine segment type from topic tag
+        segment_type = "EXPLORATORY_LEARNING"
         if topic.strip().upper().startswith("[PROBLEM_SOLVING]"):
-            insight_context = "PROBLEM_SOLVING"
+            segment_type = "PROBLEM_SOLVING"
         
-        logger.info(f"🔍 Detected insight context: {insight_context}")
+        logger.info(f"🔍 Detected segment type: {segment_type}")
             
-        # Handle hierarchical categories if provided
+        # Handle the hierarchical categories if provided
         category_instructions = ""
         if category_guidance and category_guidance.get("use_hierarchical_categories"):
             existing_categories = category_guidance.get("existing_categories", [])
+            category_keywords = category_guidance.get("category_keywords", {})
             
+            # ENHANCED CATEGORIZATION with non-technical support for mixed content
             category_instructions = (
-                "\n\nCATEGORIZATION GUIDANCE:\n"
-                f"Use hierarchical category paths formatted as arrays: e.g., ['Cloud Computing', 'AWS']\n"
-                f"Include the 'categoryPath' field in your response.\n\n"
-                "FOCUS ON LEARNING CONTEXT:\n"
-                "- Match the category to the learning insight, not just the technical topic\n"
-                "- Consider the personal growth aspect of the insight\n"
-                "- Use specific subcategories when the insight clearly applies\n\n"
+                "\n\nIMPORTANT - SMART HIERARCHICAL CATEGORIZATION:\n"
+                f"Use hierarchical category paths for each concept, formatted as arrays: e.g., ['Cloud Computing', 'AWS']\n"
+                f"Include the 'categoryPath' field in your response for each concept.\n\n"
+                "CATEGORIZATION STRATEGY:\n"
+                "1. ANALYZE CONTENT: Look for specific technologies, services, and concepts mentioned\n"
+                "2. MATCH TO SPECIFIC SUBCATEGORIES: Prefer more specific categories when content clearly matches\n"
+                "3. USE LEARNED PATTERNS: The system has learned from previous categorizations\n"
+                "4. FALLBACK GRACEFULLY: If no specific match, use appropriate parent category\n"
+                "5. SUPPORT NON-TECHNICAL CONTENT: Use appropriate non-technical categories when needed\n\n"
+                "EXISTING CATEGORY HIERARCHY (use these exact paths):\n"
             )
             
+            # Add existing categories with better formatting
             if existing_categories:
-                category_instructions += "AVAILABLE CATEGORIES:\n"
-                for i, path in enumerate(existing_categories[:15]):  # Reduced to prevent prompt bloat
+                for i, path in enumerate(existing_categories[:25]):  # Limit to avoid overly long prompts
                     path_str = " > ".join(path)
                     category_instructions += f"- {path_str}\n"
             
+            # Add keyword guidance if available
+            if category_keywords:
+                category_instructions += "\nCATEGORY KEYWORDS (learned from previous concepts):\n"
+                for category, keywords in list(category_keywords.items())[:10]:  # Limit to top categories
+                    if keywords:
+                        keyword_str = ", ".join(keywords[:8])  # Limit keywords per category
+                        category_instructions += f"- {category}: {keyword_str}\n"
+            
+            # Add specific guidance
+            if category_guidance.get("instructions"):
+                category_instructions += f"\n{category_guidance.get('instructions')}\n"
+                
             category_instructions += (
-                "\nEXAMPLES OF INSIGHT-FOCUSED CATEGORIZATION:\n"
-                "- Insight about 'AWS Lambda cost optimization' → categoryPath: ['Cloud Computing', 'AWS']\n"
-                "- Insight about 'React performance mindset' → categoryPath: ['Frontend Engineering', 'React']\n"
-                "- Insight about 'debugging approach' → categoryPath: ['Programming', 'Problem Solving']\n\n"
+                "\nEXAMPLES OF GOOD CATEGORIZATION:\n"
+                "- Content about 'AWS Lambda functions' → categoryPath: ['Cloud Computing', 'AWS']\n"
+                "- Content about 'React hooks and state' → categoryPath: ['Frontend Engineering', 'React']\n"
+                "- Content about 'SQL indexing strategies' → categoryPath: ['Backend Engineering', 'Databases']\n"
+                "- Content about 'general programming concepts' → categoryPath: ['Programming']\n"
+                "- Content about 'investment strategies' → categoryPath: ['Finance', 'Investment']\n"
+                "- Content about 'business planning' → categoryPath: ['Business', 'Strategy']\n\n"
+                "CRITICAL RULES:\n"
+                "- ONLY use categories that exist in the hierarchy above\n"
+                "- PREFER the most specific appropriate category\n"
+                "- If unsure, use the parent category rather than guessing\n"
+                "- ALWAYS include categoryPath field in your response\n"
+                "- For non-technical content, avoid forcing technical categories\n"
             )
 
-        # NEW OUTPUT STRUCTURE - Learning Insight Format
-        new_output_structure = """
-NEW LEARNING INSIGHT OUTPUT FORMAT:
+        # Add JSON format example for categoryPath
+        categoryPath_example = ',\n            "categoryPath": ["Backend Engineering", "API Design"]'
 
-Replace traditional academic extraction with personal learning insights:
+        # Enhanced structure for improved details and code snippets format
+        detailsAndSnippets_examples = """
+DETAILS AND CODE SNIPPETS FORMAT:
+For each concept, provide rich, educational content across three sections:
 
-STRUCTURE PER INSIGHT:
+1. SUMMARY: A concise 1-3 sentence overview of what the concept is.
+   Example: "Discussion of SQL query optimization techniques focusing on proper indexing, 
+   query structure, and database design to improve performance for large datasets."
+
+2. DETAILS/IMPLEMENTATION: A comprehensive, in-depth explanation (3-6 paragraphs) that MUST be 
+   substantially different from the summary. Include:
+   - Detailed technical explanation and step-by-step breakdown
+   - Specific implementation approaches and methodologies
+   - Why this approach works and its technical advantages
+   - Real-world applications and practical considerations
+   - Performance implications and optimization strategies
+   - Common pitfalls and how to avoid them
+   - Advanced concepts and edge cases
+   
+   IMPORTANT: The details section should be educational and comprehensive - think of it as a 
+   mini-tutorial or technical deep-dive that goes far beyond what's in the summary.
+   
+   For non-technical concepts in mixed content, focus on insights, practical applications, 
+   and understanding rather than implementation details.
+
+3. CODE SNIPPETS: Provide 2-3 practical code examples with:
+   - Appropriate language tag (e.g., "language": "Python", "SQL", "JavaScript")
+   - Brief description of what the snippet demonstrates
+   - Well-formatted, commented code showing implementation
+   
+   NOTE: For non-technical concepts in mixed content, you may skip code snippets or provide 
+   conceptual examples instead.
+
+CRITICAL RULE: The 'details'/'implementation' field must ALWAYS be substantially longer and more 
+comprehensive than the 'summary' field."""
+
+        # Add specific instructions for LeetCode problems
+        leetcode_specific_instructions = """
+IMPORTANT - LEETCODE PROBLEM DETECTION AND LEARNING CONTEXT:
+When detecting LeetCode-style algorithm problems:
+
+1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
+   - ALWAYS use "Contains Duplicate" as the primary concept title, 
+     NOT "Hash Table for Duplicate Detection"
+   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
+   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
+   - Create separate concept entries for techniques (Hash Table, etc.) if needed
+
+2. DETECT AND PRESERVE LEARNING JOURNEY CONTEXT:
+   - Look for mentions of "NeetCode", "Blind 75", "Blind75", "DSA practice"
+   - Detect progress tracking patterns ("1 down, 74 to go", "problem X of Y")
+   - Include learning methodology discussions (step-by-step approach, syntax vs concepts)
+   - Capture systematic learning approaches and curriculum references
+   - Note interview preparation context
+
+3. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
+   - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
+     "LeetCode Problems"
+   - Common indicators: array manipulation problems, string problems with specific constraints, 
+     graph traversals, etc.
+   - If you recognize the problem as a standard algorithm challenge, ALWAYS categorize it as 
+     "LeetCode Problems"
+   - Do NOT categorize LeetCode problems as just "Algorithm" or other generic categories
+
+4. EXTRACT LEARNING METHODOLOGY AS SEPARATE CONCEPTS WHEN RELEVANT:
+   - If the conversation discusses learning approach, create a separate concept for it
+   - Examples: "DSA Learning Methodology", "Problem-Solving Approach", "NeetCode Blind 75 Progress"
+   - Include insights about learning syntax vs understanding concepts
+   - Capture step-by-step problem-solving techniques
+
+5. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
+   - Explain the algorithm step-by-step
+   - Include time and space complexity analysis
+   - Discuss edge cases and optimizations
+   - Explain why the chosen approach (e.g., hash table) is optimal
+
+6. PROVIDE WORKING CODE SOLUTIONS:
+   - Include a complete, executable solution
+   - Add clear comments explaining key steps
+   - Show both the naive and optimized approaches when relevant
+
+7. CATEGORIZE CORRECTLY:
+   - Use consistent category "LeetCode Problems" for the main problem
+   - Use "Learning & Development" for learning methodology concepts
+   - Use "Algorithm Technique" for specific techniques (Hash Table, Two Pointer)
+   - Include appropriate subcategories and related concepts
+
+Example for "Contains Duplicate" with learning context:
 {
-    "insight": "The main learning/mindset shift that changes how you think",
-    "example": "Concrete scenario from the content that demonstrates this insight", 
-    "application": "How to immediately use this insight in real situations",
-    "context": "When this insight matters most or becomes valuable",
-    "category": "Appropriate category",
-    "code_examples": [
-        {
-            "language": "python",
-            "code": "print('Hello, World!')"
-        }
-    ]
-}
+  "title": "Contains Duplicate",
+  "category": "LeetCode Problems",
+  "summary": "A LeetCode problem from the NeetCode Blind 75 that involves finding if an array contains any duplicate elements using hash table approach.",
+  "details": "The Contains Duplicate problem is part of the NeetCode Blind 75 curriculum and asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen.
 
-INSIGHT QUALITY RULES:
-- **Maximum 3 insights per content** (no matter how long)
-- **Each insight must pass the "would I reference this?" test**
-- **Use specific language, avoid generalities** 
-- **Frame for future conversation use**
-- **Focus on mindset shifts, not information dumps**
-- **Include code examples if they are central to the insight**
+As we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false.
 
-GOOD INSIGHT EXAMPLES:
-
-Technical Example:
-{
-    "insight": "Build relationships before needing them - networking works best when you're genuinely interested in others' work",
-    "example": "Varun networks at Davos without pitching anything, just learning about others' projects",
-    "application": "At next event, spend time asking about others' projects instead of promoting mine",
-    "context": "Works because people remember genuine interest over sales pitches"
-}
-
-Learning Example:
-{
-    "insight": "Start with syntax, then understand concepts - trying to learn both simultaneously creates confusion",
-    "example": "NeetCode approach: first learn Python syntax with simple problems, then focus on algorithmic thinking", 
-    "application": "When learning new programming concepts, master the basic syntax first before diving into complex logic",
-    "context": "Especially valuable when time-constrained or feeling overwhelmed with new material"
+This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization. The problem demonstrates fundamental hash table usage patterns that appear frequently in coding interviews.",
+  "keyPoints": [
+    "Part of NeetCode Blind 75 problem set",
+    "Use a hash table to track previously seen elements",
+    "Time complexity is O(n) where n is the length of the array",
+    "Space complexity is also O(n) in the worst case",
+    "Early termination occurs as soon as the first duplicate is found"
+  ],
+  "relatedConcepts": ["Hash Table", "NeetCode Blind 75", "Array Problems"],
+  "codeSnippets": [
+    {
+      "language": "Python",
+      "description": "Hash table implementation for Contains Duplicate",
+      "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
+    }
+  ]
 }
 """
 
-        if insight_context == "PROBLEM_SOLVING":
-            # PROBLEM-SOLVING INSIGHT EXTRACTION
-            transformation_prompt = (
-                "You are a LEARNING INSIGHT EXTRACTOR. Your job is to find the memorable insights "
-                "that change how someone thinks about problem-solving, NOT to summarize what was discussed.\n\n"
-                
-                "🎯 MISSION: Extract insights someone would want to remember 6 months later\n\n"
-                
-                "INSIGHT IDENTIFICATION FOR PROBLEM-SOLVING:\n"
-                "1. **MINDSET SHIFTS**: How does this change the way you approach problems?\n"
-                "2. **PRACTICAL TECHNIQUES**: What specific approach can you apply immediately?\n" 
-                "3. **TIMING WISDOM**: When is this insight most valuable?\n"
-                "4. **PATTERN RECOGNITION**: What broader principle does this demonstrate?\n\n"
-                
-                "**CODE EXTRACTION RULE**: If the conversation concludes with a final, complete code solution to a problem, that solution **MUST** be extracted as the primary code example. It is the most important artifact of the learning session.\n\n"
-
-                "🚫 AVOID EXTRACTING:\n"
-                "- Code explanations without insight\n"
-                "- Generic statements like 'use hash tables'\n"
-                "- Academic descriptions of algorithms\n"
-                "- Information that doesn't change thinking\n\n"
-                
-                "✅ EXTRACT INSIGHTS LIKE:\n"
-                "- 'Solve the problem first, optimize later - premature optimization leads to overengineering'\n"
-                "- 'When stuck, work backwards from the desired output to find the approach'\n" 
-                "- 'Hash tables solve most 'find duplicate' problems - recognize this pattern instantly'\n\n"
-                
-                "QUALITY TEST: Would you actually want to reference this insight when:\n"
-                "- Explaining the concept to someone?\n"
-                "- Solving a similar problem?\n"
-                "- Making a decision in this domain?\n\n"
+        if segment_type == "PROBLEM_SOLVING":
+            # Build the problem-solving prompt in readable sections
+            base_instructions = (
+                "You are an ELITE technical knowledge extraction system. Your job is to "
+                "analyze programming conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
+                "🎯 CONCEPT IDENTIFICATION RULES:\n"
+                "1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum')\n"
+                "2. ALGORITHMIC TECHNIQUES: Extract the specific approach used (e.g., 'Hash Table for Duplicate Detection', 'Two Pointer Technique')\n"
+                "3. DATA STRUCTURES: Only extract if they're the main focus, not just mentioned in passing\n"
+                "4. DESIGN PATTERNS: Extract architectural or coding patterns being discussed\n"
+                "5. OPTIMIZATION STRATEGIES: Extract performance improvement techniques\n\n"
+                "🚫 AVOID THESE GENERIC CONCEPTS:\n"
+                "- 'Iteration', 'Loop', 'Variables', 'Programming', 'Coding'\n"
+                "- 'Array', 'String' (unless they're the main focus with specific techniques)\n"
+                "- 'Function', 'Method' (unless discussing specific patterns)\n\n"
+                "✅ QUALITY STANDARDS:\n"
+                "- Each concept must be IMMEDIATELY USEFUL for future reference\n"
+                "- Focus on concepts someone would want to review before an interview\n"
+                "- Include the WHY behind each technique, not just the HOW\n"
+                "- Limit to 1-3 HIGH-VALUE concepts maximum\n"
+                "- NO overlapping or duplicate concepts\n\n"
+            )
+            
+            concept_requirements = (
+                "For EACH concept, provide:\n"
+                "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
+                "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
+                "- A different, detailed 'implementation' field with in-depth technical explanation for this specific concept.\n"
+                "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
+                "- Related concepts if relevant.\n"
+                "- Code examples if present in the conversation.\n"
+            )
+            
+            quality_requirements = (
+                "IMPORTANT: Each concept MUST have its own unique summary and details - do not copy or reuse content between concepts.\n"
+                "CRITICAL: The 'details' field must be 3-5x longer than the 'summary' and contain comprehensive technical information.\n\n"
+            )
+            
+            context_info = (
+                f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
+                f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
+                "ANALYZE THIS CONVERSATION SEGMENT according to the problem-solving extraction approach above.\n\n"
+            )
+            
+            json_format = (
+                "Respond in this JSON format:\n"
+                "{\n"
+                '    "concepts": [\n'
+                "        {\n"
+                '            "title": "Main Problem or Technique",\n'
+                '            "summary": "A unique, concise summary specific to this concept only.",\n'
+                '            "details": "A comprehensive 3-6 paragraph technical deep-dive that goes far beyond the summary, including implementation details, methodologies, real-world applications, performance considerations, and advanced concepts.",\n'
+                '            "keyPoints": ["Key point 1", "Key point 2"],\n'
+                '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
+                '            "codeSnippets": [\n'
+                "                {\n"
+                '                    "language": "Language name",\n'
+                '                    "description": "Description of what this code demonstrates",\n'
+                '                    "code": "Properly formatted and commented code example"\n'
+                "                }\n"
+                "            ],\n"
+                '            "category": "LeetCode Problems"' + f"{categoryPath_example},\n" + 
+                '            "subcategories": ["Hash Table"]\n' + 
+                "        }\n" + 
+                "    ],\n" + 
+                '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\n' + 
+                '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation, suitable for display on a card."\n' + 
+                '}\n\n' + 
+                f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+            )
+            
+            # Combine all sections
+            structured_prompt = (
+                base_instructions +
+                leetcode_specific_instructions + "\n\n" +
+                concept_requirements +
+                detailsAndSnippets_examples + "\n" +
+                category_instructions + "\n\n" +
+                quality_requirements +
+                context_info +
+                json_format
             )
         else:
-            # LEARNING JOURNEY INSIGHT EXTRACTION  
-            transformation_prompt = (
-                "You are a LEARNING INSIGHT EXTRACTOR. Your job is to find the memorable insights "
-                "that change how someone approaches learning, NOT to document what was taught.\n\n"
-                
-                "🎯 MISSION: Extract insights someone would want to remember and reference later\n\n"
-                
-                "INSIGHT IDENTIFICATION FOR LEARNING:\n"
-                "1. **LEARNING STRATEGIES**: How does this change your approach to learning?\n"
-                "2. **IMPLEMENTATION WISDOM**: What's the key to making this work in practice?\n"
-                "3. **MENTAL MODELS**: How does this shift your understanding?\n"
-                "4. **PRACTICAL APPLICATIONS**: Where would you apply this insight?\n\n"
-                
-                "🚫 AVOID EXTRACTING:\n"
-                "- Definitions and explanations\n"
-                "- Step-by-step tutorials\n"
-                "- Technical details without insight\n"
-                "- Information you could easily look up\n\n"
-                
-                "✅ EXTRACT INSIGHTS LIKE:\n"
-                "- 'Learn syntax first, concepts second - mixing both creates confusion'\n"
-                "- 'Build projects immediately after learning - passive consumption doesn't stick'\n"
-                "- 'Choose boring technology for side projects - focus energy on the problem, not the tools'\n\n"
-                
-                "QUALITY TEST: Would you actually reference this insight when:\n"
-                "- Making learning decisions?\n"
-                "- Talking to someone about this topic?\n"
-                "- Applying this knowledge?\n\n"
+            # Build the exploratory/learning prompt in readable sections
+            base_instructions = (
+                "You are an ELITE technical knowledge extraction system. Your job is to "
+                "analyze technical learning conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
+                "CONCEPT IDENTIFICATION RULES:\n"
+                "1. TECHNOLOGIES & FRAMEWORKS: Extract specific tools, libraries, or platforms being learned\n"
+                "2. ARCHITECTURAL PATTERNS: Extract design patterns, system architectures, or methodologies\n"
+                "3. TECHNICAL CONCEPTS: Extract core computer science or engineering principles\n"
+                "4. IMPLEMENTATION STRATEGIES: Extract specific approaches to solving technical challenges\n"
+                "5. BEST PRACTICES: Extract proven techniques and methodologies\n"
+                "6. NON-TECHNICAL INSIGHTS: For mixed content, extract valuable insights from non-technical domains\n\n"
+                "QUALITY STANDARDS:\n"
+                "- Each concept must be SPECIFIC and ACTIONABLE\n"
+                "- Avoid generic concepts like 'Programming' or 'Development'\n"
+                "- Focus on concepts that provide concrete learning value\n"
+                "- Include practical applications and real-world context\n"
+                "- Extract the INSIGHTS and UNDERSTANDING gained, not just facts\n"
+                "- Limit to 1-5 HIGH-VALUE concepts maximum\n"
+                "- NO overlapping or duplicate concepts\n"
+                "- For non-technical content, focus on actionable insights and practical knowledge\n\n"
             )
-        
-        # CONTEXT AND JSON FORMAT
-        context_info = (
-            f"CONTENT TO ANALYZE:\n"
-            f"TOPIC IDENTIFIED: {topic}\n\n"
-            f"⚠️ CRITICAL: The topic has already been identified as '{self._extract_topic_title(topic)}'. "
-            f"Focus on extracting insights about THIS specific topic, not reidentifying what the topic is.\n\n"
-            f"CONTEXT: {json.dumps(context) if context else 'No additional context'}\n\n"
-            "Extract the memorable insights from this conversation about the identified topic.\n\n"
-        )
-        
-        json_format = (
-            "Respond in this JSON format:\n"
-            "{\n"
-            '    "insights": [\n'
-            "        {\n"
-            '            "insight": "The main learning/mindset shift",\n'
-            '            "example": "Concrete scenario from content",\n'
-            '            "application": "How to use this immediately",\n'
-            '            "context": "When this matters most",\n'
-            '            "category": "Appropriate category",\n'
-            '            "code_examples": [{\n'
-            '                "language": "e.g., python",\n'
-            '                "code": "code snippet text"\n'
-            '            }]' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
-            "        }\n"
-            "    ],\n"
-            '    "conversation_title": "The specific topic/problem/concept being studied (e.g., Valid Parentheses Problem, DeepSeek AI Analysis)",\n'
-            '    "conversation_summary": "One sentence about the key insights gained"\n'
-            '}\n\n'
-            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n"
-            "Also, ensure any relevant code examples from the conversation are included.\n\n"
-            f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
-        )
-        
-        # COMBINE ALL SECTIONS
-        structured_prompt = (
-            transformation_prompt +
-            new_output_structure + "\n\n" +
-            category_instructions + "\n\n" +
-            context_info +
-            json_format
-        )
+            
+            concept_requirements = (
+                "For EACH concept, provide:\n"
+                "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
+                "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
+                "- A different, detailed 'implementation' field with in-depth explanation for this specific concept.\n"
+                "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
+                "- Related concepts if relevant.\n"
+                "- Code examples if present in the conversation and relevant to the concept.\n"
+            )
+            
+            quality_requirements = (
+                "IMPORTANT: Each concept MUST have its own unique summary and details - do not copy or reuse content between concepts.\n"
+                "CRITICAL: The 'details' field must be 3-5x longer than the 'summary' and contain comprehensive information.\n"
+                "NOTE: For non-technical concepts, focus on insights and practical applications rather than code.\n\n"
+            )
+            
+            context_info = (
+                f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
+                f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
+                "ANALYZE THIS CONVERSATION SEGMENT according to the exploratory learning extraction approach above.\n\n"
+            )
+            
+            json_format = (
+                "Respond in this JSON format:\n"
+                "{\n"
+                '    "concepts": [\n'
+                "        {\n"
+                '            "title": "Main Concept or Topic",\n'
+                '            "summary": "A unique, concise summary specific to this concept only.",\n'
+                '            "implementation": "A comprehensive 3-6 paragraph explanation that goes far beyond the summary, including implementation details, methodologies, real-world applications, considerations, and advanced concepts.",\n'
+                '            "keyPoints": ["Key point 1", "Key point 2"],\n'
+                '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
+                '            "codeSnippets": [\n'
+                "                {\n"
+                '                    "language": "Language name",\n'
+                '                    "description": "Description of what this code demonstrates",\n'
+                '                    "code": "Properly formatted and commented code example"\n'
+                "                }\n"
+                "            ],\n"
+                '            "category": "Backend Engineering"' + f"{categoryPath_example},\n" + 
+                '            "subcategories": ["Backend Engineering"]\n' + 
+                "        }\n" + 
+                "    ],\n" + 
+                '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\n' + 
+                '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation, suitable for display on a card."\n' + 
+                '}\n\n' + 
+                f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+            )
+            
+            # Combine all sections
+            structured_prompt = (
+                base_instructions +
+                concept_requirements +
+                detailsAndSnippets_examples + "\n" +
+                category_instructions + "\n\n" +
+                quality_requirements +
+                context_info +
+                json_format
+            )
 
         # COMPREHENSIVE LOGGING
-        logger.info("=== PREPARING LEARNING INSIGHT EXTRACTION ===")
+        logger.info("=== PREPARING LLM REQUEST ===")
         logger.info(f"🔧 Prompt length: {len(structured_prompt)} characters")
-        logger.info(f"🎯 Temperature: 0.4 (increased for creativity)")
-        logger.debug("=== LEARNING INSIGHT EXTRACTION PROMPT ===")
+        logger.info(f"🎯 Temperature: 0.3, Max tokens: 4000")
+        logger.debug("=== FULL LLM PROMPT ===")
         logger.debug(structured_prompt)
+        logger.debug("=== SEGMENT CONTENT FOR ANALYSIS ===")
+        logger.debug(segment_text)
 
-        logger.info("📤 Sending learning insight extraction request...")
+        logger.info("📤 Sending request to LLM...")
         start_time = datetime.now()
         
         client = self._get_client(custom_api_key)
         response = await client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": structured_prompt}],
-            temperature=0.4,  # Increased for more creative, personal extraction
-            max_tokens=2000,  # Reduced since we want concise insights
+            temperature=0.3,
+            max_tokens=4000,
             response_format={"type": "json_object"}
         )
         
@@ -1410,382 +1835,44 @@ Learning Example:
         
         response_text = response.choices[0].message.content
         
-        # RESPONSE PROCESSING FOR NEW FORMAT
-        logger.info("📥 Received learning insight response")
+        # COMPREHENSIVE RESPONSE LOGGING
+        logger.info("📥 Received LLM response")
         logger.info(f"⏱️  Response time: {response_time:.2f} seconds")
         logger.info(f"📊 Response length: {len(response_text)} characters")
-        logger.debug("=== RAW INSIGHT EXTRACTION RESPONSE ===")
+        logger.debug("=== RAW LLM RESPONSE ===")
         logger.debug(response_text)
         
-        logger.info("🔄 Parsing learning insights...")
-        parsed_result = self._parse_insight_response(response_text, topic)
+        logger.info("🔄 Parsing LLM response...")
+        parsed_result = self._parse_structured_response(response_text)
+        
+        # ENHANCED POST-PROCESSING for mixed content
+        if domain_type == "MIXED" and parsed_result.get("concepts"):
+            logger.info("🔀 Applying enhanced post-processing for mixed content...")
+            for concept in parsed_result["concepts"]:
+                # Use enhanced category normalization
+                if concept.get("category"):
+                    original_category = concept["category"]
+                    valid_categories = await self._fetch_categories()
+                    normalized_category = self._normalize_category(original_category, valid_categories)
+                    if normalized_category and normalized_category != original_category:
+                        logger.info(f"🎯 Enhanced normalization: '{original_category}' → '{normalized_category}'")
+                        concept["category"] = normalized_category
+                        # Update categoryPath if needed
+                        if "categoryPath" not in concept or not concept["categoryPath"]:
+                            concept["categoryPath"] = [normalized_category]
         
         # Log parsing results
         if parsed_result.get("concepts"):
-            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} learning concepts")
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} concepts")
             for i, concept in enumerate(parsed_result["concepts"]):
-                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')[:50]}...")
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')} (category: {concept.get('category', 'UNKNOWN')})")
         else:
             logger.warning("⚠️  No concepts extracted from segment")
         
-        logger.info("=== LEARNING INSIGHT EXTRACTION COMPLETED ===")
-        return parsed_result
-
-    def _parse_insight_response(self, response_text: str, topic: str = None) -> Dict:
-        """
-        Parse the new insight-based response format from the LLM.
-        Converts insights to concept format for compatibility with existing system.
-        Now uses the actual topic being studied as the title instead of generic insight text.
-        """
-        try:
-            # Parse the JSON response
-            data = json.loads(response_text)
-            
-            # Convert insights to concepts format for compatibility
-            concepts = []
-            if "insights" in data and isinstance(data["insights"], list):
-                for insight_data in data["insights"]:
-                    if isinstance(insight_data, dict):
-                        # 🎯 NEW: Use the actual topic being studied as the title
-                        title = self._extract_topic_title(topic) if topic else self._generate_insight_title(insight_data.get("insight", ""))
-                        
-                        # Create concept from insight data with ORIGINAL STRUCTURE
-                        concept = {
-                            "title": title,
-                            "summary": insight_data.get("insight", ""),
-                            "details": self._format_insight_details(insight_data),
-                            "keyPoints": [
-                                insight_data.get("application", ""),
-                                insight_data.get("context", "")
-                            ],
-                            "category": insight_data.get("category", "Learning"),
-                            "categoryPath": insight_data.get("categoryPath", [insight_data.get("category", "Learning")]),
-                            "relatedConcepts": [],
-                            "codeSnippets": insight_data.get("code_examples", []),
-                            "confidence_score": 0.9,
-                            "last_updated": datetime.now()
-                        }
-                        
-                        # Clean up empty fields
-                        concept["keyPoints"] = [point for point in concept["keyPoints"] if point and point.strip()]
-                        
-                        concepts.append(concept)
-            
-            return {
-                "concepts": concepts,
-                "conversation_title": data.get("conversation_title", "Learning Insights"),
-                "conversation_summary": data.get("conversation_summary", "Key insights extracted from conversation"),
-                "metadata": {
-                    "extraction_method": "learning_insight_extraction",
-                    "extraction_time": datetime.now().isoformat(),
-                    "concept_count": len(concepts)
-                }
-            }
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse insight response as JSON: {e}")
-            logger.debug(f"Raw response: {response_text}")
-            return self._fallback_extraction(response_text)
-        except Exception as e:
-            logger.error(f"Error parsing insight response: {e}")
-            logger.debug(f"Raw response: {response_text}")
-            return self._fallback_extraction(response_text)
-
-    def _extract_topic_title(self, topic: str) -> str:
-        """
-        Extract the actual topic/problem/concept being studied from the segmentation topic.
-        Removes meta-tags and techniques to get the core subject matter.
+        if parsed_result.get("conversation_summary"):
+            logger.debug(f"Summary: {parsed_result['conversation_summary']}")
         
-        Examples:
-        - "[PROBLEM_SOLVING] Valid Parentheses (LeetCode) [TECHNIQUE:Stack]" → "Valid Parentheses Problem"
-        - "[EXPLORATORY_LEARNING] DeepSeek AI Strategy Analysis" → "DeepSeek AI Strategy Analysis"
-        - "[TECHNICAL] React Performance Optimization" → "React Performance Optimization"
-        """
-        if not topic or not topic.strip():
-            return "Learning Topic"
-        
-        # Remove meta-tags like [PROBLEM_SOLVING], [TECHNIQUE:xxx], etc.
-        clean_topic = topic
-        
-        # Remove conversation type tags
-        clean_topic = re.sub(r'^\[.*?\]\s*', '', clean_topic)
-        
-        # Remove technique tags at the end
-        clean_topic = re.sub(r'\s*\[TECHNIQUE:.*?\]$', '', clean_topic)
-        
-        # Clean up any remaining brackets or parentheses with context info
-        # But preserve parentheses that are part of the actual topic name
-        
-        # For problem-solving topics, add "Problem" if not already there
-        if "[PROBLEM_SOLVING]" in topic and not any(word in clean_topic.lower() for word in ["problem", "challenge", "exercise"]):
-            # Check if it looks like a LeetCode problem name
-            if any(indicator in clean_topic.lower() for indicator in ["leetcode", "neetcode", "blind", "two sum", "valid", "contains"]):
-                clean_topic += " Problem"
-        
-        # Capitalize appropriately
-        clean_topic = clean_topic.strip()
-        
-        # Handle common cases
-        if clean_topic.lower().startswith("learning about"):
-            clean_topic = clean_topic[14:].strip()  # Remove "learning about "
-        
-        return clean_topic if clean_topic else "Learning Topic"
-
-    def _generate_insight_title(self, insight_text: str) -> str:
-        """
-        Generate a concise, meaningful title from an insight.
-        Extracts the core concept without truncating mid-sentence.
-        """
-        if not insight_text or not insight_text.strip():
-            return "Learning Insight"
-        
-        # Clean up the insight text
-        insight = insight_text.strip()
-        
-        # If it's already short enough, use it as-is
-        if len(insight) <= 60:
-            return insight
-        
-        # Find natural break points for a concise title
-        # Look for the first part before common separators
-        separators = [' - ', ': ', ' because ', ' when ', ' if ', ' but ', ' and ', ', ']
-        
-        for separator in separators:
-            if separator in insight:
-                first_part = insight.split(separator)[0].strip()
-                if 20 <= len(first_part) <= 60:  # Good length for a title
-                    return first_part
-        
-        # If no good separator found, find the first complete sentence or phrase
-        # Look for sentence ending followed by space
-        sentences = insight.split('. ')
-        if len(sentences) > 1 and 20 <= len(sentences[0]) <= 60:
-            return sentences[0]
-        
-        # Look for phrases ending with common words
-        words = insight.split()
-        if len(words) > 5:
-            # Try to find a meaningful 6-10 word phrase
-            for end_idx in range(6, min(11, len(words))):
-                phrase = ' '.join(words[:end_idx])
-                if len(phrase) <= 60:
-                    return phrase
-        
-        # Fallback: intelligent truncation at word boundary
-        if len(insight) > 60:
-            # Find the last space before the 57 character limit (leaving room for "...")
-            truncate_point = insight.rfind(' ', 0, 57)
-            if truncate_point > 20:  # Make sure we don't truncate too early
-                return insight[:truncate_point] + "..."
-        
-        return insight
-
-    def _format_insight_details(self, insight_data: Dict) -> str:
-        """
-        Format insight data into a readable details section.
-        Uses clean formatting that works well in the existing UI.
-        """
-        details_parts = []
-        
-        # Main insight
-        insight = insight_data.get("insight", "")
-        if insight:
-            details_parts.append(f"💡 **Insight**: {insight}")
-        
-        # Example
-        example = insight_data.get("example", "")
-        if example:
-            details_parts.append(f"📝 **Example**: {example}")
-        
-        # Application
-        application = insight_data.get("application", "")
-        if application:
-            details_parts.append(f"🎯 **How to Apply**: {application}")
-        
-        # Context
-        context = insight_data.get("context", "")
-        if context:
-            details_parts.append(f"⏰ **When to Use**: {context}")
-        
-        return "\n\n".join(details_parts) if details_parts else "No additional details available."
-
-    async def _extract_non_technical_insights(
-        self, topic: str, segment_text: str, context: Optional[Dict] = None, 
-        category_guidance: Optional[Dict] = None, custom_api_key: Optional[str] = None
-    ) -> Dict:
-        """
-        NON-TECHNICAL INSIGHT EXTRACTION - Extract valuable insights from non-technical content
-        Focus on actionable insights and personal growth rather than information summaries.
-        """
-        logger.info("=== STARTING NON-TECHNICAL INSIGHT EXTRACTION ===")
-        logger.info(f"📚 Topic: {topic}")
-        logger.info(f"📊 Segment length: {len(segment_text)} characters")
-        logger.debug(f"Segment preview: {segment_text[:200]}...")
-        
-        if context:
-            logger.debug(f"Context provided: {list(context.keys())}")
-        if category_guidance:
-            logger.debug(f"Category guidance provided: {list(category_guidance.keys())}")
-
-        # Handle hierarchical categories for non-technical domains
-        category_instructions = ""
-        if category_guidance and category_guidance.get("use_hierarchical_categories"):
-            existing_categories = category_guidance.get("existing_categories", [])
-            
-            category_instructions = (
-                "\n\nNON-TECHNICAL CATEGORIZATION:\n"
-                f"Use appropriate categories for non-technical content, formatted as arrays.\n"
-                f"Include the 'categoryPath' field in your response.\n\n"
-                "FOCUS ON INSIGHT DOMAIN:\n"
-                "- Match the category to the type of insight, not just the subject matter\n"
-                "- Consider the practical application domain\n"
-                "- Use specific subcategories when the insight clearly applies\n\n"
-            )
-            
-            if existing_categories:
-                category_instructions += "AVAILABLE CATEGORIES:\n"
-                for i, path in enumerate(existing_categories[:15]):
-                    path_str = " > ".join(path)
-                    category_instructions += f"- {path_str}\n"
-            
-            category_instructions += (
-                "\nEXAMPLES OF NON-TECHNICAL INSIGHT CATEGORIZATION:\n"
-                "- Insight about 'investment mindset' → categoryPath: ['Finance', 'Investment']\n"
-                "- Insight about 'learning approach' → categoryPath: ['Personal Development', 'Learning']\n"
-                "- Insight about 'decision making' → categoryPath: ['Psychology', 'Decision Making']\n\n"
-            )
-
-        # NON-TECHNICAL INSIGHT EXTRACTION PROMPT
-        transformation_prompt = (
-            "You are a LEARNING INSIGHT EXTRACTOR for NON-TECHNICAL content. Your job is to find "
-            "memorable insights that change how someone thinks about life, business, finance, psychology, "
-            "health, or personal development - NOT to summarize what was discussed.\n\n"
-            
-            "🎯 MISSION: Extract insights someone would want to remember and apply in their life\n\n"
-            
-            "INSIGHT IDENTIFICATION FOR NON-TECHNICAL CONTENT:\n"
-            "1. **MINDSET SHIFTS**: How does this change the way you think about this domain?\n"
-            "2. **PRACTICAL WISDOM**: What actionable principle can you apply immediately?\n"
-            "3. **DECISION FRAMEWORKS**: How does this help you make better decisions?\n"
-            "4. **LIFE APPLICATIONS**: Where would you use this insight in real life?\n\n"
-            
-            "🚫 AVOID EXTRACTING:\n"
-            "- Basic definitions and explanations\n"
-            "- Generic advice without specific insight\n"
-            "- Information that doesn't change behavior or thinking\n"
-            "- Surface-level facts without deeper wisdom\n\n"
-            
-            "✅ EXTRACT INSIGHTS LIKE:\n"
-            "- 'Invest in index funds monthly, not when markets look good - timing the market is impossible'\n"
-            "- 'Write down decisions before making them - it forces clearer thinking and reduces bias'\n"
-            "- 'Schedule important tasks for your peak energy hours, not just when they fit'\n\n"
-            
-            "QUALITY TEST: Would you actually reference this insight when:\n"
-            "- Making a real-life decision?\n"
-            "- Explaining this topic to someone?\n"
-            "- Planning your approach to this area?\n\n"
-        )
-
-        # Context and JSON format
-        context_info = (
-            f"CONTENT TO ANALYZE:\n"
-            f"TOPIC IDENTIFIED: {topic}\n\n"
-            f"⚠️ CRITICAL: The topic has already been identified as '{self._extract_topic_title(topic)}'. "
-            f"Focus on extracting insights about THIS specific topic, not reidentifying what the topic is.\n\n"
-            f"CONTEXT: {json.dumps(context) if context else 'No additional context'}\n\n"
-            "Extract the memorable insights from this conversation about the identified topic.\n\n"
-        )
-        
-        json_format = (
-            "Respond in this JSON format:\n"
-            "{\n"
-            '    "insights": [\n'
-            "        {\n"
-            '            "insight": "The main learning/mindset shift",\n'
-            '            "example": "Concrete scenario from content",\n'
-            '            "application": "How to use this immediately",\n'
-            '            "context": "When this matters most",\n'
-            '            "category": "Appropriate non-technical category"' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
-            "        }\n"
-            "    ],\n"
-            '    "conversation_title": "The specific topic/subject being studied (e.g., Investment Strategy, Psychology of Decision Making)",\n'
-            '    "conversation_summary": "One sentence about the key insights gained"\n'
-            '}\n\n'
-            f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
-        )
-        
-        # Combine all sections for non-technical analysis
-        structured_prompt = (
-            transformation_prompt +
-            category_instructions + "\n\n" +
-            context_info +
-            json_format
-        )
-
-        # COMPREHENSIVE LOGGING
-        logger.info("=== PREPARING NON-TECHNICAL INSIGHT EXTRACTION ===")
-        logger.info(f"🔧 Prompt length: {len(structured_prompt)} characters")
-        logger.info(f"🎯 Temperature: 0.4")
-
-        logger.info("📤 Sending non-technical insight extraction request...")
-        start_time = datetime.now()
-        
-        client = self._get_client(custom_api_key)
-        response = await client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": structured_prompt}],
-            temperature=0.4,
-            max_tokens=2000,
-            response_format={"type": "json_object"}
-        )
-        
-        end_time = datetime.now()
-        response_time = (end_time - start_time).total_seconds()
-        
-        response_text = response.choices[0].message.content
-        
-        # RESPONSE PROCESSING
-        logger.info("📥 Received non-technical insight response")
-        logger.info(f"⏱️  Response time: {response_time:.2f} seconds")
-        logger.info(f"📊 Response length: {len(response_text)} characters")
-        
-        logger.info("🔄 Parsing non-technical insights...")
-        parsed_result = self._parse_insight_response(response_text, topic)
-        
-        # Fallback category assignment for non-technical content
-        if parsed_result.get("concepts"):
-            for concept in parsed_result["concepts"]:
-                if not concept.get("category") or concept.get("category") in ["Uncategorized", "General"]:
-                    # Simple heuristic-based category assignment
-                    title = concept.get("title", "")
-                    summary = concept.get("summary", "")
-                    content = f"{title} {summary}".lower()
-                    
-                    if any(word in content for word in ['money', 'investment', 'finance', 'stock', 'budget']):
-                        concept["category"] = "Finance"
-                        concept["categoryPath"] = ["Finance"]
-                    elif any(word in content for word in ['psychology', 'mental', 'behavior', 'cognitive']):
-                        concept["category"] = "Psychology"  
-                        concept["categoryPath"] = ["Psychology"]
-                    elif any(word in content for word in ['business', 'strategy', 'management', 'marketing']):
-                        concept["category"] = "Business"
-                        concept["categoryPath"] = ["Business"]
-                    elif any(word in content for word in ['health', 'fitness', 'nutrition', 'wellness']):
-                        concept["category"] = "Health"
-                        concept["categoryPath"] = ["Health"]
-                    else:
-                        concept["category"] = "Personal Development"
-                        concept["categoryPath"] = ["Personal Development"]
-
-        # Log parsing results
-        if parsed_result.get("concepts"):
-            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} non-technical concepts")
-            for i, concept in enumerate(parsed_result["concepts"]):
-                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')[:50]}...")
-        else:
-            logger.warning("⚠️  No concepts extracted from non-technical segment")
-        
-        logger.info("=== NON-TECHNICAL INSIGHT EXTRACTION COMPLETED ===")
+        logger.info("=== ENHANCED SEGMENT ANALYSIS COMPLETED ===")
         return parsed_result
 
     async def analyze_conversation(self, req: ConversationRequest) -> Dict:
@@ -1804,56 +1891,18 @@ Learning Example:
                 logger.info("✅ Returning cached response")
                 return cached_response
 
-            # 💡 SMART ANALYSIS: Use different strategies based on content length
-            # Long content (like YouTube transcripts) gets single-pass analysis to avoid timeouts.
-            # Shorter content gets detailed segmentation for higher accuracy.
-            LONG_CONTENT_THRESHOLD = 12000  # Characters
+            logger.info("🔍 Starting single-pass analysis...")
 
-            if len(req.conversation_text) > LONG_CONTENT_THRESHOLD:
-                logger.info(f"📄 Content is long ({len(req.conversation_text)} chars), using single-pass analysis to prevent timeouts.")
-                analysis_result = await self._analyze_segment(
-                    "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
-                )
-            else:
-                logger.info(f"📄 Content is short ({len(req.conversation_text)} chars), using detailed segmentation.")
-                segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
-                logger.info(f"📊 Found {len(segments)} segments to analyze")
-
-                # Analyze each segment to extract concepts
-                all_concepts = []
-                conversation_summaries = []
-                
-                for i, (topic, segment_text) in enumerate(segments):
-                    logger.info(f"🔄 Analyzing segment {i+1}/{len(segments)}: {topic}")
-                    
-                    segment_result = await self._analyze_segment(
-                        topic, segment_text, req.context, req.category_guidance, req.custom_api_key
-                    )
-                    
-                    if segment_result.get("concepts"):
-                        all_concepts.extend(segment_result["concepts"])
-                        logger.info(f"✅ Extracted {len(segment_result['concepts'])} concepts from segment {i+1}")
-                    
-                    if segment_result.get("conversation_summary"):
-                        conversation_summaries.append(segment_result["conversation_summary"])
-
-                # Create combined result from all segments
-                analysis_result = {
-                    "concepts": all_concepts,
-                    "conversation_title": self._extract_topic_title(segments[0][0]) if segments else "Learning Session",
-                    "conversation_summary": " | ".join(conversation_summaries) if conversation_summaries else "Key insights extracted.",
-                    "metadata": {
-                        "extraction_method": "segmented_insight_extraction",
-                        "segments_analyzed": len(segments),
-                        "extraction_time": datetime.now().isoformat()
-                    }
-                }
+            # Single-pass: analyze the whole conversation with the improved prompt
+            single_pass_result = await self._analyze_segment(
+                "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
+            )
 
             # If we get at least one concept, return it
-            if analysis_result.get("concepts"):
+            if single_pass_result.get("concepts"):
                 # Simple title-based deduplication (keep highest confidence)
                 unique_concepts = {}
-                for concept in analysis_result.get("concepts", []):
+                for concept in single_pass_result.get("concepts", []):
                     # Use exact title for deduplication, not lowercase
                     title_key = concept["title"]
                     if (title_key not in unique_concepts or 
@@ -1999,13 +2048,13 @@ Learning Example:
                                         if concept["title"] not in related_concept["relatedConcepts"]:
                                             related_concept["relatedConcepts"].append(concept["title"])
                 
-                analysis_result["concepts"] = concepts
-                self.cache[cache_key] = analysis_result
-                return analysis_result
+                single_pass_result["concepts"] = concepts
+                self.cache[cache_key] = single_pass_result
+                return single_pass_result
             else:
                 # If no concepts were extracted but we have a summary, create a basic fallback
                 # This is much simpler and doesn't try to be too specific
-                summary = analysis_result.get("conversation_summary", analysis_result.get("summary", ""))
+                summary = single_pass_result.get("conversation_summary", single_pass_result.get("summary", ""))
                 
                 if "contains duplicate" in summary.lower() or "hash table" in summary.lower():
                     # Simple fallback for common patterns without over-engineering
@@ -2026,50 +2075,134 @@ Learning Example:
                         "details": {
                             "implementation": "The Contains Duplicate problem asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen.\n\nAs we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false.\n\nThis approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization.",
                             "complexity": {
-                                "time": "O(n)",
-                                "space": "O(n)"
+                                "time": "O(n) where n is the length of the array",
+                                "space": "O(n) in the worst case, as we might need to store all elements in the hash table"
                             },
-                            "useCases": ["Detecting duplicates in a list", "Checking for unique elements"]
+                            "useCases": [
+                                "Checking for duplicate elements in arrays",
+                                "Data validation and integrity checks",
+                                "Preprocessing steps for algorithms requiring unique elements"
+                            ],
+                            "edgeCases": [
+                                "Empty arrays (return false, as there are no duplicates)",
+                                "Arrays with a single element (return false, as there can be no duplicates)",
+                                "Arrays with many duplicates (can return true early)"
+                            ]
                         },
-                        "confidence_score": 0.75,
+                        "codeSnippets": [
+                            {
+                                "language": "Python",
+                                "description": "Hash table implementation",
+                                "code": "def containsDuplicate(nums):\n    seen = {}  # Hash table to track elements\n    \n    for num in nums:\n        # If we've seen this number before, return True\n        if num in seen:\n            return True\n        # Otherwise, add it to our hash table\n        seen[num] = True\n    \n    # If we've checked all elements without finding duplicates\n    return False"
+                            },
+                            {
+                                "language": "JavaScript",
+                                "description": "Using Set for duplicate detection",
+                                "code": "function containsDuplicate(nums) {\n    const seen = new Set();\n    \n    for (const num of nums) {\n        // If we've seen this number before, return true\n        if (seen.has(num)) {\n            return true;\n        }\n        // Otherwise, add it to our set\n        seen.add(num);\n    }\n    \n    // If we've checked all elements without finding duplicates\n    return false;\n}"
+                            }
+                        ],
+                        "relatedConcepts": ["Hash Table"],
+                        "confidence_score": 0.95,
                         "last_updated": datetime.now().isoformat()
                     })
                     
-                    # Add the technique concept
+                    # Add the hash table concept
                     concepts.append({
                         "title": "Hash Table",
-                        "category": "Data Structures",
-                        "categoryPath": ["Data Structures"],
-                        "summary": "A data structure that provides fast key-value lookups.",
+                        "category": "Data Structure",
+                        "categoryPath": ["Data Structure"],
+                        "summary": "A data structure that maps keys to values using a hash function, enabling efficient lookups.",
                         "keyPoints": [
-                            "Ideal for solving problems involving frequency counting or duplicate detection",
-                            "Average time complexity for lookups, insertions, and deletions is O(1)",
-                            "Can be used to optimize algorithms from O(n²) to O(n)"
+                            "Provides O(1) average time complexity for lookups, insertions, and deletions",
+                            "Maps keys to values using a hash function",
+                            "Handles collisions through techniques like chaining or open addressing",
+                            "Essential for problems requiring fast element lookup or counting"
+                        ],
+                        "details": {
+                            "implementation": "Hash tables work by transforming a key into an array index using a hash function. This allows for direct access to values without needing to search through the entire data structure.\n\nWhen a collision occurs (two keys hash to the same index), it can be resolved using techniques like chaining (storing multiple values in linked lists at each index) or open addressing (finding an alternative slot in the array).\n\nIn problems like Contains Duplicate, hash tables enable O(1) lookups to quickly determine if an element has been seen before.",
+                            "complexity": {
+                                "time": "Average: O(1) for lookups, insertions, and deletions. Worst case: O(n) if many collisions occur.",
+                                "space": "O(n) where n is the number of key-value pairs stored"
+                            },
+                            "useCases": [
+                                "Implementing dictionaries and maps",
+                                "Caching data for quick access",
+                                "Finding duplicates or counting occurrences",
+                                "Symbol tables in compilers and interpreters"
+                            ]
+                        },
+                        "codeSnippets": [
+                            {
+                                "language": "Python",
+                                "description": "Using dictionary as hash table",
+                                "code": "# Create a hash table\nhash_table = {}\n\n# Insert a key-value pair\nhash_table[\"key1\"] = \"value1\"\n\n# Check if a key exists\nif \"key1\" in hash_table:\n    print(\"Key exists!\")\n\n# Get a value by key\nvalue = hash_table.get(\"key1\", \"default_value\")"
+                            }
                         ],
                         "relatedConcepts": ["Contains Duplicate"],
-                        "confidence_score": 0.75,
+                        "confidence_score": 0.9,
                         "last_updated": datetime.now().isoformat()
                     })
                     
-                    analysis_result["concepts"] = concepts
-                    self.cache[cache_key] = analysis_result
-                    return analysis_result
+                    result = {
+                        "concepts": concepts,
+                        "summary": summary,
+                        "conversation_summary": summary,
+                        "metadata": {
+                            "extraction_time": datetime.now().isoformat(),
+                            "model_used": self.model,
+                            "concept_count": len(concepts),
+                            "extraction_method": "simple_fallback"
+                        }
+                    }
+                    
+                    self.cache[cache_key] = result
+                    return result
                 
-                # Fallback if no specific pattern is detected
-                logger.warning("No concepts extracted, and no specific fallback triggered. Using generic response.")
-                return {
-                    "concepts": [],
-                    "summary": single_pass_result.get("conversation_summary", "Could not extract specific concepts."),
-                    "metadata": {"extraction_method": "fallback"}
+            # Fallback: try multi-pass (segmentation + per-segment analysis)
+            print("Single-pass yielded no concepts. Trying multi-pass fallback...")
+            segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
+            all_concepts = []
+            segment_summaries = []
+            for topic, segment_text in segments:
+                segment_result = await self._analyze_segment(
+                    topic, segment_text, req.context, req.category_guidance, req.custom_api_key
+                )
+                for concept in segment_result.get("concepts", []):
+                    concept["source_topic"] = topic
+                    all_concepts.append(concept)
+                segment_summaries.append(
+                    f"{topic}: {segment_result.get('summary', '')}"
+                )
+            # Deduplicate concepts by title (case insensitive)
+            unique_concepts = {}
+            for concept in all_concepts:
+                # Use exact title for deduplication, not lowercase
+                title_key = concept["title"]
+                if title_key in unique_concepts:
+                    existing = unique_concepts[title_key]
+                    if concept.get("confidence_score", 0) > existing.get("confidence_score", 0):
+                        unique_concepts[title_key] = concept
+                    elif (concept.get("confidence_score", 0) == existing.get("confidence_score", 0) and
+                          len(concept.get("codeSnippets", [])) > len(existing.get("codeSnippets", []))):
+                        unique_concepts[title_key] = concept
+                else:
+                    unique_concepts[title_key] = concept
+            deduplicated_concepts = list(unique_concepts.values())
+            result = {
+                "concepts": deduplicated_concepts,
+                "summary": " | ".join(segment_summaries),
+                "metadata": {
+                    "extraction_time": datetime.now().isoformat(),
+                    "model_used": self.model,
+                    "concept_count": len(deduplicated_concepts),
+                    "segment_count": len(segments)
                 }
+            }
+            self.cache[cache_key] = result
+            return result
         except Exception as e:
-            logger.error(f"FATAL: Error during conversation analysis: {str(e)}")
-            logger.error(traceback.format_exc())
-            # Return a structured error response
-            raise HTTPException(
-                status_code=500, 
-                detail=f"An error occurred during analysis: {str(e)}"
-            )
+            print(f"Error analyzing conversation: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
 
     def _get_technique_info(self, technique: str, problem_title: str) -> Tuple[str, List[str], str]:
         """Get rich description and key points for a technique."""
