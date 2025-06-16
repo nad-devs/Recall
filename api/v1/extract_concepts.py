@@ -1244,7 +1244,13 @@ STRUCTURE PER INSIGHT:
     "example": "Concrete scenario from the content that demonstrates this insight", 
     "application": "How to immediately use this insight in real situations",
     "context": "When this insight matters most or becomes valuable",
-    "category": "Appropriate category"
+    "category": "Appropriate category",
+    "code_examples": [
+        {
+            "language": "python",
+            "code": "print('Hello, World!')"
+        }
+    ]
 }
 
 INSIGHT QUALITY RULES:
@@ -1253,6 +1259,7 @@ INSIGHT QUALITY RULES:
 - **Use specific language, avoid generalities** 
 - **Frame for future conversation use**
 - **Focus on mindset shifts, not information dumps**
+- **Include code examples if they are central to the insight**
 
 GOOD INSIGHT EXAMPLES:
 
@@ -1353,13 +1360,18 @@ Learning Example:
             '            "example": "Concrete scenario from content",\n'
             '            "application": "How to use this immediately",\n'
             '            "context": "When this matters most",\n'
-            '            "category": "Appropriate category"' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
+            '            "category": "Appropriate category",\n'
+            '            "code_examples": [{\n'
+            '                "language": "e.g., python",\n'
+            '                "code": "code snippet text"\n'
+            '            }]' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
             "        }\n"
             "    ],\n"
             '    "conversation_title": "The specific topic/problem/concept being studied (e.g., Valid Parentheses Problem, DeepSeek AI Analysis)",\n'
             '    "conversation_summary": "One sentence about the key insights gained"\n'
             '}\n\n'
-            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n\n"
+            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n"
+            "Also, ensure any relevant code examples from the conversation are included.\n\n"
             f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
         )
         
@@ -1447,7 +1459,7 @@ Learning Example:
                             "category": insight_data.get("category", "Learning"),
                             "categoryPath": insight_data.get("categoryPath", [insight_data.get("category", "Learning")]),
                             "relatedConcepts": [],
-                            "codeSnippets": [],
+                            "codeSnippets": insight_data.get("code_examples", []),
                             "confidence_score": 0.9,
                             "last_updated": datetime.now()
                         }
@@ -1697,7 +1709,6 @@ Learning Example:
             '    "conversation_title": "The specific topic/subject being studied (e.g., Investment Strategy, Psychology of Decision Making)",\n'
             '    "conversation_summary": "One sentence about the key insights gained"\n'
             '}\n\n'
-            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n\n"
             f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
         )
         
