@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Brain, Target, BookOpen, Search, Eye, EyeOff, Code, Cloud, Database, Cpu, Network, Shield, Zap, Settings, FileText, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { Brain, Target, BookOpen, Search, Eye, EyeOff, Code, Code2, Cloud, Database, Cpu, Network, Shield, Zap, Settings, FileText, Users, ChevronDown, ChevronRight, Layers, Quote, MoveHorizontal, RectangleHorizontal, Binary, GitCommit } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Types compatible with existing graph page
@@ -80,6 +80,18 @@ interface TooltipState {
 const getConceptIcon = (concept: Concept): React.ComponentType<any> => {
   const title = concept.title.toLowerCase();
   const category = concept.category.toLowerCase();
+  
+  // Specific LeetCode / Algorithm patterns first
+  if (category.includes('leetcode')) {
+    if (title.includes('stack')) return Layers;
+    if (title.includes('array')) return Code2;
+    if (title.includes('string')) return Quote;
+    if (title.includes('two pointers') || title.includes('two poin')) return MoveHorizontal;
+    if (title.includes('sliding')) return RectangleHorizontal;
+    if (title.includes('tree')) return Binary;
+    if (title.includes('graph')) return Network;
+    if (title.includes('heap')) return GitCommit;
+  }
   
   // Programming/Code related
   if (title.includes('algorithm') || title.includes('programming') || title.includes('code') || 
@@ -388,7 +400,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 
           if (subcategories.length <= 6) {
             angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
-            radius = 180 + (subcategories.length * 8);
+            radius = 200 + (subcategories.length * 8); // Increased from 180 for more clearance
             
             const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
             const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
@@ -409,7 +421,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
             const totalConcepts = subcategory.concepts.length;
 
             subcategory.concepts.forEach((concept, conceptIndex) => {
-              const conceptRadius = 100; // Slightly increased for label padding
+              const conceptRadius = 115; // Slightly increased for label padding
               let conceptAngle;
 
               if (totalConcepts === 1) {
