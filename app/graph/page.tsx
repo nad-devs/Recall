@@ -111,6 +111,34 @@ export default function GraphPage() {
     }
   }
 
+  // Handle linking/unlinking concepts and refresh data
+  const handleConceptsLinkOrUnlink = async (conceptId1: string, conceptId2: string) => {
+    try {
+      const concept1 = concepts.find(c => c.id === conceptId1);
+      if (!concept1) throw new Error("Source concept not found");
+      
+      const processed = processEnhancedConcept(concept1 as EnhancedConcept);
+      const isAlreadyLinked = processed.relatedConceptsParsed?.includes(conceptId2);
+
+      const response = await fetch('/api/concepts/link', {
+        method: isAlreadyLinked ? 'DELETE' : 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ conceptId1, conceptId2 }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${isAlreadyLinked ? 'unlink' : 'link'} concepts`);
+      }
+
+      // Refresh the concepts data to reflect the change in the graph
+      await loadConcepts();
+
+    } catch (error) {
+      console.error("Error linking/unlinking concepts:", error);
+      // Here you could add a toast notification for the error
+    }
+  };
+
   // Load concepts with enhanced data inspection
   const loadConcepts = async () => {
     if (!mounted) return
@@ -174,8 +202,6 @@ export default function GraphPage() {
       loadConcepts()
     }
   }, [mounted])
-
-
 
   // Enhanced Concept Modal Component with Rich Data Display
   const ConceptModal = memo(({ concept, onClose }: { concept: Concept | null, onClose: () => void }) => {
@@ -504,7 +530,7 @@ export default function GraphPage() {
           <div className="bg-slate-800/50 border-b border-slate-700 px-4 py-2">
             <div className="flex items-center justify-between">
               <div className="text-slate-300 text-sm">
-                🧠 <strong>Knowledge Graph:</strong> Visual representation of your concepts • Click nodes for details • Colors represent categories
+                🧠 <strong>Knowledge Graph:</strong> Visual representation of your concepts • Click nodes for details • Right-click and drag to link/unlink concepts • Colors represent categories
               </div>
               <div className="text-slate-400 text-xs">
                 {concepts.length} concepts loaded
@@ -541,6 +567,7 @@ export default function GraphPage() {
                     updatedAt: new Date()
                   }))}
                   onConceptSelect={(concept) => setSelectedConcept(concept as any)}
+                  onLinkConcepts={handleConceptsLinkOrUnlink}
                 />
 
                 {/* Simple Insight Panel */}

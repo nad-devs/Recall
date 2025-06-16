@@ -43,6 +43,7 @@ interface KnowledgeCompanionProps {
   concepts: Concept[];
   categories: Category[];
   onConceptSelect?: (concept: Concept | null) => void;
+  onLinkConcepts?: (conceptId1: string, conceptId2: string) => Promise<void>;
 }
 
 // Semantic clustering with AI-based concept similarity
@@ -313,7 +314,8 @@ const detectAndResolveCollisions = (nodes: { [key: string]: GeometricNode }, clu
 const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
   concepts,
   categories,
-  onConceptSelect
+  onConceptSelect,
+  onLinkConcepts
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -339,6 +341,14 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     y: 0,
     content: null
   });
+
+  // Linking state for drag-to-link functionality
+  const [linkingState, setLinkingState] = useState<{
+    active: boolean;
+    fromId: string | null;
+    fromPos: { x: number; y: number } | null;
+    toPos: { x: number; y: number } | null;
+  }>({ active: false, fromId: null, fromPos: null, toPos: null });
 
   // Generate semantic clusters - MEMOIZED to prevent recalculation
   const semanticClusters = React.useMemo(() => 
@@ -601,24 +611,22 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 
   // Event handlers
   const handleMouseMove = (event: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    
-    if (tooltip.visible) {
-      setTooltip(prev => ({
-        ...prev,
-        x,
-        y
-      }));
+    if (linkingState.active) {
+      const svgPoint = svgRef.current?.createSVGPoint();
+      if (svgPoint) {
+        svgPoint.x = event.clientX;
+        svgPoint.y = event.clientY;
+        const transformedPoint = svgPoint.matrixTransform(svgRef.current?.getScreenCTM()?.inverse());
+        setLinkingState(prev => ({ ...prev, toPos: { x: transformedPoint.x, y: transformedPoint.y } }));
+      }
     }
-
+    if (!tooltip.visible) return;
+    setTooltip(prev => ({ ...prev, x: event.clientX + 15, y: event.clientY + 15 }));
   };
 
   const handleConceptHover = (conceptId: string | null, event?: React.MouseEvent) => {
-    if (conceptId) {
+    setHoveredConcept(conceptId);
+    if (conceptId && event) {
       const concept = concepts.find(c => c.id === conceptId);
       if (concept && event && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
@@ -635,7 +643,6 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
     } else {
       setTooltip(prev => ({ ...prev, visible: false }));
     }
-    setHoveredConcept(conceptId);
   };
 
   const toggleSubcategoryExpansion = (key: string) => {
@@ -745,6 +752,30 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
       if (conn?.to === conceptId) connected.add(conn.from);
     });
     return connected;
+  };
+
+  const handleConceptMouseDown = (conceptId: string, event: React.MouseEvent) => {
+    // Use right-click to initiate linking
+    if (event.button === 2 && onLinkConcepts) {
+      event.preventDefault();
+      const fromNode = physicsNodes[conceptId];
+      if (fromNode) {
+        setLinkingState({
+          active: true,
+          fromId: conceptId,
+          fromPos: { x: fromNode.x, y: fromNode.y },
+          toPos: { x: fromNode.x, y: fromNode.y },
+        });
+      }
+    }
+  };
+
+  const handleConceptMouseUp = (conceptId: string, event: React.MouseEvent) => {
+    if (linkingState.active && linkingState.fromId && linkingState.fromId !== conceptId && onLinkConcepts) {
+      onLinkConcepts(linkingState.fromId, conceptId);
+    }
+    // Always cancel linking state on mouse up
+    setLinkingState({ active: false, fromId: null, fromPos: null, toPos: null });
   };
 
   return (
@@ -938,6 +969,12 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
               <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
                 <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
               </pattern>
+              
+              {/* Arrow marker for linking line */}
+              <marker id="arrow-linking" viewBox="0 0 10 10" refX="9" refY="3" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0,0 L0,6 L9,3 z" fill="rgba(255, 107, 107, 0.8)" />
+              </marker>
+              
               <style>
                 {`
                   .node-enter {
@@ -1086,7 +1123,9 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                     className="cursor-pointer"
                     onMouseEnter={(e) => handleConceptHover(concept.id, e)}
                     onMouseLeave={() => handleConceptHover(null)}
-                    onClick={() => onConceptSelect ? onConceptSelect(concept) : setSelectedConcept(concept)}
+                    onMouseDown={(e) => handleConceptMouseDown(concept.id, e)}
+                    onMouseUp={(e) => handleConceptMouseUp(concept.id, e)}
+                    onClick={() => onConceptSelect && onConceptSelect(concept)}
                   >
                     <circle
                       cx={node.x}
@@ -1160,6 +1199,20 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
                 </AnimatePresence>
               );
             })}
+
+            {/* Linking Line */}
+            {linkingState.active && linkingState.fromPos && linkingState.toPos && (
+              <line
+                x1={linkingState.fromPos.x}
+                y1={linkingState.fromPos.y}
+                x2={linkingState.toPos.x}
+                y2={linkingState.toPos.y}
+                stroke="rgba(255, 107, 107, 0.8)"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+                markerEnd="url(#arrow-linking)"
+              />
+            )}
 
           </svg>
 
