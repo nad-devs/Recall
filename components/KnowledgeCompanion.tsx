@@ -153,112 +153,58 @@ const generateSubcategories = (clusterConcepts: Concept[]) => {
   }));
 };
 
-const generateDynamicSemanticClusters = (concepts: Concept[]): SemanticCluster[] => {
-  // Define semantic groups with keywords and patterns
-  const semanticGroups = [
-    {
-      name: "LeetCode & Algorithms",
-      keywords: ["leetcode", "algorithm", "programming", "problem", "solution", "coding", "dynamic", "graph", "tree"],
-      color: "#FF6B6B",
-      icon: Code
-    },
-    {
-      name: "Cloud & Infrastructure", 
-      keywords: ["cloud", "aws", "kubernetes", "docker", "infrastructure", "deployment", "container", "service"],
-      color: "#4ECDC4",
-      icon: Cloud
-    },
-    {
-      name: "Machine Learning & AI",
-      keywords: ["machine", "learning", "ai", "artificial", "intelligence", "neural", "model", "training"],
-      color: "#45B7D1", 
-      icon: Brain
-    },
-    {
-      name: "Data & Databases",
-      keywords: ["data", "database", "sql", "query", "storage", "table", "index", "optimization"],
-      color: "#96CEB4",
-      icon: Database
-    },
-    {
-      name: "System Architecture",
-      keywords: ["system", "architecture", "microservice", "distributed", "scalability", "design", "pattern"],
-      color: "#FFEAA7",
-      icon: Cpu
-    },
-    {
-      name: "Security & Authentication",
-      keywords: ["security", "auth", "token", "encryption", "authentication", "authorization", "jwt"],
-      color: "#DDA0DD",
-      icon: Shield
-    },
-    {
-      name: "Performance & Optimization",
-      keywords: ["performance", "optimization", "load", "balance", "caching", "speed", "efficiency"],
-      color: "#98D8C8",
-      icon: Zap
-    },
-    {
-      name: "Web Development",
-      keywords: ["web", "frontend", "backend", "api", "http", "rest", "javascript", "react"],
-      color: "#F7DC6F",
-      icon: Network
-    }
-  ];
+const generateClustersFromData = (concepts: Concept[]): SemanticCluster[] => {
+  const categoryMap = new Map<string, Concept[]>();
 
-  // Score concepts against each semantic group
-  const conceptScores = concepts.map(concept => {
-    const text = `${concept.title} ${concept.category} ${concept.summary || ''}`.toLowerCase();
-    
-    const scores = semanticGroups.map(group => {
-      let score = 0;
-      group.keywords.forEach(keyword => {
-        if (text.includes(keyword)) {
-          score += keyword.length; // Longer keywords get higher weight
-        }
-      });
-      return { group, score };
-    });
-    
-    // Find best matching group
-    const bestMatch = scores.reduce((best, current) => 
-      current.score > best.score ? current : best
-    );
-    
-    return {
-      concept,
-      bestGroup: bestMatch.score > 0 ? bestMatch.group : semanticGroups[semanticGroups.length - 1], // Default to last group
-      score: bestMatch.score
-    };
+  // Group concepts by their top-level category
+  concepts.forEach(concept => {
+    const topLevelCategory = concept.category.split(' > ')[0];
+    if (!categoryMap.has(topLevelCategory)) {
+      categoryMap.set(topLevelCategory, []);
+    }
+    categoryMap.get(topLevelCategory)!.push(concept);
   });
 
-  // Group concepts by their best semantic match
+  // Define colors for consistency
+  const colors = [
+    "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", 
+    "#FFEAA7", "#DDA0DD", "#98D8C8", "#F7DC6F"
+  ];
+
+  // Define icons for categories - fallback to a default
+  const icons: { [key: string]: React.ComponentType<any> } = {
+    "LeetCode & Algorithms": Code,
+    "Cloud & Infrastructure": Cloud,
+    "Machine Learning & AI": Brain,
+    "Data & Databases": Database,
+    "System Architecture": Cpu,
+    "Security & Authentication": Shield,
+    "Performance & Optimization": Zap,
+    "Web Development": Network,
+  };
+
   const clusters: SemanticCluster[] = [];
-  
-  semanticGroups.forEach((group, groupIndex) => {
-    const groupConcepts = conceptScores
-      .filter(item => item.bestGroup === group)
-      .map(item => item.concept);
+  let colorIndex = 0;
+
+  Array.from(categoryMap.entries()).forEach(([name, concepts]) => {
+    const cols = 3;
+    const row = Math.floor(clusters.length / cols);
+    const col = clusters.length % cols;
     
-    if (groupConcepts.length > 0) {
-      // Calculate cluster position in a better grid with more spacing
-      const cols = 3;
-      const row = Math.floor(clusters.length / cols);
-      const col = clusters.length % cols;
-      
-      clusters.push({
-        id: `cluster-${groupIndex}`,
-        name: group.name,
-        concepts: groupConcepts,
-        color: group.color,
-        icon: group.icon,
-        position: {
-          x: col * 700 + 450, // More spacing
-          y: row * 600 + 350  // More spacing
-        },
-        keywords: group.keywords
-      });
-    }
+    clusters.push({
+      id: `cluster-${name.replace(/\s+/g, '-')}`,
+      name: name,
+      concepts: concepts,
+      color: colors[colorIndex % colors.length],
+      icon: icons[name] || Settings,
+      position: {
+        x: col * 700 + 450,
+        y: row * 600 + 350
+      },
+      keywords: [] // No longer needed
+    });
+
+    colorIndex++;
   });
 
   return clusters;
@@ -383,7 +329,7 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
 
   // Generate semantic clusters - MEMOIZED to prevent recalculation
   const semanticClusters = React.useMemo(() => 
-    generateDynamicSemanticClusters(concepts), 
+    generateClustersFromData(concepts), 
     [concepts]
   );
 
@@ -476,15 +422,23 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
         const clusterConcepts = cluster.concepts.filter(concept => filteredConcepts.some(fc => fc.id === concept.id));
         clusterConcepts.forEach((concept, index) => {
           let angle, radius;
-          const baseRadius = 150; // Reduced base radius
+          const baseRadius = 150;
+
+          // Create a "safe zone" for the cluster title at the top
+          const totalNodes = clusterConcepts.length;
+          const startAngle = 0.6 * Math.PI; // Start angle (around 5 o'clock)
+          const endAngle = 2.4 * Math.PI;   // End angle (around 1 o'clock)
+          const angleRange = endAngle - startAngle;
+
           if (clusterConcepts.length <= 8) {
-            angle = (index / clusterConcepts.length) * 2 * Math.PI;
+            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
             radius = baseRadius + (clusterConcepts.length * 20);
           } else {
             const spiralFactor = index / clusterConcepts.length;
-            angle = spiralFactor * 5 * Math.PI; // More rotations
+            angle = startAngle + spiralFactor * (angleRange * 1.5); // Spiral within the allowed arc
             radius = baseRadius + spiralFactor * 220;
           }
+          
           const conceptX = cluster.position.x + Math.cos(angle) * radius;
           const conceptY = cluster.position.y + Math.sin(angle) * radius;
           geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
