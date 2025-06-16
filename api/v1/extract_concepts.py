@@ -1353,9 +1353,10 @@ Learning Example:
             '            "category": "Appropriate category"' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
             "        }\n"
             "    ],\n"
-            '    "conversation_title": "Short, engaging title for this conversation",\n'
+            '    "conversation_title": "The specific topic/problem/concept being studied (e.g., Valid Parentheses Problem, DeepSeek AI Analysis)",\n'
             '    "conversation_summary": "One sentence about the key insights gained"\n'
             '}\n\n'
+            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n\n"
             f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
         )
         
@@ -1400,7 +1401,7 @@ Learning Example:
         logger.debug(response_text)
         
         logger.info("🔄 Parsing learning insights...")
-        parsed_result = self._parse_insight_response(response_text)
+        parsed_result = self._parse_insight_response(response_text, topic)
         
         # Log parsing results
         if parsed_result.get("insights"):
@@ -1413,10 +1414,11 @@ Learning Example:
         logger.info("=== LEARNING INSIGHT EXTRACTION COMPLETED ===")
         return parsed_result
 
-    def _parse_insight_response(self, response_text: str) -> Dict:
+    def _parse_insight_response(self, response_text: str, topic: str = None) -> Dict:
         """
         Parse the new insight-based response format from the LLM.
         Converts insights to concept format for compatibility with existing system.
+        Now uses the actual topic being studied as the title instead of generic insight text.
         """
         try:
             # Parse the JSON response
@@ -1427,9 +1429,8 @@ Learning Example:
             if "insights" in data and isinstance(data["insights"], list):
                 for insight_data in data["insights"]:
                     if isinstance(insight_data, dict):
-                        # Generate a concise, meaningful title from the insight
-                        insight_text = insight_data.get("insight", "")
-                        title = self._generate_insight_title(insight_text)
+                        # 🎯 NEW: Use the actual topic being studied as the title
+                        title = self._extract_topic_title(topic) if topic else self._generate_insight_title(insight_data.get("insight", ""))
                         
                         # Create concept from insight data with ORIGINAL STRUCTURE
                         concept = {
@@ -1472,6 +1473,46 @@ Learning Example:
             logger.error(f"Error parsing insight response: {e}")
             logger.debug(f"Raw response: {response_text}")
             return self._fallback_extraction(response_text)
+
+    def _extract_topic_title(self, topic: str) -> str:
+        """
+        Extract the actual topic/problem/concept being studied from the segmentation topic.
+        Removes meta-tags and techniques to get the core subject matter.
+        
+        Examples:
+        - "[PROBLEM_SOLVING] Valid Parentheses (LeetCode) [TECHNIQUE:Stack]" → "Valid Parentheses Problem"
+        - "[EXPLORATORY_LEARNING] DeepSeek AI Strategy Analysis" → "DeepSeek AI Strategy Analysis"
+        - "[TECHNICAL] React Performance Optimization" → "React Performance Optimization"
+        """
+        if not topic or not topic.strip():
+            return "Learning Topic"
+        
+        # Remove meta-tags like [PROBLEM_SOLVING], [TECHNIQUE:xxx], etc.
+        clean_topic = topic
+        
+        # Remove conversation type tags
+        clean_topic = re.sub(r'^\[.*?\]\s*', '', clean_topic)
+        
+        # Remove technique tags at the end
+        clean_topic = re.sub(r'\s*\[TECHNIQUE:.*?\]$', '', clean_topic)
+        
+        # Clean up any remaining brackets or parentheses with context info
+        # But preserve parentheses that are part of the actual topic name
+        
+        # For problem-solving topics, add "Problem" if not already there
+        if "[PROBLEM_SOLVING]" in topic and not any(word in clean_topic.lower() for word in ["problem", "challenge", "exercise"]):
+            # Check if it looks like a LeetCode problem name
+            if any(indicator in clean_topic.lower() for indicator in ["leetcode", "neetcode", "blind", "two sum", "valid", "contains"]):
+                clean_topic += " Problem"
+        
+        # Capitalize appropriately
+        clean_topic = clean_topic.strip()
+        
+        # Handle common cases
+        if clean_topic.lower().startswith("learning about"):
+            clean_topic = clean_topic[14:].strip()  # Remove "learning about "
+        
+        return clean_topic if clean_topic else "Learning Topic"
 
     def _generate_insight_title(self, insight_text: str) -> str:
         """
@@ -1647,9 +1688,10 @@ Learning Example:
             '            "category": "Appropriate non-technical category"' + (f',\n            "categoryPath": ["Parent", "Subcategory"]' if category_guidance else '') + '\n'
             "        }\n"
             "    ],\n"
-            '    "conversation_title": "Short, engaging title",\n'
+            '    "conversation_title": "The specific topic/subject being studied (e.g., Investment Strategy, Psychology of Decision Making)",\n'
             '    "conversation_summary": "One sentence about the key insights gained"\n'
             '}\n\n'
+            "⚠️ CRITICAL: The title should be the SPECIFIC TOPIC being studied, not a generic insight statement!\n\n"
             f"Content:\n\"\"\"\n{segment_text}\n\"\"\"\n"
         )
         
@@ -1689,7 +1731,7 @@ Learning Example:
         logger.info(f"📊 Response length: {len(response_text)} characters")
         
         logger.info("🔄 Parsing non-technical insights...")
-        parsed_result = self._parse_insight_response(response_text)
+        parsed_result = self._parse_insight_response(response_text, topic)
         
         # Fallback category assignment for non-technical content
         if parsed_result.get("concepts"):
