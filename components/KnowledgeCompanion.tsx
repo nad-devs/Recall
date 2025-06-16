@@ -380,18 +380,19 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           const key = `subcategory-${cluster.id}-${subcategory.name}`;
           let angle, radius;
           
-          // Create a "safe zone" for the cluster title at the top
-          const totalNodes = subcategories.length;
-          const startAngle = 0.6 * Math.PI;
-          const endAngle = 2.4 * Math.PI;
-          const angleRange = endAngle - startAngle;
-
           if (subcategories.length <= 6) {
-            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
-            radius = 180 + (subcategories.length * 8); // Reduced radius
+            // Restore geometric placement
+            angle = (index / subcategories.length) * 2 * Math.PI;
+            radius = 180 + (subcategories.length * 8);
             
-            const subcategoryX = cluster.position.x + Math.cos(angle) * radius;
-            const subcategoryY = cluster.position.y + Math.sin(angle) * radius;
+            let subcategoryX = cluster.position.x + Math.cos(angle) * radius;
+            let subcategoryY = cluster.position.y + Math.sin(angle) * radius;
+
+            // Nudge node up if it's in the top position to avoid title collision
+            if (Math.sin(angle) < -0.7) {
+              subcategoryY -= 40;
+            }
+            
             geometricNodes[key] = { id: key, x: subcategoryX, y: subcategoryY, originalX: subcategoryX, originalY: subcategoryY, radius: 50, type: 'subcategory', fixed: false };
         } else {
             const cols = Math.ceil(Math.sqrt(subcategories.length));
@@ -430,23 +431,24 @@ const KnowledgeCompanion: React.FC<KnowledgeCompanionProps> = ({
           let angle, radius;
           const baseRadius = 150;
 
-          // Create a "safe zone" for the cluster title at the top
-          const totalNodes = clusterConcepts.length;
-          const startAngle = 0.6 * Math.PI; // Start angle (around 5 o'clock)
-          const endAngle = 2.4 * Math.PI;   // End angle (around 1 o'clock)
-          const angleRange = endAngle - startAngle;
-
+          // Restore geometric placement
           if (clusterConcepts.length <= 8) {
-            angle = totalNodes > 1 ? startAngle + (index / (totalNodes - 1)) * angleRange : startAngle;
+            angle = (index / clusterConcepts.length) * 2 * Math.PI;
             radius = baseRadius + (clusterConcepts.length * 20);
           } else {
             const spiralFactor = index / clusterConcepts.length;
-            angle = startAngle + spiralFactor * (angleRange * 1.5); // Spiral within the allowed arc
+            angle = spiralFactor * 5 * Math.PI; // More rotations
             radius = baseRadius + spiralFactor * 220;
           }
           
-          const conceptX = cluster.position.x + Math.cos(angle) * radius;
-          const conceptY = cluster.position.y + Math.sin(angle) * radius;
+          let conceptX = cluster.position.x + Math.cos(angle) * radius;
+          let conceptY = cluster.position.y + Math.sin(angle) * radius;
+
+          // Nudge node up if it's in the top position to avoid title collision
+          if (Math.sin(angle) < -0.7 && clusterConcepts.length > 2) {
+            conceptY -= 40;
+          }
+
           geometricNodes[concept.id] = { id: concept.id, x: conceptX, y: conceptY, originalX: conceptX, originalY: conceptY, radius: 35, type: 'concept', fixed: false };
         });
       }
