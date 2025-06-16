@@ -1294,6 +1294,8 @@ Learning Example:
                 "3. **TIMING WISDOM**: When is this insight most valuable?\n"
                 "4. **PATTERN RECOGNITION**: What broader principle does this demonstrate?\n\n"
                 
+                "**CODE EXTRACTION RULE**: If the conversation concludes with a final, complete code solution to a problem, that solution **MUST** be extracted as the primary code example. It is the most important artifact of the learning session.\n\n"
+
                 "🚫 AVOID EXTRACTING:\n"
                 "- Code explanations without insight\n"
                 "- Generic statements like 'use hash tables'\n"
