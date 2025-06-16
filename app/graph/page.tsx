@@ -118,7 +118,19 @@ export default function GraphPage() {
       if (!concept1) throw new Error("Source concept not found");
       
       const processed = processEnhancedConcept(concept1 as EnhancedConcept);
-      const isAlreadyLinked = processed.relatedConceptsParsed?.includes(conceptId2);
+      
+      // Check if concepts are already linked - relatedConceptsParsed contains objects with id and title
+      const isAlreadyLinked = processed.relatedConceptsParsed?.some((rel: any) => 
+        (typeof rel === 'object' && rel.id === conceptId2) ||
+        (typeof rel === 'string' && rel === conceptId2)
+      ) || false;
+
+      console.log('Linking check:', {
+        conceptId1,
+        conceptId2,
+        relatedConcepts: processed.relatedConceptsParsed,
+        isAlreadyLinked
+      });
 
       const response = await fetch('/api/concepts/link', {
         method: isAlreadyLinked ? 'DELETE' : 'POST',
@@ -129,6 +141,9 @@ export default function GraphPage() {
       if (!response.ok) {
         throw new Error(`Failed to ${isAlreadyLinked ? 'unlink' : 'link'} concepts`);
       }
+
+      const result = await response.json();
+      console.log('Link/unlink result:', result);
 
       // Refresh the concepts data to reflect the change in the graph
       await loadConcepts();
