@@ -1336,9 +1336,12 @@ Learning Example:
         
         # CONTEXT AND JSON FORMAT
         context_info = (
-            f"CONTENT TO ANALYZE:\nTopic: {topic}\n\n"
+            f"CONTENT TO ANALYZE:\n"
+            f"TOPIC IDENTIFIED: {topic}\n\n"
+            f"⚠️ CRITICAL: The topic has already been identified as '{self._extract_topic_title(topic)}'. "
+            f"Focus on extracting insights about THIS specific topic, not reidentifying what the topic is.\n\n"
             f"CONTEXT: {json.dumps(context) if context else 'No additional context'}\n\n"
-            "Extract the memorable insights from this conversation using the learning insight approach above.\n\n"
+            "Extract the memorable insights from this conversation about the identified topic.\n\n"
         )
         
         json_format = (
@@ -1404,12 +1407,12 @@ Learning Example:
         parsed_result = self._parse_insight_response(response_text, topic)
         
         # Log parsing results
-        if parsed_result.get("insights"):
-            logger.info(f"✅ Successfully extracted {len(parsed_result['insights'])} learning insights")
-            for i, insight in enumerate(parsed_result["insights"]):
-                logger.debug(f"  Insight {i+1}: {insight.get('insight', 'UNTITLED')[:50]}...")
+        if parsed_result.get("concepts"):
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} learning concepts")
+            for i, concept in enumerate(parsed_result["concepts"]):
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')[:50]}...")
         else:
-            logger.warning("⚠️  No insights extracted from segment")
+            logger.warning("⚠️  No concepts extracted from segment")
         
         logger.info("=== LEARNING INSIGHT EXTRACTION COMPLETED ===")
         return parsed_result
@@ -1671,9 +1674,12 @@ Learning Example:
 
         # Context and JSON format
         context_info = (
-            f"CONTENT TO ANALYZE:\nTopic: {topic}\n\n"
+            f"CONTENT TO ANALYZE:\n"
+            f"TOPIC IDENTIFIED: {topic}\n\n"
+            f"⚠️ CRITICAL: The topic has already been identified as '{self._extract_topic_title(topic)}'. "
+            f"Focus on extracting insights about THIS specific topic, not reidentifying what the topic is.\n\n"
             f"CONTEXT: {json.dumps(context) if context else 'No additional context'}\n\n"
-            "Extract the memorable insights from this non-technical conversation.\n\n"
+            "Extract the memorable insights from this conversation about the identified topic.\n\n"
         )
         
         json_format = (
@@ -1760,11 +1766,11 @@ Learning Example:
 
         # Log parsing results
         if parsed_result.get("concepts"):
-            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} non-technical insights")
+            logger.info(f"✅ Successfully extracted {len(parsed_result['concepts'])} non-technical concepts")
             for i, concept in enumerate(parsed_result["concepts"]):
-                logger.debug(f"  Insight {i+1}: {concept.get('title', 'UNTITLED')[:50]}...")
+                logger.debug(f"  Concept {i+1}: {concept.get('title', 'UNTITLED')[:50]}...")
         else:
-            logger.warning("⚠️  No insights extracted from non-technical segment")
+            logger.warning("⚠️  No concepts extracted from non-technical segment")
         
         logger.info("=== NON-TECHNICAL INSIGHT EXTRACTION COMPLETED ===")
         return parsed_result
@@ -1785,12 +1791,41 @@ Learning Example:
                 logger.info("✅ Returning cached response")
                 return cached_response
 
-            logger.info("🔍 Starting single-pass analysis...")
+            logger.info("🔍 Starting conversation segmentation...")
 
-            # Single-pass: analyze the whole conversation with the improved prompt
-            single_pass_result = await self._analyze_segment(
-                "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
-            )
+            # RESTORE SEGMENTATION: This is critical for identifying specific topics like LeetCode problems
+            segments = await self._segment_conversation(req.conversation_text, req.custom_api_key)
+            logger.info(f"📊 Found {len(segments)} segments to analyze")
+
+            # Analyze each segment to extract concepts
+            all_concepts = []
+            conversation_summaries = []
+            
+            for i, (topic, segment_text) in enumerate(segments):
+                logger.info(f"🔄 Analyzing segment {i+1}/{len(segments)}: {topic}")
+                
+                segment_result = await self._analyze_segment(
+                    topic, segment_text, req.context, req.category_guidance, req.custom_api_key
+                )
+                
+                if segment_result.get("concepts"):
+                    all_concepts.extend(segment_result["concepts"])
+                    logger.info(f"✅ Extracted {len(segment_result['concepts'])} concepts from segment {i+1}")
+                
+                if segment_result.get("conversation_summary"):
+                    conversation_summaries.append(segment_result["conversation_summary"])
+
+            # Create combined result
+            single_pass_result = {
+                "concepts": all_concepts,
+                "conversation_title": segments[0][0] if segments else "Learning Session",
+                "conversation_summary": " | ".join(conversation_summaries) if conversation_summaries else "Key insights extracted from conversation",
+                "metadata": {
+                    "extraction_method": "segmented_insight_extraction",
+                    "segments_analyzed": len(segments),
+                    "extraction_time": datetime.now().isoformat()
+                }
+            }
 
             # If we get at least one concept, return it
             if single_pass_result.get("concepts"):
