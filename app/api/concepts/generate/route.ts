@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     const leetcodeGuidance = generateLeetCodeGuidance(fullContext);
 
     // Use the existing Python backend service to generate the concept
-    const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const httpsUrl = process.env.BACKEND_URL || 'https://recall-p3vg.onrender.com';
     const httpUrl = httpsUrl.replace('https://', 'http://');
     
     let backendResponse;
