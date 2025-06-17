@@ -616,17 +616,55 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
 
                 {/* Right Column - Smart Learning Sidebar (20% width) */}
                 <div className="space-y-4">
-                  <SmartLearningDashboard 
-                    userId="default" // In production, use actual user ID
-                    onSuggestionClick={(suggestion) => {
-                      toast({
-                        title: "Smart Suggestion",
-                        description: suggestion.title,
-                        duration: 5000,
-                      })
-                    }}
-                    compact={true}
-                  />
+                  {/* Smart Learning Dashboard - Only show if backend is available */}
+                  {!smartLoading && (learningJourney || quickInsights.length > 0 || smartSuggestions.length > 0) ? (
+                    <SmartLearningDashboard 
+                      userId="default" // In production, use actual user ID
+                      onSuggestionClick={(suggestion) => {
+                        toast({
+                          title: "Smart Suggestion",
+                          description: suggestion.title,
+                          duration: 5000,
+                        })
+                      }}
+                      compact={true}
+                    />
+                  ) : smartLoading ? (
+                    <Card className="animate-pulse bg-gray-50">
+                      <CardHeader className="pb-3">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <div className="h-3 bg-gray-200 rounded"></div>
+                          <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card className="bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Brain className="h-4 w-4 text-gray-500" />
+                          Smart Learning
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-xs text-gray-600">
+                          Smart learning features require the extraction service to be running.
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full text-xs"
+                          onClick={() => refreshSmartData()}
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Retry Connection
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Quick Smart Insights for Current Concept */}
                   {smartSuggestions.length > 0 && (
