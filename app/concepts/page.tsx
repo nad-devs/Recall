@@ -184,7 +184,50 @@ export default function ConceptsPage() {
   // Create filtered sorted categories list
   const filteredSortedCategories = Object.keys(filteredConceptsByCategory).sort();
 
-  // Function to generate vector embeddings for all concepts
+  // Simple format and organize function
+  const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
+    console.log('🔧 CONCEPTS PAGE: Formatting concepts, received data:', conceptsData.length, 'concepts')
+    
+    const formattedConcepts = conceptsData.map(concept => {
+      const needsReview = concept.confidenceScore && concept.confidenceScore < 0.7
+      console.log(`🔧 CONCEPT: "${concept.title}" - confidenceScore: ${concept.confidenceScore}, needsReview: ${needsReview}`)
+      
+      return {
+        id: concept.id,
+        title: concept.title,
+        category: concept.category,
+        notes: concept.summary,
+        discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
+        needsReview: needsReview
+      }
+    })
+
+    // Group concepts by category
+    const byCategory: Record<string, Concept[]> = {}
+    formattedConcepts.forEach((concept) => {
+      if (!byCategory[concept.category]) {
+        byCategory[concept.category] = []
+      }
+      byCategory[concept.category].push(concept)
+    })
+
+    // Sort concepts within each category alphabetically
+    Object.keys(byCategory).forEach((category) => {
+      byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
+    })
+
+    const sortedCategoryList = Object.keys(byCategory).sort()
+
+    // Update all state simultaneously
+    setConcepts(formattedConcepts)
+    setConceptsByCategory(byCategory)
+    setSortedCategories(sortedCategoryList)
+    
+    console.log('🔧 CONCEPTS PAGE: Formatting complete, total concepts with needsReview:', 
+      formattedConcepts.filter(c => c.needsReview).length)
+  }, [])
+
+  // Function to generate vector embeddings for all concepts - separate from formatting
   const generateVectorEmbeddings = useCallback(async (conceptsData: any[]) => {
     console.log('🧠 VECTOR EMBEDDINGS: Starting automatic generation for', conceptsData.length, 'concepts')
     
@@ -247,52 +290,6 @@ export default function ConceptsPage() {
       console.error('❌ VECTOR EMBEDDINGS: Error during migration:', error)
     }
   }, [getAuthHeaders])
-
-  // Simple format and organize function
-  const formatAndOrganizeConcepts = useCallback((conceptsData: any[]) => {
-    console.log('🔧 CONCEPTS PAGE: Formatting concepts, received data:', conceptsData.length, 'concepts')
-    
-    const formattedConcepts = conceptsData.map(concept => {
-      const needsReview = concept.confidenceScore && concept.confidenceScore < 0.7
-      console.log(`🔧 CONCEPT: "${concept.title}" - confidenceScore: ${concept.confidenceScore}, needsReview: ${needsReview}`)
-      
-      return {
-        id: concept.id,
-        title: concept.title,
-        category: concept.category,
-        notes: concept.summary,
-        discussedInConversations: concept.occurrences?.map((o: any) => o.conversationId) || [],
-        needsReview: needsReview
-      }
-    })
-
-    // Group concepts by category
-    const byCategory: Record<string, Concept[]> = {}
-    formattedConcepts.forEach((concept) => {
-      if (!byCategory[concept.category]) {
-        byCategory[concept.category] = []
-      }
-      byCategory[concept.category].push(concept)
-    })
-
-    // Sort concepts within each category alphabetically
-    Object.keys(byCategory).forEach((category) => {
-      byCategory[category].sort((a, b) => a.title.localeCompare(b.title))
-    })
-
-    const sortedCategoryList = Object.keys(byCategory).sort()
-
-    // Update all state simultaneously
-    setConcepts(formattedConcepts)
-    setConceptsByCategory(byCategory)
-    setSortedCategories(sortedCategoryList)
-    
-    console.log('🔧 CONCEPTS PAGE: Formatting complete, total concepts with needsReview:', 
-      formattedConcepts.filter(c => c.needsReview).length)
-    
-    // ✨ AUTOMATICALLY GENERATE VECTOR EMBEDDINGS FOR ALL CONCEPTS
-    generateVectorEmbeddings(conceptsData)
-  }, [generateVectorEmbeddings])
 
   // Simple fetch concepts function
   const fetchConcepts = useCallback(async () => {
@@ -435,6 +432,24 @@ export default function ConceptsPage() {
     }
     executeRefresh()
   }, [])
+
+  // Generate vector embeddings when concepts are loaded
+  useEffect(() => {
+    if (concepts.length > 0 && dataLoaded) {
+      console.log('🧠 VECTOR EMBEDDINGS: Triggering automatic generation for loaded concepts')
+      // Convert concepts back to original format for embedding generation
+      const conceptsData = concepts.map(concept => ({
+        id: concept.id,
+        title: concept.title,
+        category: concept.category,
+        summary: concept.notes,
+        notes: concept.notes,
+        occurrences: concept.discussedInConversations?.map(id => ({ conversationId: id })) || [],
+        confidenceScore: concept.needsReview ? 0.6 : 0.8
+      }))
+      generateVectorEmbeddings(conceptsData)
+    }
+  }, [concepts, dataLoaded, generateVectorEmbeddings])
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
