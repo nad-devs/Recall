@@ -54,9 +54,9 @@ export function useSmartLearning(userId: string) {
       const journeyResponse = await fetch(`${BACKEND_URL}/api/v1/smart-learning-journey/${userId}`)
       if (journeyResponse.ok) {
         const journeyData = await journeyResponse.json()
-        setLearningJourney(journeyData.learning_journey)
-        setCurrentStage(journeyData.learning_journey?.current_stage || 'exploring')
-        setProgressPercentage(Math.round((journeyData.learning_journey?.mastery_level || 0) * 100))
+        setLearningJourney(journeyData.journey)
+        setCurrentStage(journeyData.journey?.current_stage || 'exploring')
+        setProgressPercentage(Math.round((journeyData.journey?.personalization_level || 0) * 100))
       }
 
       // Fetch quick insights
@@ -67,7 +67,7 @@ export function useSmartLearning(userId: string) {
       }
 
       // Fetch learning profile for personalization level
-      const profileResponse = await fetch(`${BACKEND_URL}/api/v1/learning-profile/${userId}`)
+      const profileResponse = await fetch(`${BACKEND_URL}/api/v1/user-profile/${userId}`)
       if (profileResponse.ok) {
         const profileData = await profileResponse.json()
         setPersonalizationLevel(profileData.personalization_confidence || 0)
