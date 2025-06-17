@@ -619,7 +619,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   {/* Smart Learning Dashboard - Only show if backend is available */}
                   {!smartLoading && (learningJourney || quickInsights.length > 0 || smartSuggestions.length > 0) ? (
                     <SmartLearningDashboard 
-                      userId="default" // In production, use actual user ID
+                      userId={localStorage.getItem('userId') || 'default'}
                       onSuggestionClick={(suggestion) => {
                         toast({
                           title: "Smart Suggestion",

@@ -118,14 +118,12 @@ export function useSmartLearning(userId: string) {
   const fetchSmartSuggestions = useCallback(async (recentConcepts: any[]) => {
     try {
       const BACKEND_URL = 'https://recall-p3vg.onrender.com'
+      // Backend uses GET method for smart-suggestions, not POST
       const response = await fetch(`${BACKEND_URL}/api/v1/smart-suggestions/${userId}`, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          recent_concepts: recentConcepts
-        })
       })
 
       if (response.ok) {
