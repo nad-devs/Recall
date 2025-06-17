@@ -35,6 +35,9 @@ import { disconnectConcepts, connectConcepts } from "@/lib/concept-utils"
 import { ConceptConnectionDialog } from "@/components/concept-connection-dialog"
 import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
+import { useSmartLearning } from "@/hooks/useSmartLearning"
+import { SmartLearningDashboard } from "@/components/smart-learning/SmartLearningDashboard"
+import { Brain, Sparkles, Target, TrendingUp, Users } from "lucide-react"
 
 export default function ConceptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Unwrap params with React.use()
@@ -44,6 +47,19 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
   const [isConnectionDialogOpen, setIsConnectionDialogOpen] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState("")
+
+  // Smart Learning Integration
+  const {
+    learningJourney,
+    quickInsights,
+    smartSuggestions,
+    isLoading: smartLoading,
+    personalizationLevel,
+    currentStage,
+    progressPercentage,
+    fetchSmartSuggestions,
+    refreshSmartData
+  } = useSmartLearning("default") // In production, use actual user ID
 
   const {
     concept,
@@ -59,12 +75,26 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     refreshConcept
   } = useConceptDetail(id)
 
+  // Fetch smart suggestions when concept loads
+  useEffect(() => {
+    if (concept) {
+      // Fetch suggestions based on current concept
+      fetchSmartSuggestions([{
+        title: concept.title,
+        category: concept.category,
+        summary: concept.summary,
+        confidence_score: 0.8
+      }])
+    }
+  }, [concept, fetchSmartSuggestions])
+
   // Listen for page visibility changes to refresh data when user returns
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && concept) {
         // Page became visible, refresh concept data
         refreshConcept();
+        refreshSmartData(); // Also refresh smart learning data
       }
     };
 
@@ -287,11 +317,42 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-wrap gap-2">
                     <Badge variant="outline">
                       {concept.category}
                     </Badge>
+                    {personalizationLevel >= 50 && (
+                      <Badge variant="secondary" className="bg-blue-900/50 text-blue-300 border-blue-700">
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        AI Enhanced
+                      </Badge>
+                    )}
+                    {currentStage && (
+                      <Badge variant="outline" className="border-green-700 text-green-300">
+                        <Target className="h-3 w-3 mr-1" />
+                        {currentStage} Level
+                      </Badge>
+                    )}
+                    {smartSuggestions.length > 0 && (
+                      <Badge variant="secondary" className="bg-purple-900/50 text-purple-300">
+                        <Brain className="h-3 w-3 mr-1" />
+                        {smartSuggestions.length} Smart Insights
+                      </Badge>
+                    )}
                   </div>
+                  {/* Smart Learning Progress */}
+                  {personalizationLevel > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                      <span>Personalization:</span>
+                      <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 transition-all duration-500" 
+                          style={{ width: `${personalizationLevel}%` }}
+                        />
+                      </div>
+                      <span className="text-xs">{Math.round(personalizationLevel)}%</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex space-x-2 flex-shrink-0">
                   <Button 
@@ -353,8 +414,8 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
 
-              {/* Two-Column Layout: 60% Left, 35% Right, 5% Gap */}
-              <div className="grid grid-cols-1 lg:grid-cols-[60%_35%] gap-[5%]">
+              {/* Three-Column Layout: 50% Left, 30% Middle, 20% Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-[50%_30%_20%] gap-4">
                 {/* Left Column - Concept Notes (60% width) */}
                 <div className="space-y-8">
                   {/* Concept Notes Card - NO HEIGHT LIMITS */}
@@ -367,6 +428,20 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                       <CardDescription>Your consolidated understanding of this concept</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-8">
+                      {/* AI Personalization Notice */}
+                      {personalizationLevel >= 60 && smartSuggestions.length > 0 && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Brain className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">AI-Enhanced for You</span>
+                          </div>
+                          <p className="text-sm text-blue-700">
+                            This concept has been personalized based on your {currentStage} level and learning patterns. 
+                            {smartSuggestions[0] && ` Suggested focus: ${smartSuggestions[0].title}`}
+                          </p>
+                        </div>
+                      )}
+                      
                       {concept.summary && (
                         <div className="text-base leading-relaxed">{concept.summary}</div>
                       )}
@@ -534,6 +609,116 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                             Add Enhancements
                           </Link>
                         </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Right Column - Smart Learning Sidebar (20% width) */}
+                <div className="space-y-4">
+                  <SmartLearningDashboard 
+                    userId="default" // In production, use actual user ID
+                    onSuggestionClick={(suggestion) => {
+                      toast({
+                        title: "Smart Suggestion",
+                        description: suggestion.title,
+                        duration: 5000,
+                      })
+                    }}
+                    compact={true}
+                  />
+
+                  {/* Quick Smart Insights for Current Concept */}
+                  {smartSuggestions.length > 0 && (
+                    <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Brain className="h-4 w-4 text-purple-600" />
+                          Concept Insights
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {smartSuggestions.slice(0, 2).map((suggestion, index) => (
+                          <div key={index} className="p-2 bg-white/70 rounded-lg border border-purple-100">
+                            <h4 className="text-xs font-medium text-purple-800">{suggestion.title}</h4>
+                            <p className="text-xs text-purple-600 mt-1">{suggestion.description.substring(0, 80)}...</p>
+                            <Badge variant="outline" className="text-xs mt-1 border-purple-300 text-purple-700">
+                              {suggestion.priority} priority
+                            </Badge>
+                          </div>
+                        ))}
+                        {smartSuggestions.length > 2 && (
+                          <div className="text-center pt-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-xs text-purple-600 hover:text-purple-700"
+                              onClick={() => refreshSmartData()}
+                            >
+                              View {smartSuggestions.length - 2} more insights
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Learning Journey Progress */}
+                  {learningJourney && (
+                    <Card className="bg-gradient-to-br from-green-50 to-teal-50 border-green-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          Learning Progress
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-green-700">{progressPercentage}%</div>
+                          <div className="text-xs text-green-600">Overall Progress</div>
+                        </div>
+                        <div className="w-full bg-green-100 rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ width: `${progressPercentage}%` }}
+                          />
+                        </div>
+                        {learningJourney.recommendations?.immediate_next && learningJourney.recommendations.immediate_next.length > 0 && (
+                          <div className="mt-3">
+                            <div className="text-xs font-medium text-green-800 mb-1">Next Steps:</div>
+                            {learningJourney.recommendations.immediate_next.slice(0, 2).map((step, index) => (
+                              <div key={index} className="text-xs text-green-600 mb-1">• {step}</div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Quick Insights */}
+                  {quickInsights.length > 0 && (
+                    <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-yellow-600" />
+                          Quick Insights
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {quickInsights.slice(0, 2).map((insight, index) => (
+                          <div key={index} className="p-2 bg-white/70 rounded-lg border border-yellow-100">
+                            <div className="flex items-center gap-1 mb-1">
+                              {React.createElement(
+                                insight.icon === 'Code' ? Code : 
+                                insight.icon === 'TrendingUp' ? TrendingUp : 
+                                insight.icon === 'Users' ? Users : Brain, 
+                                { className: `h-3 w-3 text-${insight.color}-500` }
+                              )}
+                              <span className="text-xs font-medium text-yellow-800">{insight.title}</span>
+                            </div>
+                            <p className="text-xs text-yellow-600">{insight.description.substring(0, 60)}...</p>
+                          </div>
+                        ))}
                       </CardContent>
                     </Card>
                   )}
