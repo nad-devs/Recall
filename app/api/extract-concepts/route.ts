@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use environment variable with fallback
-    const backendUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+    const backendUrl = process.env.BACKEND_URL || 'https://recall-p3vg.onrender.com';
     
     // First, wake up the service with a health check to avoid SSL cold start issues
     try {

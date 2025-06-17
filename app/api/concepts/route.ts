@@ -1271,7 +1271,7 @@ export async function POST(request: Request) {
       const leetcodeGuidance = generateLeetCodeGuidance(fullContext);
       
       // Use consistent backend URL logic with fallback
-      const httpsUrl = process.env.BACKEND_URL || 'https://recall.p3vg.onrender.com';
+      const httpsUrl = process.env.BACKEND_URL || 'https://recall-p3vg.onrender.com';
       const httpUrl = httpsUrl.replace('https://', 'http://');
       
       let generationResponse;

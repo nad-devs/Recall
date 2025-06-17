@@ -1100,7 +1100,7 @@ export function useAnalyzePage() {
         : `Please explain the concept: ${title} in detail. Include implementation details, use cases, complexity analysis, and code examples if applicable.`
       
       // Call the extraction API to generate proper concept content
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall.p3vg.onrender.com'
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall-p3vg.onrender.com'
       let extractionResponse
       
       try {
