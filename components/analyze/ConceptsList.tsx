@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { PlusCircle } from "lucide-react"
 import { Concept } from '@/lib/types/conversation'
 import { Spinner } from '@/components/ui/spinner'
+import { SmartLearningDashboard } from '@/components/smart-learning/SmartLearningDashboard'
 
 interface ConceptsListProps {
   filteredConcepts: Concept[]
@@ -249,6 +250,16 @@ export function ConceptsList({
           </div>
         </div>
       </div>
+
+      {/* Smart Learning Dashboard */}
+      <SmartLearningDashboard 
+        userId={localStorage.getItem('userId') || 'default'} 
+        compact={true}
+        onSuggestionClick={(suggestion) => {
+          // Handle suggestion click - could navigate or show details
+          console.log('Smart suggestion clicked:', suggestion);
+        }}
+      />
     </motion.div>
   )
 } 

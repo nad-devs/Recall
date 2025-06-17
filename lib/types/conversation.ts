@@ -40,12 +40,78 @@ export interface Concept {
   confidenceScore?: number
 }
 
+// Personal Learning Insights - New intelligence layer
+export interface PersonalLearningInsights {
+  personalInsights?: {
+    type: string;
+    title: string;
+    content: string;
+    confidence: number;
+    helpful: boolean | null;
+  }[];
+  practicalApplications?: {
+    type: string;
+    title: string;
+    content: string;
+    confidence: number;
+    helpful: boolean | null;
+  }[];
+  learningAlignment?: {
+    type: string;
+    title: string;
+    content: string;
+    confidence: number;
+    helpful: boolean | null;
+  }[];
+  nextSteps?: {
+    type: string;
+    title: string;
+    content: string;
+    confidence: number;
+    helpful: boolean | null;
+  }[];
+  reinforcement?: {
+    message: string;
+    learning_value: string;
+    recommendation: string;
+  };
+  adaptiveInsights?: any;
+}
+
+// Vector Knowledge Metadata - Intelligence about learning state
+export interface VectorMetadata {
+  embeddings_stored?: number;
+  total_concepts?: number;
+  knowledge_analysis?: {
+    status: string;
+    should_extract: boolean;
+    extraction_focus: string;
+    similar_concepts: any[];
+    max_similarity: number;
+    recommendation: string;
+  };
+  error?: string;
+}
+
 // This type represents the complete analysis result
 export interface ConversationAnalysis {
   conversationTitle: string
   overallSummary: string
   conceptMap: string[]
   concepts: Concept[]
+  // New intelligent features
+  personalLearning?: PersonalLearningInsights;
+  vectorMetadata?: VectorMetadata;
+  metadata?: {
+    extraction_time: string;
+    model_used: string;
+    concept_count: number;
+    extraction_method?: string;
+    processing_time_saved?: string;
+    knowledge_status?: string;
+    similar_concepts_found?: number;
+    max_similarity?: number;
+  };
 }
 
 // Backend API types
@@ -97,8 +163,16 @@ export type BackendResponse = {
     extraction_time: string;
     model_used: string;
     concept_count: number;
+    extraction_method?: string;
+    processing_time_saved?: string;
+    knowledge_status?: string;
+    similar_concepts_found?: number;
+    max_similarity?: number;
   };
   conversation_title?: string; // New field from the LLM
+  // New intelligent features
+  personalLearning?: PersonalLearningInsights;
+  vectorMetadata?: VectorMetadata;
 };
 
 // Define a type for tree nodes

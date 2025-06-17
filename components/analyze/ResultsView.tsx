@@ -1091,6 +1091,44 @@ export function ResultsView(props: ResultsViewProps) {
                   <p className="text-lg text-card-foreground mb-6 leading-relaxed">
                     {selectedConcept.summary}
                   </p>
+
+                  {/* Intelligence Indicators */}
+                  {analysisResult && (analysisResult.personalLearning || analysisResult.vectorMetadata) && (
+                    <div className="flex flex-wrap gap-2 mb-6">
+                      {analysisResult.personalLearning && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-800">
+                          <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                          </svg>
+                          Personal Insights Available
+                        </span>
+                      )}
+                      {analysisResult.vectorMetadata?.knowledge_analysis?.status === 'reinforcement' && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                          <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                          Knowledge Reinforcement
+                        </span>
+                      )}
+                      {analysisResult.vectorMetadata?.embeddings_stored && analysisResult.vectorMetadata.embeddings_stored > 0 && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-800">
+                          <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20 6L9 17l-5-5"/>
+                          </svg>
+                          Vector Embeddings Stored
+                        </span>
+                      )}
+                      {analysisResult.metadata?.extraction_method === 'smart_skip_reinforcement' && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800">
+                          <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                          </svg>
+                          Smart Processing
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Action buttons */}
@@ -1118,9 +1156,9 @@ export function ResultsView(props: ResultsViewProps) {
 
               {/* Tabs for different concept content */}
               <div className="border-b mb-8">
-                <div className="flex -mb-px space-x-12">
+                <div className="flex -mb-px space-x-8 overflow-x-auto">
                   <button
-                    className={`pb-4 text-base font-medium transition-colors ${
+                    className={`pb-4 text-base font-medium transition-colors whitespace-nowrap ${
                       selectedTab === "summary"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1128,9 +1166,14 @@ export function ResultsView(props: ResultsViewProps) {
                     onClick={() => setSelectedTab("summary")}
                   >
                     Summary
+                    {analysisResult?.vectorMetadata?.knowledge_analysis?.status === 'reinforcement' && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        Reinforcement
+                      </span>
+                    )}
                   </button>
                   <button
-                    className={`pb-4 text-base font-medium transition-colors ${
+                    className={`pb-4 text-base font-medium transition-colors whitespace-nowrap ${
                       selectedTab === "details"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1140,7 +1183,7 @@ export function ResultsView(props: ResultsViewProps) {
                     Details
                   </button>
                   <button
-                    className={`pb-4 text-base font-medium transition-colors ${
+                    className={`pb-4 text-base font-medium transition-colors whitespace-nowrap ${
                       selectedTab === "code"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1150,7 +1193,7 @@ export function ResultsView(props: ResultsViewProps) {
                     Code Examples
                   </button>
                   <button
-                    className={`pb-4 text-base font-medium transition-colors ${
+                    className={`pb-4 text-base font-medium transition-colors whitespace-nowrap ${
                       selectedTab === "related"
                         ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -1158,6 +1201,25 @@ export function ResultsView(props: ResultsViewProps) {
                     onClick={() => setSelectedTab("related")}
                   >
                     Related Concepts
+                  </button>
+                  {/* New Personal Insights Tab */}
+                  <button
+                    className={`pb-4 text-base font-medium transition-colors whitespace-nowrap flex items-center ${
+                      selectedTab === "insights"
+                        ? "border-b-2 border-primary text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setSelectedTab("insights")}
+                  >
+                    <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Personal Insights
+                    {analysisResult?.personalLearning && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        AI Generated
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1393,6 +1455,232 @@ export function ResultsView(props: ResultsViewProps) {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* New Personal Insights Tab Content */}
+              {selectedTab === "insights" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-xl flex items-center gap-2">
+                      <svg className="h-5 w-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                      Personal Learning Insights
+                    </h3>
+                    {analysisResult?.vectorMetadata && (
+                      <div className="flex items-center gap-2">
+                        {analysisResult.vectorMetadata.knowledge_analysis?.status === 'reinforcement' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <svg className="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Known Concept
+                          </span>
+                        )}
+                                                 {analysisResult.vectorMetadata.embeddings_stored && analysisResult.vectorMetadata.embeddings_stored > 0 && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <svg className="h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                            Vector Stored
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Vector Intelligence Status */}
+                  {analysisResult?.vectorMetadata?.knowledge_analysis && (
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950 dark:to-purple-950 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                          <svg className="h-5 w-5 text-indigo-600 dark:text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
+                            Knowledge Intelligence Status
+                          </h4>
+                          <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-2">
+                            {analysisResult.vectorMetadata.knowledge_analysis.recommendation}
+                          </p>
+                          <div className="flex items-center gap-4 text-xs text-indigo-600 dark:text-indigo-400">
+                            <span>Status: {analysisResult.vectorMetadata.knowledge_analysis.status}</span>
+                            {analysisResult.vectorMetadata.knowledge_analysis.max_similarity && (
+                              <span>Similarity: {Math.round(analysisResult.vectorMetadata.knowledge_analysis.max_similarity * 100)}%</span>
+                            )}
+                            {analysisResult.vectorMetadata.embeddings_stored && (
+                              <span>Embeddings: {analysisResult.vectorMetadata.embeddings_stored} stored</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personal Learning Insights */}
+                  {analysisResult?.personalLearning ? (
+                    <div className="space-y-6">
+                      {/* Reinforcement Message */}
+                      {analysisResult.personalLearning.reinforcement && (
+                        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950 dark:to-cyan-950 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                              <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                                Knowledge Reinforcement
+                              </h4>
+                              <p className="text-blue-700 dark:text-blue-300 mb-3">
+                                {analysisResult.personalLearning.reinforcement.message}
+                              </p>
+                              <div className="bg-white/50 dark:bg-slate-800/50 rounded-md p-3">
+                                <p className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+                                  <strong>Learning Value:</strong> {analysisResult.personalLearning.reinforcement.learning_value}
+                                </p>
+                                <p className="text-sm text-blue-600 dark:text-blue-400">
+                                  <strong>Recommendation:</strong> {analysisResult.personalLearning.reinforcement.recommendation}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dynamic Personal Insights */}
+                      {Object.entries(analysisResult.personalLearning).map(([key, insights]) => {
+                        if (key === 'reinforcement' || !Array.isArray(insights)) return null;
+                        
+                        return (
+                          <div key={key} className="space-y-4">
+                            <h4 className="font-semibold text-lg text-foreground capitalize">
+                              {key.replace(/([A-Z])/g, ' $1').trim()}
+                            </h4>
+                            <div className="grid gap-4">
+                              {insights.map((insight: any, index: number) => (
+                                <div key={index} className="bg-muted/50 border border-border rounded-lg p-5 hover:bg-muted/70 transition-colors">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <h5 className="font-medium text-foreground">{insight.title}</h5>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground bg-background px-2 py-1 rounded">
+                                        {insight.confidence}% confident
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p className="text-muted-foreground leading-relaxed mb-4">
+                                    {insight.content}
+                                  </p>
+                                  
+                                  {/* Feedback Collection */}
+                                  <div className="flex items-center justify-between pt-3 border-t border-border">
+                                    <span className="text-sm text-muted-foreground">Was this helpful?</span>
+                                    <div className="flex items-center gap-2">
+                                      <button 
+                                        className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors"
+                                                                                 onClick={async () => {
+                                           try {
+                                             // Record positive feedback to backend
+                                             const headers = getAuthHeaders();
+                                             await fetch('/api/feedback/insights-rating', {
+                                               method: 'POST',
+                                               headers: {
+                                                 ...headers,
+                                                 'Content-Type': 'application/json',
+                                               },
+                                               body: JSON.stringify({
+                                                 user_id: localStorage.getItem('userId') || 'default',
+                                                 insights: { [insight.type]: [insight] },
+                                                 user_rating: 5,
+                                                 specific_feedback: 'Thumbs up feedback'
+                                               }),
+                                             });
+                                             
+                                             toast({
+                                               title: "Feedback recorded",
+                                               description: "Thank you! This helps improve future insights.",
+                                             });
+                                           } catch (error) {
+                                             console.error('Failed to record feedback:', error);
+                                             toast({
+                                               title: "Feedback recorded locally",
+                                               description: "Thank you! This helps improve future insights.",
+                                             });
+                                           }
+                                         }}
+                                        title="Helpful"
+                                      >
+                                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                        </svg>
+                                      </button>
+                                      <button 
+                                        className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
+                                                                                 onClick={async () => {
+                                           try {
+                                             // Record negative feedback to backend
+                                             const headers = getAuthHeaders();
+                                             await fetch('/api/feedback/insights-rating', {
+                                               method: 'POST',
+                                               headers: {
+                                                 ...headers,
+                                                 'Content-Type': 'application/json',
+                                               },
+                                               body: JSON.stringify({
+                                                 user_id: localStorage.getItem('userId') || 'default',
+                                                 insights: { [insight.type]: [insight] },
+                                                 user_rating: 1,
+                                                 specific_feedback: 'Thumbs down feedback'
+                                               }),
+                                             });
+                                             
+                                             toast({
+                                               title: "Feedback recorded",
+                                               description: "Thank you! This helps improve future insights.",
+                                             });
+                                           } catch (error) {
+                                             console.error('Failed to record feedback:', error);
+                                             toast({
+                                               title: "Feedback recorded locally",
+                                               description: "Thank you! This helps improve future insights.",
+                                             });
+                                           }
+                                         }}
+                                        title="Not helpful"
+                                      >
+                                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="max-w-md mx-auto">
+                        <div className="p-4 bg-muted/50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                          <svg className="h-8 w-8 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                          </svg>
+                        </div>
+                        <h4 className="font-semibold text-foreground mb-2">No Personal Insights Available</h4>
+                        <p className="text-muted-foreground text-sm">
+                          Personal insights are generated when the AI analyzes your learning patterns and content. 
+                          Try analyzing more conversations to build your learning profile.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
