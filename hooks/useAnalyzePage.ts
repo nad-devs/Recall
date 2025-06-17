@@ -603,11 +603,15 @@ export function useAnalyzePage() {
       // Get custom API key if user has one
       const currentUsageData = getUsageData()
       
+      // Get user ID for personalized analysis
+      const userId = localStorage.getItem('userId')
+      
       const response = await makeAuthenticatedRequest('/api/extract-concepts', {
         method: 'POST',
         body: JSON.stringify({ 
           conversation_text: conversationText,
-          customApiKey: currentUsageData.customApiKey
+          customApiKey: currentUsageData.customApiKey,
+          user_id: userId // Add user ID for personalized insights
         }),
       })
 
