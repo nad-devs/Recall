@@ -267,7 +267,7 @@ function extractLeetCodeConcepts(conversationText: string) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { conversation_text, customApiKey } = body;
+    const { conversation_text, customApiKey, user_id } = body;
 
     if (!conversation_text) {
       return NextResponse.json(
@@ -297,6 +297,7 @@ export async function POST(request: NextRequest) {
     console.log("🔄 Proxying request to Render backend...");
     console.log("📝 Conversation preview:", conversation_text.substring(0, 200) + "...");
     console.log("🔑 Using custom API key:", !!customApiKey);
+    console.log("👤 User ID:", user_id || 'not provided');
 
     // Detect LeetCode problems and generate guidance
     const leetcodeGuidance = generateLeetCodeGuidance(conversation_text);
@@ -341,6 +342,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ 
         conversation_text,
         ...(customApiKey && { custom_api_key: customApiKey }),
+        ...(user_id && { user_id: user_id }),
         context: null,
         category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
       }),
@@ -394,6 +396,7 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({ 
               conversation_text,
               ...(customApiKey && { custom_api_key: customApiKey }),
+              ...(user_id && { user_id: user_id }),
               context: null,
               category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
             }),
