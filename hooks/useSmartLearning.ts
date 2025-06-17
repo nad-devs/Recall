@@ -47,8 +47,11 @@ export function useSmartLearning(userId: string) {
   const initializeSmartLearning = useCallback(async () => {
     setIsLoading(true)
     try {
+      // Use your Render backend URL
+      const BACKEND_URL = 'https://recall-p3vg.onrender.com'
+      
       // Fetch learning journey from backend
-      const journeyResponse = await fetch(`/api/v1/smart-learning-journey/${userId}`)
+      const journeyResponse = await fetch(`${BACKEND_URL}/api/v1/smart-learning-journey/${userId}`)
       if (journeyResponse.ok) {
         const journeyData = await journeyResponse.json()
         setLearningJourney(journeyData.learning_journey)
@@ -57,14 +60,14 @@ export function useSmartLearning(userId: string) {
       }
 
       // Fetch quick insights
-      const insightsResponse = await fetch(`/api/v1/quick-insights/${userId}`)
+      const insightsResponse = await fetch(`${BACKEND_URL}/api/v1/quick-insights/${userId}`)
       if (insightsResponse.ok) {
         const insightsData = await insightsResponse.json()
         setQuickInsights(insightsData.insights || [])
       }
 
       // Fetch learning profile for personalization level
-      const profileResponse = await fetch(`/api/v1/learning-profile/${userId}`)
+      const profileResponse = await fetch(`${BACKEND_URL}/api/v1/learning-profile/${userId}`)
       if (profileResponse.ok) {
         const profileData = await profileResponse.json()
         setPersonalizationLevel(profileData.personalization_confidence || 0)
@@ -93,7 +96,8 @@ export function useSmartLearning(userId: string) {
   // Fetch smart suggestions based on recent concepts
   const fetchSmartSuggestions = useCallback(async (recentConcepts: any[]) => {
     try {
-      const response = await fetch(`/api/v1/smart-suggestions/${userId}`, {
+      const BACKEND_URL = 'https://recall-p3vg.onrender.com'
+      const response = await fetch(`${BACKEND_URL}/api/v1/smart-suggestions/${userId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
