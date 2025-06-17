@@ -47,62 +47,44 @@ export function useSmartLearning(userId: string) {
   const initializeSmartLearning = useCallback(async () => {
     setIsLoading(true)
     try {
-      // For now, provide mock data since backend is on different branch
-      // In production, these would be API calls to the backend endpoints
-      
-      setLearningJourney({
-        current_stage: 'practicing',
-        mastery_level: 0.72,
-        knowledge_gaps: ['System Design Patterns', 'Advanced Algorithms'],
-        recommendations: {
-          immediate_next: [
-            'Practice more stack-based problems',
-            'Review time complexity analysis'
-          ],
-          short_term_goals: [
-            'Master all array manipulation techniques',
-            'Complete sliding window problem set'
-          ],
-          long_term_path: [
-            'System design fundamentals',
-            'Advanced data structures'
-          ]
-        },
-        progress_indicators: {
-          concepts_mastered: 28,
-          total_concepts: 45,
-          learning_velocity: 2.3
-        }
-      })
+      // Fetch learning journey from backend
+      const journeyResponse = await fetch(`/api/v1/smart-learning-journey/${userId}`)
+      if (journeyResponse.ok) {
+        const journeyData = await journeyResponse.json()
+        setLearningJourney(journeyData.learning_journey)
+        setCurrentStage(journeyData.learning_journey?.current_stage || 'exploring')
+        setProgressPercentage(Math.round((journeyData.learning_journey?.mastery_level || 0) * 100))
+      }
 
-      setQuickInsights([
-        {
-          title: 'Pattern Recognition',
-          description: 'You\'re getting better at identifying stack patterns in problems',
-          icon: 'TrendingUp',
-          color: 'green',
-          actionable: true
-        },
-        {
-          title: 'Code Quality',
-          description: 'Your recent solutions show improved code clarity',
-          icon: 'Code',
-          color: 'blue',
-          actionable: false
-        }
-      ])
+      // Fetch quick insights
+      const insightsResponse = await fetch(`/api/v1/quick-insights/${userId}`)
+      if (insightsResponse.ok) {
+        const insightsData = await insightsResponse.json()
+        setQuickInsights(insightsData.insights || [])
+      }
 
-      setPersonalizationLevel(0.72)
-      setCurrentStage('practicing')
-      setProgressPercentage(72)
+      // Fetch learning profile for personalization level
+      const profileResponse = await fetch(`/api/v1/learning-profile/${userId}`)
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        setPersonalizationLevel(profileData.personalization_confidence || 0)
+      }
 
     } catch (error) {
       console.error('Failed to initialize smart learning:', error)
       toast({
         title: 'Smart Learning Unavailable',
-        description: 'Using basic mode. Enhanced features require backend connection.',
+        description: 'Backend connection failed. Please check if the extraction service is running.',
         variant: 'destructive'
       })
+      
+      // Set empty states instead of mock data
+      setLearningJourney(null)
+      setQuickInsights([])
+      setSmartSuggestions([])
+      setPersonalizationLevel(0)
+      setCurrentStage('exploring')
+      setProgressPercentage(0)
     } finally {
       setIsLoading(false)
     }
@@ -111,36 +93,36 @@ export function useSmartLearning(userId: string) {
   // Fetch smart suggestions based on recent concepts
   const fetchSmartSuggestions = useCallback(async (recentConcepts: any[]) => {
     try {
-      // Mock suggestions based on the current concept
-      const suggestions: SmartSuggestion[] = [
-        {
-          title: 'Practice Related Problems',
-          description: 'Try implementing other stack-based algorithms like expression evaluation',
-          priority: 'high',
-          type: 'practice',
-          confidence: 0.85
+      const response = await fetch(`/api/v1/smart-suggestions/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        {
-          title: 'Review Time Complexity',
-          description: 'Analyze the time and space complexity of stack operations',
-          priority: 'medium',
-          type: 'review',
-          confidence: 0.78
-        },
-        {
-          title: 'Next Learning Path',
-          description: 'Consider learning about queue-based problems next',
-          priority: 'low',
-          type: 'learning_path',
-          confidence: 0.65
-        }
-      ]
+        body: JSON.stringify({
+          recent_concepts: recentConcepts
+        })
+      })
 
-      setSmartSuggestions(suggestions)
+      if (response.ok) {
+        const data = await response.json()
+        const suggestions = data.suggestions?.map((suggestion: any) => ({
+          title: suggestion.title,
+          description: suggestion.description,
+          priority: suggestion.priority || 'medium',
+          type: suggestion.type || 'learning_path',
+          confidence: suggestion.confidence || 0.5
+        })) || []
+        
+        setSmartSuggestions(suggestions)
+      } else {
+        console.warn('Smart suggestions API returned non-OK status:', response.status)
+        setSmartSuggestions([])
+      }
     } catch (error) {
       console.error('Failed to fetch smart suggestions:', error)
+      setSmartSuggestions([])
     }
-  }, [])
+  }, [userId])
 
   // Refresh all smart learning data
   const refreshSmartData = useCallback(async () => {
