@@ -10,15 +10,36 @@ interface SmartSuggestion {
 }
 
 interface LearningJourney {
-  current_stage: string
-  mastery_level: number
-  knowledge_gaps: string[]
-  recommendations: {
+  current_stage?: string
+  mastery_level?: number
+  total_concepts_learned: number
+  knowledge_areas: Record<string, {
+    count: number
+    confidence_avg: number
+    recent_concepts: string[]
+  }>
+  recent_activity: Array<{
+    concept_title: string
+    category: string
+    date: string
+    confidence: number
+  }>
+  learning_velocity: number
+  personalization_level: number
+  recommended_focus_areas: Array<{
+    category: string
+    reason: string
+    suggested_action: string
+  }>
+  achievements: string[]
+  // Legacy compatibility for existing UI
+  knowledge_gaps?: string[]
+  recommendations?: {
     immediate_next: string[]
     short_term_goals: string[]
     long_term_path: string[]
   }
-  progress_indicators: {
+  progress_indicators?: {
     concepts_mastered: number
     total_concepts: number
     learning_velocity: number

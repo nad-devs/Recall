@@ -82,15 +82,15 @@ export function SmartLearningDashboard({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="text-center p-2 bg-white/70 rounded border border-indigo-100">
                 <div className="font-bold text-indigo-700">
-                  {learningJourney.progress_indicators.concepts_mastered}
+                  {learningJourney.total_concepts_learned || 0}
                 </div>
-                <div className="text-indigo-600">Mastered</div>
+                <div className="text-indigo-600">Concepts</div>
               </div>
               <div className="text-center p-2 bg-white/70 rounded border border-indigo-100">
                 <div className="font-bold text-indigo-700">
-                  {learningJourney.knowledge_gaps.length}
+                  {Object.keys(learningJourney.knowledge_areas || {}).length}
                 </div>
-                <div className="text-indigo-600">Gap Areas</div>
+                <div className="text-indigo-600">Categories</div>
               </div>
             </div>
           )}
@@ -131,7 +131,7 @@ export function SmartLearningDashboard({
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold text-green-700">
-                  {Math.round(learningJourney.mastery_level * 100)}%
+                  {Math.round((learningJourney.mastery_level || learningJourney.personalization_level || 0) * 100)}%
                 </div>
                 <div className="text-sm text-green-600">Overall Mastery</div>
               </div>
@@ -151,26 +151,26 @@ export function SmartLearningDashboard({
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-lg font-semibold text-gray-700">
-                  {learningJourney.progress_indicators.concepts_mastered}
+                  {learningJourney.progress_indicators?.concepts_mastered || learningJourney.total_concepts_learned || 0}
                 </div>
-                <div className="text-xs text-gray-500">Concepts Mastered</div>
+                <div className="text-xs text-gray-500">Concepts Learned</div>
               </div>
               <div>
                 <div className="text-lg font-semibold text-gray-700">
-                  {learningJourney.progress_indicators.total_concepts}
+                  {Object.keys(learningJourney.knowledge_areas || {}).length || 0}
                 </div>
-                <div className="text-xs text-gray-500">Total Available</div>
+                <div className="text-xs text-gray-500">Categories</div>
               </div>
-              <div>
-                <div className="text-lg font-semibold text-gray-700">
-                  {learningJourney.progress_indicators.learning_velocity.toFixed(1)}
+                              <div>
+                  <div className="text-lg font-semibold text-gray-700">
+                    {Number(learningJourney.progress_indicators?.learning_velocity || learningJourney.learning_velocity || 0).toFixed(1)}
+                  </div>
+                  <div className="text-xs text-gray-500">Learning Velocity</div>
                 </div>
-                <div className="text-xs text-gray-500">Learning Velocity</div>
-              </div>
             </div>
 
             {/* Immediate Recommendations */}
-            {learningJourney.recommendations.immediate_next.length > 0 && (
+            {learningJourney.recommendations?.immediate_next && learningJourney.recommendations.immediate_next.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
                   <Zap className="h-4 w-4 text-yellow-500" />
