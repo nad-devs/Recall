@@ -38,6 +38,25 @@ export interface Concept {
   // Add fields for review tracking
   needsReview?: boolean
   confidenceScore?: number
+  // Add embedding analysis data
+  embeddingData?: {
+    concept: any
+    relationships: Array<{
+      id: string
+      title: string
+      category: string
+      summary: string
+      similarity: number
+    }>
+    potentialDuplicates: Array<{
+      id: string
+      title: string
+      category: string
+      summary: string
+      similarity: number
+    }>
+    embedding: number[]
+  }
 }
 
 // Personal Learning Insights - New intelligence layer

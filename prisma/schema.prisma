@@ -128,6 +128,7 @@ model Concept {
   confidenceScore Float     @default(0.5)
   lastUpdated     DateTime  @default(now())
   isPlaceholder   Boolean   @default(false)
+  embedding       Unsupported("vector(1536)")? // For OpenAI's text-embedding-3-small
   
   // User isolation
   userId          String

@@ -18,6 +18,24 @@ interface Concept {
     code: string;
   }>;
   videoResources?: string;
+  embeddingData?: {
+    concept: any;
+    relationships: Array<{
+      id: string;
+      title: string;
+      category: string;
+      summary: string;
+      similarity: number;
+    }>;
+    potentialDuplicates: Array<{
+      id: string;
+      title: string;
+      category: string;
+      summary: string;
+      similarity: number;
+    }>;
+    embedding: number[];
+  };
 }
 
 // Simple heuristic to guess category from concept title
@@ -297,6 +315,18 @@ export async function POST(request: Request) {
           createdAt: new Date(),
           lastUpdated: new Date()
         };
+        
+        // Add embedding data if available (from embedding analysis)
+        if (conceptData.embeddingData && conceptData.embeddingData.embedding) {
+          try {
+            // Store the embedding as a vector (will work after pgvector migration)
+            conceptToCreate.embedding = conceptData.embeddingData.embedding;
+            console.log(`💾 Adding embedding for concept: ${conceptData.title}`);
+          } catch (error) {
+            console.warn(`⚠️ Could not add embedding for concept ${conceptData.title}:`, error);
+            // Continue without embedding if there's an issue
+          }
+        }
 
         // Create the concept
         const createdConcept = await prisma.concept.create({
