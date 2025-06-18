@@ -48,6 +48,7 @@ async function generateConceptEmbedding(concept: ConceptInput): Promise<number[]
   `.trim();
 
   console.log('🔗 Making OpenAI embedding request for:', concept.title);
+  console.log('🔗 Concept text for embedding:', conceptText.substring(0, 200) + '...');
   
   try {
     const response = await openai.embeddings.create({
@@ -138,9 +139,13 @@ export async function POST(request: NextRequest) {
         }
         
         const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
+        
+        // Log similarity details for debugging
+        console.log(`🔗 Similarity between "${newConcept.title}" and "${existingConcept.title}": ${Math.round(similarity * 100)}%`);
 
         // High similarity suggests potential duplicate
         if (similarity > 0.85) {
+          console.log(`🟠 DUPLICATE DETECTED: ${Math.round(similarity * 100)}% similarity with "${existingConcept.title}"`);
           potentialDuplicates.push({
             id: existingConcept.id,
             title: existingConcept.title,
@@ -151,6 +156,7 @@ export async function POST(request: NextRequest) {
         }
         // Medium similarity suggests related concept
         else if (similarity > 0.6) {
+          console.log(`🔗 RELATED CONCEPT: ${Math.round(similarity * 100)}% similarity with "${existingConcept.title}"`);
           relationships.push({
             id: existingConcept.id,
             title: existingConcept.title,
