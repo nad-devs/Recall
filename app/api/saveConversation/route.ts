@@ -38,38 +38,8 @@ interface Concept {
   };
 }
 
-// Simple heuristic to guess category from concept title
+// Let the backend provide proper categories - just fallback to General if none provided
 function guessCategoryFromTitle(title: string): string {
-  const titleLower = title.toLowerCase();
-  
-  // Check for LeetCode problems first
-  if (titleLower.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
-      titleLower.includes("problem")) {
-    return 'LeetCode Problems';
-  }
-  
-  if (titleLower.includes('array') || titleLower.includes('list') || titleLower.includes('hash')) {
-    return 'Arrays and Hashing';
-  }
-  if (titleLower.includes('tree') || titleLower.includes('graph')) {
-    return 'Trees and Graphs';
-  }
-  if (titleLower.includes('sort') || titleLower.includes('search')) {
-    return 'Algorithms';
-  }
-  if (titleLower.includes('api') || titleLower.includes('http') || titleLower.includes('rest')) {
-    return 'APIs and Web Services';
-  }
-  if (titleLower.includes('database') || titleLower.includes('sql')) {
-    return 'Database';
-  }
-  if (titleLower.includes('react') || titleLower.includes('frontend') || titleLower.includes('ui')) {
-    return 'Frontend Development';
-  }
-  if (titleLower.includes('backend') || titleLower.includes('server')) {
-    return 'Backend Engineering';
-  }
-  
   return 'General';
 }
 

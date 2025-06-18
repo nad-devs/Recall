@@ -45,7 +45,7 @@ function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean,
   
   // Common LeetCode problem patterns
   const leetcodePatterns = [
-    { pattern: /contains?\s+duplicate/i, name: "Contains Duplicate" },
+
     { pattern: /valid\s+anagram/i, name: "Valid Anagram" },
     { pattern: /two\s+sum/i, name: "Two Sum" },
     { pattern: /three\s+sum/i, name: "Three Sum" },
@@ -79,7 +79,7 @@ function generateLeetCodeGuidance(conversationText: string) {
     return null;
   }
   
-  let guidance = `This is about a LeetCode-style algorithm problem. When generating the concept title, use the EXACT problem name if known (e.g., "Contains Duplicate", "Valid Anagram", "Two Sum", etc.). Focus on the specific problem, not just the technique used.`;
+  let guidance = `This is about a LeetCode-style algorithm problem. When generating the concept title, use the EXACT problem name if known (e.g., "Valid Anagram", "Two Sum", etc.). Focus on the specific problem, not just the technique used.`;
 
   if (detection.problemName) {
     guidance += ` Detected Problem: "${detection.problemName}" - use this as the title.`;

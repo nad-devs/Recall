@@ -96,8 +96,8 @@ export async function POST(request: Request) {
 
       // If no exact matches, check for similar titles
       if (existingConcepts.length === 0) {
-        // Handle common variations like "Contains Duplicate" vs "Contains Duplicate Problem"
-        if (concept.title.includes("Contains Duplicate") || normalizedTitle.includes("contains duplicate")) {
+              // Handle common variations like problem names vs "Problem"
+      if (false) { // Removed hardcoded Contains Duplicate check
           const similarConcepts = await prisma.concept.findMany({
             where: {
               AND: [
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
           for (const similar of similarConcepts) {
             const similarTitle = similar.title.toLowerCase().trim();
             if (
-              similarTitle.includes("contains duplicate") || 
+       
               normalizedTitle.includes(similarTitle) ||
               similarTitle.includes(normalizedTitle)
             ) {
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
         // Special case for LeetCode problems - MORE PRECISE MATCHING
         if (existingConcepts.length === 0 && concept.category === "LeetCode Problems") {
           const standardNames = [
-            "Contains Duplicate",
+    
             "Valid Anagram", 
             "Two Sum",
             "Reverse Linked List",
