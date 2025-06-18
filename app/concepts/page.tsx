@@ -227,69 +227,7 @@ export default function ConceptsPage() {
       formattedConcepts.filter(c => c.needsReview).length)
   }, [])
 
-  // Function to generate vector embeddings for all concepts - separate from formatting
-  const generateVectorEmbeddings = useCallback(async (conceptsData: any[]) => {
-    console.log('🧠 VECTOR EMBEDDINGS: Starting automatic generation for', conceptsData.length, 'concepts')
-    
-    if (conceptsData.length === 0) {
-      console.log('🧠 VECTOR EMBEDDINGS: No concepts to process')
-      return
-    }
-
-    try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://recall-p3vg.onrender.com'
-      
-      // Convert frontend concepts to backend format for migration
-      const conceptsForMigration = conceptsData.map(concept => {
-        console.log(`🧠 PREPARING CONCEPT: "${concept.title}" for vector embedding`)
-        return {
-          title: concept.title || 'Untitled Concept',
-          category: concept.category || 'General',
-          summary: concept.summary || concept.notes || 'No summary available',
-          details: concept.notes || concept.summary || '',
-          keyPoints: concept.keyPoints || [],
-          confidence_score: concept.confidenceScore || 0.8,
-          last_updated: concept.updatedAt || concept.createdAt || new Date().toISOString()
-        }
-      })
-
-      console.log('🧠 VECTOR EMBEDDINGS: Sending', conceptsForMigration.length, 'concepts to backend for processing')
-
-      // Send migration request to backend
-      const migrationResponse = await fetch(`${backendUrl}/api/v1/migrate-concepts-to-embeddings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({
-          user_id: 'default',
-          concepts: conceptsForMigration
-        })
-      })
-
-      if (migrationResponse.ok) {
-        const migrationResult = await migrationResponse.json()
-        console.log('✅ VECTOR EMBEDDINGS: Migration completed successfully!')
-        console.log(`📊 MIGRATION RESULTS:`, {
-          total: migrationResult.results.total_concepts,
-          successful: migrationResult.results.successful_conversions,
-          failed: migrationResult.results.failed_conversions,
-          skipped: migrationResult.results.skipped_conversions
-        })
-        
-        if (migrationResult.results.errors && migrationResult.results.errors.length > 0) {
-          console.warn('⚠️ MIGRATION ERRORS:', migrationResult.results.errors)
-        }
-      } else {
-        console.error('❌ VECTOR EMBEDDINGS: Migration failed with status:', migrationResponse.status)
-        const errorText = await migrationResponse.text()
-        console.error('❌ ERROR DETAILS:', errorText)
-      }
-    } catch (error) {
-      console.error('❌ VECTOR EMBEDDINGS: Error during migration:', error)
-    }
-  }, [getAuthHeaders])
+  // Vector embeddings are now handled during concept creation in the analyze flow
 
   // Simple fetch concepts function
   const fetchConcepts = useCallback(async () => {
@@ -433,23 +371,8 @@ export default function ConceptsPage() {
     executeRefresh()
   }, [])
 
-  // Generate vector embeddings when concepts are loaded
-  useEffect(() => {
-    if (concepts.length > 0 && dataLoaded) {
-      console.log('🧠 VECTOR EMBEDDINGS: Triggering automatic generation for loaded concepts')
-      // Convert concepts back to original format for embedding generation
-      const conceptsData = concepts.map(concept => ({
-        id: concept.id,
-        title: concept.title,
-        category: concept.category,
-        summary: concept.notes,
-        notes: concept.notes,
-        occurrences: concept.discussedInConversations?.map(id => ({ conversationId: id })) || [],
-        confidenceScore: concept.needsReview ? 0.6 : 0.8
-      }))
-      generateVectorEmbeddings(conceptsData)
-    }
-  }, [concepts, dataLoaded, generateVectorEmbeddings])
+  // Vector embeddings are now handled during concept creation in the analyze flow
+  // No need for automatic migration here
 
   // Handle loading screen completion
   const handleLoadingComplete = () => {
