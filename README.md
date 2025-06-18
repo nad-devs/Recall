@@ -1,5 +1,7 @@
 # Recall - AI-Powered Learning Knowledge Base
 
+<!-- Latest working frontend deployed -->
+
 <div align="center">
 
 ![Recall Logo](https://img.shields.io/badge/Recall-AI%20Learning-blue?style=for-the-badge&logo=brain&logoColor=white)
