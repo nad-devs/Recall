@@ -136,7 +136,7 @@ export function ResultsView(props: ResultsViewProps) {
   const [isSavingTitle, setIsSavingTitle] = useState(false)
 
   // Add suggested related concepts state
-  const [suggestedRelatedConcepts, setSuggestedRelatedConcepts] = useState<Array<{id: string, title: string, category: string}>>([])
+  const [suggestedRelatedConcepts, setSuggestedRelatedConcepts] = useState<Array<{id: string, title: string, category: string, similarity?: number}>>([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
 
   // Fetch categories for the picker and autocomplete
@@ -292,100 +292,102 @@ export function ResultsView(props: ResultsViewProps) {
 
       setIsLoadingSuggestions(true)
       try {
-        // Prepare authentication headers
+        // Use the new embedding-based relationship analysis instead of basic keyword matching
+        console.log('🔗 Fetching embedding-based suggestions for:', selectedConcept.title)
+        
         const headers = getAuthHeaders()
+        const response = await fetch('/api/concepts/analyze-relationships', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          body: JSON.stringify({
+            concepts: [{
+              title: selectedConcept.title,
+              summary: selectedConcept.summary || '',
+              details: selectedConcept.details || '',
+              keyPoints: selectedConcept.keyPoints || [],
+              category: selectedConcept.category || 'General'
+            }]
+          })
+        })
 
-        // Fetch all concepts to find suggestions
-        const response = await fetch('/api/concepts', { headers })
         if (!response.ok) {
-          throw new Error('Failed to fetch concepts')
+          console.warn('🔗 Embedding-based suggestions failed, falling back to basic matching')
+          throw new Error('Failed to fetch embedding-based suggestions')
         }
 
         const data = await response.json()
-        const allConcepts = data.concepts || []
-
-        // Get existing related concept IDs to exclude them
-        const existingRelatedIds = new Set<string>()
-        if (selectedConcept.relatedConcepts) {
-          try {
-            const relatedConcepts = typeof selectedConcept.relatedConcepts === 'string' 
-              ? JSON.parse(selectedConcept.relatedConcepts)
-              : selectedConcept.relatedConcepts
-            
-            if (Array.isArray(relatedConcepts)) {
-              relatedConcepts.forEach((rel: any) => {
-                if (rel.id) existingRelatedIds.add(rel.id)
-              })
-            }
-          } catch (e) {
-            console.error('Error parsing related concepts:', e)
-          }
-        }
-
-        // Find suggested concepts based on:
-        // 1. Same category
-        // 2. Similar keywords in title/summary
-        // 3. Common techniques (for algorithm problems)
-        const suggestions = allConcepts
-          .filter((concept: any) => 
-            concept.id !== selectedConcept.id && // Not the same concept
-            !existingRelatedIds.has(concept.id) // Not already related
-          )
-          .map((concept: any) => {
-            let score = 0
-            
-            // Same category gets high score
-            if (concept.category === selectedConcept.category) {
-              score += 10
-            }
-            
-            // Similar category (same root) gets medium score
-            if (concept.category && selectedConcept.category) {
-              const conceptRoot = concept.category.split(' > ')[0]
-              const selectedRoot = selectedConcept.category.split(' > ')[0]
-              if (conceptRoot === selectedRoot && concept.category !== selectedConcept.category) {
-                score += 5
+        const relationshipResult = data.results?.[0]
+        
+        if (relationshipResult) {
+          // Get related concepts from embedding analysis (60-85% similarity)
+          const relatedConcepts = relationshipResult.relationships || []
+          
+          // Get existing related concept IDs to avoid duplicates
+          const existingRelatedIds = new Set<string>()
+          if (selectedConcept.relatedConcepts) {
+            try {
+              const relatedConceptsData = typeof selectedConcept.relatedConcepts === 'string' 
+                ? JSON.parse(selectedConcept.relatedConcepts)
+                : selectedConcept.relatedConcepts
+              
+              if (Array.isArray(relatedConceptsData)) {
+                relatedConceptsData.forEach((rel: any) => {
+                  if (rel.id) existingRelatedIds.add(rel.id)
+                })
               }
+            } catch (e) {
+              console.error('Error parsing related concepts:', e)
             }
-            
-            // Common keywords in title
-            const conceptWords = concept.title.toLowerCase().split(/\s+/)
-            const selectedWords = selectedConcept.title.toLowerCase().split(/\s+/)
-            const commonWords = conceptWords.filter((word: string) => 
-              selectedWords.includes(word) && word.length > 3
-            )
-            score += commonWords.length * 2
-            
-            // Algorithm/technique relationships
-            const algorithmKeywords = ['hash', 'array', 'tree', 'graph', 'sort', 'search', 'dynamic', 'two pointer', 'sliding window']
-            const conceptHasAlgoKeywords = algorithmKeywords.some(keyword => 
-              concept.title.toLowerCase().includes(keyword) || 
-              (concept.summary && concept.summary.toLowerCase().includes(keyword))
-            )
-            const selectedHasAlgoKeywords = algorithmKeywords.some(keyword => 
-              selectedConcept.title.toLowerCase().includes(keyword) || 
-              (selectedConcept.summary && selectedConcept.summary.toLowerCase().includes(keyword))
-            )
-            
-            if (conceptHasAlgoKeywords && selectedHasAlgoKeywords) {
-              score += 3
-            }
-            
-            return { ...concept, score }
-          })
-          .filter((concept: any) => concept.score > 0)
-          .sort((a: any, b: any) => b.score - a.score)
-          .slice(0, 6) // Top 6 suggestions
-          .map((concept: any) => ({
-            id: concept.id,
-            title: concept.title,
-            category: concept.category || 'Uncategorized'
-          }))
+          }
 
-        setSuggestedRelatedConcepts(suggestions)
+          // Filter out already related concepts and format for UI
+          const suggestions = relatedConcepts
+            .filter((concept: any) => !existingRelatedIds.has(concept.id))
+            .slice(0, 6) // Top 6 suggestions
+            .map((concept: any) => ({
+              id: concept.id,
+              title: concept.title,
+              category: concept.category || 'Uncategorized',
+              similarity: concept.similarity
+            }))
+
+          console.log('🔗 Found embedding-based suggestions:', suggestions.length)
+          setSuggestedRelatedConcepts(suggestions)
+        } else {
+          setSuggestedRelatedConcepts([])
+        }
       } catch (error) {
-        console.error('Error fetching suggested related concepts:', error)
-        setSuggestedRelatedConcepts([])
+        console.error('🔗 Error fetching embedding-based suggestions, using fallback:', error)
+        
+        // Fallback to the original keyword-based approach if embedding fails
+        try {
+          const response = await fetch('/api/concepts', { headers: getAuthHeaders() })
+          if (!response.ok) throw new Error('Failed to fetch concepts')
+
+          const data = await response.json()
+          const allConcepts = data.concepts || []
+
+          // Basic keyword-based suggestions as fallback
+          const suggestions = allConcepts
+            .filter((concept: any) => 
+              concept.id !== selectedConcept.id && 
+              concept.category === selectedConcept.category
+            )
+            .slice(0, 3)
+            .map((concept: any) => ({
+              id: concept.id,
+              title: concept.title,
+              category: concept.category || 'Uncategorized'
+            }))
+
+          setSuggestedRelatedConcepts(suggestions)
+        } catch (fallbackError) {
+          console.error('Fallback suggestion fetch also failed:', fallbackError)
+          setSuggestedRelatedConcepts([])
+        }
       } finally {
         setIsLoadingSuggestions(false)
       }
@@ -1342,14 +1344,14 @@ export function ResultsView(props: ResultsViewProps) {
                               key={suggestion.id}
                               onClick={() => handleAddSuggestedConcept(suggestion)}
                               className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 hover:border-primary/30 transition-colors"
-                              title={`Add "${suggestion.title}" as related concept`}
+                              title={`Add "${suggestion.title}" as related concept${suggestion.similarity ? ` (${suggestion.similarity}% similarity)` : ''}`}
                             >
                               <svg className="h-3 w-3 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M12 5v14M5 12h14"/>
                               </svg>
                               {suggestion.title}
                               <span className="ml-2 text-xs text-muted-foreground">
-                                ({suggestion.category})
+                                ({suggestion.category}{suggestion.similarity ? ` • ${suggestion.similarity}%` : ''})
                               </span>
                             </button>
                           ))}
