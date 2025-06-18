@@ -707,7 +707,53 @@ export function useAnalyzePage() {
       // Proceed normally - concept matching will happen during save
       setAnalysisResult(analysis)
       
+      // NEW: Analyze relationships using embeddings right after extraction
       if (analysis.concepts.length > 0) {
+        try {
+          console.log("🔗 Starting embedding-based relationship analysis...")
+          setAnalysisStage("Analyzing concept relationships...")
+          
+          const relationshipResponse = await fetch('/api/concepts/analyze-relationships', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify({
+              concepts: analysis.concepts.map(concept => ({
+                title: concept.title,
+                summary: concept.summary,
+                details: concept.details,
+                keyPoints: concept.keyPoints,
+                category: concept.category
+              }))
+            })
+          })
+          
+          if (relationshipResponse.ok) {
+            const relationshipData = await relationshipResponse.json()
+            console.log("🔗 Relationship analysis completed:", relationshipData)
+            
+            // Enhance the analysis result with relationship data
+            const enhancedAnalysis = {
+              ...analysis,
+              concepts: analysis.concepts.map((concept, index) => ({
+                ...concept,
+                // Add the relationship data from our embedding analysis
+                embeddingData: relationshipData.results?.[index] || null
+              }))
+            }
+            
+            setAnalysisResult(enhancedAnalysis)
+            console.log("🔗 Enhanced analysis with relationship data")
+          } else {
+            console.warn("🔗 Relationship analysis failed, continuing without enhancement")
+          }
+        } catch (error) {
+          console.error("🔗 Error during relationship analysis:", error)
+          // Continue without relationship data if this fails
+        }
+        
         setSelectedConcept(analysis.concepts[0])
         setSelectedTab("summary")
         setDiscoveredConcepts(analysis.concepts.map((c: any) => c.title))
