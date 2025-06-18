@@ -1,137 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { canMakeServerConversation } from '@/lib/usage-tracker-server';
 
-// Enhanced LeetCode problem detection and title extraction
-function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean, problemName?: string, approach?: string } {
-  const text = conversationText.toLowerCase();
-  
-  // Common LeetCode problem patterns
-  const leetcodePatterns = [
-    { pattern: /contains?\s+duplicate/i, name: "Contains Duplicate" },
-    { pattern: /valid\s+anagram/i, name: "Valid Anagram" },
-    { pattern: /two\s+sum/i, name: "Two Sum" },
-    { pattern: /three\s+sum/i, name: "Three Sum" },
-    { pattern: /reverse\s+linked\s+list/i, name: "Reverse Linked List" },
-    { pattern: /merge\s+(?:two\s+)?sorted\s+(?:arrays?|lists?)/i, name: "Merge Two Sorted Lists" },
-    { pattern: /palindrome\s+(?:string|number|linked\s+list)/i, name: "Valid Palindrome" },
-    { pattern: /maximum\s+subarray/i, name: "Maximum Subarray" },
-    { pattern: /climbing\s+stairs/i, name: "Climbing Stairs" },
-    { pattern: /best\s+time\s+to\s+buy\s+and\s+sell/i, name: "Best Time to Buy and Sell Stock" },
-    { pattern: /product\s+of\s+array\s+except\s+self/i, name: "Product of Array Except Self" },
-    { pattern: /find\s+minimum\s+in\s+rotated\s+sorted\s+array/i, name: "Find Minimum in Rotated Sorted Array" },
-    { pattern: /search\s+in\s+rotated\s+sorted\s+array/i, name: "Search in Rotated Sorted Array" },
-    { pattern: /3sum/i, name: "3Sum" },
-    { pattern: /container\s+with\s+most\s+water/i, name: "Container With Most Water" },
-    { pattern: /longest\s+substring\s+without\s+repeating/i, name: "Longest Substring Without Repeating Characters" },
-    { pattern: /group\s+anagrams/i, name: "Group Anagrams" },
-    { pattern: /top\s+k\s+frequent\s+elements/i, name: "Top K Frequent Elements" },
-    { pattern: /encode\s+and\s+decode\s+strings/i, name: "Encode and Decode Strings" },
-    { pattern: /longest\s+consecutive\s+sequence/i, name: "Longest Consecutive Sequence" },
-    { pattern: /number\s+of\s+islands/i, name: "Number of Islands" },
-    { pattern: /clone\s+graph/i, name: "Clone Graph" },
-    { pattern: /pacific\s+atlantic\s+water\s+flow/i, name: "Pacific Atlantic Water Flow" },
-    { pattern: /course\s+schedule/i, name: "Course Schedule" },
-    { pattern: /word\s+ladder/i, name: "Word Ladder" },
-    { pattern: /binary\s+tree\s+(?:inorder|preorder|postorder)\s+traversal/i, name: "Binary Tree Traversal" },
-    { pattern: /maximum\s+depth\s+of\s+binary\s+tree/i, name: "Maximum Depth of Binary Tree" },
-    { pattern: /same\s+tree/i, name: "Same Tree" },
-    { pattern: /invert\s+binary\s+tree/i, name: "Invert Binary Tree" },
-    { pattern: /binary\s+tree\s+maximum\s+path\s+sum/i, name: "Binary Tree Maximum Path Sum" },
-    { pattern: /serialize\s+and\s+deserialize\s+binary\s+tree/i, name: "Serialize and Deserialize Binary Tree" },
-    { pattern: /subtree\s+of\s+another\s+tree/i, name: "Subtree of Another Tree" },
-    { pattern: /lowest\s+common\s+ancestor/i, name: "Lowest Common Ancestor of a Binary Tree" },
-    { pattern: /validate\s+binary\s+search\s+tree/i, name: "Validate Binary Search Tree" },
-    { pattern: /kth\s+smallest\s+element\s+in\s+a\s+bst/i, name: "Kth Smallest Element in a BST" },
-    { pattern: /implement\s+trie/i, name: "Implement Trie (Prefix Tree)" },
-    { pattern: /word\s+search/i, name: "Word Search" },
-    { pattern: /combination\s+sum/i, name: "Combination Sum" },
-    { pattern: /permutations/i, name: "Permutations" },
-    { pattern: /merge\s+intervals/i, name: "Merge Intervals" },
-    { pattern: /insert\s+interval/i, name: "Insert Interval" },
-    { pattern: /non[\-\s]?overlapping\s+intervals/i, name: "Non-overlapping Intervals" },
-    { pattern: /meeting\s+rooms/i, name: "Meeting Rooms" },
-    { pattern: /rotate\s+image/i, name: "Rotate Image" },
-    { pattern: /spiral\s+matrix/i, name: "Spiral Matrix" },
-    { pattern: /set\s+matrix\s+zeroes/i, name: "Set Matrix Zeroes" },
-    { pattern: /word\s+break/i, name: "Word Break" },
-    { pattern: /coin\s+change/i, name: "Coin Change" },
-    { pattern: /house\s+robber/i, name: "House Robber" },
-    { pattern: /decode\s+ways/i, name: "Decode Ways" },
-    { pattern: /unique\s+paths/i, name: "Unique Paths" },
-    { pattern: /jump\s+game/i, name: "Jump Game" },
-    { pattern: /longest\s+increasing\s+subsequence/i, name: "Longest Increasing Subsequence" },
-    { pattern: /palindromic\s+substrings/i, name: "Palindromic Substrings" },
-    { pattern: /longest\s+common\s+subsequence/i, name: "Longest Common Subsequence" }
-  ];
-  
-  // Check for exact LeetCode problem matches
-  for (const { pattern, name } of leetcodePatterns) {
-    if (pattern.test(text)) {
-      // Try to detect solution approach
-      let approach = "";
-      if (text.includes("hash") && (text.includes("table") || text.includes("map") || text.includes("set"))) {
-        approach = "Hash Table Solution";
-      } else if (text.includes("two pointer") || text.includes("two-pointer")) {
-        approach = "Two Pointers Approach";
-      } else if (text.includes("sliding window")) {
-        approach = "Sliding Window Technique";
-      } else if (text.includes("dynamic programming") || text.includes("dp")) {
-        approach = "Dynamic Programming Solution";
-      } else if (text.includes("binary search")) {
-        approach = "Binary Search Solution";
-      } else if (text.includes("dfs") || text.includes("depth") || text.includes("recursion")) {
-        approach = "DFS/Recursive Solution";
-      } else if (text.includes("bfs") || text.includes("breadth") || text.includes("queue")) {
-        approach = "BFS Solution";
-      } else if (text.includes("greedy")) {
-        approach = "Greedy Algorithm";
-      } else if (text.includes("backtrack")) {
-        approach = "Backtracking Solution";
-      }
-      
-      return { 
-        isLeetCode: true, 
-        problemName: name,
-        approach: approach
-      };
-    }
-  }
-  
-  // Check for general problem indicators
-  const problemIndicators = [
-    "leetcode", "algorithm problem", "coding problem", "interview question",
-    "find", "return", "given an array", "given a string", "implement"
-  ];
-  
-  const isLeetCodeStyle = problemIndicators.some(indicator => text.includes(indicator)) &&
-    (text.includes("time complexity") || text.includes("space complexity") || 
-     text.includes("optimal") || text.includes("solution") || text.includes("approach"));
-  
-  return { isLeetCode: isLeetCodeStyle };
-}
-
-// Generate enhanced guidance for the backend based on conversation analysis
-function generateLeetCodeGuidance(conversationText: string) {
-  const detection = detectLeetCodeProblem(conversationText);
-  
-  if (!detection.isLeetCode) {
-    return null;
-  }
-  
-  // General guidance for intelligent analysis - NOT prescriptive
-  const guidance = `This conversation appears to be about algorithm/coding problems. When analyzing:
-
-1. Extract concepts based on what was ACTUALLY discussed in the conversation
-2. Focus on the specific problem being solved and techniques mentioned
-3. Use meaningful titles that reflect the actual content discussed
-4. If discussing a known algorithm problem, use the standard problem name
-5. If discussing solution approaches, include the approach in the analysis
-6. Generate insights based on the actual conversation content, not assumptions
-
-Analyze the conversation content intelligently and extract relevant programming concepts, algorithms, and techniques that were genuinely discussed.`;
-
-  return guidance;
-}
+// Let the backend handle all pattern detection and analysis
 
 // Removed hardcoded fallback - backend should handle all intelligent analysis
 
@@ -170,11 +40,7 @@ export async function POST(request: NextRequest) {
     console.log("🔑 Using custom API key:", !!customApiKey);
     console.log("👤 User ID:", user_id || 'not provided');
 
-    // Detect LeetCode problems and generate guidance
-    const leetcodeGuidance = generateLeetCodeGuidance(conversation_text);
-    if (leetcodeGuidance) {
-      console.log("🎯 LeetCode problem detected - sending guidance to backend");
-    }
+    // Let backend handle all analysis without frontend guidance
 
     // Use environment variable with fallback
     const backendUrl = process.env.BACKEND_URL || 'https://recall-p3vg.onrender.com';
@@ -214,8 +80,7 @@ export async function POST(request: NextRequest) {
         conversation_text,
         ...(customApiKey && { custom_api_key: customApiKey }),
         ...(user_id && { user_id: user_id }),
-        context: null,
-        category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
+        context: null
       }),
       keepalive: false,
     });
@@ -268,8 +133,7 @@ export async function POST(request: NextRequest) {
               conversation_text,
               ...(customApiKey && { custom_api_key: customApiKey }),
               ...(user_id && { user_id: user_id }),
-              context: null,
-              category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
+              context: null
             }),
           });
           console.log("✅ Basic HTTP connection successful");

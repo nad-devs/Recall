@@ -318,7 +318,7 @@ export async function GET(
     };
     
     // Ensure LeetCode problems are consistently categorized
-    if (cleanedConcept.title.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
+    if (cleanedConcept.title.match(/(valid anagram|two sum|three sum|merge sorted|reverse linked|palindrome)/i) ||
         (cleanedConcept.title.toLowerCase().includes("problem") && cleanedConcept.category !== "LeetCode Problems")) {
       cleanedConcept.category = "LeetCode Problems";
     }
@@ -1074,7 +1074,7 @@ function guessCategoryFromTitle(title: string): string {
   const lowerTitle = title.toLowerCase();
   
   // Check for LeetCode problems first
-  if (lowerTitle.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i) ||
+      if (lowerTitle.match(/(valid anagram|two sum|three sum|merge sorted|reverse linked|palindrome)/i) ||
       lowerTitle.includes("problem")) {
     return "LeetCode Problems";
   }

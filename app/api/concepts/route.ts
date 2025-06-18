@@ -116,241 +116,8 @@ const commonTechniques = [
 
 // Completely revised determination function for better consistency
 function determineCategory(concept: any): { category: string, subcategory?: string } {
-  // First check if we have a valid LLM-suggested category
-  if (concept.category && typeof concept.category === 'string') {
-    // Skip normalization for categories that are already in the correct format
-    if (concept.category === "LeetCode Problems" || 
-        concept.category === "Data Structures" ||
-        concept.category === "Algorithms" ||
-        concept.category === "System Design" ||
-        concept.category === "Backend Engineering" ||
-        concept.category === "Frontend Engineering") {
-      return { category: concept.category };
-    }
-    
-    const normalizedCategory = normalizeCategory(concept.category);
-    if (normalizedCategory) {
-      return normalizedCategory;
-    }
-  }
-
-  // Combine all relevant text from the concept for analysis
-  const conceptText = `${concept.title} ${concept.summary || ''} ${
-    typeof concept.keyPoints === 'string' 
-      ? concept.keyPoints 
-      : Array.isArray(concept.keyPoints) 
-        ? concept.keyPoints.join(' ') 
-        : ''
-  }`.toLowerCase();
-  
-  const title = concept.title.toLowerCase();
-  
-  // NEW STEP: Check if concept includes both data structures and algorithms content
-  const hasDataStructuresContent = 
-    conceptText.includes("data structure") || 
-    conceptText.includes("array") || 
-    conceptText.includes("list") || 
-    conceptText.includes("tree") || 
-    conceptText.includes("graph") || 
-    conceptText.includes("hash table") || 
-    conceptText.includes("map") || 
-    conceptText.includes("stack") || 
-    conceptText.includes("queue");
-    
-  const hasAlgorithmsContent = 
-    conceptText.includes("algorithm") || 
-    conceptText.includes("sort") || 
-    conceptText.includes("search") || 
-    conceptText.includes("traverse") || 
-    conceptText.includes("dynamic programming") || 
-    conceptText.includes("problem");
-    
-  if (hasDataStructuresContent && hasAlgorithmsContent) {
-    return { category: "Data Structures and Algorithms" };
-  }
-  
-  // STEP 1: Check for pure data structures (not problems)
-  if ((title.includes("hash table") || title.includes("hash map") || title.includes("hashmap") || 
-       title.includes("dictionary") || title.includes("set")) &&
-      !title.includes("problem")) {
-    return { category: "Data Structures", subcategory: "Hash Tables" };
-  }
-  
-  if ((title.includes("array") || title.includes("list")) && 
-      !title.includes("problem")) {
-    return { category: "Data Structures", subcategory: "Arrays" };
-  }
-  
-  if ((title.includes("tree") || title.includes("binary search tree") || title.includes("bst")) &&
-      !title.includes("problem")) {
-    return { category: "Data Structures", subcategory: "Trees" };
-  }
-  
-  if ((title.includes("graph") || title.includes("network")) &&
-      !title.includes("problem")) {
-    return { category: "Data Structures", subcategory: "Graphs" };
-  }
-  
-  // STEP 2: Check for pure techniques (not problems)
-  if ((title.includes("technique") || title.includes("method") || title.includes("approach") ||
-       title.includes("algorithm") || title.includes("count") || title.includes("frequency")) &&
-      !title.includes("problem")) {
-    
-    // Specific technique checks
-    if (title.includes("frequency") || title.includes("count")) {
-      return { category: "Algorithm Technique", subcategory: "Frequency Counting" };
-    }
-    
-    if (title.includes("two pointer") || title.includes("two-pointer")) {
-      return { category: "Algorithm Technique", subcategory: "Two Pointers" };
-    }
-    
-    if (title.includes("sliding window")) {
-      return { category: "Algorithm Technique", subcategory: "Sliding Window" };
-    }
-    
-    if (title.includes("binary search")) {
-      return { category: "Algorithm Technique", subcategory: "Binary Search" };
-    }
-    
-    if (title.includes("dfs") || title.includes("depth first")) {
-      return { category: "Algorithm Technique", subcategory: "Depth-First Search" };
-    }
-    
-    if (title.includes("bfs") || title.includes("breadth first")) {
-      return { category: "Algorithm Technique", subcategory: "Breadth-First Search" };
-    }
-    
-    // Generic technique
-    return { category: "Algorithm Technique" };
-  }
-  
-  // STEP 3: Check for problem types
-  if (title.includes("problem") || /find|valid|check|contains|determine|is\s|are\s/i.test(title)) {
-    // First check if it's a LeetCode-style problem
-    if (conceptText.includes("leetcode") || 
-        title.match(/(valid anagram|two sum|contains duplicate|three sum|merge sorted|reverse linked|palindrome)/i)) {
-      
-      // Determine LeetCode subcategory based on problem type
-      if (title.match(/(valid anagram|anagram)/i) || 
-          title.match(/(contains duplicate|duplicate)/i) ||
-          title.match(/(two sum|pair sum)/i) ||
-          title.match(/(three sum)/i) ||
-          conceptText.includes("hash table") || 
-          conceptText.includes("hash map") ||
-          conceptText.includes("array") ||
-          conceptText.includes("frequency")) {
-        return { category: "LeetCode Problems", subcategory: "Arrays and Hashing" };
-      }
-      
-      if (title.match(/(palindrome|string)/i) ||
-          conceptText.includes("string") ||
-          conceptText.includes("character")) {
-        return { category: "LeetCode Problems", subcategory: "Strings" };
-      }
-      
-      if (title.match(/(reverse linked|linked list)/i) ||
-          conceptText.includes("linked list") ||
-          conceptText.includes("node")) {
-        return { category: "LeetCode Problems", subcategory: "Linked Lists" };
-      }
-      
-      if (title.match(/(merge sorted|sort)/i) ||
-          conceptText.includes("sort") ||
-          conceptText.includes("order")) {
-        return { category: "LeetCode Problems", subcategory: "Sorting" };
-      }
-      
-      if (conceptText.includes("tree") ||
-          conceptText.includes("binary tree") ||
-          conceptText.includes("bst")) {
-        return { category: "LeetCode Problems", subcategory: "Trees" };
-      }
-      
-      if (conceptText.includes("graph") ||
-          conceptText.includes("dfs") ||
-          conceptText.includes("bfs")) {
-        return { category: "LeetCode Problems", subcategory: "Graphs" };
-      }
-      
-      if (conceptText.includes("dynamic programming") ||
-          conceptText.includes("dp") ||
-          conceptText.includes("memoization")) {
-        return { category: "LeetCode Problems", subcategory: "Dynamic Programming" };
-      }
-      
-      // Default LeetCode category if no specific subcategory matches
-      return { category: "LeetCode Problems" };
-    }
-    
-    // String problems
-    if (conceptText.includes("anagram") || conceptText.includes("palindrome") || 
-        conceptText.includes("substring") || conceptText.includes("string") ||
-        conceptText.includes("character") || conceptText.includes("frequency")) {
-      return { category: "Algorithms", subcategory: "String Manipulation" };
-    }
-    
-    // Graph problems
-    if (conceptText.includes("graph") || conceptText.includes("node") || 
-        conceptText.includes("edge") || conceptText.includes("vertex") || 
-        conceptText.includes("vertices") || conceptText.includes("path")) {
-      return { category: "Algorithms", subcategory: "Graph Algorithms" };
-    }
-    
-    // Sorting problems
-    if (conceptText.includes("sort") || conceptText.includes("order")) {
-      return { category: "Algorithms", subcategory: "Sorting Algorithms" };
-    }
-    
-    // Search problems
-    if (conceptText.includes("search") || conceptText.includes("find")) {
-      return { category: "Algorithms", subcategory: "Search Algorithms" };
-    }
-    
-    // Dynamic Programming problems
-    if (conceptText.includes("dynamic programming") || conceptText.includes("dp") ||
-        conceptText.includes("memoization") || conceptText.includes("optimal substructure")) {
-      return { category: "Algorithms", subcategory: "Dynamic Programming" };
-    }
-    
-    // If no specific algorithm type is determined, but it's still a problem
-    return { category: "Algorithms" };
-  }
-  
-  // STEP 4: If we haven't determined a category yet, use keyword scoring
-  let bestCategory = "Algorithms"; // Default changed from Backend Engineering
-  let bestSubcategory: string | undefined = undefined;
-  let highestScore = 0;
-  
-  // Score each category based on keyword matches
-  for (const categoryData of categorySystem) {
-    let score = 0;
-    
-    // Check for keyword matches
-    for (const keyword of categoryData.keywords) {
-      if (conceptText.includes(keyword.toLowerCase())) {
-        score += 1;
-      }
-    }
-    
-    // If we found a better match
-    if (score > highestScore) {
-      highestScore = score;
-      bestCategory = categoryData.category;
-      
-      // Try to identify a subcategory
-      if (categoryData.subcategories) {
-        for (const subcategory of categoryData.subcategories) {
-          if (conceptText.includes(subcategory.toLowerCase())) {
-            bestSubcategory = subcategory;
-            break;
-          }
-        }
-      }
-    }
-  }
-  
-  return { category: bestCategory, subcategory: bestSubcategory };
+  // Let the backend handle all categorization - just use what's provided or default to General
+    return { category: concept.category || 'General' };
 }
 
 function normalizeCategory(category: string): { category: string, subcategory?: string } | null {
@@ -422,7 +189,7 @@ function detectTechniquesInConcept(conceptText: string): string[] {
     detectedTechniques.push("Frequency Count");
   }
   
-  if (normalizedText.includes("contains duplicate") || normalizedText.includes("find duplicate")) {
+      if (normalizedText.includes("find duplicate")) {
     detectedTechniques.push("Hash Table");
   }
   
@@ -707,96 +474,7 @@ async function removePlaceholderConcepts(category: string): Promise<void> {
   }
 }
 
-// Enhanced LeetCode problem detection and title extraction (shared with extract-concepts)
-function detectLeetCodeProblem(conversationText: string): { isLeetCode: boolean, problemName?: string, approach?: string } {
-  const text = conversationText.toLowerCase();
-  
-  // Common LeetCode problem patterns
-  const leetcodePatterns = [
-    { pattern: /contains?\s+duplicate/i, name: "Contains Duplicate" },
-    { pattern: /valid\s+anagram/i, name: "Valid Anagram" },
-    { pattern: /two\s+sum/i, name: "Two Sum" },
-    { pattern: /three\s+sum/i, name: "Three Sum" },
-    { pattern: /reverse\s+linked\s+list/i, name: "Reverse Linked List" },
-    { pattern: /merge\s+(?:two\s+)?sorted\s+(?:arrays?|lists?)/i, name: "Merge Two Sorted Lists" },
-    { pattern: /palindrome\s+(?:string|number|linked\s+list)/i, name: "Valid Palindrome" },
-    { pattern: /maximum\s+subarray/i, name: "Maximum Subarray" },
-    { pattern: /climbing\s+stairs/i, name: "Climbing Stairs" },
-    { pattern: /best\s+time\s+to\s+buy\s+and\s+sell/i, name: "Best Time to Buy and Sell Stock" },
-    // Add more patterns as needed for common problems
-  ];
-  
-  // Check for exact LeetCode problem matches
-  for (const { pattern, name } of leetcodePatterns) {
-    if (pattern.test(text)) {
-      // Try to detect solution approach
-      let approach = "";
-      if (text.includes("hash") && (text.includes("table") || text.includes("map") || text.includes("set"))) {
-        approach = "Hash Table Solution";
-      } else if (text.includes("two pointer") || text.includes("two-pointer")) {
-        approach = "Two Pointers Approach";
-      } else if (text.includes("sliding window")) {
-        approach = "Sliding Window Technique";
-      } else if (text.includes("dynamic programming") || text.includes("dp")) {
-        approach = "Dynamic Programming Solution";
-      }
-      
-      return { 
-        isLeetCode: true, 
-        problemName: name,
-        approach: approach
-      };
-    }
-  }
-  
-  // Check for general problem indicators
-  const problemIndicators = [
-    "leetcode", "algorithm problem", "coding problem", "interview question",
-    "find", "return", "given an array", "given a string", "implement"
-  ];
-  
-  const isLeetCodeStyle = problemIndicators.some(indicator => text.includes(indicator)) &&
-    (text.includes("time complexity") || text.includes("space complexity") || 
-     text.includes("optimal") || text.includes("solution") || text.includes("approach"));
-  
-  return { isLeetCode: isLeetCodeStyle };
-}
-
-// Generate enhanced guidance for the backend based on conversation analysis
-function generateLeetCodeGuidance(conversationText: string) {
-  const detection = detectLeetCodeProblem(conversationText);
-  
-  if (!detection.isLeetCode) {
-    return null;
-  }
-  
-  let guidance = `This conversation is about a LeetCode-style algorithm problem. When generating the concept title:
-
-1. Use the EXACT problem name if it's a known LeetCode problem (e.g., "Contains Duplicate", "Valid Anagram", "Two Sum", etc.)
-2. If discussing a solution approach, format the title as: "[Problem Name]" or "[Problem Name] - [Approach]"
-3. Focus on the core problem being solved, not just the technique being used
-4. Avoid generic titles like "Algorithm" or "Hash Table" - be specific about the problem
-
-`;
-
-  if (detection.problemName) {
-    guidance += `Detected Problem: "${detection.problemName}"
-`;
-    if (detection.approach) {
-      guidance += `Detected Approach: "${detection.approach}"
-Suggested Title Format: "${detection.problemName}" or "${detection.problemName} - ${detection.approach}"
-`;
-    } else {
-      guidance += `Suggested Title: "${detection.problemName}"
-`;
-    }
-  }
-  
-  guidance += `
-Remember: The title should immediately tell someone what specific problem or concept is being discussed, not just the general technique or data structure used.`;
-
-  return guidance;
-}
+// Let the backend handle all pattern detection and guidance
 
 // Utility function to clean up orphaned conversations that don't have any associated concepts
 async function cleanupOrphanedConversations(userId: string): Promise<void> {
@@ -1266,9 +944,7 @@ export async function POST(request: Request) {
         ? `Based on this conversation:\n\n${context}\n\nPlease provide a detailed explanation of the concept: ${title}.` 
         : `Please provide a detailed explanation of the concept: ${title}.`;
       
-      // Detect LeetCode problems and generate guidance
-      const fullContext = context ? `${context} ${title}` : title;
-      const leetcodeGuidance = generateLeetCodeGuidance(fullContext);
+      // Let backend handle all analysis without frontend guidance
       
       // Use consistent backend URL logic with fallback
       const httpsUrl = process.env.BACKEND_URL || 'https://recall-p3vg.onrender.com';
@@ -1285,8 +961,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({ 
             conversation_text: generationPrompt +
             ` Include summary, key points, code examples if applicable, and any related concepts.`,
-            context: null,
-            category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
+            context: null
           }),
         });
       } catch (sslError) {
@@ -1299,8 +974,7 @@ export async function POST(request: Request) {
           body: JSON.stringify({ 
             conversation_text: generationPrompt +
             ` Include summary, key points, code examples if applicable, and any related concepts.`,
-            context: null,
-            category_guidance: leetcodeGuidance ? { guidance: leetcodeGuidance } : null
+            context: null
           }),
         });
       }

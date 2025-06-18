@@ -711,7 +711,17 @@ export function useAnalyzePage() {
       if (analysis.concepts.length > 0) {
         try {
           console.log("🔗 Starting embedding-based relationship analysis...")
-          setAnalysisStage("Analyzing concept relationships...")
+          setAnalysisStage("🔗 Starting embedding-based relationship analysis...")
+          
+          const conceptsForEmbedding = analysis.concepts.map(concept => ({
+            title: concept.title,
+            summary: concept.summary,
+            details: concept.details,
+            keyPoints: concept.keyPoints,
+            category: concept.category
+          }));
+          
+          console.log("🔗 Concepts to analyze:", conceptsForEmbedding);
           
           const relationshipResponse = await fetch('/api/concepts/analyze-relationships', {
             method: 'POST',
@@ -720,15 +730,11 @@ export function useAnalyzePage() {
               ...getAuthHeaders()
             },
             body: JSON.stringify({
-              concepts: analysis.concepts.map(concept => ({
-                title: concept.title,
-                summary: concept.summary,
-                details: concept.details,
-                keyPoints: concept.keyPoints,
-                category: concept.category
-              }))
+              concepts: conceptsForEmbedding
             })
           })
+          
+          console.log("🔗 Relationship response status:", relationshipResponse.status, relationshipResponse.statusText);
           
           if (relationshipResponse.ok) {
             const relationshipData = await relationshipResponse.json()
@@ -737,17 +743,27 @@ export function useAnalyzePage() {
             // Enhance the analysis result with relationship data
             const enhancedAnalysis = {
               ...analysis,
-              concepts: analysis.concepts.map((concept, index) => ({
-                ...concept,
-                // Add the relationship data from our embedding analysis
-                embeddingData: relationshipData.results?.[index] || null
-              }))
+              concepts: analysis.concepts.map((concept, index) => {
+                const relationshipResult = relationshipData.results?.[index];
+                return {
+                  ...concept,
+                  // Add the relationship data from our embedding analysis
+                  embeddingData: relationshipResult ? {
+                    concept: relationshipResult.concept,
+                    relationships: relationshipResult.relationships || [],
+                    potentialDuplicates: relationshipResult.potentialDuplicates || [],
+                    embedding: relationshipResult.embedding
+                  } : undefined
+                };
+              })
             }
             
             setAnalysisResult(enhancedAnalysis)
             console.log("🔗 Enhanced analysis with relationship data")
           } else {
-            console.warn("🔗 Relationship analysis failed, continuing without enhancement")
+            const errorText = await relationshipResponse.text();
+            console.warn("🔗 Relationship analysis failed:", relationshipResponse.status, errorText);
+            console.warn("🔗 Continuing without enhancement")
           }
         } catch (error) {
           console.error("🔗 Error during relationship analysis:", error)
