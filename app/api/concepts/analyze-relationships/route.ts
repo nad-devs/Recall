@@ -3,8 +3,12 @@ import { OpenAI } from 'openai';
 import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 
+// Check if OpenAI API key is available
+const apiKey = process.env.OPENAI_API_KEY;
+console.log('🔑 OpenAI API Key status:', apiKey ? `Present (${apiKey.substring(0, 7)}...)` : 'MISSING');
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: apiKey,
 });
 
 interface ConceptInput {
@@ -29,6 +33,11 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 // Function to generate embedding for a concept
 async function generateConceptEmbedding(concept: ConceptInput): Promise<number[]> {
+  // Check API key before making request
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key is not configured');
+  }
+
   // Create a comprehensive text representation of the concept
   const conceptText = `
     Title: ${concept.title}
@@ -38,17 +47,35 @@ async function generateConceptEmbedding(concept: ConceptInput): Promise<number[]
     Details: ${typeof concept.details === 'string' ? concept.details : JSON.stringify(concept.details)}
   `.trim();
 
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: conceptText,
-  });
+  console.log('🔗 Making OpenAI embedding request for:', concept.title);
+  
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: conceptText,
+    });
 
-  return response.data[0].embedding;
+    console.log('✅ OpenAI embedding response received for:', concept.title);
+    return response.data[0].embedding;
+  } catch (error) {
+    console.error('❌ OpenAI embedding error for', concept.title, ':', error);
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🔗 Analyze relationships API called');
+    console.log('🔑 Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY);
+    
+    // Check API key first
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OpenAI API key is missing from environment variables');
+      return NextResponse.json({ 
+        error: 'OpenAI API key not configured',
+        details: 'The OPENAI_API_KEY environment variable is not set'
+      }, { status: 500 });
+    }
     
     // Validate session
     const session = await validateSession(request);
@@ -147,8 +174,19 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error analyzing concept relationships:', error);
+    
+    // Provide more specific error details
+    let errorMessage = 'Failed to analyze concept relationships';
+    let errorDetails = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorDetails.includes('API key')) {
+      errorMessage = 'OpenAI API key configuration error';
+    } else if (errorDetails.includes('rate limit') || errorDetails.includes('quota')) {
+      errorMessage = 'OpenAI API rate limit or quota exceeded';
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to analyze concept relationships', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: errorMessage, details: errorDetails },
       { status: 500 }
     );
   }
