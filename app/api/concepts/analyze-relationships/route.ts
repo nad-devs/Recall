@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Use raw SQL to fetch existing concepts with embeddings (avoiding Prisma's vector limitation)
     console.log('🔗 Fetching existing concepts with embeddings...');
     const existingConcepts = await prisma.$queryRaw`
-      SELECT id, title, category, summary, embedding
+      SELECT id, title, category, summary, embedding::text as embedding_text
       FROM "Concept" 
       WHERE "userId" = ${session.id} 
       AND embedding IS NOT NULL
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       title: string;
       category: string;
       summary: string;
-      embedding: number[];
+      embedding_text: string;
     }>;
     
     console.log('✅ Found', existingConcepts.length, 'existing concepts with embeddings');
@@ -125,10 +125,17 @@ export async function POST(request: NextRequest) {
       const potentialDuplicates: any[] = [];
 
       for (const existingConcept of existingConcepts) {
-        if (!existingConcept.embedding) continue;
+        if (!existingConcept.embedding_text) continue;
 
-        // The embedding comes directly as array from pgvector
-        const existingEmbedding = existingConcept.embedding;
+        // Parse the embedding from text back to number array
+        // The embedding_text is a string representation of the vector: "[0.1, 0.2, ...]"
+        let existingEmbedding: number[];
+        try {
+          existingEmbedding = JSON.parse(existingConcept.embedding_text);
+        } catch (error) {
+          console.warn('❌ Failed to parse embedding for concept:', existingConcept.title);
+          continue;
+        }
         
         const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
 
