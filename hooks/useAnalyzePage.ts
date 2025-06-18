@@ -739,12 +739,29 @@ export function useAnalyzePage() {
           if (relationshipResponse.ok) {
             const relationshipData = await relationshipResponse.json()
             console.log("🔗 Relationship analysis completed:", relationshipData)
+            console.log("🔗 Detailed response structure:", {
+              success: relationshipData.success,
+              resultsCount: relationshipData.results?.length,
+              firstResult: relationshipData.results?.[0],
+              hasEmbedding: !!relationshipData.results?.[0]?.embedding,
+              embeddingLength: relationshipData.results?.[0]?.embedding?.length
+            })
             
             // Enhance the analysis result with relationship data
             const enhancedAnalysis = {
               ...analysis,
               concepts: analysis.concepts.map((concept, index) => {
                 const relationshipResult = relationshipData.results?.[index];
+                if (relationshipResult) {
+                  console.log(`🔗 Processing concept ${index}: "${concept.title}"`, {
+                    hasRelationships: !!relationshipResult.relationships?.length,
+                    relationshipsCount: relationshipResult.relationships?.length || 0,
+                    hasDuplicates: !!relationshipResult.potentialDuplicates?.length,
+                    duplicatesCount: relationshipResult.potentialDuplicates?.length || 0,
+                    hasEmbedding: !!relationshipResult.embedding,
+                    embeddingDims: relationshipResult.embedding?.length || 0
+                  })
+                }
                 return {
                   ...concept,
                   // Add the relationship data from our embedding analysis
