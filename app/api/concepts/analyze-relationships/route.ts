@@ -48,39 +48,49 @@ async function generateConceptEmbedding(concept: ConceptInput): Promise<number[]
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔗 Analyze relationships API called');
+    
     // Validate session
     const session = await validateSession(request);
     if (!session || !session.id) {
+      console.log('❌ Unauthorized access');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { concepts }: AnalyzeRequest = await request.json();
+    console.log('🔗 Received concepts:', concepts?.length);
 
     if (!concepts || !Array.isArray(concepts)) {
+      console.log('❌ Invalid concepts data');
       return NextResponse.json({ error: 'Invalid concepts data' }, { status: 400 });
     }
 
     // Generate embeddings for all new concepts
+    console.log('🔗 Generating embeddings...');
     const conceptsWithEmbeddings = await Promise.all(
       concepts.map(async (concept) => {
         const embedding = await generateConceptEmbedding(concept);
         return { ...concept, embedding };
       })
     );
+    console.log('✅ Generated embeddings for', conceptsWithEmbeddings.length, 'concepts');
 
-    // Fetch existing concepts with embeddings for this user
-    const existingConcepts = await prisma.concept.findMany({
-      where: {
-        userId: session.id,
-      },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        summary: true,
-        embedding: true,
-      }
-    });
+    // Use raw SQL to fetch existing concepts with embeddings (avoiding Prisma's vector limitation)
+    console.log('🔗 Fetching existing concepts with embeddings...');
+    const existingConcepts = await prisma.$queryRaw`
+      SELECT id, title, category, summary, embedding
+      FROM "Concept" 
+      WHERE "userId" = ${session.id} 
+      AND embedding IS NOT NULL
+    ` as Array<{
+      id: string;
+      title: string;
+      category: string;
+      summary: string;
+      embedding: number[];
+    }>;
+    
+    console.log('✅ Found', existingConcepts.length, 'existing concepts with embeddings');
 
     // Analyze relationships for each new concept
     const analysisResults = conceptsWithEmbeddings.map((newConcept) => {
@@ -90,23 +100,9 @@ export async function POST(request: NextRequest) {
       for (const existingConcept of existingConcepts) {
         if (!existingConcept.embedding) continue;
 
-        // Convert stored embedding back to number array
-        let existingEmbedding: number[];
-        try {
-          if (Array.isArray(existingConcept.embedding)) {
-            existingEmbedding = existingConcept.embedding;
-          } else if (typeof existingConcept.embedding === 'string') {
-            existingEmbedding = JSON.parse(existingConcept.embedding);
-          } else {
-            // Skip this concept if embedding format is unexpected
-            console.warn(`Unexpected embedding format for concept ${existingConcept.id}:`, typeof existingConcept.embedding);
-            continue;
-          }
-        } catch (error) {
-          console.warn(`Failed to parse embedding for concept ${existingConcept.id}:`, error);
-          continue;
-        }
-
+        // The embedding comes directly as array from pgvector
+        const existingEmbedding = existingConcept.embedding;
+        
         const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
 
         // High similarity suggests potential duplicate
@@ -143,15 +139,16 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    console.log('✅ Analysis completed successfully');
     return NextResponse.json({
       success: true,
       results: analysisResults
     });
 
   } catch (error) {
-    console.error('Error analyzing concept relationships:', error);
+    console.error('❌ Error analyzing concept relationships:', error);
     return NextResponse.json(
-      { error: 'Failed to analyze concept relationships' },
+      { error: 'Failed to analyze concept relationships', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
