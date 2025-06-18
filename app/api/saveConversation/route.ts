@@ -286,22 +286,25 @@ export async function POST(request: Request) {
           lastUpdated: new Date()
         };
         
-        // Add embedding data if available (from embedding analysis)
+        // Create the concept first (without embedding)
+        const createdConcept = await prisma.concept.create({
+          data: conceptToCreate,
+        });
+
+        // Add embedding separately using raw SQL if available
         if (conceptData.embeddingData && conceptData.embeddingData.embedding) {
           try {
-            // Store the embedding as a vector (will work after pgvector migration)
-            conceptToCreate.embedding = conceptData.embeddingData.embedding;
-            console.log(`💾 Adding embedding for concept: ${conceptData.title}`);
+            await prisma.$executeRaw`
+              UPDATE "Concept" 
+              SET embedding = ${JSON.stringify(conceptData.embeddingData.embedding)}::vector 
+              WHERE id = ${createdConcept.id}
+            `;
+            console.log(`💾 Added embedding for concept: ${conceptData.title}`);
           } catch (error) {
             console.warn(`⚠️ Could not add embedding for concept ${conceptData.title}:`, error);
             // Continue without embedding if there's an issue
           }
         }
-
-        // Create the concept
-        const createdConcept = await prisma.concept.create({
-          data: conceptToCreate,
-        });
 
         createdConceptIds.set(conceptData.title, createdConcept.id);
         console.log(`✅ Created concept: ${createdConcept.id} - ${createdConcept.title}`);
