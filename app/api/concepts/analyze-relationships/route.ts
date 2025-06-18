@@ -68,8 +68,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Fetch existing concepts for this user
-    // Note: We'll skip embedding comparison for now until the vector field is fully set up
+    // Fetch existing concepts with embeddings for this user
     const existingConcepts = await prisma.concept.findMany({
       where: {
         userId: session.id,
@@ -79,6 +78,7 @@ export async function POST(request: NextRequest) {
         title: true,
         category: true,
         summary: true,
+        embedding: true,
       }
     });
 
@@ -87,50 +87,49 @@ export async function POST(request: NextRequest) {
       const relationships: any[] = [];
       const potentialDuplicates: any[] = [];
 
-      // TODO: Temporarily disabled until vector field is properly set up in production
-      // This will be enabled once the database migration is confirmed
-      // for (const existingConcept of existingConcepts) {
-      //   if (!existingConcept.embedding) continue;
+      for (const existingConcept of existingConcepts) {
+        if (!existingConcept.embedding) continue;
 
-      //   // Convert stored embedding back to number array
-      //   let existingEmbedding: number[];
-      //   try {
-      //     if (Array.isArray(existingConcept.embedding)) {
-      //       existingEmbedding = existingConcept.embedding;
-      //     } else if (typeof existingConcept.embedding === 'string') {
-      //       existingEmbedding = JSON.parse(existingConcept.embedding);
-      //     } else {
-      //       // Skip this concept if embedding format is unexpected
-      //       continue;
-      //     }
-      //   } catch (error) {
-      //     console.warn(`Failed to parse embedding for concept ${existingConcept.id}:`, error);
-      //     continue;
-      //   }
+        // Convert stored embedding back to number array
+        let existingEmbedding: number[];
+        try {
+          if (Array.isArray(existingConcept.embedding)) {
+            existingEmbedding = existingConcept.embedding;
+          } else if (typeof existingConcept.embedding === 'string') {
+            existingEmbedding = JSON.parse(existingConcept.embedding);
+          } else {
+            // Skip this concept if embedding format is unexpected
+            console.warn(`Unexpected embedding format for concept ${existingConcept.id}:`, typeof existingConcept.embedding);
+            continue;
+          }
+        } catch (error) {
+          console.warn(`Failed to parse embedding for concept ${existingConcept.id}:`, error);
+          continue;
+        }
 
-      //   const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
+        const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
 
-      //   // High similarity suggests potential duplicate
-      //   if (similarity > 0.85) {
-      //     potentialDuplicates.push({
-      //       id: existingConcept.id,
-      //       title: existingConcept.title,
-      //       category: existingConcept.category,
-      //       summary: existingConcept.summary,
-      //       similarity: Math.round(similarity * 100)
-      //     });
-      //   }
-      //   // Medium similarity suggests related concept
-      //   else if (similarity > 0.6) {
-      //     relationships.push({
-      //       id: existingConcept.id,
-      //       title: existingConcept.title,
-      //       category: existingConcept.category,
-      //       summary: existingConcept.summary,
-      //       similarity: Math.round(similarity * 100)
-      //     });
-      //   }
-      // }
+        // High similarity suggests potential duplicate
+        if (similarity > 0.85) {
+          potentialDuplicates.push({
+            id: existingConcept.id,
+            title: existingConcept.title,
+            category: existingConcept.category,
+            summary: existingConcept.summary,
+            similarity: Math.round(similarity * 100)
+          });
+        }
+        // Medium similarity suggests related concept
+        else if (similarity > 0.6) {
+          relationships.push({
+            id: existingConcept.id,
+            title: existingConcept.title,
+            category: existingConcept.category,
+            summary: existingConcept.summary,
+            similarity: Math.round(similarity * 100)
+          });
+        }
+      }
 
       // Sort by similarity (highest first)
       relationships.sort((a, b) => b.similarity - a.similarity);
