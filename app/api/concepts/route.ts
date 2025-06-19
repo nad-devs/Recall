@@ -616,28 +616,39 @@ export async function GET(request: Request) {
     // Fetch concepts from the database with better error handling
     let concepts;
     try {
-      concepts = await prisma.concept.findMany({
+      // RESILIENT FETCHING: Fetch concepts and occurrences separately to avoid join errors
+      const userConcepts = await prisma.concept.findMany({
+        where: { userId: user.id },
+        orderBy: { title: 'asc' },
+      });
+
+      const userOccurrences = await prisma.occurrence.findMany({
         where: {
-          userId: user.id
-        },
-        include: {
-          occurrences: true,
-        },
-        orderBy: {
-          title: 'asc',
+          concept: {
+            userId: user.id,
+          },
         },
       });
-      
-      // FORCED CLEANUP FOR DEBUGGING
-      console.log('>>> FORCING cleanup of broken related concept references and orphaned conversations...');
-      try {
-        await cleanupBrokenReferencesForUser(user.id);
-        await cleanupOrphanedConversations(user.id);
-        console.log('>>> CLEANUP COMPLETE');
-      } catch (cleanupError) {
-        console.error('>>> Cleanup error (CRITICAL):', cleanupError);
-      }
 
+      // Manually map occurrences to concepts
+      const conceptsWithOccurrences = userConcepts.map(concept => ({
+        ...concept,
+        occurrences: userOccurrences.filter(occ => occ.conceptId === concept.id),
+      }));
+
+      concepts = conceptsWithOccurrences;
+      
+      // Occasionally clean up broken related concept references (every 20 requests approximately)
+      if (Math.random() < 0.05) { // 5% chance to run cleanup
+        console.log('Running periodic cleanup of broken related concept references and orphaned conversations...');
+        try {
+          // Run both cleanup functions
+          await cleanupBrokenReferencesForUser(user.id);
+          await cleanupOrphanedConversations(user.id);
+        } catch (cleanupError) {
+          console.error('Cleanup error (non-critical):', cleanupError);
+        }
+      }
     } catch (dbError) {
       console.error('Database error when fetching concepts:', dbError);
       return NextResponse.json(
