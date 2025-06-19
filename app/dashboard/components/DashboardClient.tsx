@@ -14,6 +14,7 @@ import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import featureFlags from '@/lib/feature-flags'
+import { SmartLearningDashboard } from "@/components/smart-learning/SmartLearningDashboard"
 
 interface DashboardData {
   conceptsCount: number;
@@ -150,7 +151,26 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
               <div className="text-2xl font-bold">{dashboardData.categoriesCount}</div>
             </CardContent>
           </Card>
+          {/* Smart Learning compact widget */}
+          {session?.user?.id && (
+            <div className="sm:col-span-2">
+              <SmartLearningDashboard 
+                userId={session.user.id}
+                compact={true}
+              />
+            </div>
+          )}
         </div>
+
+        {/* Full Smart Learning Dashboard */}
+        {session?.user?.id && (
+          <div className="space-y-6">
+            <SmartLearningDashboard 
+              userId={session.user.id}
+              compact={false}
+            />
+          </div>
+        )}
         
         <div className="grid gap-8 lg:grid-cols-2">
           <Card>
