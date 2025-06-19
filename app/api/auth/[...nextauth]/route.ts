@@ -1,4 +1,4 @@
-import NextAuth from "next-auth"
+import NextAuth, { NextAuthOptions } from "next-auth"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
@@ -42,7 +42,7 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 
 console.log(`📋 Total providers configured: ${providers.length}`)
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   // adapter: PrismaAdapter(prisma), // Temporarily disabled
   providers,
   session: {
@@ -202,10 +202,8 @@ const handler = NextAuth({
     },
     async signOut(message) {
       console.log('📧 NextAuth signOut EVENT:', {
-        user: message.user ? {
-          id: message.user.id,
-          email: message.user.email
-        } : 'None',
+        session: message.session,
+        token: message.token,
         timestamp: new Date().toISOString()
       })
     },
@@ -242,7 +240,9 @@ const handler = NextAuth({
     }
   },
   debug: process.env.NODE_ENV === 'development',
-})
+}
+
+const handler = NextAuth(authOptions)
 
 console.log('✅ NextAuth configuration complete')
 
