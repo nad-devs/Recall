@@ -63,6 +63,7 @@ model User {
   feedback      Feedback[]
   concepts      Concept[]
   conversations Conversation[]
+  analysisSessions AnalysisSession[]
   
   @@map("users")
 }
@@ -177,6 +178,11 @@ model Concept {
   personalRating     Int?      // Personal rating 1-5
   
   createdAt          DateTime  @default(now())
+
+  // --- NEW: Fields for Practical Summary / "Distiller" Mode ---
+  keyTakeaway        String?   // A single, powerful sentence.
+  analogy            String?   // A simple, relatable analogy.
+  practicalTips      String?   @default("[]") // Stored as a JSON string array of tips.
 }
 
 model Conversation {
@@ -212,4 +218,20 @@ model CodeSnippet {
   code        String
   concept     Concept  @relation(fields: [conceptId], references: [id])
   conceptId   String
+}
+
+model AnalysisSession {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+
+  conversationText    String   @db.Text
+  
+  // Store the raw JSON responses from our microservices
+  conceptsData        Json     @default("[]")
+  journeyAnalysisData Json     @default("{}")
+
+  // We can add fields later to link this session to processed concepts
+  // e.g., processedConceptIds String[]
 } 
