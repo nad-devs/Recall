@@ -1,17 +1,34 @@
+# render.yaml - Configuration for Python backend microservices deployed on Render.
+
 services:
-  - type: web
-    name: recall-backend
+  # ---------------------------------
+  #  Python Concept Extractor Service
+  # ---------------------------------
+  - type: pserv # Private service, not exposed to the public internet
+    name: concept-extractor
+    env: python
+    plan: free # Or your preferred plan
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.v1.extract_concepts:app --host 0.0.0.0 --port 10000
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # Set this in the Render dashboard
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # ---------------------------------
+  #  Python Journey Analyzer Service
+  # ---------------------------------
+  - type: pserv # Private service
+    name: journey-analyzer
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: uvicorn api.v1.analyze_journey:app --host 0.0.0.0 --port 10001
+    healthCheckPath: /api/v1/health
     envVars:
       - key: OPENAI_API_KEY
         sync: false
-      - key: FRONTEND_URL
-        sync: false
-      - key: PORT
-        value: 10000
       - key: PYTHON_VERSION
-        value: 3.11.0
-    healthCheckPath: /api/v1/health 
+        value: 3.11.0 
