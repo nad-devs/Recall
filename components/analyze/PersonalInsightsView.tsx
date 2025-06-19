@@ -13,6 +13,8 @@ interface PersonalInsightsViewProps {
   showYouTubeLinkPrompt: boolean
   onYouTubeLinkAdd: (link: string) => void
   onYouTubeLinkSkip: () => void
+  analysisMode: "deepdive" | "recall"
+  setAnalysisMode: (mode: "deepdive" | "recall") => void
 }
 
 export function PersonalInsightsView({
@@ -20,8 +22,9 @@ export function PersonalInsightsView({
   showYouTubeLinkPrompt,
   onYouTubeLinkAdd,
   onYouTubeLinkSkip,
+  analysisMode,
+  setAnalysisMode,
 }: PersonalInsightsViewProps) {
-  const [mode, setMode] = useState<"deepdive" | "recall">("recall")
 
   if (!selectedConcept) {
     return (
@@ -58,9 +61,9 @@ export function PersonalInsightsView({
         {/* Mode Toggle Slider */}
         <div className="flex items-center space-x-1 bg-slate-800/50 rounded-lg p-1 border border-slate-700">
           <button
-            onClick={() => setMode("deepdive")}
+            onClick={() => setAnalysisMode("deepdive")}
             className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              mode === "deepdive"
+              analysisMode === "deepdive"
                 ? "bg-blue-600 text-white shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
             }`}
@@ -69,9 +72,9 @@ export function PersonalInsightsView({
             <span>Deep Dive</span>
           </button>
           <button
-            onClick={() => setMode("recall")}
+            onClick={() => setAnalysisMode("recall")}
             className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              mode === "recall"
+              analysisMode === "recall"
                 ? "bg-green-600 text-white shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
             }`}
@@ -83,7 +86,7 @@ export function PersonalInsightsView({
       </div>
 
       {/* Content based on mode */}
-      {mode === "recall" ? (
+      {analysisMode === "recall" ? (
         // Quick Recall Mode - Practical Summary
         <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 rounded-xl p-6 border border-green-700/30">
           <div className="space-y-6">

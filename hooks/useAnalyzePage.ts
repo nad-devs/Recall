@@ -24,6 +24,7 @@ export function useAnalyzePage() {
   const [analysisStage, setAnalysisStage] = useState("")
   const [discoveredConcepts, setDiscoveredConcepts] = useState<any[]>([])
   const [loadingConcepts, setLoadingConcepts] = useState<string[]>([])
+  const [analysisMode, setAnalysisMode] = useState<"deepdive" | "recall">("recall")
 
   // Search and Filter
   const [searchQuery, setSearchQuery] = useState("")
@@ -48,6 +49,8 @@ export function useAnalyzePage() {
 
   // YouTube Link State
   const [youtubeLink, setYoutubeLink] = useState<string>("")
+  const [learningJourneyAnalysis, setLearningJourneyAnalysis] = useState<any>(null)
+  const [isAnalyzingLearningJourney, setIsAnalyzingLearningJourney] = useState(false)
 
   useEffect(() => {
     const key = localStorage.getItem("custom-api-key")
@@ -67,7 +70,10 @@ export function useAnalyzePage() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversation_text: conversationText }),
+        body: JSON.stringify({ 
+          conversation_text: conversationText,
+          mode: analysisMode 
+        }),
         credentials: "include",
       })
 
@@ -295,6 +301,9 @@ export function useAnalyzePage() {
     showYouTubeLinkPrompt,
     loadingConcepts,
     youtubeLink,
+    learningJourneyAnalysis,
+    isAnalyzingLearningJourney,
+    analysisMode,
     // Setters
     setConversationText,
     setSelectedConcept,
@@ -302,6 +311,7 @@ export function useAnalyzePage() {
     setShowAddConceptCard,
     setEditConceptMode,
     setAnalysisResult,
+    setAnalysisMode,
     // Handlers
     handleAnalyze,
     handleSaveConversation,

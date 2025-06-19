@@ -1,81 +1,110 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
+import { generateEmbedding } from '@/ai/flows/generate-embedding';
+import { findSimilarConcepts, SearchResult } from '@/lib/vector-search';
+import { generateLearningJourney } from '@/ai/flows/generate-learning-journey';
 
 // Define the expected structure of the request body
 interface AnalyzeRequestBody {
   conversation_text: string;
-  // We can add more context if needed, like existing concepts
+  mode: 'deepdive' | 'recall';
 }
 
-// URLs for our backend microservices, fetched from environment variables
+// URL for the "dumb" extraction service
 const EXTRACTION_SERVICE_URL = process.env.EXTRACTION_SERVICE_URL;
-const JOURNEY_ANALYSIS_URL = process.env.JOURNEY_ANALYSIS_URL;
+
+// This is where we'll orchestrate the "smart" comparison
+// We'll need a way to call an AI model from here.
+// For now, let's mock the response.
+async function getLearningJourneyAnalysis(newConcepts: any[], existingConcepts: any[]): Promise<any> {
+  console.log(`🧠 Performing learning journey analysis by comparing ${newConcepts.length} new concepts against ${existingConcepts.length} existing ones.`);
+  
+  // In a real implementation, this would make a call to an AI service (e.g., OpenAI)
+  // with a prompt that asks it to compare the two lists and generate insights.
+  if (existingConcepts.length > 0) {
+    // Mock response to show it's working
+    return {
+      summary: "Based on your history, you're building on your knowledge of data structures.",
+      analyses: newConcepts.map(c => ({
+        conceptTitle: c.title,
+        isLearningNewTopic: !existingConcepts.some(ec => ec.title === c.title),
+        masteredPrerequisites: ["Arrays", "Basic Data Structures"], // Mock data
+        suggestedNextSteps: ["Advanced Topic A", "Practical Application B"], // Mock data
+        learningProgress: Math.random() // Mock data
+      }))
+    }
+  }
+
+  // If there's no history, return an empty analysis
+  return {};
+}
 
 export async function POST(request: Request) {
-  // 1. Validate User Session
+  // 1. Validate User and Request
   const user = await validateSession(request as any);
   if (!user) {
     return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
   }
 
-  // 2. Validate Request Body
-  if (!EXTRACTION_SERVICE_URL) {
-    console.error("EXTRACTION_SERVICE_URL is not configured in environment variables.");
-    return NextResponse.json({ success: false, error: 'Server configuration error.' }, { status: 500 });
-  }
-  
   let body: AnalyzeRequestBody;
   try {
     body = await request.json();
-    if (!body.conversation_text || typeof body.conversation_text !== 'string') {
-      throw new Error("Missing or invalid 'conversation_text'");
+    if (!body.conversation_text || !body.mode) {
+      throw new Error("Missing 'conversation_text' or 'mode'");
     }
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Invalid request body.' }, { status: 400 });
   }
 
-  try {
-    console.log("🚀 Kicking off parallel analysis...");
+  if (!EXTRACTION_SERVICE_URL) {
+    return NextResponse.json({ success: false, error: 'Server configuration error.' }, { status: 500 });
+  }
 
-    // 3. Call the extraction service
+  try {
+    // 2. Extract initial concepts from the external service
     const extractionResponse = await fetch(EXTRACTION_SERVICE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_text: body.conversation_text }),
+      body: JSON.stringify({ conversation_text: body.conversation_text, mode: body.mode }),
     });
 
-    // For now, we'll skip the journey analysis until the endpoint is ready
-    const journeyResponse = null;
-
-    // 4. Handle Potential Errors from Services
     if (!extractionResponse.ok) {
-      const extractionError = await extractionResponse.text();
-      console.error("Error from extraction service:", extractionError);
-      return NextResponse.json({ success: false, error: 'Failed to get analysis from backend services.' }, { status: 502 });
+      throw new Error(`Extraction service failed: ${await extractionResponse.text()}`);
     }
 
     const extractionData = await extractionResponse.json();
-    const journeyData = { learning_journey_analysis: {} }; // Default empty data for now
+    const newConcepts = extractionData.concepts || [];
+    console.log(`✅ Extracted ${newConcepts.length} new concepts.`);
 
-    // 5. Weave Data Together (initial simple version)
-    console.log("✅ Analysis received from extraction service.");
+    // 3. Enhance new concepts with vector search results
+    const enhancedConceptsInfo = [];
+    for (const concept of newConcepts) {
+      const textToEmbed = `${concept.title}: ${concept.summary}`;
+      const embedding = await generateEmbedding(textToEmbed);
+      
+      let similarConcepts: SearchResult[] = [];
+      if (embedding.length > 0) {
+        similarConcepts = await findSimilarConcepts(embedding, user.id);
+      }
+      
+      enhancedConceptsInfo.push({
+        ...concept,
+        // Add the search result to the concept object itself for the next step
+        similarExistingConcepts: similarConcepts 
+      });
+    }
+    console.log(`✅ Enhanced new concepts with similarity search results.`);
 
-    // TODO: Save to database once analysisSession table is created
-    // const analysisSession = await prisma.analysisSession.create({
-    //     data: {
-    //         userId: user.id,
-    //         conversationText: body.conversation_text,
-    //         conceptsData: extractionData.concepts || [],
-    //         journeyAnalysisData: journeyData.learning_journey_analysis || {},
-    //     }
-    // });
+    // 4. Generate the final learning journey with this new, high-quality context
+    // The `generateLearningJourney` function expects a list of new concepts and a list of existing ones.
+    // We can now provide the accurate list of existing concepts found via vector search.
+    const learningJourney = await generateLearningJourney(newConcepts, enhancedConceptsInfo.flatMap(c => c.similarExistingConcepts));
 
-    // 6. Return the combined result to the client
+    // 5. Return the final, enriched data to the client
     return NextResponse.json({
       success: true,
-      concepts: extractionData.concepts,
-      learning_journey: journeyData.learning_journey_analysis,
+      concepts: enhancedConceptsInfo, // Send the concepts with the similarity data included
+      learning_journey: learningJourney,
     });
 
   } catch (error) {
