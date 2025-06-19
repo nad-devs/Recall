@@ -46,10 +46,8 @@ export function useAnalyzePage() {
   })
   const [customApiKey, setCustomApiKey] = useState<string | null>(null)
 
-  // YouTube Link and Learning Journey State
+  // YouTube Link State
   const [youtubeLink, setYoutubeLink] = useState<string>("")
-  const [learningJourneyAnalysis, setLearningJourneyAnalysis] = useState<any>(null)
-  const [isAnalyzingLearningJourney, setIsAnalyzingLearningJourney] = useState(false)
 
   useEffect(() => {
     const key = localStorage.getItem("custom-api-key")
@@ -297,8 +295,6 @@ export function useAnalyzePage() {
     showYouTubeLinkPrompt,
     loadingConcepts,
     youtubeLink,
-    learningJourneyAnalysis,
-    isAnalyzingLearningJourney,
     // Setters
     setConversationText,
     setSelectedConcept,

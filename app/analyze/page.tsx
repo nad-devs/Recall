@@ -10,9 +10,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { ApiKeyModal } from "@/components/api-key-modal"
 import { UserInfoModal } from "@/components/ui/user-info-modal"
 import { AuthGuard } from "@/components/auth-guard"
-import { LearningJourneySidebar } from "@/components/analyze/LearningJourneySidebar"
 import { PersonalInsightsView } from "@/components/analyze/PersonalInsightsView"
-import { LearningJourneyView } from "@/components/analyze/LearningJourneyView"
 import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 import { Button } from "@/components/ui/button"
 import { useAnalyzePage } from "@/hooks/useAnalyzePage"
@@ -35,8 +33,6 @@ function AnalyzePage() {
     showYouTubeLinkPrompt,
     loadingConcepts,
     youtubeLink,
-    learningJourneyAnalysis,
-    isAnalyzingLearningJourney,
 
     // Setters
     setConversationText,
@@ -117,11 +113,10 @@ function AnalyzePage() {
               )}
             </div>
           ) : (
-            /* Grid layout for analysis results - Better proportions */
-            <div className="grid grid-cols-1 lg:grid-cols-[25%_70%] gap-[5%]">
-              {/* Left column - Concepts list (25% width) */}
+            /* Grid layout for analysis results - Concepts list on left, insights on right */
+            <div className="grid grid-cols-1 lg:grid-cols-[30%_65%] gap-[5%]">
+              {/* Left column - Identified Concepts (30% width) */}
               <div className="space-y-6">
-                <LearningJourneySidebar />
                 <ConceptsList
                   filteredConcepts={filteredConcepts}
                   selectedConcept={selectedConcept}
@@ -134,7 +129,7 @@ function AnalyzePage() {
                 />
               </div>
 
-              {/* Right column - Analysis results (70% width) */}
+              {/* Right column - Concept details (65% width) */}
               <div className="space-y-6">
                 <PersonalInsightsView
                   selectedConcept={selectedConcept}
@@ -143,16 +138,6 @@ function AnalyzePage() {
                   onYouTubeLinkSkip={handleYouTubeLinkSkip}
                 />
               </div>
-            </div>
-          )}
-
-          {/* Learning Journey Analysis - Full width below main analysis */}
-          {analysisResult && (
-            <div className="mt-8">
-              <LearningJourneyView
-                analysis={learningJourneyAnalysis}
-                isAnalyzing={isAnalyzingLearningJourney}
-              />
             </div>
           )}
 
