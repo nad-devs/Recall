@@ -150,11 +150,6 @@ export function useAnalyzePage() {
     setSaveError(null)
 
     try {
-<<<<<<< Updated upstream
-      const response = await fetch("/api/saveConversation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-=======
       // First, check for existing concepts before saving
       console.log("💾 Checking for existing concepts before saving...")
       console.log(`💾 Number of concepts to check: ${analysisResult.concepts.length}`)
@@ -197,9 +192,6 @@ export function useAnalyzePage() {
   }
 
   // Perform the actual save operation
-  // Add state for learning journey analysis
-  const [learningJourneyAnalysis, setLearningJourneyAnalysis] = useState<any>(null)
-  const [isAnalyzingLearningJourney, setIsAnalyzingLearningJourney] = useState(false)
 
   // Function to analyze learning journey for newly created concepts
   const analyzeLearningJourney = async (conceptIds: string[]) => {
@@ -361,7 +353,14 @@ export function useAnalyzePage() {
     usageData.maxConversations - usageData.conversationCount
   const handleUserInfoProvided = () => {}
   const handleUserInfoModalClose = () => setShowUserInfoModal(false)
-  const handleYouTubeLinkAdd = (link: string) => {}
+  const handleYouTubeLinkAdd = (link: string) => {
+    setYoutubeLink(link)
+    setShowYouTubeLinkPrompt(false)
+    toast({
+      title: "YouTube Link Added",
+      description: "Video resource will be included with your concepts.",
+    })
+  }
   const handleYouTubeLinkSkip = () => setShowYouTubeLinkPrompt(false)
 
   return {
