@@ -20,8 +20,8 @@ export async function POST(request: Request) {
   }
 
   // 2. Validate Request Body
-  if (!EXTRACTION_SERVICE_URL || !JOURNEY_ANALYSIS_URL) {
-    console.error("One or more backend service URLs are not configured in environment variables.");
+  if (!EXTRACTION_SERVICE_URL) {
+    console.error("EXTRACTION_SERVICE_URL is not configured in environment variables.");
     return NextResponse.json({ success: false, error: 'Server configuration error.' }, { status: 500 });
   }
   
@@ -38,53 +38,42 @@ export async function POST(request: Request) {
   try {
     console.log("🚀 Kicking off parallel analysis...");
 
-    // 3. Make Concurrent Calls to Backend Services
-    const [extractionResponse, journeyResponse] = await Promise.all([
-      fetch(EXTRACTION_SERVICE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_text: body.conversation_text }),
-      }),
-      fetch(JOURNEY_ANALYSIS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_text: body.conversation_text }),
-      }),
-    ]);
+    // 3. Call the extraction service
+    const extractionResponse = await fetch(EXTRACTION_SERVICE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_text: body.conversation_text }),
+    });
+
+    // For now, we'll skip the journey analysis until the endpoint is ready
+    const journeyResponse = null;
 
     // 4. Handle Potential Errors from Services
-    if (!extractionResponse.ok || !journeyResponse.ok) {
-      const extractionError = !extractionResponse.ok ? await extractionResponse.text() : null;
-      const journeyError = !journeyResponse.ok ? await journeyResponse.text() : null;
-      console.error("Error from backend services:", { extractionError, journeyError });
+    if (!extractionResponse.ok) {
+      const extractionError = await extractionResponse.text();
+      console.error("Error from extraction service:", extractionError);
       return NextResponse.json({ success: false, error: 'Failed to get analysis from backend services.' }, { status: 502 });
     }
 
     const extractionData = await extractionResponse.json();
-    const journeyData = await journeyResponse.json();
+    const journeyData = { learning_journey_analysis: {} }; // Default empty data for now
 
     // 5. Weave Data Together (initial simple version)
-    // Here we can save the raw results to the database or process them further.
-    // For now, let's create a "AnalysisSession" to hold the results of this run.
-    
-    console.log("✅ Analysis received from both services.");
+    console.log("✅ Analysis received from extraction service.");
 
-    const analysisSession = await prisma.analysisSession.create({
-        data: {
-            userId: user.id,
-            conversationText: body.conversation_text,
-            // Storing the raw JSON from our services
-            conceptsData: extractionData.concepts || [],
-            journeyAnalysisData: journeyData.learning_journey_analysis || {},
-        }
-    });
-
-    console.log("💾 Analysis session saved to database with ID:", analysisSession.id);
+    // TODO: Save to database once analysisSession table is created
+    // const analysisSession = await prisma.analysisSession.create({
+    //     data: {
+    //         userId: user.id,
+    //         conversationText: body.conversation_text,
+    //         conceptsData: extractionData.concepts || [],
+    //         journeyAnalysisData: journeyData.learning_journey_analysis || {},
+    //     }
+    // });
 
     // 6. Return the combined result to the client
     return NextResponse.json({
       success: true,
-      analysisSessionId: analysisSession.id,
       concepts: extractionData.concepts,
       learning_journey: journeyData.learning_journey_analysis,
     });
