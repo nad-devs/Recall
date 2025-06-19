@@ -1,8 +1,9 @@
 {
   "env": {
-    "BACKEND_URL": "https://recall.p3vg.onrender.com",
-    "NEXT_PUBLIC_BACKEND_URL": "https://recall.p3vg.onrender.com",
-    "EXTRACTION_SERVICE_URL": "https://recall.p3vg.onrender.com/api/v1/extract-concepts",
+    "BACKEND_URL": "https://recall-p3vg.onrender.com",
+    "NEXT_PUBLIC_BACKEND_URL": "https://recall-p3vg.onrender.com",
+    "EXTRACTION_SERVICE_URL": "https://recall-p3vg.onrender.com/api/v1/extract-concepts",
+    "JOURNEY_ANALYSIS_URL": "https://recall-p3vg.onrender.com/api/v1/analyze-learning-journey",
     "NEXTAUTH_URL": "https://recall-henna.vercel.app"
   }
 } 
