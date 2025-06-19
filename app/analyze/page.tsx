@@ -12,6 +12,8 @@ import { UserInfoModal } from "@/components/ui/user-info-modal"
 import { AuthGuard } from "@/components/auth-guard"
 import { LearningJourneySidebar } from "@/components/analyze/LearningJourneySidebar"
 import { PersonalInsightsView } from "@/components/analyze/PersonalInsightsView"
+import { LearningJourneyView } from "@/components/analyze/LearningJourneyView"
+import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 import { Button } from "@/components/ui/button"
 import { useAnalyzePage } from "@/hooks/useAnalyzePage"
 
@@ -32,6 +34,9 @@ function AnalyzePage() {
     showUserInfoModal,
     showYouTubeLinkPrompt,
     loadingConcepts,
+    // youtubeLink,
+    // learningJourneyAnalysis,
+    // isAnalyzingLearningJourney,
 
     // Setters
     setConversationText,
@@ -140,6 +145,17 @@ function AnalyzePage() {
               </div>
             </div>
           )}
+
+          {/* Learning Journey Analysis - Full width below main analysis */}
+          {/* TODO: Enable once learning journey state is fixed */}
+          {/* {analysisResult && (
+            <div className="mt-8">
+              <LearningJourneyView
+                analysis={learningJourneyAnalysis}
+                isAnalyzing={isAnalyzingLearningJourney}
+              />
+            </div>
+          )} */}
 
           {/* Modals */}
           <ApiKeyModal

@@ -18,6 +18,11 @@ interface Concept {
     code: string;
   }>;
   videoResources?: string;
+  // Enhanced learning fields from AI analysis
+  masteryLevel?: string;
+  difficultyRating?: number;
+  timeToMaster?: number;
+  learningTips?: string[];
   embeddingData?: {
     concept: any;
     relationships: Array<{
@@ -26,6 +31,10 @@ interface Concept {
       category: string;
       summary: string;
       similarity: number;
+      relationshipType?: string;
+      reason?: string;
+      context?: string[];
+      sharedElements?: string[];
     }>;
     potentialDuplicates: Array<{
       id: string;
@@ -33,6 +42,10 @@ interface Concept {
       category: string;
       summary: string;
       similarity: number;
+      relationshipType?: string;
+      reason?: string;
+      context?: string[];
+      sharedElements?: string[];
     }>;
     embedding: number[];
   };
@@ -346,11 +359,25 @@ export async function POST(request: Request) {
           examples: JSON.stringify(conceptData.examples || []),
           relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
           relationships: JSON.stringify(conceptData.relationships || {}),
+<<<<<<< Updated upstream
           videoResources: JSON.stringify(conceptData.videoResources || []),
           confidenceScore: conceptData.confidenceScore || 0.8,
           keyTakeaway: conceptData.keyTakeaway,
           analogy: conceptData.analogy,
           practicalTips: JSON.stringify(conceptData.practicalTips || []),
+=======
+          videoResources: conceptData.videoResources 
+            ? (typeof conceptData.videoResources === 'string' 
+                ? JSON.stringify([conceptData.videoResources]) // Single URL -> JSON array
+                : JSON.stringify(conceptData.videoResources))   // Already an array -> JSON string
+            : '[]', // Default to empty array
+          // Enhanced learning fields from AI analysis
+          masteryLevel: conceptData.masteryLevel || null,
+          difficultyRating: conceptData.difficultyRating || null,
+          timeToMaster: conceptData.timeToMaster || null,
+          learningTips: JSON.stringify(conceptData.learningTips || []),
+          confidenceScore: 0.5, // Default confidence score
+>>>>>>> Stashed changes
           userId: user.id,
           conversationId: conversation.id,
         };
@@ -407,6 +434,168 @@ export async function POST(request: Request) {
             notes: conceptData.summary || '',
           }
         });
+
+        // AUTO-CREATE RELATIONSHIPS: Store in the relationships JSON field and update related concepts
+        if (conceptData.embeddingData && conceptData.embeddingData.relationships) {
+          console.log(`🔗 Auto-creating ${conceptData.embeddingData.relationships.length} relationships for: ${conceptData.title}`);
+          
+          // Prepare relationships data for the new concept
+          const relationshipsData = {
+            relatedConcepts: conceptData.embeddingData.relationships.map(rel => ({
+              id: rel.id,
+              title: rel.title,
+              similarity: rel.similarity,
+              type: 'RELATED',
+              autoLinked: true,
+              linkedAt: new Date().toISOString(),
+              relationshipType: rel.relationshipType,
+              reason: rel.reason,
+              context: rel.context,
+              sharedElements: rel.sharedElements
+            })),
+            potentialDuplicates: conceptData.embeddingData.potentialDuplicates?.map(dup => ({
+              id: dup.id,
+              title: dup.title,
+              similarity: dup.similarity,
+              type: 'DUPLICATE',
+              autoLinked: true,
+              linkedAt: new Date().toISOString(),
+              relationshipType: dup.relationshipType,
+              reason: dup.reason,
+              context: dup.context,
+              sharedElements: dup.sharedElements
+            })) || []
+          };
+
+          // Update the newly created concept with relationship data
+          await prisma.concept.update({
+            where: { id: createdConcept.id },
+            data: {
+              relationships: JSON.stringify(relationshipsData)
+            }
+          });
+
+          // BIDIRECTIONAL LINKING: Update the related concepts to link back to this new concept
+          for (const relatedConcept of conceptData.embeddingData.relationships) {
+            try {
+              // Get the existing concept
+              const existingConcept = await prisma.concept.findUnique({
+                where: { id: relatedConcept.id }
+              });
+
+              if (existingConcept) {
+                // Parse existing relationships
+                let existingRelationships;
+                try {
+                  existingRelationships = existingConcept.relationships ? 
+                    JSON.parse(existingConcept.relationships) : 
+                    { relatedConcepts: [], potentialDuplicates: [] };
+                } catch (parseError) {
+                  // If parsing fails, start fresh
+                  existingRelationships = { relatedConcepts: [], potentialDuplicates: [] };
+                }
+
+                // Check if this relationship already exists
+                const alreadyLinked = existingRelationships.relatedConcepts?.some((rel: any) => 
+                  rel.id === createdConcept.id
+                );
+
+                if (!alreadyLinked) {
+                  // Add the new concept as a related concept
+                  if (!existingRelationships.relatedConcepts) {
+                    existingRelationships.relatedConcepts = [];
+                  }
+                  
+                  existingRelationships.relatedConcepts.push({
+                    id: createdConcept.id,
+                    title: conceptData.title,
+                    similarity: relatedConcept.similarity,
+                    type: 'RELATED',
+                    autoLinked: true,
+                    linkedAt: new Date().toISOString(),
+                    relationshipType: relatedConcept.relationshipType,
+                    reason: relatedConcept.reason,
+                    context: relatedConcept.context,
+                    sharedElements: relatedConcept.sharedElements
+                  });
+
+                  // Update the existing concept with the new relationship
+                  await prisma.concept.update({
+                    where: { id: relatedConcept.id },
+                    data: {
+                      relationships: JSON.stringify(existingRelationships)
+                    }
+                  });
+
+                  console.log(`✅ Auto-linked "${conceptData.title}" ↔ "${relatedConcept.title}" (${relatedConcept.similarity}% similarity)`);
+                } else {
+                  console.log(`⚠️ Relationship already exists: "${conceptData.title}" ↔ "${relatedConcept.title}"`);
+                }
+              }
+            } catch (relationError) {
+              console.error(`❌ Error creating bidirectional relationship for ${conceptData.title} → ${relatedConcept.title}:`, relationError);
+            }
+          }
+
+          // HANDLE POTENTIAL DUPLICATES: Update related concepts with duplicate flags
+          if (conceptData.embeddingData.potentialDuplicates && conceptData.embeddingData.potentialDuplicates.length > 0) {
+            console.log(`🟠 Found ${conceptData.embeddingData.potentialDuplicates.length} potential duplicates for: ${conceptData.title}`);
+            
+            for (const duplicate of conceptData.embeddingData.potentialDuplicates) {
+              try {
+                const existingConcept = await prisma.concept.findUnique({
+                  where: { id: duplicate.id }
+                });
+
+                if (existingConcept) {
+                  let existingRelationships;
+                  try {
+                    existingRelationships = existingConcept.relationships ? 
+                      JSON.parse(existingConcept.relationships) : 
+                      { relatedConcepts: [], potentialDuplicates: [] };
+                  } catch (parseError) {
+                    existingRelationships = { relatedConcepts: [], potentialDuplicates: [] };
+                  }
+
+                  // Check if duplicate flag already exists
+                  const alreadyFlagged = existingRelationships.potentialDuplicates?.some((dup: any) => 
+                    dup.id === createdConcept.id
+                  );
+
+                  if (!alreadyFlagged) {
+                    if (!existingRelationships.potentialDuplicates) {
+                      existingRelationships.potentialDuplicates = [];
+                    }
+                    
+                    existingRelationships.potentialDuplicates.push({
+                      id: createdConcept.id,
+                      title: conceptData.title,
+                      similarity: duplicate.similarity,
+                      type: 'DUPLICATE',
+                      autoLinked: true,
+                      linkedAt: new Date().toISOString(),
+                      relationshipType: duplicate.relationshipType,
+                      reason: duplicate.reason,
+                      context: duplicate.context,
+                      sharedElements: duplicate.sharedElements
+                    });
+
+                    await prisma.concept.update({
+                      where: { id: duplicate.id },
+                      data: {
+                        relationships: JSON.stringify(existingRelationships)
+                      }
+                    });
+
+                    console.log(`🟠 Flagged as potential duplicate: "${conceptData.title}" ↔ "${duplicate.title}" (${duplicate.similarity}% similarity)`);
+                  }
+                }
+              } catch (duplicateError) {
+                console.error(`❌ Error flagging duplicate relationship:`, duplicateError);
+              }
+            }
+          }
+        }
 
       } catch (error) {
         console.error(`❌ Error creating concept ${conceptData.title}:`, error);
