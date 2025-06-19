@@ -3,13 +3,7 @@ import { OpenAI } from 'openai';
 import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 
-// Check if OpenAI API key is available
-const apiKey = process.env.OPENAI_API_KEY;
-console.log('🔑 OpenAI API Key status:', apiKey ? `Present (${apiKey.substring(0, 7)}...)` : 'MISSING');
-
-const openai = new OpenAI({
-  apiKey: apiKey,
-});
+// OpenAI client will be instantiated when needed
 
 interface ConceptInput {
   title: string;
@@ -37,6 +31,11 @@ async function generateConceptEmbedding(concept: ConceptInput): Promise<number[]
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OpenAI API key is not configured');
   }
+
+  // Create OpenAI client
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   // Create a comprehensive text representation of the concept
   const conceptText = `

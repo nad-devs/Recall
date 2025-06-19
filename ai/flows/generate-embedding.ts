@@ -1,10 +1,5 @@
 import OpenAI from 'openai';
 
-// Initialize the OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 const EMBEDDING_MODEL = "text-embedding-3-small";
 
 /**
@@ -22,6 +17,11 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     console.warn("generateEmbedding was called with empty text.");
     return [];
   }
+
+  // Initialize the OpenAI client when needed
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   try {
     const response = await openai.embeddings.create({

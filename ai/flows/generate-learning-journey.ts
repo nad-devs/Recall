@@ -16,10 +16,7 @@ interface LearningJourneyAnalysis {
   }>;
 }
 
-// Initialize the OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI client will be initialized when needed
 
 function constructPrompt(newConcepts: any[], existingConcepts: any[]): string {
   // Note: The `existingConcepts` parameter is now less important, as the rich context is attached to each new concept.
@@ -74,6 +71,11 @@ export async function generateLearningJourney(newConcepts: ConceptInfo[], existi
   if (newConcepts.length === 0) {
     return { summary: '', analyses: [] };
   }
+
+  // Initialize the OpenAI client when needed
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   const prompt = constructPrompt(newConcepts, existingConcepts);
 
