@@ -1567,7 +1567,7 @@ comprehensive than the 'summary' field."""
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION AND LEARNING CONTEXT:
+IMPORTANT - LEETCODE PROBLEM DETECTION AND LEARNING JOURNEY CONTEXT:
 When detecting LeetCode-style algorithm problems:
 
 1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
@@ -1913,7 +1913,6 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 concepts = list(unique_concepts.values())
                 
                 # Check if we need to create technique mini-concepts for related concepts
-                # This helps techniques appear in the Related Concepts UI without too much granularity
                 main_concepts = concepts.copy()
                 techniques_to_add = []
                 
