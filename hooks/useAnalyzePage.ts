@@ -172,67 +172,12 @@ export function useAnalyzePage() {
     }
   }
 
-  // Handle user info provided
-  const handleUserInfoProvided = async (userInfo: { name: string; email: string }) => {
-    setShowUserInfoModal(false)
-    
-    toast({
-      title: "User Info Saved",
-      description: "Now saving your conversation...",
-      duration: 2000,
-    })
-    
-    // Now proceed with saving the conversation
-    await handleSaveConversation()
-  }
-
-  // Handle user info modal close
-  const handleUserInfoModalClose = () => {
-    setShowUserInfoModal(false)
-  }
-
   // Perform the actual save operation
 
-  // Function to analyze learning journey for newly created concepts
+  // Function to analyze learning journey for newly created concepts (simplified)
   const analyzeLearningJourney = async (conceptIds: string[]) => {
-    try {
-      console.log("🧠 Starting learning journey analysis for concepts:", conceptIds)
-      setIsAnalyzingLearningJourney(true)
-      
-      const response = await makeAuthenticatedRequest('/api/concepts/analyze-learning-journey', {
-        method: 'POST',
-        body: JSON.stringify({
-          conceptIds,
-          customApiKey: getUsageData().customApiKey
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze learning journey')
-      }
-
-      const analysisData = await response.json()
-      console.log("🧠 Learning journey analysis complete:", analysisData)
-      
-      if (analysisData.success) {
-        setLearningJourneyAnalysis(analysisData)
-        
-        // Show a toast with learning insights
-        const newTopics = analysisData.analyses?.filter((a: any) => a.isLearningNewTopic)?.length || 0
-        const totalPrerequisites = analysisData.analyses?.reduce((sum: number, a: any) => sum + a.masteredPrerequisites.length, 0) || 0
-        
-        toast({
-          title: "🧠 Learning Journey Analyzed",
-          description: `Found ${newTopics} new learning topics and ${totalPrerequisites} connections to your existing knowledge.`,
-          duration: 5000,
-        })
-      }
-    } catch (error) {
-      console.error('Error analyzing learning journey:', error)
-      // Don't show error toast as this is a background enhancement
-    } finally {
-      setIsAnalyzingLearningJourney(false)
-    }
+    // TODO: Implement when backend service is ready
+    console.log("🧠 Learning journey analysis placeholder for concepts:", conceptIds)
   }
 
   const performSaveConversation = async () => {
@@ -252,9 +197,9 @@ export function useAnalyzePage() {
         videoResources: youtubeLink
       })) : analysisResult.concepts
       
-      const response = await makeAuthenticatedRequest('/api/saveConversation', {
-        method: 'POST',
->>>>>>> Stashed changes
+      const response = await fetch("/api/saveConversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conversation_text: conversationText,
           analysis: analysisResult,
@@ -267,13 +212,14 @@ export function useAnalyzePage() {
       if (!data.success) {
         throw new Error(data.error || "Failed to save conversation.")
       }
-<<<<<<< Updated upstream
 
       toast({
         title: "Success!",
         description: "Your analysis has been saved.",
       })
-      router.push(`/conversation/${data.conversationId}`)
+      
+      // Simple redirect to concepts page
+      window.location.href = '/concepts'
     } catch (error: any) {
       setSaveError(error.message)
       toast({
@@ -281,40 +227,6 @@ export function useAnalyzePage() {
         description: error.message,
         variant: "destructive",
       })
-=======
-      
-      if (data.success) {
-        console.log("💾 Save successful")
-        // Only increment conversation count if user has usage tracking
-        if (canMakeConversation() || getUsageData().hasCustomApiKey) {
-          const updatedUsageData = incrementConversationCount()
-          setUsageData(updatedUsageData)
-        }
-
-        // Trigger learning journey analysis for the newly created concepts
-        if (data.conceptIds && data.conceptIds.length > 0) {
-          analyzeLearningJourney(data.conceptIds)
-        }
-        
-        toast({
-          title: "Success",
-          description: data.message || "Conversation saved successfully",
-          duration: 3000,
-        })
-        
-        if (data.redirectTo) {
-          window.location.href = data.redirectTo
-        } else {
-          window.location.href = '/concepts'
-        }
-      } else {
-        setSaveError(data.error || 'Failed to save conversation properly.')
-        console.error('Save response indicates failure:', data)
-      }
-    } catch (error) {
-      setSaveError('Failed to save conversation. Please try again.')
-      console.error('Error saving conversation:', error)
->>>>>>> Stashed changes
     } finally {
       setIsSaving(false)
     }
