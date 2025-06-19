@@ -29,18 +29,16 @@ function isRateLimited(key: string, limit: number = 100, windowMs: number = 6000
 }
 
 export function middleware(request: NextRequest) {
-  // Security headers
-  const response = NextResponse.next()
-  
-  // Add security headers
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('X-XSS-Protection', '1; mode=block')
-  
+  // Clone the request headers and set new security headers
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('X-Frame-Options', 'DENY');
+  requestHeaders.set('X-Content-Type-Options', 'nosniff');
+  requestHeaders.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  requestHeaders.set('X-XSS-Protection', '1; mode=block');
+
   // Rate limiting for API routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    const key = getRateLimitKey(request)
+    const key = getRateLimitKey(request);
     
     if (isRateLimited(key)) {
       return new NextResponse('Too Many Requests', { 
@@ -48,11 +46,16 @@ export function middleware(request: NextRequest) {
         headers: {
           'Retry-After': '60'
         }
-      })
+      });
     }
   }
 
-  return response
+  // Continue to the next middleware or the page/API route with the new headers
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {
