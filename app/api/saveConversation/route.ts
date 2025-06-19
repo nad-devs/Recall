@@ -36,6 +36,10 @@ interface Concept {
     }>;
     embedding: number[];
   };
+  keyTakeaway?: string;
+  analogy?: string;
+  practicalTips?: string[];
+  confidenceScore?: number;
 }
 
 // Let the backend provide proper categories - just fallback to General if none provided
@@ -216,6 +220,51 @@ export async function POST(request: Request) {
       console.log("Created generic fallback concept:", title);
     }
 
+    // --- STAGE 2: PARALLEL ENRICHMENT ---
+    // With our source-of-truth concepts, we now enrich them with practical summaries.
+    const DISTILLER_SERVICE_URL = process.env.JOURNEY_ANALYSIS_URL; // Using the journey URL as our distiller
+    if (DISTILLER_SERVICE_URL && conceptsToProcess.length > 0) {
+      console.log(` distillery...`);
+      try {
+        const enrichmentPromises = conceptsToProcess.map(concept =>
+          fetch(DISTILLER_SERVICE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              // Send the full context to the distiller service
+              concept_details: {
+                title: concept.title,
+                summary: concept.summary,
+                keyPoints: concept.keyPoints
+              },
+              conversation_text: conversation_text,
+              custom_api_key: customApiKey
+            }),
+          }).then(res => res.ok ? res.json() : null) // Gracefully handle errors per-concept
+        );
+
+        const enrichmentResults = await Promise.all(enrichmentPromises);
+
+        // Merge the practical summaries back into our main concept objects
+        conceptsToProcess = conceptsToProcess.map((concept, index) => {
+          const result = enrichmentResults[index];
+          if (result && result.practical_summary) {
+            return {
+              ...concept,
+              keyTakeaway: result.practical_summary.key_takeaway,
+              analogy: result.practical_summary.analogy,
+              practicalTips: result.practical_summary.practical_tips,
+            };
+          }
+          return concept; // Return original concept if enrichment failed
+        });
+        console.log("✅ Concepts enriched with practical summaries.");
+      } catch (error) {
+        console.error("Error during concept enrichment, continuing with base concepts:", error);
+      }
+    }
+    // --- END OF STAGE 2 ---
+
     console.log("🎯 FINAL CONCEPTS TO PROCESS:");
     conceptsToProcess.forEach((concept: any, index: number) => {
       console.log(`🎯 Final Concept ${index + 1}:`, {
@@ -225,7 +274,9 @@ export async function POST(request: Request) {
         hasDetails: !!concept.details,
         hasKeyPoints: !!concept.keyPoints,
         hasCodeSnippets: !!concept.codeSnippets,
-        hasVideoResources: !!concept.videoResources
+        hasVideoResources: !!concept.videoResources,
+        hasKeyTakeaway: !!concept.keyTakeaway,
+        hasAnalogy: !!concept.analogy,
       });
     });
 
@@ -264,54 +315,72 @@ export async function POST(request: Request) {
       try {
         console.log(`💾 Processing concept: ${conceptData.title}`);
         
-        // Prepare concept data for database insertion
+        // Check if there are any existing concepts with high similarity
+        const similarConcepts = await prisma.concept.findMany({
+          where: {
+            userId: user.id,
+            title: {
+              in: conceptData.embeddingData?.potentialDuplicates.map((p: any) => p.title) || [],
+            },
+          },
+        });
+
+        if (similarConcepts.length > 0 && !confirmUpdate) {
+          // If similar concepts exist and user hasn't confirmed, ask for confirmation
+          console.log(`Found ${similarConcepts.length} similar concepts. Asking for confirmation.`);
+          return NextResponse.json({
+            success: false,
+            error: 'Similar concepts found. Please confirm to update.',
+            requiresConfirmation: true,
+            similarConcepts: similarConcepts.map(c => c.title)
+          }, { status: 409 });
+        }
+
+        // We'll handle duplicates/updates later. For now, we create new concepts.
         const conceptToCreate: any = {
           title: conceptData.title,
-          category: conceptData.category || 'General',
-          summary: conceptData.summary || '',
-          details: JSON.stringify(conceptData.details || ''),
+          category: conceptData.category || "General",
+          summary: conceptData.summary || "No summary provided",
+          details: JSON.stringify(conceptData.details || {}),
           keyPoints: JSON.stringify(conceptData.keyPoints || []),
           examples: JSON.stringify(conceptData.examples || []),
           relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
           relationships: JSON.stringify(conceptData.relationships || {}),
-          videoResources: conceptData.videoResources 
-            ? (typeof conceptData.videoResources === 'string' 
-                ? JSON.stringify([conceptData.videoResources]) // Single URL -> JSON array
-                : JSON.stringify(conceptData.videoResources))   // Already an array -> JSON string
-            : '[]', // Default to empty array
-          confidenceScore: 0.5, // Default confidence score
+          videoResources: JSON.stringify(conceptData.videoResources || []),
+          confidenceScore: conceptData.confidenceScore || 0.8,
+          keyTakeaway: conceptData.keyTakeaway,
+          analogy: conceptData.analogy,
+          practicalTips: JSON.stringify(conceptData.practicalTips || []),
           userId: user.id,
-          conversationId: conversation.id, // Link to conversation for source tracking
-          createdAt: new Date(),
-          lastUpdated: new Date()
+          conversationId: conversation.id,
         };
         
         // Create the concept first (without embedding)
-        const createdConcept = await prisma.concept.create({
+        const newConcept = await prisma.concept.create({
           data: conceptToCreate,
         });
 
         // Add embedding separately using raw SQL if available
         if (conceptData.embeddingData && conceptData.embeddingData.embedding) {
           try {
+            const vector = JSON.stringify(conceptData.embeddingData.embedding);
             await prisma.$executeRaw`
               UPDATE "Concept" 
-              SET embedding = ${JSON.stringify(conceptData.embeddingData.embedding)}::vector 
-              WHERE id = ${createdConcept.id}
+              SET embedding = ${vector}::vector 
+              WHERE id = ${newConcept.id}
             `;
             console.log(`💾 Added embedding for concept: ${conceptData.title}`);
           } catch (error) {
             console.warn(`⚠️ Could not add embedding for concept ${conceptData.title}:`, error);
-            // Continue without embedding if there's an issue
           }
         }
-
-        createdConceptIds.set(conceptData.title, createdConcept.id);
-        console.log(`✅ Created concept: ${createdConcept.id} - ${createdConcept.title}`);
+        
+        createdConceptIds.set(conceptData.title, newConcept.id);
+        console.log(`✅ Created concept: ${newConcept.id} - ${newConcept.title}`);
 
         // Create code snippets if they exist
         if (conceptData.codeSnippets && conceptData.codeSnippets.length > 0) {
-          console.log(`💾 Creating ${conceptData.codeSnippets.length} code snippets for concept: ${createdConcept.title}`);
+          console.log(`💾 Creating ${conceptData.codeSnippets.length} code snippets for concept: ${newConcept.title}`);
           
           for (const snippet of conceptData.codeSnippets) {
             try {
@@ -320,12 +389,12 @@ export async function POST(request: Request) {
                   language: snippet.language || 'text',
                   description: snippet.description || '',
                   code: snippet.code || '',
-                  conceptId: createdConcept.id,
+                  conceptId: newConcept.id,
                 },
               });
-              console.log(`✅ Created code snippet for concept: ${createdConcept.title}`);
+              console.log(`✅ Created code snippet for concept: ${newConcept.title}`);
             } catch (snippetError) {
-              console.error(`❌ Error creating code snippet for concept ${createdConcept.title}:`, snippetError);
+              console.error(`❌ Error creating code snippet for concept ${newConcept.title}:`, snippetError);
             }
           }
         }
@@ -334,7 +403,7 @@ export async function POST(request: Request) {
         await prisma.occurrence.create({
           data: {
             conversationId: conversation.id,
-            conceptId: createdConcept.id,
+            conceptId: newConcept.id,
             notes: conceptData.summary || '',
           }
         });
