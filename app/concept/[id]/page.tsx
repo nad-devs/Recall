@@ -37,7 +37,7 @@ import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
 import { useSmartLearning } from "@/hooks/useSmartLearning"
 import { SmartLearningDashboard } from "@/components/smart-learning/SmartLearningDashboard"
-import { AutoRelationships } from "@/components/AutoRelationships"
+
 import { Brain, Sparkles, Target, TrendingUp, Users } from "lucide-react"
 
 export default function ConceptDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -840,67 +840,8 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
-              {/* Auto-Discovered Relationships Section */}
-              <div className="mt-8 px-2">
-                <AutoRelationships
-                  conceptId={concept.id}
-                  relationships={concept.relationships || ''}
-                  onRemoveRelationship={async (relatedConceptId: string, type: 'RELATED' | 'DUPLICATE') => {
-                    try {
-                      // Parse current relationships
-                      let parsedRelationships: any = {}
-                      try {
-                        if (concept.relationships && concept.relationships.trim() !== '') {
-                          parsedRelationships = JSON.parse(concept.relationships)
-                        }
-                      } catch (parseError) {
-                        console.warn('Failed to parse relationships:', parseError)
-                        return
-                      }
-
-                      // Remove the relationship
-                      if (type === 'RELATED' && parsedRelationships.relatedConcepts) {
-                        parsedRelationships.relatedConcepts = parsedRelationships.relatedConcepts.filter(
-                          (rel: any) => rel.id !== relatedConceptId
-                        )
-                      } else if (type === 'DUPLICATE' && parsedRelationships.potentialDuplicates) {
-                        parsedRelationships.potentialDuplicates = parsedRelationships.potentialDuplicates.filter(
-                          (dup: any) => dup.id !== relatedConceptId
-                        )
-                      }
-
-                      // Update the concept in database
-                      const response = await fetch(`/api/concepts/${concept.id}`, {
-                        method: 'PATCH',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          ...getAuthHeaders()
-                        },
-                        body: JSON.stringify({
-                          relationships: JSON.stringify(parsedRelationships)
-                        })
-                      })
-
-                      if (response.ok) {
-                        toast({
-                          title: "Relationship Removed",
-                          description: `Removed ${type.toLowerCase()} relationship`,
-                        })
-                        await refreshConcept()
-                      } else {
-                        throw new Error('Failed to update concept')
-                      }
-                    } catch (error) {
-                      console.error('Error removing relationship:', error)
-                      toast({
-                        title: "Error",
-                        description: "Failed to remove relationship",
-                        variant: "destructive",
-                      })
-                    }
-                  }}
-                />
-              </div>
+              {/* Auto-Discovered Relationships Section - Temporarily Disabled */}
+              {/* TODO: Re-enable when AutoRelationships component is available */}
 
               {/* Related Conversations Section - At the Bottom */}
               {relatedConversations && relatedConversations.length > 0 && (
