@@ -70,6 +70,7 @@ export function useAnalyzePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversation_text: conversationText }),
+        credentials: "include",
       })
 
       if (!response.ok) {
@@ -205,6 +206,7 @@ export function useAnalyzePage() {
           analysis: analysisResult,
           customApiKey: customApiKey,
         }),
+        credentials: "include",
       })
 
       const data = await response.json()
