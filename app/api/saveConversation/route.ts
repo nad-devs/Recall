@@ -359,13 +359,6 @@ export async function POST(request: Request) {
           examples: JSON.stringify(conceptData.examples || []),
           relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
           relationships: JSON.stringify(conceptData.relationships || {}),
-<<<<<<< Updated upstream
-          videoResources: JSON.stringify(conceptData.videoResources || []),
-          confidenceScore: conceptData.confidenceScore || 0.8,
-          keyTakeaway: conceptData.keyTakeaway,
-          analogy: conceptData.analogy,
-          practicalTips: JSON.stringify(conceptData.practicalTips || []),
-=======
           videoResources: conceptData.videoResources 
             ? (typeof conceptData.videoResources === 'string' 
                 ? JSON.stringify([conceptData.videoResources]) // Single URL -> JSON array
@@ -376,8 +369,10 @@ export async function POST(request: Request) {
           difficultyRating: conceptData.difficultyRating || null,
           timeToMaster: conceptData.timeToMaster || null,
           learningTips: JSON.stringify(conceptData.learningTips || []),
-          confidenceScore: 0.5, // Default confidence score
->>>>>>> Stashed changes
+          confidenceScore: conceptData.confidenceScore || 0.5,
+          keyTakeaway: conceptData.keyTakeaway,
+          analogy: conceptData.analogy,
+          practicalTips: JSON.stringify(conceptData.practicalTips || []),
           userId: user.id,
           conversationId: conversation.id,
         };
@@ -469,7 +464,7 @@ export async function POST(request: Request) {
 
           // Update the newly created concept with relationship data
           await prisma.concept.update({
-            where: { id: createdConcept.id },
+            where: { id: newConcept.id },
             data: {
               relationships: JSON.stringify(relationshipsData)
             }
@@ -497,7 +492,7 @@ export async function POST(request: Request) {
 
                 // Check if this relationship already exists
                 const alreadyLinked = existingRelationships.relatedConcepts?.some((rel: any) => 
-                  rel.id === createdConcept.id
+                  rel.id === newConcept.id
                 );
 
                 if (!alreadyLinked) {
@@ -507,7 +502,7 @@ export async function POST(request: Request) {
                   }
                   
                   existingRelationships.relatedConcepts.push({
-                    id: createdConcept.id,
+                    id: newConcept.id,
                     title: conceptData.title,
                     similarity: relatedConcept.similarity,
                     type: 'RELATED',
@@ -559,7 +554,7 @@ export async function POST(request: Request) {
 
                   // Check if duplicate flag already exists
                   const alreadyFlagged = existingRelationships.potentialDuplicates?.some((dup: any) => 
-                    dup.id === createdConcept.id
+                    dup.id === newConcept.id
                   );
 
                   if (!alreadyFlagged) {
@@ -568,7 +563,7 @@ export async function POST(request: Request) {
                     }
                     
                     existingRelationships.potentialDuplicates.push({
-                      id: createdConcept.id,
+                      id: newConcept.id,
                       title: conceptData.title,
                       similarity: duplicate.similarity,
                       type: 'DUPLICATE',
