@@ -34,9 +34,9 @@ function AnalyzePage() {
     showUserInfoModal,
     showYouTubeLinkPrompt,
     loadingConcepts,
-    // youtubeLink,
-    // learningJourneyAnalysis,
-    // isAnalyzingLearningJourney,
+    youtubeLink,
+    learningJourneyAnalysis,
+    isAnalyzingLearningJourney,
 
     // Setters
     setConversationText,
@@ -147,15 +147,14 @@ function AnalyzePage() {
           )}
 
           {/* Learning Journey Analysis - Full width below main analysis */}
-          {/* TODO: Enable once learning journey state is fixed */}
-          {/* {analysisResult && (
+          {analysisResult && (
             <div className="mt-8">
               <LearningJourneyView
                 analysis={learningJourneyAnalysis}
                 isAnalyzing={isAnalyzingLearningJourney}
               />
             </div>
-          )} */}
+          )}
 
           {/* Modals */}
           <ApiKeyModal
