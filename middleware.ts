@@ -29,13 +29,15 @@ function isRateLimited(key: string, limit: number = 100, windowMs: number = 6000
 }
 
 export function middleware(request: NextRequest) {
-  // Clone the request headers and set new security headers
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('X-Frame-Options', 'DENY');
-  requestHeaders.set('X-Content-Type-Options', 'nosniff');
-  requestHeaders.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  requestHeaders.set('X-XSS-Protection', '1; mode=block');
+  // Allow the request to go to the next middleware or page
+  const response = NextResponse.next();
 
+  // Add security headers to the response
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  
   // Rate limiting for API routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const key = getRateLimitKey(request);
@@ -51,11 +53,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Continue to the next middleware or the page/API route with the new headers
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  return response;
 }
 
 export const config = {
