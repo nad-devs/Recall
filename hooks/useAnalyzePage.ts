@@ -46,6 +46,11 @@ export function useAnalyzePage() {
   })
   const [customApiKey, setCustomApiKey] = useState<string | null>(null)
 
+  // YouTube Link and Learning Journey State
+  const [youtubeLink, setYoutubeLink] = useState<string>("")
+  const [learningJourneyAnalysis, setLearningJourneyAnalysis] = useState<any>(null)
+  const [isAnalyzingLearningJourney, setIsAnalyzingLearningJourney] = useState(false)
+
   useEffect(() => {
     const key = localStorage.getItem("custom-api-key")
     if (key) {
@@ -145,9 +150,119 @@ export function useAnalyzePage() {
     setSaveError(null)
 
     try {
+<<<<<<< Updated upstream
       const response = await fetch("/api/saveConversation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+=======
+      // First, check for existing concepts before saving
+      console.log("💾 Checking for existing concepts before saving...")
+      console.log(`💾 Number of concepts to check: ${analysisResult.concepts.length}`)
+      
+      // Log concept titles we're checking
+      const conceptTitles = analysisResult.concepts.map(c => c.title).join(', ')
+      console.log(`💾 Concepts being checked: ${conceptTitles}`)
+      
+      // OLD CONCEPT MATCHING SYSTEM DISABLED - Now using embedding-based relationship detection
+      // The new system handles duplicate detection during analysis phase with vector embeddings
+      // and shows visual indicators (orange/blue) in the UI instead of blocking save dialogs
+      console.log("💾 Using new embedding-based concept relationships - proceeding to save")
+      
+      // Proceed directly with saving - no more blocking concept match dialogs
+      await performSaveConversation()
+    } catch (error) {
+      console.error('Error saving conversation:', error)
+      setSaveError('Failed to save conversation. Please try again.')
+      setIsSaving(false)
+    }
+  }
+
+  // Handle user info provided
+  const handleUserInfoProvided = async (userInfo: { name: string; email: string }) => {
+    setShowUserInfoModal(false)
+    
+    toast({
+      title: "User Info Saved",
+      description: "Now saving your conversation...",
+      duration: 2000,
+    })
+    
+    // Now proceed with saving the conversation
+    await handleSaveConversation()
+  }
+
+  // Handle user info modal close
+  const handleUserInfoModalClose = () => {
+    setShowUserInfoModal(false)
+  }
+
+  // Perform the actual save operation
+  // Add state for learning journey analysis
+  const [learningJourneyAnalysis, setLearningJourneyAnalysis] = useState<any>(null)
+  const [isAnalyzingLearningJourney, setIsAnalyzingLearningJourney] = useState(false)
+
+  // Function to analyze learning journey for newly created concepts
+  const analyzeLearningJourney = async (conceptIds: string[]) => {
+    try {
+      console.log("🧠 Starting learning journey analysis for concepts:", conceptIds)
+      setIsAnalyzingLearningJourney(true)
+      
+      const response = await makeAuthenticatedRequest('/api/concepts/analyze-learning-journey', {
+        method: 'POST',
+        body: JSON.stringify({
+          conceptIds,
+          customApiKey: getUsageData().customApiKey
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze learning journey')
+      }
+
+      const analysisData = await response.json()
+      console.log("🧠 Learning journey analysis complete:", analysisData)
+      
+      if (analysisData.success) {
+        setLearningJourneyAnalysis(analysisData)
+        
+        // Show a toast with learning insights
+        const newTopics = analysisData.analyses?.filter((a: any) => a.isLearningNewTopic)?.length || 0
+        const totalPrerequisites = analysisData.analyses?.reduce((sum: number, a: any) => sum + a.masteredPrerequisites.length, 0) || 0
+        
+        toast({
+          title: "🧠 Learning Journey Analyzed",
+          description: `Found ${newTopics} new learning topics and ${totalPrerequisites} connections to your existing knowledge.`,
+          duration: 5000,
+        })
+      }
+    } catch (error) {
+      console.error('Error analyzing learning journey:', error)
+      // Don't show error toast as this is a background enhancement
+    } finally {
+      setIsAnalyzingLearningJourney(false)
+    }
+  }
+
+  const performSaveConversation = async () => {
+    if (!analysisResult) return
+    
+    try {
+      console.log("💾 performSaveConversation - Starting API call")
+      
+      // Get user info from localStorage if available (for non-authenticated users)
+      const userName = localStorage.getItem('userName')
+      const userEmail = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      
+      // Add YouTube link to concepts if available
+      const conceptsWithYouTubeLink = youtubeLink ? analysisResult.concepts.map(concept => ({
+        ...concept,
+        videoResources: youtubeLink
+      })) : analysisResult.concepts
+      
+      const response = await makeAuthenticatedRequest('/api/saveConversation', {
+        method: 'POST',
+>>>>>>> Stashed changes
         body: JSON.stringify({
           conversation_text: conversationText,
           analysis: analysisResult,
@@ -160,6 +275,7 @@ export function useAnalyzePage() {
       if (!data.success) {
         throw new Error(data.error || "Failed to save conversation.")
       }
+<<<<<<< Updated upstream
 
       toast({
         title: "Success!",
@@ -173,6 +289,40 @@ export function useAnalyzePage() {
         description: error.message,
         variant: "destructive",
       })
+=======
+      
+      if (data.success) {
+        console.log("💾 Save successful")
+        // Only increment conversation count if user has usage tracking
+        if (canMakeConversation() || getUsageData().hasCustomApiKey) {
+          const updatedUsageData = incrementConversationCount()
+          setUsageData(updatedUsageData)
+        }
+
+        // Trigger learning journey analysis for the newly created concepts
+        if (data.conceptIds && data.conceptIds.length > 0) {
+          analyzeLearningJourney(data.conceptIds)
+        }
+        
+        toast({
+          title: "Success",
+          description: data.message || "Conversation saved successfully",
+          duration: 3000,
+        })
+        
+        if (data.redirectTo) {
+          window.location.href = data.redirectTo
+        } else {
+          window.location.href = '/concepts'
+        }
+      } else {
+        setSaveError(data.error || 'Failed to save conversation properly.')
+        console.error('Save response indicates failure:', data)
+      }
+    } catch (error) {
+      setSaveError('Failed to save conversation. Please try again.')
+      console.error('Error saving conversation:', error)
+>>>>>>> Stashed changes
     } finally {
       setIsSaving(false)
     }
@@ -233,6 +383,9 @@ export function useAnalyzePage() {
     showUserInfoModal,
     showYouTubeLinkPrompt,
     loadingConcepts,
+    youtubeLink,
+    learningJourneyAnalysis,
+    isAnalyzingLearningJourney,
     // Setters
     setConversationText,
     setSelectedConcept,
