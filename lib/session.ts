@@ -9,7 +9,7 @@ import GitHubProvider from "next-auth/providers/github"
 const prisma = new PrismaClient()
 
 // NextAuth configuration for server-side session validation
-const authOptions = {
+export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
@@ -26,7 +26,9 @@ const authOptions = {
     ] : [])
   ],
   session: {
-    strategy: "database" as const,
+    strategy: "jwt" as const,
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
 }
 
@@ -40,6 +42,7 @@ export interface SessionUser {
 export async function validateSession(request: NextRequest): Promise<SessionUser | null> {
   try {
     // First, try to get NextAuth session (OAuth)
+    // In App Router, getServerSession should be called without req/res
     const session = await getServerSession(authOptions)
     if (session?.user?.email) {
       console.log('🔧 Session validation - Found NextAuth session for:', session.user.email)
