@@ -10,7 +10,6 @@ import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { ApiKeyModal } from "@/components/api-key-modal"
 import { UserInfoModal } from "@/components/ui/user-info-modal"
 import { AuthGuard } from "@/components/auth-guard"
-import { LearningJourneySidebar } from "@/components/analyze/LearningJourneySidebar"
 import { PersonalInsightsView } from "@/components/analyze/PersonalInsightsView"
 import { LearningJourneyView } from "@/components/analyze/LearningJourneyView"
 import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
@@ -123,7 +122,6 @@ function AnalyzePage() {
             <div className="grid grid-cols-1 lg:grid-cols-[25%_70%] gap-[5%]">
               {/* Left column - Concepts list (25% width) */}
               <div className="space-y-6">
-                <LearningJourneySidebar />
                 <ConceptsList
                   filteredConcepts={filteredConcepts}
                   selectedConcept={selectedConcept}
