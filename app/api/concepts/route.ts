@@ -628,17 +628,16 @@ export async function GET(request: Request) {
         },
       });
       
-      // Occasionally clean up broken related concept references (every 20 requests approximately)
-      if (Math.random() < 0.05) { // 5% chance to run cleanup
-        console.log('Running periodic cleanup of broken related concept references and orphaned conversations...');
-        try {
-          // Run both cleanup functions
-          await cleanupBrokenReferencesForUser(user.id);
-          await cleanupOrphanedConversations(user.id);
-        } catch (cleanupError) {
-          console.error('Cleanup error (non-critical):', cleanupError);
-        }
+      // FORCED CLEANUP FOR DEBUGGING
+      console.log('>>> FORCING cleanup of broken related concept references and orphaned conversations...');
+      try {
+        await cleanupBrokenReferencesForUser(user.id);
+        await cleanupOrphanedConversations(user.id);
+        console.log('>>> CLEANUP COMPLETE');
+      } catch (cleanupError) {
+        console.error('>>> Cleanup error (CRITICAL):', cleanupError);
       }
+
     } catch (dbError) {
       console.error('Database error when fetching concepts:', dbError);
       return NextResponse.json(
