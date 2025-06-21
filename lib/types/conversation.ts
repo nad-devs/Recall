@@ -38,6 +38,10 @@ export interface Concept {
   // Add fields for review tracking
   needsReview?: boolean
   confidenceScore?: number
+  // Quick recall fields for enhanced learning
+  keyTakeaway?: string
+  analogy?: string
+  practicalTips?: string[]
   // Add embedding analysis data
   embeddingData?: {
     concept: any
@@ -166,6 +170,10 @@ export type BackendConcept = {
   };
   confidence_score: number;
   last_updated: string;
+  // Quick recall fields for enhanced learning
+  keyTakeaway?: string;
+  analogy?: string;
+  practicalTips?: string[];
 };
 
 export type BackendCodeSnippet = {
