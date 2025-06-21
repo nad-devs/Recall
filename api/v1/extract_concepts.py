@@ -834,7 +834,7 @@ detailed than the 'summary' field. Focus on deep understanding rather than surfa
             "ANALYZE THIS NON-TECHNICAL CONVERSATION SEGMENT according to the guidelines above.\n\n"
         )
         
-        json_format = f"""
+        json_format_str = """
 Respond in this JSON format:
 {{
     "concepts": [
@@ -850,19 +850,19 @@ Respond in this JSON format:
                     "description": "Actionable insight or step-by-step approach"
                 }}
             ],
-            "category": "Finance"{categoryPath_example},
+            "category": "Finance"{},
             "subcategories": ["Investment"]
         }}
     ],
     "conversation_title": "A short, descriptive title for this conversation",
     "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation."
 }}
+""".format(categoryPath_example)
 
-Conversation Segment:
-\"\"\"
-{segment_text}
-\"\"\"
-"""
+        json_format = (
+            json_format_str +
+            f'\nConversation Segment:\n"""\n{segment_text}\n"""\n'
+        )
         
         # Combine all sections for non-technical analysis
         structured_prompt = (
