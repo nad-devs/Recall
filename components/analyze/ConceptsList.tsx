@@ -223,6 +223,18 @@ export function ConceptsList({
                           {concept.summary?.substring(0, 120) || "No description available"}
                         </div>
                         
+                        {/* Category and Subcategories */}
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="px-2 py-1 text-xs font-medium text-blue-300 bg-blue-900/50 rounded-full">
+                            {concept.category}
+                          </span>
+                          {concept.subcategories && concept.subcategories.slice(0, 2).map((sub, index) => (
+                            <span key={index} className="px-2 py-1 text-xs font-medium text-purple-300 bg-purple-900/50 rounded-full">
+                              {sub}
+                            </span>
+                          ))}
+                        </div>
+                        
                         {/* Show embedding-based insights */}
                         {concept.embeddingData && (
                           <div className="mt-2 space-y-1">
