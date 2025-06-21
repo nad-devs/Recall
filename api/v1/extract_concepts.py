@@ -2447,7 +2447,12 @@ async def extract_concepts(req: ConversationRequest):
                 logger.info(f"    💻 Code snippets: {code_snippets}")
                 logger.info(f"    🔑 Key points: {key_points}")
                 logger.info(f"    🔗 Related concepts: {related_concepts}")
-                logger.info(f"    🎯 Confidence: {confidence:.2f}")
+                try:
+                    # FIX: Convert confidence to float before formatting to prevent crashes
+                    confidence_float = float(confidence)
+                    logger.info(f"    🎯 Confidence: {confidence_float:.2f}")
+                except (ValueError, TypeError):
+                    logger.warning(f"    🎯 Confidence: {confidence} (could not be converted to float)")
                 logger.debug(f"    📄 All fields: {', '.join(concept.keys())}")
                 
                 # Log code snippets details
