@@ -2476,35 +2476,10 @@ async def extract_concepts(req: ConversationRequest):
         logger.error(f"🔍 Error type: {type(e).__name__}")
         logger.error("📄 Full traceback:", exc_info=True)
         
-        # Create emergency fallback response in case of critical error
-        logger.warning("🚨 Creating emergency fallback response...")
-        emergency_fallback = {
-            "concepts": [
-                {
-                    "title": "Programming Concept",
-                    "category": "General",
-                    "summary": "General programming discussion",
-                    "keyPoints": ["Extracted from conversation"],
-                    "details": "Programming concepts discussed in the conversation",
-                    "relatedConcepts": [],
-                    "confidence_score": 0.5,
-                    "last_updated": datetime.now().isoformat()
-                }
-            ],
-            "conversation_title": "Programming Discussion",
-            "conversation_summary": "Discussion about programming topics",
-            "summary": "Discussion about programming topics",
-            "metadata": {
-                "extraction_time": datetime.now().isoformat(),
-                "model_used": "emergency_fallback",
-                "extraction_method": "fallback",
-                "error": str(e),
-                "error_type": type(e).__name__
-            }
-        }
-        
-        logger.info("🔧 Returning emergency fallback response")
-        return emergency_fallback
+        raise HTTPException(
+            status_code=500,
+            detail=f"An internal error occurred during analysis: {str(e)}"
+        )
 
 def standardize_response_format(result: Dict) -> Dict:
     """Standardize the response format to ensure consistency with frontend expectations."""
