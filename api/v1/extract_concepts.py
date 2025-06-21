@@ -1658,14 +1658,41 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
 
         if segment_type == "PROBLEM_SOLVING":
             # Build the problem-solving prompt in readable sections
+            
+            title_rules = (
+                "**CRITICAL TITLE RULES (NON-NEGOTIABLE):**\\n"
+                "1. **Primary Concept is the Problem Name:** The `title` for the main concept MUST be the standard name of the LeetCode problem (e.g., 'Valid Anagram', 'Contains Duplicate', 'Two Sum').\\n"
+                "2. **Technique is NOT the Title:** Do NOT use the technique (e.g., 'Character Count Arrays', 'Hash Table for Duplicates') as the `title` of the problem itself. The technique should be a separate concept or explained in the `details`.\\n"
+                "   - **WRONG:** `\"title\": \"Anagram Validation Using Character Count Arrays\"`\\n"
+                "   - **CORRECT:** `\"title\": \"Valid Anagram\"`\\n"
+            )
+
+            quick_recall_rules = (
+                "**QUICK RECALL RULES (MANDATORY FIELDS):**\\n"
+                "The `keyTakeaway`, `analogy`, and `practicalTips` fields are REQUIRED and MUST be specific, insightful, and directly related to the concept. DO NOT use generic, boilerplate text.\\n"
+                "   - **BAD `analogy`:** 'Like a fundamental building block in programming.'\\n"
+                "   - **GOOD `analogy`:** 'Using a character count array for an anagram is like sorting two piles of letters to see if they match—if the counts of each letter are identical, the words are anagrams.'\\n"
+                "   - **BAD `practicalTips`:** ['Review the key points', 'Practice with examples']\\n"
+                "   - **GOOD `practicalTips`:** ['Remember the 26-element array is only for lowercase English letters.', 'This is faster than sorting for anagrams (O(n) vs O(n log n)).', 'Consider a hash map if the character set is unknown or very large (e.g., Unicode).']\\n"
+            )
+
             base_instructions = (
                 "You are an ELITE technical knowledge extraction system. Your job is to "
-                "analyze programming conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
+                "analyze programming conversations and extract SPECIFIC, VALUABLE concepts.\\n\\n"
+                f"{title_rules}\\n\\n"
+                f"{quick_recall_rules}\\n\\n"
+                "**CONCEPT IDENTIFICATION HIERARCHY:**\\n"
+                "1. **Primary Concept:** The main concept is the problem name.\\n"
+                "2. **Secondary Concept:** If the problem name is not specific enough, use the technique as a secondary concept.\\n"
+                "3. **Tertiary Concept:** If the problem name and technique are not specific enough, use the domain category.\\n"
+                "4. **Quaternary Concept:** If the problem name, technique, and domain category are not specific enough, use the broader category.\\n"
+                "5. **Quinary Concept:** If none of the above are applicable, use the most general category.\\n\\n"
                 "🎯 CONCEPT IDENTIFICATION RULES:\n"
-                "1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum'). The title MUST be the problem name.\n"
-                "2. TECHNIQUES AND DATA STRUCTURES: Extract the specific approach or data structure used (e.g., 'Two Pointer Technique', 'Sliding Window', 'Hash Table'). This should be a separate concept from the problem itself.\n"
-                "3. DESIGN PATTERNS: Extract architectural or coding patterns being discussed.\n"
-                "4. OPTIMIZATION STRATEGIES: Extract performance improvement techniques.\n\n"
+                "1. **Primary Concept:** The main concept is the problem name.\\n"
+                "2. **Secondary Concept:** If the problem name is not specific enough, use the technique as a secondary concept.\\n"
+                "3. **Tertiary Concept:** If the problem name and technique are not specific enough, use the domain category.\\n"
+                "4. **Quaternary Concept:** If the problem name, technique, and domain category are not specific enough, use the broader category.\\n"
+                "5. **Quinary Concept:** If none of the above are applicable, use the most general category.\\n\n"
                 "🚫 AVOID THESE GENERIC CONCEPTS:\n"
                 "- 'Iteration', 'Loop', 'Variables', 'Programming', 'Coding'\n"
                 "- 'Array', 'String' (unless they're the main focus with specific techniques)\n"
@@ -1680,13 +1707,13 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
             
             concept_requirements = (
                 "For EACH concept, provide:\n"
-                "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
-                "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
-                "- A different, detailed 'details' field with in-depth technical explanation for this specific concept.\n"
-                "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
-                "- Related concepts if relevant.\n"
-                "- Code examples if present in the conversation.\n"
-                "- **Quick Recall**: For quick learning, provide a punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'. These MUST be specific and directly related to the concept, not generic advice.\n"
+                "- A clear, specific title that follows the TITLE_RULES above.\\n"
+                "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\\n"
+                "- A different, detailed 'details' field with in-depth technical explanation for this specific concept.\\n"
+                "- 2-5 key points summarizing the most important takeaways specific to this concept.\\n"
+                "- Related concepts if relevant.\\n"
+                "- `code_examples` if present in the conversation.\\n"
+                "- **Quick Recall Fields**: `keyTakeaway`, `analogy`, and `practicalTips` that follow the QUICK_RECALL_RULES above.\\n"
             )
             
             quality_requirements = (
@@ -1710,25 +1737,25 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 '            "details": "A comprehensive 3-6 paragraph technical deep-dive that goes far beyond the summary, including implementation details, methodologies, real-world applications, performance considerations, and advanced concepts.",\n'
                 '            "keyPoints": ["Key point 1", "Key point 2"],\n'
                 '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
-                '            "codeSnippets": [\n'
-                "                {\n"
-                '                    "language": "Language name",\n'
-                '                    "description": "Description of what this code demonstrates",\n'
-                '                    "code": "Properly formatted and commented code example"\n'
-                "                }\n"
-                "            ],\n"
-                '            "keyTakeaway": "A single, powerful sentence that captures the absolute core essence of the concept. This is for quick recall.",\n'
-                '            "analogy": "A simple, relatable analogy or metaphor to help understand the concept faster.",\n'
-                '            "practicalTips": ["A list of 2-3 actionable tips or advice for applying this concept."],\n'
-                '            "category": "LeetCode Problems"' + f"{categoryPath_example},\n" + 
-                '            "subcategories": ["Hash Table"],\n' + 
+                '            "code_examples": [\\n'
+                "                {\\n"
+                '                    "language": "Language name",\\n'
+                '                    "description": "Description of what this code demonstrates",\\n'
+                '                    "code": "Properly formatted and commented code example"\\n'
+                "                }\\n"
+                "            ],\\n"
+                '            "keyTakeaway": "A specific, powerful sentence capturing the core essence. Must not be generic.",\\n'
+                '            "analogy": "A specific, relatable analogy. Must not be generic.",\\n'
+                '            "practicalTips": ["A list of 2-3 specific, actionable tips. Must not be generic."],\\n'
+                '            "category": "LeetCode Problems"' + f"{categoryPath_example},\\n" + 
+                '            "subcategories": ["Hash Table"],\\n' + 
                 '            "confidence_score": "A float from 0.0 to 1.0 indicating your confidence in the accuracy and relevance of the extracted information."\n' + 
-                "        }\n" + 
-                "    ],\n" + 
-                '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\n' + 
-                '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation, suitable for display on a card."\n' + 
-                '}\n\n' + 
-                f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+                "        }\\n" + 
+                "    ],\\n" + 
+                '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\\n'
+                '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation, suitable for display on a card."\\n'
+                '}\\n\\n' + 
+                f"Conversation Segment:\\n\\\"\\\"\\\"\\n{segment_text}\\n\\\"\\\"\\\"\\n"
             )
             
             # Combine all sections
@@ -1745,72 +1772,72 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
         else:  # Exploratory learning
             base_instructions = (
                 "You are an ELITE technical knowledge extraction system. Your job is to analyze "
-                "exploratory learning conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
-                "🎯 CONCEPT IDENTIFICATION RULES:\n"
-                "1. CORE CONCEPTS: Extract fundamental principles and high-level ideas being discussed\n"
-                "2. TECHNOLOGIES & TOOLS: Identify specific libraries, frameworks, or services mentioned\n"
-                "3. KEY INSIGHTS: Extract 'aha' moments or significant realizations in the conversation\n"
-                "4. METHODOLOGIES & PATTERNS: Extract processes, workflows, or design patterns\n"
-                "5. COMPARISONS: Extract meaningful comparisons between different technologies or approaches\n\n"
-                "🚫 AVOID THESE GENERIC CONCEPTS:\n"
-                "- 'Learning', 'Discussion', 'Question', 'Thinking'\n"
-                "- Surface-level mentions without any deep explanation\n\n"
-                "✅ QUALITY STANDARDS:\n"
-                "- Each concept must be a meaningful unit of knowledge\n"
-                "- Focus on concepts that build a mental model of a topic\n"
-                "- Limit to 2-5 HIGH-VALUE concepts maximum\n"
-                "- NO overlapping or duplicate concepts\n\n"
+                "exploratory learning conversations and extract SPECIFIC, VALUABLE concepts:\\n\\n"
+                "🎯 CONCEPT IDENTIFICATION RULES:\\n"
+                "1. CORE CONCEPTS: Extract fundamental principles and high-level ideas being discussed\\n"
+                "2. TECHNOLOGIES & TOOLS: Identify specific libraries, frameworks, or services mentioned\\n"
+                "3. KEY INSIGHTS: Extract 'aha' moments or significant realizations in the conversation\\n"
+                "4. METHODOLOGIES & PATTERNS: Extract processes, workflows, or design patterns\\n"
+                "5. COMPARISONS: Extract meaningful comparisons between different technologies or approaches\\n\\n"
+                "🚫 AVOID THESE GENERIC CONCEPTS:\\n"
+                "- 'Learning', 'Discussion', 'Question', 'Thinking'\\n"
+                "- Surface-level mentions without any deep explanation\\n\\n"
+                "✅ QUALITY STANDARDS:\\n"
+                "- Each concept must be a meaningful unit of knowledge\\n"
+                "- Focus on concepts that build a mental model of a topic\\n"
+                "- Limit to 2-5 HIGH-VALUE concepts maximum\\n"
+                "- NO overlapping or duplicate concepts\\n\\n"
             )
             
             concept_requirements = (
-                "For EACH concept, provide:\n"
-                "- A clear, specific title.\n"
-                "- A unique, concise 'summary' (2-4 sentences).\n"
-                "- A different, comprehensive 'details' section (4-8 paragraphs).\n"
-                "- 2-5 distinct 'keyPoints'.\n"
-                "- Relevant 'code_examples' with explanations.\n"
-                "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\n"
+                "For EACH concept, provide:\\n"
+                "- A clear, specific title.\\n"
+                "- A unique, concise 'summary' (2-4 sentences).\\n"
+                "- A different, comprehensive 'details' section (4-8 paragraphs).\\n"
+                "- 2-5 distinct 'keyPoints'.\\n"
+                "- Relevant 'code_examples' with explanations.\\n"
+                "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\\n"
             )
 
             quality_requirements = (
-                "IMPORTANT: Each concept MUST have unique content - do not copy between concepts.\n"
-                "CRITICAL: The 'details' field must be 3-5x longer than 'summary' and focus on deep understanding.\n\n"
+                "IMPORTANT: Each concept MUST have unique content - do not copy between concepts.\\n"
+                "CRITICAL: The 'details' field must be 3-5x longer than 'summary' and focus on deep understanding.\\n\\n"
             )
 
             context_info = (
-                f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
-                f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
-                "ANALYZE THIS EXPLORATORY LEARNING SEGMENT according to the guidelines above.\n\n"
+                f"SEGMENT INFORMATION:\nTopic: {topic}\\n\\n"
+                f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\\n\\n"
+                "ANALYZE THIS EXPLORATORY LEARNING SEGMENT according to the guidelines above.\\n\\n"
             )
             
             json_format = (
-                "Respond in this JSON format:\n"
-                "{\n"
-                '    "concepts": [\n'
-                "        {\n"
-                '            "title": "A clear, specific, and unique title for this concept. Use ~5-10 words.",\n'
-                '            "summary": "A unique, concise summary (2-4 sentences) of the concept, specific to this concept only.",\n'
-                '            "details": "A comprehensive, in-depth explanation (4-8 paragraphs) of the concept. This MUST be substantially different from the summary. Explain the what, why, and how. Include context, applications, and nuances. Do NOT repeat the summary.",\n'
-                '            "keyPoints": ["A list of 2-5 key, distinct takeaways or facts from the details."],\n'
-                '            "code_examples": [\n'
-                '                {\n'
-                '                    "code": "A relevant code snippet. Keep it concise and directly related to the concept.",\n'
-                '                    "language": "The programming language of the snippet (e.g., python, javascript).",\n'
-                '                    "explanation": "A brief explanation of what the code does and how it relates to the concept."\n'
-                '                }\n'
-                '            ],\n'
-                '            "keyTakeaway": "A single, powerful sentence that captures the absolute core essence of the concept. This is for quick recall.",\n'
-                '            "analogy": "A simple, relatable analogy or metaphor to help understand the concept faster.",\n'
-                '            "practicalTips": ["A list of 2-3 actionable tips or advice for applying this concept."],\n'
+                "Respond in this JSON format:\\n"
+                "{\\n"
+                '    "concepts": [\\n'
+                "        {\\n"
+                '            "title": "A clear, specific, and unique title for this concept. Use ~5-10 words.",\\n'
+                '            "summary": "A unique, concise summary (2-4 sentences) of the concept, specific to this concept only.",\\n'
+                '            "details": "A comprehensive, in-depth explanation (4-8 paragraphs) of the concept. This MUST be substantially different from the summary. Explain the what, why, and how. Include context, applications, and nuances. Do NOT repeat the summary.",\\n'
+                '            "keyPoints": ["A list of 2-5 key, distinct takeaways or facts from the details."],\\n'
+                '            "code_examples": [\\n'
+                '                {\\n'
+                '                    "code": "A relevant code snippet. Keep it concise and directly related to the concept.",\\n'
+                '                    "language": "The programming language of the snippet (e.g., python, javascript).",\\n'
+                '                    "explanation": "A brief explanation of what the code does and how it relates to the concept."\\n'
+                '                }\\n'
+                '            ],\\n'
+                '            "keyTakeaway": "A single, powerful sentence that captures the absolute core essence of the concept. This is for quick recall.",\\n'
+                '            "analogy": "A simple, relatable analogy or metaphor to help understand the concept faster.",\\n'
+                '            "practicalTips": ["A list of 2-3 actionable tips or advice for applying this concept."],\\n'
                 '            "category": "The most specific category (e.g., \'Python\', \'Backend Engineering > APIs\', \'Finance > Investment\')"'
-                + f"{categoryPath_example},\n"
-                + '            "confidence_score": "A float from 0.0 to 1.0 indicating your confidence in the accuracy and relevance of the extracted information."\n'
-                "        }\n"
-                "    ],\n"
-                '    "conversation_title": "A short, descriptive title for this conversation (~5-10 words)",\n'
-                '    "conversation_summary": "A 1-2 sentence summary of the main topics from this conversation."\n'
-                "}\n\n"
-                f'Conversation Segment:\n"""\n{segment_text}\n"""\n'
+                + f"{categoryPath_example},\\n"
+                + '            "confidence_score": "A float from 0.0 to 1.0 indicating your confidence in the accuracy and relevance of the extracted information."\\n'
+                "        }\\n"
+                "    ],\\n"
+                '    "conversation_title": "A short, descriptive title for this conversation (~5-10 words)",\\n'
+                '    "conversation_summary": "A 1-2 sentence summary of the main topics from this conversation."\\n'
+                "}\\n\\n"
+                f'Conversation Segment:\\n"""\\n{segment_text}\\n"""\\n'
             )
             
             # Combine all sections
