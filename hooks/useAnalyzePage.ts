@@ -86,7 +86,7 @@ export function useAnalyzePage() {
       console.log("Analysis response:", data)
 
       // The API returns both concepts and learning_journey data
-      const concepts = data.concepts || []
+      const concepts = data.analyses || []
       const learningJourney = data.learning_journey || {}
 
       // Transform the concepts to match our ConversationAnalysis interface
