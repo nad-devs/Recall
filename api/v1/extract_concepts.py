@@ -2398,8 +2398,9 @@ async def root():
 async def extract_concepts(req: ConversationRequest):
     """Extract technical concepts from a conversation with comprehensive analysis and logging."""
     request_start_time = datetime.now()
-    logger.info("🌟 === NEW EXTRACTION REQUEST ===")
+    logger.info("🌟 === NEW EXTRACTION REQUEST (PYTHON BACKEND) ===")
     logger.info(f"📊 Request size: {len(req.conversation_text)} characters")
+    logger.info(f"💬 Conversation Preview: {req.conversation_text[:200]}...")
     
     # Log API key usage
     if req.custom_api_key:
