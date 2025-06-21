@@ -48,6 +48,8 @@ export async function POST(request: Request) {
   let body: AnalyzeRequestBody;
   try {
     body = await request.json();
+    console.log("--- BACKEND API ROUTE (Next.js) ---");
+    console.log("Received conversation text:", body.conversation_text);
     if (!body.conversation_text) {
       throw new Error("Missing 'conversation_text'");
     }
