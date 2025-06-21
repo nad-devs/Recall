@@ -27,6 +27,16 @@ export async function findSimilarConcepts(
   matchThreshold: number = 0.9,
   matchCount: number = 5
 ): Promise<SearchResult[]> {
+  // First, check if there are any concepts at all for the user.
+  const conceptCount = await prisma.concept.count({
+    where: { userId: userId },
+  });
+
+  if (conceptCount === 0) {
+    console.log("No existing concepts found for user, skipping similarity search.");
+    return [];
+  }
+  
   // The Prisma client still doesn't have native support for pgvector types,
   // so we must use a raw query. The `::vector` cast is crucial.
   // The `<=>` operator calculates the cosine distance (0=identical, 2=opposite).
