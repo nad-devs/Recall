@@ -7,7 +7,6 @@ import { generateLearningJourney } from '@/ai/flows/generate-learning-journey';
 // Define the expected structure of the request body
 interface AnalyzeRequestBody {
   conversation_text: string;
-  mode: 'deepdive' | 'recall';
 }
 
 // URL for the new, unified extraction service
@@ -49,8 +48,8 @@ export async function POST(request: Request) {
   let body: AnalyzeRequestBody;
   try {
     body = await request.json();
-    if (!body.conversation_text || !body.mode) {
-      throw new Error("Missing 'conversation_text' or 'mode'");
+    if (!body.conversation_text) {
+      throw new Error("Missing 'conversation_text'");
     }
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Invalid request body.' }, { status: 400 });
@@ -66,8 +65,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        conversation_text: body.conversation_text,
-        mode: body.mode 
+        conversation_text: body.conversation_text
       }),
     });
 
