@@ -39,6 +39,7 @@ async function getLearningJourneyAnalysis(newConcepts: any[], existingConcepts: 
 }
 
 export async function POST(request: Request) {
+  console.log("--- FRONTEND /api/analyze ENDPOINT HIT ---");
   // 1. Validate User and Request
   const user = await validateSession(request as any);
   if (!user) {
