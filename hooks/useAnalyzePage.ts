@@ -66,6 +66,9 @@ export function useAnalyzePage() {
     setSelectedConcept(null)
     setAnalysisStage("Analyzing conversation and extracting concepts...")
 
+    console.log("--- STARTING ANALYSIS ---");
+    console.log("Conversation Text to be sent to backend:", conversationText);
+
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
