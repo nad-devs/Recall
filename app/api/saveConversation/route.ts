@@ -233,63 +233,32 @@ export async function POST(request: Request) {
       console.log("Created generic fallback concept:", title);
     }
 
-    // --- STAGE 2: PARALLEL ENRICHMENT ---
-    // With our source-of-truth concepts, we now enrich them with practical summaries.
-    const DISTILLER_SERVICE_URL = process.env.JOURNEY_ANALYSIS_URL; // Using the journey URL as our distiller
-    if (DISTILLER_SERVICE_URL && conceptsToProcess.length > 0) {
-      console.log(` distillery...`);
-      try {
-        const enrichmentPromises = conceptsToProcess.map(concept =>
-          fetch(DISTILLER_SERVICE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              // Send the full context to the distiller service
-              concept_details: {
-                title: concept.title,
-                summary: concept.summary,
-                keyPoints: concept.keyPoints
-              },
-              conversation_text: conversation_text,
-              custom_api_key: customApiKey
-            }),
-          }).then(res => res.ok ? res.json() : null) // Gracefully handle errors per-concept
-        );
-
-        const enrichmentResults = await Promise.all(enrichmentPromises);
-
-        // Merge the practical summaries back into our main concept objects
-        conceptsToProcess = conceptsToProcess.map((concept, index) => {
-          const result = enrichmentResults[index];
-          if (result && result.practical_summary) {
-            return {
-              ...concept,
-              keyTakeaway: result.practical_summary.key_takeaway,
-              analogy: result.practical_summary.analogy,
-              practicalTips: result.practical_summary.practical_tips,
-            };
-          }
-          return concept; // Return original concept if enrichment failed
-        });
-        console.log("✅ Concepts enriched with practical summaries.");
-      } catch (error) {
-        console.error("Error during concept enrichment, continuing with base concepts:", error);
-      }
-    }
-    // --- END OF STAGE 2 ---
+    // Note: The secondary enrichment stage has been removed as the unified backend
+    // now provides all concept data (including keyTakeaway, analogy, practicalTips)
+    // in the initial analysis phase.
 
     console.log("🎯 FINAL CONCEPTS TO PROCESS:");
     conceptsToProcess.forEach((concept: any, index: number) => {
       console.log(`🎯 Final Concept ${index + 1}:`, {
         title: concept.title,
         category: concept.category,
-        summary: concept.summary?.substring(0, 100) + '...',
-        hasDetails: !!concept.details,
-        hasKeyPoints: !!concept.keyPoints,
-        hasCodeSnippets: !!concept.codeSnippets,
-        hasVideoResources: !!concept.videoResources,
-        hasKeyTakeaway: !!concept.keyTakeaway,
-        hasAnalogy: !!concept.analogy,
+        summary: concept.summary,
+        keyPoints: concept.keyPoints,
+        details: concept.details,
+        examples: concept.examples,
+        relatedConcepts: concept.relatedConcepts,
+        relationships: concept.relationships,
+        codeSnippets: concept.codeSnippets,
+        videoResources: concept.videoResources,
+        masteryLevel: concept.masteryLevel,
+        difficultyRating: concept.difficultyRating,
+        timeToMaster: concept.timeToMaster,
+        learningTips: concept.learningTips,
+        embeddingData: concept.embeddingData,
+        keyTakeaway: !!concept.keyTakeaway,
+        analogy: !!concept.analogy,
+        practicalTips: concept.practicalTips,
+        confidenceScore: concept.confidenceScore,
       });
     });
 
@@ -312,14 +281,11 @@ export async function POST(request: Request) {
 
     console.log("✅ CONVERSATION CREATED:", {
       id: conversation.id,
-      userId: conversation.userId,
-      title: conversation.title,
-      summary: conversation.summary?.substring(0, 100) + '...',
       textLength: conversation.text.length
     });
 
-    // Store created concept IDs
-    const createdConceptIds = new Map<string, string>();
+    // --- STAGE 3: Find or Create Concepts in DB ---
+    const createdConceptIds = new Map<string, string>(); // Map from temp title to new DB ID
 
     console.log("💾 CREATING CONCEPTS IN DATABASE...");
 
