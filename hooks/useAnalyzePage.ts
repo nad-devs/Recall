@@ -71,8 +71,7 @@ export function useAnalyzePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          conversation_text: conversationText,
-          mode: analysisMode 
+          conversation_text: conversationText
         }),
         credentials: "include",
       })
