@@ -223,6 +223,25 @@ export function ConceptsList({
                           {concept.summary?.substring(0, 120) || "No description available"}
                         </div>
                         
+                        {/* Show enhanced features available */}
+                        <div className="flex items-center gap-2 mt-2">
+                          {(concept as any).keyTakeaway && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                              Quick Recall
+                            </span>
+                          )}
+                          {(concept as any).codeSnippets && (concept as any).codeSnippets.length > 0 && (
+                            <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                              Code
+                            </span>
+                          )}
+                          {(concept as any).keyPoints && (concept as any).keyPoints.length > 0 && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                              Details
+                            </span>
+                          )}
+                        </div>
+                        
                         {/* Show embedding-based insights */}
                         {concept.embeddingData && (
                           <div className="mt-2 space-y-1">

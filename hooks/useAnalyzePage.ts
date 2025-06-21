@@ -96,16 +96,40 @@ export function useAnalyzePage() {
         conversationTitle: concepts[0]?.title || learningJourney.title || "Analysis Results",
         overallSummary: learningJourney.summary || concepts.map((c: any) => c.summary).join("\n\n"),
         conceptMap: concepts.map((c: any) => c.id || c.title),
-        concepts: concepts.map((concept: any) => ({
-          ...concept, // Pass all properties from the API concept directly
-          id: concept.id || concept.title?.replace(/\s+/g, '-').toLowerCase(),
-          title: concept.title,
-          category: concept.category || "General",
-          // Add learning journey data
-          personalNotes: learningJourney.personal_insights?.[0]?.content,
-          learningTips: learningJourney.learning_tips || [],
-          commonMistakes: learningJourney.common_mistakes || [],
-        })),
+        concepts: concepts.map((concept: any) => {
+          console.log("Processing concept from backend:", concept.title, "with fields:", Object.keys(concept))
+          return {
+            // Keep ALL properties from backend, ensuring no data loss
+            ...concept,
+            // Ensure required fields have defaults
+            id: concept.id || concept.title?.replace(/\s+/g, '-').toLowerCase(),
+            title: concept.title,
+            category: concept.category || "General",
+            summary: concept.summary || "",
+            details: concept.details || {
+              implementation: "",
+              complexity: {},
+              useCases: [],
+              edgeCases: [],
+              performance: "",
+              interviewQuestions: [],
+              practiceProblems: [],
+              furtherReading: []
+            },
+            keyPoints: concept.keyPoints || [],
+            examples: concept.examples || [],
+            codeSnippets: concept.codeSnippets || [],
+            relatedConcepts: concept.relatedConcepts || [],
+            // Preserve quick recall fields from backend
+            keyTakeaway: concept.keyTakeaway,
+            analogy: concept.analogy,
+            practicalTips: concept.practicalTips,
+            // Add learning journey data
+            personalNotes: learningJourney.personal_insights?.[0]?.content,
+            learningTips: learningJourney.learning_tips || [],
+            commonMistakes: learningJourney.common_mistakes || [],
+          }
+        }),
         // Store the learning journey metadata
         personalLearning: learningJourney,
       }

@@ -179,10 +179,10 @@ model Concept {
   
   createdAt          DateTime  @default(now())
 
-  // --- NEW: Fields for Practical Summary / "Distiller" Mode ---
-  // keyTakeaway        String?   // A single, powerful sentence.
-  // analogy            String?   // A simple, relatable analogy.
-  // practicalTips      String?   @default("[]") // Stored as a JSON string array of tips.
+  // Quick Recall Fields - Essential for immediate concept understanding
+  keyTakeaway        String?   // A single, powerful sentence capturing the core essence
+  analogy            String?   // A simple, relatable analogy for better understanding
+  practicalTips      String    @default("[]") // JSON array of actionable tips
 }
 
 model Conversation {

@@ -45,8 +45,17 @@ export function PersonalInsightsView({
     )
   }
 
-  // Casting to access fields not yet in the type definition
-  const concept = conceptToDisplay as any
+  // Access concept data directly (types now include all backend fields)
+  const concept = conceptToDisplay
+  
+  // Debug logging to check what data we're getting
+  console.log("PersonalInsightsView - Concept data:", {
+    title: concept?.title,
+    hasKeyTakeaway: !!concept?.keyTakeaway,
+    hasAnalogy: !!concept?.analogy,
+    hasPracticalTips: !!concept?.practicalTips,
+    allFields: concept ? Object.keys(concept) : []
+  })
 
   return (
     <div className="space-y-6">
