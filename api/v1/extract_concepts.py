@@ -1683,10 +1683,11 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "For EACH concept, provide:\n"
                 "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
                 "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
-                "- A different, detailed 'implementation' field with in-depth technical explanation for this specific concept.\n"
+                "- A different, detailed 'details' field with in-depth technical explanation for this specific concept.\n"
                 "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
                 "- Related concepts if relevant.\n"
                 "- Code examples if present in the conversation.\n"
+                "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\n"
             )
             
             quality_requirements = (
@@ -1717,8 +1718,12 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 '                    "code": "Properly formatted and commented code example"\n'
                 "                }\n"
                 "            ],\n"
+                '            "keyTakeaway": "A single, powerful sentence that captures the absolute core essence of the concept. This is for quick recall.",\n'
+                '            "analogy": "A simple, relatable analogy or metaphor to help understand the concept faster.",\n'
+                '            "practicalTips": ["A list of 2-3 actionable tips or advice for applying this concept."],\n'
                 '            "category": "LeetCode Problems"' + f"{categoryPath_example},\n" + 
-                '            "subcategories": ["Hash Table"]\n' + 
+                '            "subcategories": ["Hash Table"],\n' + 
+                '            "confidence_score": "A float from 0.0 to 1.0 indicating your confidence in the accuracy and relevance of the extracted information."\n' + 
                 "        }\n" + 
                 "    ],\n" + 
                 '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\n' + 
@@ -2537,7 +2542,7 @@ def standardize_response_format(result: Dict) -> Dict:
         else:
             details_content = ""
         
-        # Ensure required fields
+        # Ensure required fields including Quick Recall fields
         required_fields = {
             "title": concept.get("title", f"Concept {i+1}"),
             "category": concept.get("category", "General"),
@@ -2546,6 +2551,10 @@ def standardize_response_format(result: Dict) -> Dict:
             "details": details_content,  # Now properly mapped from all sources
             "relatedConcepts": concept.get("relatedConcepts", []),
             "confidence_score": concept.get("confidence_score", 0.8),
+            # Quick Recall fields with sensible defaults
+            "keyTakeaway": concept.get("keyTakeaway", concept.get("summary", "")[:100] + "..." if concept.get("summary", "") else "Key concept for understanding."),
+            "analogy": concept.get("analogy", "Like a fundamental building block in programming."),
+            "practicalTips": concept.get("practicalTips", ["Review the key points regularly", "Practice with examples", "Connect to related concepts"]),
         }
         
         # Update concept with required fields
