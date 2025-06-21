@@ -114,10 +114,10 @@ export function useAnalyzePage() {
           codeSnippets: concept.code_snippets || concept.codeSnippets || [],
           relatedConcepts: concept.related_concepts || concept.relatedConcepts || [],
           relationships: concept.relationships || {},
-          // New fields for practical summary mode
-          keyTakeaway: concept.key_takeaway || concept.keyTakeaway,
+          // New fields for practical summary mode are now coming directly from the unified service
+          keyTakeaway: concept.keyTakeaway,
           analogy: concept.analogy,
-          practicalTips: concept.practical_tips || concept.practicalTips || [],
+          practicalTips: concept.practicalTips || [],
           // Additional learning data from journey analysis
           personalNotes: learningJourney.personal_insights?.[0]?.content,
           learningTips: learningJourney.learning_tips || [],
