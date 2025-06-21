@@ -16,6 +16,7 @@ const nextConfig = {
     EXTRACTION_SERVICE_URL: process.env.EXTRACTION_SERVICE_URL,
     BACKEND_URL: process.env.BACKEND_URL,
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   }
 };
 

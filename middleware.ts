@@ -29,6 +29,9 @@ function isRateLimited(key: string, limit: number = 100, windowMs: number = 6000
 }
 
 export function middleware(request: NextRequest) {
+  // Debug logging to see what routes are being processed
+  console.log('🔍 Middleware processing:', request.nextUrl.pathname);
+  
   // Allow the request to go to the next middleware or page
   const response = NextResponse.next();
 
@@ -38,11 +41,13 @@ export function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   
-  // Rate limiting for API routes
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  // Rate limiting for API routes (but NOT for NextAuth routes)
+  if (request.nextUrl.pathname.startsWith('/api/') && !request.nextUrl.pathname.startsWith('/api/auth')) {
+    console.log('🚦 Applying rate limiting to:', request.nextUrl.pathname);
     const key = getRateLimitKey(request);
     
     if (isRateLimited(key)) {
+      console.log('❌ Rate limit exceeded for:', request.nextUrl.pathname);
       return new NextResponse('Too Many Requests', { 
         status: 429,
         headers: {
