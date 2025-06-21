@@ -2474,7 +2474,7 @@ async def extract_concepts(req: ConversationRequest):
     except Exception as e:
         logger.error(f"❌ CRITICAL ERROR in extract_concepts: {str(e)}")
         logger.error(f"🔍 Error type: {type(e).__name__}")
-        logger.error(f"📍 Traceback: {traceback.format_exc()}")
+        logger.error("📄 Full traceback:", exc_info=True)
         
         # Create emergency fallback response in case of critical error
         logger.warning("🚨 Creating emergency fallback response...")
