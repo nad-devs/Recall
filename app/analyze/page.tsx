@@ -137,6 +137,7 @@ function AnalyzePage() {
               {/* Right column - Analysis results (70% width) */}
               <div className="space-y-6">
                 <PersonalInsightsView
+                  analysisResult={analysisResult}
                   selectedConcept={selectedConcept}
                   showYouTubeLinkPrompt={showYouTubeLinkPrompt}
                   onYouTubeLinkAdd={handleYouTubeLinkAdd}
