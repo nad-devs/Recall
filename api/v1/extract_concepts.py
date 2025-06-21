@@ -1662,11 +1662,10 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "You are an ELITE technical knowledge extraction system. Your job is to "
                 "analyze programming conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
                 "🎯 CONCEPT IDENTIFICATION RULES:\n"
-                "1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum')\n"
-                "2. ALGORITHMIC TECHNIQUES: Extract the specific approach used (e.g., 'Hash Table for Duplicate Detection', 'Two Pointer Technique')\n"
-                "3. DATA STRUCTURES: Only extract if they're the main focus, not just mentioned in passing\n"
-                "4. DESIGN PATTERNS: Extract architectural or coding patterns being discussed\n"
-                "5. OPTIMIZATION STRATEGIES: Extract performance improvement techniques\n\n"
+                "1. SPECIFIC PROBLEMS: Extract the exact problem being solved (e.g., 'Contains Duplicate', 'Valid Anagram', 'Two Sum'). The title MUST be the problem name.\n"
+                "2. TECHNIQUES AND DATA STRUCTURES: Extract the specific approach or data structure used (e.g., 'Two Pointer Technique', 'Sliding Window', 'Hash Table'). This should be a separate concept from the problem itself.\n"
+                "3. DESIGN PATTERNS: Extract architectural or coding patterns being discussed.\n"
+                "4. OPTIMIZATION STRATEGIES: Extract performance improvement techniques.\n\n"
                 "🚫 AVOID THESE GENERIC CONCEPTS:\n"
                 "- 'Iteration', 'Loop', 'Variables', 'Programming', 'Coding'\n"
                 "- 'Array', 'String' (unless they're the main focus with specific techniques)\n"
@@ -1687,7 +1686,7 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
                 "- Related concepts if relevant.\n"
                 "- Code examples if present in the conversation.\n"
-                "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\n"
+                "- **Quick Recall**: For quick learning, provide a punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'. These MUST be specific and directly related to the concept, not generic advice.\n"
             )
             
             quality_requirements = (
