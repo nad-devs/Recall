@@ -1297,15 +1297,27 @@ Respond in this JSON format:
                 "First, determine if this is:\n"
                 "1. A PROBLEM-SOLVING conversation (discussing a specific algorithm or coding problem)\n"
                 "2. An EXPLORATORY LEARNING conversation (learning about a technology or concept)\n\n"
-                "ENHANCED PROBLEM-SOLVING DETECTION:\n"
-                "Look for these indicators of PROBLEM-SOLVING conversations:\n"
-                "- Mentions of specific LeetCode problems (Contains Duplicate, Valid Anagram, Two Sum, etc.)\n"
-                "- References to 'NeetCode', 'Blind 75', 'Blind75', 'LeetCode', or 'DSA practice'\n"
-                "- Discussion of algorithm implementation steps or coding approaches\n"
-                "- Mentions of data structures in problem-solving context (hash table for duplicates, etc.)\n"
-                "- Learning progress tracking ('X down, Y to go', 'problem X of Y')\n"
-                "- Step-by-step problem-solving methodology discussions\n"
-                "- Coding interview preparation context\n\n"
+                "ENHANCED PROBLEM-SOLVING DETECTION (CRITICAL - USE INTELLIGENT ANALYSIS):\n"
+                "Use your deep understanding to identify PROBLEM-SOLVING conversations through:\n\n"
+                "DIRECT INDICATORS:\n"
+                "- Any mention of LeetCode, NeetCode, Blind 75, HackerRank, CodeSignal, or similar platforms\n"
+                "- Specific problem names (Contains Duplicate, Valid Anagram, Two Sum, etc.)\n"
+                "- Problem numbering references (Problem 217, LC 242, etc.)\n"
+                "- Interview preparation context\n\n"
+                "CONTEXTUAL INDICATORS (USE AI INTELLIGENCE):\n"
+                "- Algorithmic problem descriptions with constraints ('given an array', 'return true if')\n"
+                "- Function signature discussions (def containsDuplicate(nums), etc.)\n"
+                "- Time/space complexity analysis (O(n), O(1) space, etc.)\n"
+                "- Solution approach comparisons (brute force vs optimized)\n"
+                "- Data structure selection for problem-solving (hash table for O(1) lookup)\n"
+                "- Step-by-step algorithm implementation\n"
+                "- Edge case discussions in problem context\n"
+                "- Code implementation with algorithm focus\n\n"
+                "LEARNING JOURNEY INDICATORS:\n"
+                "- Progress tracking ('X problems done', 'practicing arrays')\n"
+                "- Learning methodology discussions\n"
+                "- Problem pattern recognition\n\n"
+                "CRITICAL: If there's ANY doubt, lean toward PROBLEM-SOLVING for coding/algorithm discussions.\n\n"
             )
             
             problem_solving_rules = (
@@ -1385,6 +1397,33 @@ Respond in this JSON format:
             segments = []
             conversation_type = segmentation_data.get("conversation_type", "UNKNOWN")
             logger.info(f"🔍 Detected conversation type: {conversation_type}")
+            
+            # SECURITY CHECK: Double-check for LeetCode conversations that might have been missed
+            if conversation_type != "PROBLEM_SOLVING":
+                conversation_lower = conversation_text.lower()
+                leetcode_keywords = [
+                    "leetcode", "neetcode", "blind 75", "blind75", "contains duplicate", 
+                    "valid anagram", "two sum", "def containsduplicate", "def twosum",
+                    "def validanagram", "algorithm", "time complexity", "space complexity",
+                    "o(n)", "o(1)", "hash table", "brute force", "optimized solution"
+                ]
+                
+                leetcode_score = sum(1 for keyword in leetcode_keywords if keyword in conversation_lower)
+                
+                # Also check for problem-solving patterns
+                problem_patterns = [
+                    "given an array", "return true if", "return false if", "find the", 
+                    "determine if", "check if", "given a string", "leetcode", "interview question"
+                ]
+                pattern_score = sum(1 for pattern in problem_patterns if pattern in conversation_lower)
+                
+                total_score = leetcode_score + pattern_score
+                
+                if total_score >= 3:  # Threshold for likely LeetCode conversation
+                    logger.warning(f"⚠️  SECURITY CHECK: Overriding classification to PROBLEM_SOLVING")
+                    logger.warning(f"    LeetCode indicators: {leetcode_score}, Pattern indicators: {pattern_score}")
+                    conversation_type = "PROBLEM_SOLVING"
+                    logger.info(f"🔄 Updated conversation type: {conversation_type}")
             
             raw_segments = segmentation_data.get("segments", [])
             logger.info(f"📊 Found {len(raw_segments)} raw segments")
@@ -1477,10 +1516,23 @@ Respond in this JSON format:
             logger.info("🔧 Using technical analysis method (preserving existing functionality)")
 
         # EXISTING TECHNICAL ANALYSIS LOGIC (PRESERVED UNCHANGED)
-        # Determine segment type from topic tag
+        # Determine segment type from topic tag with additional LeetCode security check
         segment_type = "EXPLORATORY_LEARNING"
         if topic.strip().upper().startswith("[PROBLEM_SOLVING]"):
             segment_type = "PROBLEM_SOLVING"
+        
+        # FINAL SECURITY CHECK: Ensure LeetCode discussions use PROBLEM_SOLVING analysis
+        if segment_type != "PROBLEM_SOLVING":
+            segment_lower = segment_text.lower()
+            # Quick check for obvious LeetCode indicators
+            if any(indicator in segment_lower for indicator in [
+                "leetcode", "neetcode", "contains duplicate", "valid anagram", "two sum",
+                "def containsduplicate", "def twosum", "def validanagram", "blind 75",
+                "time complexity", "space complexity", "o(n)", "brute force vs"
+            ]):
+                logger.warning(f"🚨 FINAL SECURITY CHECK: Forcing PROBLEM_SOLVING analysis for LeetCode content")
+                logger.warning(f"   Topic was: {topic}")
+                segment_type = "PROBLEM_SOLVING"
         
         logger.info(f"🔍 Detected segment type: {segment_type}")
             
@@ -1694,6 +1746,8 @@ KEY INTELLIGENCE AREAS:
 """
 
         if segment_type == "PROBLEM_SOLVING":
+            logger.info("🎯 USING ENHANCED LEETCODE PROBLEM-SOLVING ANALYSIS")
+            logger.info(f"   This ensures: Correct titles + Technique extraction + Struggle analysis")
             # Build the problem-solving prompt in readable sections
             
             title_rules = (
