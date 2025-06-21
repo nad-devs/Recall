@@ -95,30 +95,11 @@ export function useAnalyzePage() {
         overallSummary: learningJourney.summary || concepts.map((c: any) => c.summary).join("\n\n"),
         conceptMap: concepts.map((c: any) => c.id || c.title),
         concepts: concepts.map((concept: any) => ({
+          ...concept, // Pass all properties from the API concept directly
           id: concept.id || concept.title?.replace(/\s+/g, '-').toLowerCase(),
           title: concept.title,
           category: concept.category || "General",
-          summary: concept.summary || "",
-          details: concept.details || {
-            implementation: concept.implementation || "",
-            complexity: concept.complexity || {},
-            useCases: concept.use_cases || [],
-            edgeCases: concept.edge_cases || [],
-            performance: concept.performance || "",
-            interviewQuestions: concept.interview_questions || [],
-            practiceProblems: concept.practice_problems || [],
-            furtherReading: concept.further_reading || [],
-          },
-          keyPoints: concept.key_points || concept.keyPoints || [],
-          examples: concept.examples || [],
-          codeSnippets: concept.code_snippets || concept.codeSnippets || [],
-          relatedConcepts: concept.related_concepts || concept.relatedConcepts || [],
-          relationships: concept.relationships || {},
-          // New fields for practical summary mode are now coming directly from the unified service
-          keyTakeaway: concept.keyTakeaway,
-          analogy: concept.analogy,
-          practicalTips: concept.practicalTips || [],
-          // Additional learning data from journey analysis
+          // Add learning journey data
           personalNotes: learningJourney.personal_insights?.[0]?.content,
           learningTips: learningJourney.learning_tips || [],
           commonMistakes: learningJourney.common_mistakes || [],
