@@ -1579,81 +1579,118 @@ comprehensive than the 'summary' field."""
 
         # Add specific instructions for LeetCode problems
         leetcode_specific_instructions = """
-IMPORTANT - LEETCODE PROBLEM DETECTION AND LEARNING CONTEXT:
-When detecting LeetCode-style algorithm problems:
+CRITICAL - ENHANCED LEETCODE PROBLEM EXTRACTION:
 
-1. MAINTAIN STANDARD PROBLEM NAMES AS THE MAIN CONCEPT TITLE:
-   - ALWAYS use "Contains Duplicate" as the primary concept title, 
-     NOT "Hash Table for Duplicate Detection"
-   - Other standard names: "Valid Anagram", "Two Sum", "Reverse Linked List"
-   - The technique (Hash Table, Two Pointer, etc.) should NEVER be in the main problem title
-   - Create separate concept entries for techniques (Hash Table, etc.) if needed
+**SECTION 1: INTELLIGENT TITLE EXTRACTION (HIGHEST PRIORITY)**
+1. **AUTONOMOUS LEETCODE PROBLEM NAME DETECTION:**
+   - Intelligently analyze the conversation flow to identify the core problem being discussed
+   - Look for direct problem name mentions, but also infer from context:
+     * Problem descriptions that match well-known LeetCode problems
+     * Function signatures that correspond to standard problems
+     * Problem constraints that uniquely identify specific challenges
+   - Use your knowledge base to map problem descriptions to exact LeetCode names
+   - When multiple names are mentioned, choose the most standard/canonical one
+   - CRITICAL: The title should be the EXACT problem name, not a description of the approach
+   - Examples of CORRECT titles: "Contains Duplicate", "Valid Anagram", "Two Sum"
+   - Examples of WRONG titles: "Hash Table for Duplicates", "Character Frequency Analysis", "Array Sum Problem"
 
-2. DETECT AND PRESERVE LEARNING JOURNEY CONTEXT:
-   - Look for mentions of "NeetCode", "Blind 75", "Blind75", "DSA practice"
-   - Detect progress tracking patterns ("1 down, 74 to go", "problem X of Y")
-   - Include learning methodology discussions (step-by-step approach, syntax vs concepts)
-   - Capture systematic learning approaches and curriculum references
-   - Note interview preparation context
+**SECTION 2: AUTONOMOUS TECHNIQUE/METHOD EXTRACTION**
+2. **INTELLIGENTLY IDENTIFY AND EXTRACT ALL TECHNIQUES/DATA STRUCTURES AS SEPARATE CONCEPTS:**
+   - Use your understanding of algorithms and data structures to identify ANY technique being discussed
+   - Look for these contextual patterns:
+     * When the conversation explains HOW something is solved (the method/approach)
+     * When specific data structures are chosen for their properties (O(1) lookup, LIFO, etc.)
+     * When algorithmic patterns are applied (divide-and-conquer, greedy choice, etc.)
+     * When optimization techniques are discussed (memoization, pruning, etc.)
+   - Create separate concepts for ANY significant technique mentioned, including but not limited to:
+     * Data structures (Hash Table, Stack, Queue, Heap, Tree, Graph, etc.)
+     * Algorithmic patterns (Two Pointer, Sliding Window, Backtracking, etc.)
+     * Search/traversal methods (Binary Search, DFS, BFS, etc.)
+     * Optimization strategies (Dynamic Programming, Greedy, Divide & Conquer, etc.)
+   - For each technique, autonomously determine:
+     * The most precise name for the technique
+     * Whether it's a "Data Structure" or "Algorithm Technique"
+     * How it specifically applies to the problem being discussed
+     * The key benefits/properties that make it suitable for this problem
 
-3. ALWAYS IDENTIFY AND CATEGORIZE LEETCODE PROBLEMS CORRECTLY:
-   - ANY problem that resembles a LeetCode-style coding challenge MUST be categorized as 
-     "LeetCode Problems"
-   - Common indicators: array manipulation problems, string problems with specific constraints, 
-     graph traversals, etc.
-   - If you recognize the problem as a standard algorithm challenge, ALWAYS categorize it as 
-     "LeetCode Problems"
-   - Do NOT categorize LeetCode problems as just "Algorithm" or other generic categories
+**SECTION 3: AUTONOMOUS STRUGGLE AND IMPROVEMENT ANALYSIS**
+3. **INTELLIGENTLY ANALYZE LEARNING CHALLENGES AND GROWTH OPPORTUNITIES:**
+   - Use conversational context and tone to identify learning difficulties:
+     * Look for uncertainty indicators (questions, hesitation, multiple attempts)
+     * Identify conceptual gaps (when explanations are needed multiple times)
+     * Detect implementation struggles (syntax issues, logical errors)
+     * Notice approach uncertainty (comparing multiple solutions, asking for validation)
+     * Recognize complexity confusion (misunderstanding time/space trade-offs)
+   - When learning challenges are evident, create a concept titled "Learning Insights: [Problem Name]"
+   - Autonomously extract:
+     * The specific knowledge gaps that were addressed
+     * Conceptual breakthroughs that occurred during the conversation
+     * Implementation patterns that were challenging
+     * Key insights that emerged from the struggle
+     * Actionable steps for similar problems in the future
+   - Focus on the LEARNING PROCESS rather than just the mistakes
+   - Extract the journey from confusion to clarity
 
-4. EXTRACT LEARNING METHODOLOGY AS SEPARATE CONCEPTS WHEN RELEVANT:
-   - If the conversation discusses learning approach, create a separate concept for it
-   - Examples: "DSA Learning Methodology", "Problem-Solving Approach", "NeetCode Blind 75 Progress"
-   - Include insights about learning syntax vs understanding concepts
-   - Capture step-by-step problem-solving techniques
+**SECTION 4: AUTONOMOUS PROBLEM CONTEXT DETECTION**
+4. **INTELLIGENTLY RECOGNIZE LEETCODE PROBLEM DISCUSSIONS:**
+   - Use context clues to identify when a LeetCode problem is being discussed:
+     * Problem-solving language patterns ("given an array", "return true if", "find the")
+     * Constraint discussions (time limits, space requirements, input ranges)
+     * Solution optimization talk (comparing approaches, efficiency analysis)
+     * Interview preparation context (mentions of coding interviews, practice)
+     * Problem numbering references (any mention of problem numbers or IDs)
+     * Algorithmic pattern recognition (when classic patterns are being applied)
+   - Focus on understanding the INTENT and CONTEXT rather than keyword matching
+   - Recognize when someone is working through a structured algorithmic challenge
 
-5. ALWAYS INCLUDE DETAILED IMPLEMENTATION:
-   - Explain the algorithm step-by-step
-   - Include time and space complexity analysis
-   - Discuss edge cases and optimizations
-   - Explain why the chosen approach (e.g., hash table) is optimal
+**SECTION 5: COMPREHENSIVE LEARNING CONTEXT**
+5. **CAPTURE COMPLETE LEARNING JOURNEY:**
+   - Extract learning methodology discussions
+   - Note progress tracking ("X problems done", "practicing arrays")
+   - Identify systematic learning approaches
+   - Document insights about problem-solving strategies
+   - Capture meta-learning (learning how to learn algorithms)
 
-6. PROVIDE WORKING CODE SOLUTIONS:
-   - Include a complete, executable solution
-   - Add clear comments explaining key steps
-   - Show both the naive and optimized approaches when relevant
+EXAMPLE OUTPUT STRUCTURE for "Contains Duplicate":
 
-7. CATEGORIZE CORRECTLY:
-   - Use consistent category "LeetCode Problems" for the main problem
-   - Use "Learning & Development" for learning methodology concepts
-   - Use "Algorithm Technique" for specific techniques (Hash Table, Two Pointer)
-   - Include appropriate subcategories and related concepts
-
-Example for "Contains Duplicate" with learning context:
+Primary Concept (Problem):
 {
   "title": "Contains Duplicate",
   "category": "LeetCode Problems",
-  "summary": "A LeetCode problem from the NeetCode Blind 75 that involves finding if an array contains any duplicate elements using hash table approach.",
-  "details": "The Contains Duplicate problem is part of the NeetCode Blind 75 curriculum and asks us to determine if an array contains any duplicate elements. The most efficient approach uses a hash table (dictionary) to track elements we've seen.
-
-As we iterate through the array, we check if each element already exists in our hash table. If it does, we've found a duplicate and return true. If we finish iterating without finding any duplicates, we return false.
-
-This approach achieves O(n) time complexity compared to the naive O(n²) nested loop approach, trading some space efficiency for significant time optimization. The problem demonstrates fundamental hash table usage patterns that appear frequently in coding interviews.",
-  "keyPoints": [
-    "Part of NeetCode Blind 75 problem set",
-    "Use a hash table to track previously seen elements",
-    "Time complexity is O(n) where n is the length of the array",
-    "Space complexity is also O(n) in the worst case",
-    "Early termination occurs as soon as the first duplicate is found"
-  ],
-  "relatedConcepts": ["Hash Table", "NeetCode Blind 75", "Array Problems"],
-  "codeSnippets": [
-    {
-      "language": "Python",
-      "description": "Hash table implementation for Contains Duplicate",
-      "code": "def containsDuplicate(nums):\\n    seen = {}  # Hash table to track elements\\n    \\n    for num in nums:\\n        # If we've seen this number before, return True\\n        if num in seen:\\n            return True\\n        # Otherwise, add it to our hash table\\n        seen[num] = True\\n    \\n    # If we've checked all elements without finding duplicates\\n    return False"
-    }
-  ]
+  "summary": "LeetCode problem asking to determine if an array contains duplicate elements",
+  "details": "[Detailed explanation including approach, complexity, etc.]"
 }
+
+Secondary Concept (Technique):
+{
+  "title": "Hash Table",
+  "category": "Data Structure", 
+  "summary": "Hash table used for O(1) duplicate detection in Contains Duplicate problem",
+  "details": "[How hash table is specifically used, implementation details, etc.]"
+}
+
+Tertiary Concept (Struggles - if identified):
+{
+  "title": "Learning Challenges: Contains Duplicate",
+  "category": "Learning & Development",
+  "summary": "Areas of difficulty encountered while solving Contains Duplicate",
+  "details": "[Specific struggles, confusion points, areas for improvement]"
+}
+
+AUTONOMOUS INTELLIGENCE REQUIREMENTS:
+- Use your deep understanding of algorithms, data structures, and LeetCode problems
+- Apply contextual reasoning rather than simple keyword matching
+- EVERY LeetCode conversation should yield: problem + techniques + learning insights (when present)
+- Demonstrate intelligence in mapping conversation content to precise concept names
+- Extract the essence of what's being learned, not just what's being said
+- Focus on concepts that would be valuable for future problem-solving sessions
+
+KEY INTELLIGENCE AREAS:
+1. **Problem Name Intelligence**: Map problem descriptions to exact LeetCode titles using your knowledge
+2. **Technique Intelligence**: Recognize algorithmic patterns and data structure usage from context
+3. **Learning Intelligence**: Understand the learning journey and extract meaningful insights
+4. **Implementation Intelligence**: Capture specific coding patterns and optimization strategies
+5. **Complexity Intelligence**: Extract and explain time/space complexity reasoning from discussions
 """
 
         if segment_type == "PROBLEM_SOLVING":
@@ -1974,31 +2011,28 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                         # Check for technique references in various places
                         techniques = set()
                         
-                        # From key points
+                        # From key points - Let the AI model handle technique detection autonomously
                         for point in concept.get("keyPoints", []):
-                            for tech in ["hash table", "dictionary", "frequency count", "frequency counting", "two pointer", 
-                                      "sliding window", "binary search", "dynamic programming"]:
-                                if tech in point.lower():
-                                    # Normalize technique names
-                                    if tech == "dictionary":
-                                        techniques.add("Hash Table")
-                                    elif tech in ["frequency count", "frequency counting"]:
-                                        techniques.add("Frequency Count")
-                                    else:
-                                        techniques.add(tech.title())
+                            # Simple pattern matching for obvious techniques, but rely mainly on AI intelligence
+                            point_lower = point.lower()
+                            if any(term in point_lower for term in ["hash", "dictionary", "map"]):
+                                techniques.add("Hash Table")
+                            elif "frequency" in point_lower or "count" in point_lower:
+                                techniques.add("Frequency Counting")
+                            elif "pointer" in point_lower:
+                                techniques.add("Two Pointer Technique")
+                            elif "window" in point_lower:
+                                techniques.add("Sliding Window")
                         
-                        # From subcategories
+                        # From subcategories - autonomous technique recognition
                         for subcat in concept.get("subcategories", []):
-                            for tech in ["hash table", "dictionary", "frequency count", "frequency counting", "two pointer", 
-                                      "sliding window", "binary search", "dynamic programming"]:
-                                if tech in subcat.lower():
-                                    # Normalize technique names
-                                    if tech == "dictionary":
-                                        techniques.add("Hash Table")
-                                    elif tech in ["frequency count", "frequency counting"]:
-                                        techniques.add("Frequency Count")
-                                    else:
-                                        techniques.add(tech.title())
+                            # Let the AI model handle this through the main prompt instructions
+                            # Only do minimal obvious mappings
+                            subcat_lower = subcat.lower()
+                            if "hash" in subcat_lower or "dict" in subcat_lower:
+                                techniques.add("Hash Table")
+                            elif "frequency" in subcat_lower or "count" in subcat_lower:
+                                techniques.add("Frequency Counting")
                         
                         # From related data structures
                         for ds in concept.get("relationships", {}).get("dataStructures", []):
@@ -2064,22 +2098,28 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                         concept["relatedConcepts"] = [x for x in concept["relatedConcepts"] 
                                                     if not (x.lower() in seen or seen.add(x.lower()))]
                 
-                # Post-process to ensure LeetCode problems are correctly categorized
+                # Intelligent post-processing for LeetCode problem categorization
                 for concept in concepts:
-                    # Check if this looks like a LeetCode problem based on title but isn't categorized as such
-                    title_lower = concept["title"].lower()
+                    # Use intelligent heuristics rather than hardcoded lists
+                    title = concept["title"]
+                    summary = concept.get("summary", "")
                     
-                    # List of common LeetCode problem indicators
-                    leetcode_indicators = [
-                        "duplicate", "anagram", "two sum", "palindrome", "linked list", "binary tree",
-                        "reverse", "merge", "sort", "search", "maximum subarray", "path sum",
-                        "valid parentheses", "container", "water", "longest common", "rotate", 
-                        "median of", "zigzag", "roman to", "integer to", "add two"
-                    ]
+                    # Check if this looks like a LeetCode problem based on structure and context
+                    is_likely_leetcode = (
+                        # Title structure often matches LeetCode naming patterns
+                        (len(title.split()) <= 4 and any(word.istitle() for word in title.split())) or
+                        # Summary contains problem-solving language
+                        any(phrase in summary.lower() for phrase in [
+                            "leetcode", "problem", "algorithm", "solution", "approach", 
+                            "time complexity", "space complexity", "optimization"
+                        ]) or
+                        # Context suggests it's a coding challenge
+                        "interview" in summary.lower() or "challenge" in summary.lower()
+                    )
                     
-                    # If title contains indicators but isn't categorized as LeetCode
-                    if any(indicator in title_lower for indicator in leetcode_indicators) and concept["category"] != "LeetCode Problems":
-                        print(f"Fixing category: '{concept['title']}' detected as LeetCode problem")
+                    # Auto-correct category if it seems like a LeetCode problem but isn't categorized as such
+                    if is_likely_leetcode and concept["category"] != "LeetCode Problems":
+                        print(f"Intelligently fixing category: '{concept['title']}' detected as LeetCode problem")
                         concept["category"] = "LeetCode Problems"
                         
                         # If this concept has related technique concepts, make sure they're properly linked
