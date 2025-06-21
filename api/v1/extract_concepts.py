@@ -43,18 +43,28 @@ if not OPENAI_API_KEY:
 
 class ConversationRequest(BaseModel):
     conversation_text: str
-    context: Optional[Dict] = None  # Additional context for better extraction
-    category_guidance: Optional[Dict] = None  # For hierarchical categories guidance
-    custom_api_key: Optional[str] = None  # User's custom OpenAI API key
+    mode: Optional[str] = "deepdive"  # Acknowledge mode from frontend
+    context: Optional[Dict] = None
+    category_guidance: Optional[Dict] = None
+    custom_api_key: Optional[str] = None
 
 
 class Concept(BaseModel):
     title: str
     category: str
-    categoryPath: Optional[List[str]] = None  # New: for hierarchical categories
-    subcategories: Optional[List[str]] = None
-    notes: Dict
+    # Deep Dive Fields
+    summary: str
+    details: str
+    keyPoints: List[str]
     code_examples: Optional[List[Dict]] = None
+    # Quick Recall Fields
+    keyTakeaway: Optional[str] = None
+    analogy: Optional[str] = None
+    practicalTips: Optional[List[str]] = None
+    # Metadata and Relationships
+    categoryPath: Optional[List[str]] = None
+    subcategories: Optional[List[str]] = None
+    notes: Optional[Dict] = None
     relationships: Optional[Dict] = None
     learning_resources: Optional[Dict] = None
     confidence_score: float
@@ -825,32 +835,35 @@ detailed than the 'summary' field. Focus on deep understanding rather than surfa
             "ANALYZE THIS NON-TECHNICAL CONVERSATION SEGMENT according to the guidelines above.\n\n"
         )
         
-        json_format = (
-            "Respond in this JSON format:\n"
-            "{\n"
-            '    "concepts": [\n'
-            "        {\n"
-            '            "title": "Main Concept or Insight",\n'
-            '            "summary": "A unique, concise summary specific to this concept only.",\n'
-            '            "insights": "A comprehensive 3-6 paragraph explanation focusing on understanding, applications, and practical value rather than technical implementation.",\n'
-            '            "keyPoints": ["Key takeaway 1", "Key takeaway 2"],\n'
-            '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
-            '            "practicalInsights": [\n'
-            "                {\n"
-            '                    "type": "insight",\n'
-            '                    "title": "Practical application or methodology",\n'
-            '                    "description": "Actionable insight or step-by-step approach"\n'
-            "                }\n"
-            "            ],\n"
-            '            "category": "Finance"' + f"{categoryPath_example},\n" + 
-            '            "subcategories": ["Investment"]\n' + 
-            "        }\n" + 
-            "    ],\n" + 
-            '    "conversation_title": "A short, descriptive title for this conversation",\n' + 
-            '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation."\n' + 
-            '}\n\n' + 
-            f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
-        )
+        json_format = f"""
+Respond in this JSON format:
+{{
+    "concepts": [
+        {{
+            "title": "Main Concept or Insight",
+            "summary": "A unique, concise summary specific to this concept only.",
+            "insights": "A comprehensive 3-6 paragraph explanation focusing on understanding, applications, and practical value rather than technical implementation.",
+            "keyPoints": ["Key takeaway 1", "Key takeaway 2"],
+            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],
+            "practicalInsights": [
+                {{
+                    "title": "Practical application or methodology",
+                    "description": "Actionable insight or step-by-step approach"
+                }}
+            ],
+            "category": "Finance"{categoryPath_example},
+            "subcategories": ["Investment"]
+        }}
+    ],
+    "conversation_title": "A short, descriptive title for this conversation",
+    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation."
+}}
+
+Conversation Segment:
+\"\"\"
+{segment_text}
+\"\"\"
+"""
         
         # Combine all sections for non-technical analysis
         structured_prompt = (
@@ -1726,49 +1739,45 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 context_info +
                 json_format
             )
-        else:
-            # Build the exploratory/learning prompt in readable sections
+        else:  # Exploratory learning
             base_instructions = (
-                "You are an ELITE technical knowledge extraction system. Your job is to "
-                "analyze technical learning conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
-                "CONCEPT IDENTIFICATION RULES:\n"
-                "1. TECHNOLOGIES & FRAMEWORKS: Extract specific tools, libraries, or platforms being learned\n"
-                "2. ARCHITECTURAL PATTERNS: Extract design patterns, system architectures, or methodologies\n"
-                "3. TECHNICAL CONCEPTS: Extract core computer science or engineering principles\n"
-                "4. IMPLEMENTATION STRATEGIES: Extract specific approaches to solving technical challenges\n"
-                "5. BEST PRACTICES: Extract proven techniques and methodologies\n"
-                "6. NON-TECHNICAL INSIGHTS: For mixed content, extract valuable insights from non-technical domains\n\n"
-                "QUALITY STANDARDS:\n"
-                "- Each concept must be SPECIFIC and ACTIONABLE\n"
-                "- Avoid generic concepts like 'Programming' or 'Development'\n"
-                "- Focus on concepts that provide concrete learning value\n"
-                "- Include practical applications and real-world context\n"
-                "- Extract the INSIGHTS and UNDERSTANDING gained, not just facts\n"
-                "- Limit to 1-5 HIGH-VALUE concepts maximum\n"
-                "- NO overlapping or duplicate concepts\n"
-                "- For non-technical content, focus on actionable insights and practical knowledge\n\n"
+                "You are an ELITE technical knowledge extraction system. Your job is to analyze "
+                "exploratory learning conversations and extract SPECIFIC, VALUABLE concepts:\n\n"
+                "🎯 CONCEPT IDENTIFICATION RULES:\n"
+                "1. CORE CONCEPTS: Extract fundamental principles and high-level ideas being discussed\n"
+                "2. TECHNOLOGIES & TOOLS: Identify specific libraries, frameworks, or services mentioned\n"
+                "3. KEY INSIGHTS: Extract 'aha' moments or significant realizations in the conversation\n"
+                "4. METHODOLOGIES & PATTERNS: Extract processes, workflows, or design patterns\n"
+                "5. COMPARISONS: Extract meaningful comparisons between different technologies or approaches\n\n"
+                "🚫 AVOID THESE GENERIC CONCEPTS:\n"
+                "- 'Learning', 'Discussion', 'Question', 'Thinking'\n"
+                "- Surface-level mentions without any deep explanation\n\n"
+                "✅ QUALITY STANDARDS:\n"
+                "- Each concept must be a meaningful unit of knowledge\n"
+                "- Focus on concepts that build a mental model of a topic\n"
+                "- Limit to 2-5 HIGH-VALUE concepts maximum\n"
+                "- NO overlapping or duplicate concepts\n\n"
             )
             
             concept_requirements = (
                 "For EACH concept, provide:\n"
-                "- A clear, specific title focusing on the concept (problem, data structure, algorithm, or topic).\n"
-                "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\n"
-                "- A different, detailed 'implementation' field with in-depth explanation for this specific concept.\n"
-                "- 2-5 key points summarizing the most important takeaways specific to this concept.\n"
-                "- Related concepts if relevant.\n"
-                "- Code examples if present in the conversation and relevant to the concept.\n"
+                "- A clear, specific title.\n"
+                "- A unique, concise 'summary' (2-4 sentences).\n"
+                "- A different, comprehensive 'details' section (4-8 paragraphs).\n"
+                "- 2-5 distinct 'keyPoints'.\n"
+                "- Relevant 'code_examples' with explanations.\n"
+                "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\n"
             )
-            
+
             quality_requirements = (
-                "IMPORTANT: Each concept MUST have its own unique summary and details - do not copy or reuse content between concepts.\n"
-                "CRITICAL: The 'details' field must be 3-5x longer than the 'summary' and contain comprehensive information.\n"
-                "NOTE: For non-technical concepts, focus on insights and practical applications rather than code.\n\n"
+                "IMPORTANT: Each concept MUST have unique content - do not copy between concepts.\n"
+                "CRITICAL: The 'details' field must be 3-5x longer than 'summary' and focus on deep understanding.\n\n"
             )
-            
+
             context_info = (
                 f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
                 f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
-                "ANALYZE THIS CONVERSATION SEGMENT according to the exploratory learning extraction approach above.\n\n"
+                "ANALYZE THIS EXPLORATORY LEARNING SEGMENT according to the guidelines above.\n\n"
             )
             
             json_format = (
@@ -1776,26 +1785,29 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
                 "{\n"
                 '    "concepts": [\n'
                 "        {\n"
-                '            "title": "Main Concept or Topic",\n'
-                '            "summary": "A unique, concise summary specific to this concept only.",\n'
-                '            "implementation": "A comprehensive 3-6 paragraph explanation that goes far beyond the summary, including implementation details, methodologies, real-world applications, considerations, and advanced concepts.",\n'
-                '            "keyPoints": ["Key point 1", "Key point 2"],\n'
-                '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
-                '            "codeSnippets": [\n'
-                "                {\n"
-                '                    "language": "Language name",\n'
-                '                    "description": "Description of what this code demonstrates",\n'
-                '                    "code": "Properly formatted and commented code example"\n'
-                "                }\n"
-                "            ],\n"
-                '            "category": "Backend Engineering"' + f"{categoryPath_example},\n" + 
-                '            "subcategories": ["Backend Engineering"]\n' + 
-                "        }\n" + 
-                "    ],\n" + 
-                '    "conversation_title": "A short, descriptive title for this conversation (different from the summary)",\n' + 
-                '    "conversation_summary": "A 1-2 sentence summary of the main topics and insights from this conversation, suitable for display on a card."\n' + 
-                '}\n\n' + 
-                f"Conversation Segment:\n\"\"\"\n{segment_text}\n\"\"\"\n"
+                '            "title": "A clear, specific, and unique title for this concept. Use ~5-10 words.",\n'
+                '            "summary": "A unique, concise summary (2-4 sentences) of the concept, specific to this concept only.",\n'
+                '            "details": "A comprehensive, in-depth explanation (4-8 paragraphs) of the concept. This MUST be substantially different from the summary. Explain the what, why, and how. Include context, applications, and nuances. Do NOT repeat the summary.",\n'
+                '            "keyPoints": ["A list of 2-5 key, distinct takeaways or facts from the details."],\n'
+                '            "code_examples": [\n'
+                '                {\n'
+                '                    "code": "A relevant code snippet. Keep it concise and directly related to the concept.",\n'
+                '                    "language": "The programming language of the snippet (e.g., python, javascript).",\n'
+                '                    "explanation": "A brief explanation of what the code does and how it relates to the concept."\n'
+                '                }\n'
+                '            ],\n'
+                '            "keyTakeaway": "A single, powerful sentence that captures the absolute core essence of the concept. This is for quick recall.",\n'
+                '            "analogy": "A simple, relatable analogy or metaphor to help understand the concept faster.",\n'
+                '            "practicalTips": ["A list of 2-3 actionable tips or advice for applying this concept."],\n'
+                '            "category": "The most specific category (e.g., \'Python\', \'Backend Engineering > APIs\', \'Finance > Investment\')"'
+                + f"{categoryPath_example},\n"
+                + '            "confidence_score": "A float from 0.0 to 1.0 indicating your confidence in the accuracy and relevance of the extracted information."\n'
+                "        }\n"
+                "    ],\n"
+                '    "conversation_title": "A short, descriptive title for this conversation (~5-10 words)",\n'
+                '    "conversation_summary": "A 1-2 sentence summary of the main topics from this conversation."\n'
+                "}\n\n"
+                f'Conversation Segment:\n"""\n{segment_text}\n"""\n'
             )
             
             # Combine all sections
