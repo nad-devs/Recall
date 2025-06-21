@@ -99,7 +99,7 @@ export function PersonalInsightsView({
               </div>
               <h4 className="text-lg font-semibold text-slate-200 mb-3">Key Takeaway</h4>
               <blockquote className="text-slate-300 italic text-lg leading-relaxed">
-                {concept.keyTakeaway || "A core insight about this concept will appear here once analyzed."}
+                "{concept.keyTakeaway || "A core insight about this concept will appear here once analyzed."}"
               </blockquote>
             </div>
 
