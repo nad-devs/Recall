@@ -4,11 +4,12 @@ import {
   Code,
   Lightbulb,
 } from "lucide-react"
-import { Concept } from "@/lib/types/conversation"
+import { Concept, ConversationAnalysis } from "@/lib/types/conversation"
 import { useState } from "react"
 import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 
 interface PersonalInsightsViewProps {
+  analysisResult: ConversationAnalysis | null
   selectedConcept: Concept | null
   showYouTubeLinkPrompt: boolean
   onYouTubeLinkAdd: (link: string) => void
@@ -18,6 +19,7 @@ interface PersonalInsightsViewProps {
 }
 
 export function PersonalInsightsView({
+  analysisResult,
   selectedConcept,
   showYouTubeLinkPrompt,
   onYouTubeLinkAdd,
@@ -25,8 +27,9 @@ export function PersonalInsightsView({
   analysisMode,
   setAnalysisMode,
 }: PersonalInsightsViewProps) {
+  const conceptToDisplay = analysisResult?.concepts.find(c => c.id === selectedConcept?.id) || selectedConcept;
 
-  if (!selectedConcept) {
+  if (!conceptToDisplay) {
     return (
       <div className="bg-slate-800/30 rounded-lg p-8 text-center border border-slate-700 h-full flex flex-col justify-center">
         <div className="w-16 h-16 bg-purple-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -43,7 +46,7 @@ export function PersonalInsightsView({
   }
 
   // Casting to access fields not yet in the type definition
-  const concept = selectedConcept as any
+  const concept = conceptToDisplay as any
 
   return (
     <div className="space-y-6">
