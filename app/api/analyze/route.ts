@@ -10,8 +10,8 @@ interface AnalyzeRequestBody {
   mode: 'deepdive' | 'recall';
 }
 
-// URL for the "dumb" extraction service
-const EXTRACTION_SERVICE_URL = process.env.EXTRACTION_SERVICE_URL;
+// URL for the new, unified extraction service
+const UNIFIED_ANALYSIS_SERVICE_URL = process.env.PYTHON_ANALYSIS_SERVICE_URL || 'https://recall-p3vg.onrender.com/api/v1/extract-concepts';
 
 // This is where we'll orchestrate the "smart" comparison
 // We'll need a way to call an AI model from here.
@@ -56,20 +56,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Invalid request body.' }, { status: 400 });
   }
 
-  if (!EXTRACTION_SERVICE_URL) {
+  if (!UNIFIED_ANALYSIS_SERVICE_URL) {
     return NextResponse.json({ success: false, error: 'Server configuration error.' }, { status: 500 });
   }
 
   try {
-    // 2. Extract initial concepts from the external service
-    const extractionResponse = await fetch(EXTRACTION_SERVICE_URL, {
+    // 2. Extract initial concepts from the new, unified external service
+    const extractionResponse = await fetch(UNIFIED_ANALYSIS_SERVICE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_text: body.conversation_text, mode: body.mode }),
+      body: JSON.stringify({ conversation_text: body.conversation_text }), // No longer sending mode
     });
 
     if (!extractionResponse.ok) {
-      throw new Error(`Extraction service failed: ${await extractionResponse.text()}`);
+      throw new Error(`Unified analysis service failed: ${await extractionResponse.text()}`);
     }
 
     const extractionData = await extractionResponse.json();
