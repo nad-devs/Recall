@@ -65,7 +65,10 @@ export async function POST(request: Request) {
     const extractionResponse = await fetch(UNIFIED_ANALYSIS_SERVICE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_text: body.conversation_text }), // No longer sending mode
+      body: JSON.stringify({ 
+        conversation_text: body.conversation_text,
+        mode: body.mode 
+      }),
     });
 
     if (!extractionResponse.ok) {
