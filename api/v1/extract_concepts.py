@@ -43,7 +43,6 @@ if not OPENAI_API_KEY:
 
 class ConversationRequest(BaseModel):
     conversation_text: str
-    mode: Optional[str] = "deepdive"  # Acknowledge mode from frontend
     context: Optional[Dict] = None
     category_guidance: Optional[Dict] = None
     custom_api_key: Optional[str] = None
@@ -1907,7 +1906,11 @@ This approach achieves O(n) time complexity compared to the naive O(n²) nested 
 
             # Single-pass: analyze the whole conversation with the improved prompt
             single_pass_result = await self._analyze_segment(
-                "Full Conversation", req.conversation_text, req.context, req.category_guidance, req.custom_api_key
+                topic="Full Conversation", 
+                segment_text=req.conversation_text, 
+                context=req.context, 
+                category_guidance=req.category_guidance, 
+                custom_api_key=req.custom_api_key
             )
 
             # If we get at least one concept, return it
