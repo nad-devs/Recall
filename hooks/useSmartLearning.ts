@@ -52,6 +52,7 @@ interface QuickInsight {
   icon: string
   color: string
   actionable: boolean
+  type: 'progress' | 'confidence' | 'focus'
 }
 
 export function useSmartLearning(userId: string) {
@@ -133,14 +134,16 @@ export function useSmartLearning(userId: string) {
             description: `You've learned ${totalConcepts} concepts across ${categories.length} categories`,
             icon: '📚',
             color: 'blue',
-            actionable: true
+            actionable: true,
+            type: 'progress'
           },
           {
             title: 'Confidence Level',
             description: `Average confidence: ${Math.round(avgConfidence * 100)}%`,
             icon: '🎯',
             color: 'green',
-            actionable: true
+            actionable: true,
+            type: 'confidence'
           }
         ]
         
@@ -150,7 +153,8 @@ export function useSmartLearning(userId: string) {
             description: `Most recent: ${concepts[0]?.category || 'General'}`,
             icon: '🔍',
             color: 'purple',
-            actionable: true
+            actionable: true,
+            type: 'focus'
           })
         }
         

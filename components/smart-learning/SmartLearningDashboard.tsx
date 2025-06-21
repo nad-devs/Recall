@@ -47,12 +47,12 @@ export function SmartLearningDashboard({
 
   if (compact) {
     return (
-      <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+      <Card className="bg-background/50 backdrop-blur-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Brain className="h-4 w-4 text-indigo-600" />
+            <Brain className="h-4 w-4 text-primary" />
             Smart Learning
-            <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-700">
+            <Badge variant="outline" className="text-xs">
               {Math.round(personalizationLevel * 100)}% personalized
             </Badge>
           </CardTitle>
@@ -61,18 +61,18 @@ export function SmartLearningDashboard({
           {/* Current Stage */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Target className="h-3 w-3 text-indigo-500" />
-              <span className="text-xs font-medium text-indigo-800">
+              <Target className="h-3 w-3 text-primary/80" />
+              <span className="text-xs font-medium text-foreground/80">
                 {currentStage.charAt(0).toUpperCase() + currentStage.slice(1)}
               </span>
             </div>
-            <span className="text-xs text-indigo-600">{progressPercentage}%</span>
+            <span className="text-xs text-muted-foreground">{progressPercentage}%</span>
           </div>
 
           {/* Progress Bar */}
-          <div className="w-full bg-indigo-100 rounded-full h-1.5">
-            <div 
-              className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" 
+          <div className="w-full bg-primary/10 rounded-full h-1.5">
+            <div
+              className="bg-primary h-1.5 rounded-full transition-all duration-500"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
@@ -80,27 +80,27 @@ export function SmartLearningDashboard({
           {/* Quick Stats */}
           {learningJourney && (
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="text-center p-2 bg-white/70 rounded border border-indigo-100">
-                <div className="font-bold text-indigo-700">
+              <div className="text-center p-2 bg-background/70 rounded-md border">
+                <div className="font-bold text-foreground">
                   {learningJourney.total_concepts_learned || 0}
                 </div>
-                <div className="text-indigo-600">Concepts</div>
+                <div className="text-muted-foreground">Concepts</div>
               </div>
-              <div className="text-center p-2 bg-white/70 rounded border border-indigo-100">
-                <div className="font-bold text-indigo-700">
+              <div className="text-center p-2 bg-background/70 rounded-md border">
+                <div className="font-bold text-foreground">
                   {Object.keys(learningJourney.knowledge_areas || {}).length}
                 </div>
-                <div className="text-indigo-600">Categories</div>
+                <div className="text-muted-foreground">Categories</div>
               </div>
             </div>
           )}
 
           {/* Refresh Button */}
           <div className="text-center pt-1">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-xs text-indigo-600 hover:text-indigo-700 h-6"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground hover:text-foreground h-6"
               onClick={() => refreshSmartData()}
             >
               <Sparkles className="h-3 w-3 mr-1" />
@@ -120,7 +120,7 @@ export function SmartLearningDashboard({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-600" />
+              <TrendingUp className="h-5 w-5 text-primary" />
               Learning Journey
             </CardTitle>
             <CardDescription>
@@ -130,19 +130,19 @@ export function SmartLearningDashboard({
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-green-700">
+                <div className="text-2xl font-bold text-primary">
                   {Math.round((learningJourney.mastery_level || learningJourney.personalization_level || 0) * 100)}%
                 </div>
-                <div className="text-sm text-green-600">Overall Mastery</div>
+                <div className="text-sm text-primary/80">Overall Mastery</div>
               </div>
-              <Badge variant="outline" className="border-green-300 text-green-700">
+              <Badge variant="outline">
                 {currentStage.charAt(0).toUpperCase() + currentStage.slice(1)}
               </Badge>
             </div>
 
-            <div className="w-full bg-green-100 rounded-full h-3">
-              <div 
-                className="bg-green-500 h-3 rounded-full transition-all duration-500" 
+            <div className="w-full bg-muted rounded-full h-3">
+              <div
+                className="bg-primary h-3 rounded-full transition-all duration-500"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -150,35 +150,35 @@ export function SmartLearningDashboard({
             {/* Progress Indicators */}
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <div className="text-lg font-semibold text-gray-700">
+                <div className="text-lg font-semibold text-foreground">
                   {learningJourney.progress_indicators?.concepts_mastered || learningJourney.total_concepts_learned || 0}
                 </div>
-                <div className="text-xs text-gray-500">Concepts Learned</div>
+                <div className="text-xs text-muted-foreground">Concepts Learned</div>
               </div>
               <div>
-                <div className="text-lg font-semibold text-gray-700">
+                <div className="text-lg font-semibold text-foreground">
                   {Object.keys(learningJourney.knowledge_areas || {}).length || 0}
                 </div>
-                <div className="text-xs text-gray-500">Categories</div>
+                <div className="text-xs text-muted-foreground">Categories</div>
               </div>
                               <div>
-                  <div className="text-lg font-semibold text-gray-700">
+                  <div className="text-lg font-semibold text-foreground">
                     {Number(learningJourney.progress_indicators?.learning_velocity || learningJourney.learning_velocity || 0).toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-500">Learning Velocity</div>
+                  <div className="text-xs text-muted-foreground">Learning Velocity</div>
                 </div>
             </div>
 
             {/* Immediate Recommendations */}
             {learningJourney.recommendations?.immediate_next && learningJourney.recommendations.immediate_next.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1">
                   <Zap className="h-4 w-4 text-yellow-500" />
                   Next Steps
                 </h4>
                 <div className="space-y-1">
                   {learningJourney.recommendations.immediate_next.slice(0, 3).map((step, index) => (
-                    <div key={index} className="text-sm text-gray-600 flex items-start gap-2">
+                    <div key={index} className="text-sm text-muted-foreground flex items-start gap-2">
                       <span className="text-yellow-500 mt-0.5">•</span>
                       <span>{step}</span>
                     </div>
@@ -195,37 +195,23 @@ export function SmartLearningDashboard({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-600" />
+              <Brain className="h-5 w-5 text-primary" />
               Smart Suggestions
             </CardTitle>
             <CardDescription>
               AI-powered recommendations based on your learning pattern
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {smartSuggestions.map((suggestion, index) => (
-              <div 
-                key={index} 
-                className="p-3 bg-gray-50 rounded-lg border hover:border-purple-200 transition-colors cursor-pointer"
-                onClick={() => onSuggestionClick?.(suggestion)}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-sm font-medium text-gray-700">{suggestion.title}</h4>
-                  <Badge 
-                    variant={suggestion.priority === 'high' ? 'destructive' : suggestion.priority === 'medium' ? 'default' : 'secondary'}
-                    className="text-xs"
-                  >
-                    {suggestion.priority}
-                  </Badge>
-                </div>
-                <p className="text-xs text-gray-600 mb-2">{suggestion.description}</p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {suggestion.type.replace('_', ' ')}
-                  </Badge>
-                  <span className="text-xs text-gray-500">
-                    {Math.round(suggestion.confidence * 100)}% confidence
-                  </span>
+              <div key={index} className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                <h4 className="font-semibold text-card-foreground">{suggestion.title}</h4>
+                <p className="text-sm text-muted-foreground mb-3">{suggestion.description}</p>
+                <div className="flex items-center justify-between">
+                  <div className="w-full bg-muted rounded-full h-2.5">
+                    <div className="bg-primary h-2.5 rounded-full" style={{ width: `${suggestion.confidence * 100}%` }}></div>
+                  </div>
+                  <span className="text-sm font-medium text-foreground ml-4">{Math.round(suggestion.confidence * 100)}% confidence</span>
                 </div>
               </div>
             ))}
@@ -238,7 +224,7 @@ export function SmartLearningDashboard({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-yellow-600" />
+              <Sparkles className="h-5 w-5 text-primary" />
               Quick Insights
             </CardTitle>
             <CardDescription>
@@ -247,16 +233,16 @@ export function SmartLearningDashboard({
           </CardHeader>
           <CardContent className="space-y-3">
             {quickInsights.map((insight, index) => (
-              <div key={index} className="flex items-start gap-3 p-2 bg-gray-50 rounded-lg">
-                {React.createElement(
-                  insight.icon === 'Code' ? BookOpen : 
-                  insight.icon === 'TrendingUp' ? TrendingUp : 
-                  insight.icon === 'Users' ? Users : Clock, 
-                  { className: `h-4 w-4 text-${insight.color}-500 mt-0.5` }
-                )}
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-gray-700">{insight.title}</h4>
-                  <p className="text-xs text-gray-600">{insight.description}</p>
+              <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-card border hover:bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-full">
+                    {insight.type === 'progress' && <TrendingUp className="h-5 w-5 text-primary" />}
+                    {insight.type === 'confidence' && <Sparkles className="h-5 w-5 text-primary" />}
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-card-foreground">{insight.title}</h4>
+                    <p className="text-sm text-muted-foreground">{insight.description}</p>
+                  </div>
                 </div>
                 {insight.actionable && (
                   <Badge variant="outline" className="text-xs">
