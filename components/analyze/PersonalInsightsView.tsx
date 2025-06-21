@@ -45,7 +45,8 @@ export function PersonalInsightsView({
     )
   }
 
-  const concept = conceptToDisplay as Concept;
+  // Casting to access fields not yet in the type definition
+  const concept = conceptToDisplay as any
 
   return (
     <div className="space-y-6">
@@ -146,14 +147,6 @@ export function PersonalInsightsView({
             </p>
           </div>
 
-          {/* Details */}
-          <div className="bg-slate-800/30 rounded-lg p-6">
-            <h4 className="font-semibold text-slate-200 mb-3">Details</h4>
-            <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
-              {concept.details || "In-depth details will appear here."}
-            </p>
-          </div>
-
           {/* Details and Key Points */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Key Points */}
@@ -197,14 +190,14 @@ export function PersonalInsightsView({
           </div>
 
           {/* Code Snippets */}
-          {concept.code_examples && concept.code_examples.length > 0 && (
+          {concept.codeSnippets && concept.codeSnippets.length > 0 && (
             <div className="bg-slate-800/30 rounded-lg p-6">
               <h4 className="font-semibold text-slate-200 mb-4 flex items-center space-x-2">
                 <Code className="w-5 h-5 text-purple-400" />
                 <span>Code Examples</span>
               </h4>
               <div className="space-y-4">
-                {concept.code_examples.map((snippet, index) => (
+                {concept.codeSnippets.map((snippet: any, index: number) => (
                   <div key={index} className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-slate-300">{snippet.description}</span>
@@ -217,6 +210,30 @@ export function PersonalInsightsView({
                     </pre>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Implementation Details */}
+          {concept.details && typeof concept.details === 'object' && (
+            <div className="bg-slate-800/30 rounded-lg p-6">
+              <h4 className="font-semibold text-slate-200 mb-4">Implementation Details</h4>
+              <div className="space-y-4 text-slate-300">
+                {concept.details.implementation && (
+                  <div>
+                    <h5 className="font-medium text-slate-200 mb-2">Implementation</h5>
+                    <p className="text-sm">{concept.details.implementation}</p>
+                  </div>
+                )}
+                {concept.details.complexity && (
+                  <div>
+                    <h5 className="font-medium text-slate-200 mb-2">Complexity</h5>
+                    <div className="text-sm space-y-1">
+                      {concept.details.complexity.time && <p>Time: {concept.details.complexity.time}</p>}
+                      {concept.details.complexity.space && <p>Space: {concept.details.complexity.space}</p>}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

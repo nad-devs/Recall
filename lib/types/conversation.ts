@@ -11,14 +11,21 @@ export interface Concept {
   title: string
   category: string  // Keep for backward compatibility
   categoryPath?: string[]  // New: Array path for hierarchical categories (e.g. ["Cloud", "Google Cloud"])
-  subcategories?: string[]
   summary: string
-  details: string
+  details: {
+    implementation: string
+    complexity: {
+      time?: string
+      space?: string
+    }
+    useCases: string[]
+    edgeCases: string[]
+    performance: string
+    interviewQuestions: string[]
+    practiceProblems: string[]
+    furtherReading: string[]
+  }
   keyPoints: string[]
-  code_examples?: { language: string; code: string; description: string }[]
-  keyTakeaway?: string
-  analogy?: string
-  practicalTips?: string[]
   examples: string[]
   codeSnippets: CodeSnippet[]
   relatedConcepts: string[]
