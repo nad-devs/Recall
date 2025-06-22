@@ -546,13 +546,34 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                              {examples.length > 0 && (
                               <div>
                                 <h3 className="text-lg font-semibold mb-4">Examples</h3>
-                                <ul className="space-y-3 list-disc pl-6">
-                                  {examples.map((example: string, index: number) => (
-                                    <li key={index} className="leading-relaxed">
-                                      {example}
-                                    </li>
+                                <div className="space-y-4">
+                                  {examples.map((example: any, index: number) => (
+                                    <div key={index} className="border rounded-lg p-4 bg-muted/50">
+                                      {typeof example === 'object' && example !== null ? (
+                                        <>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                                            <div>
+                                              <span className="font-semibold text-sm text-muted-foreground">Input:</span>
+                                              <code className="block bg-background px-2 py-1 rounded text-sm mt-1">{example.input}</code>
+                                            </div>
+                                            <div>
+                                              <span className="font-semibold text-sm text-muted-foreground">Output:</span>
+                                              <code className="block bg-background px-2 py-1 rounded text-sm mt-1">{example.output}</code>
+                                            </div>
+                                          </div>
+                                          {example.explanation && (
+                                            <div>
+                                              <span className="font-semibold text-sm text-muted-foreground">Explanation:</span>
+                                              <p className="text-sm mt-1 leading-relaxed">{example.explanation}</p>
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <p className="leading-relaxed">{String(example)}</p>
+                                      )}
+                                    </div>
                                   ))}
-                                </ul>
+                                </div>
                               </div>
                             )}
                             {practicalTips.length > 0 && (
