@@ -295,9 +295,12 @@ export async function GET(
       },
     });
 
+    // --- SERVER-SIDE DEBUG LOG ---
+    console.log("CONCEPT DATA FETCHED FROM DB:", JSON.stringify(concept, null, 2));
+
     if (!concept) {
       return NextResponse.json(
-        { error: 'Concept not found' },
+        { error: 'Concept not found or you do not have permission to view it.' },
         { status: 404 }
       );
     }
