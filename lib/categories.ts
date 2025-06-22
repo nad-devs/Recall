@@ -1,4 +1,5 @@
 export const default_categories = [
+<<<<<<< HEAD
     "Data Structures and Algorithms", "Data Structures", "Algorithms", "Algorithm Technique", 
     "LeetCode Problems", 
     "LeetCode Problems > Arrays", 
@@ -8,6 +9,9 @@ export const default_categories = [
     "LeetCode Problems > Trees",
     "LeetCode Problems > Dynamic Programming",
     "LeetCode Problems > Backtracking",
+=======
+    "Data Structures and Algorithms", "Data Structures", "Algorithms", "Algorithm Technique", "LeetCode Problems",
+>>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
     "Backend Engineering", "Backend Engineering > Authentication", "Backend Engineering > Storage", "Backend Engineering > APIs", "Backend Engineering > Databases",
     "Frontend Engineering", "Frontend Engineering > React", "Frontend Engineering > Next.js", "Frontend Engineering > CSS",
     "Cloud Engineering", "Cloud Engineering > AWS", "DevOps",

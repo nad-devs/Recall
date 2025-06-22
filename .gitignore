@@ -76,6 +76,7 @@ node_modules/
 # Nested git repositories
 notes-ai/.git/ 
 .vercel
+<<<<<<< HEAD
 
 # SECURITY: Prevent credential leaks
 # PowerShell scripts that may contain credentials
@@ -102,3 +103,5 @@ concept_extraction.log
 # OS generated files
 .DS_Store
 Thumbs.db
+=======
+>>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76

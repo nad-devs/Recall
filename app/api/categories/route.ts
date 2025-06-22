@@ -4,6 +4,7 @@ import { validateSession } from '@/lib/session';
 import { NextRequest } from 'next/server';
 import { serverLogger, loggedPrismaQuery } from '@/lib/server-logger';
 
+<<<<<<< HEAD
 async function getCategories(userId: string) {
   const categories = await prisma.category.findMany({
     where: { userId },
@@ -38,6 +39,8 @@ async function getCategories(userId: string) {
   return structuredCategories;
 }
 
+=======
+>>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   let userId: string | undefined;
@@ -52,6 +55,24 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+<<<<<<< HEAD
+=======
+    
+    userId = user.id;
+    serverLogger.logAuth('validateSession', userId, true, { endpoint: '/api/categories' });
+
+    // Fetch categories from concepts that belong to the user (with optional logging)
+    const concepts = await loggedPrismaQuery(
+      'concept.findMany (categories distinct)',
+      () => prisma.concept.findMany({
+        where: {
+          userId: user.id
+        },
+        select: { category: true },
+        distinct: ['category'],
+      })
+    );
+>>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
     
     userId = user.id;
     serverLogger.logAuth('validateSession', userId, true, { endpoint: '/api/categories' });
@@ -60,11 +81,22 @@ export async function GET(request: NextRequest) {
     
     serverLogger.logApiCall('/api/categories', 'GET', startTime, userId);
     
+<<<<<<< HEAD
     return NextResponse.json(categories);
   } catch (error) {
     serverLogger.logError('/api/categories GET', error, userId, { startTime, duration: Date.now() - startTime });
     console.error('Error fetching categories:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+=======
+    return NextResponse.json({ 
+      categories: categoryPaths,
+      flatCategories: categoryStrings
+    });
+  } catch (error) {
+    serverLogger.logError('/api/categories GET', error, userId, { startTime, duration: Date.now() - startTime });
+    console.error('Error fetching categories:', error);
+    return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
+>>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
   }
 } 
 
