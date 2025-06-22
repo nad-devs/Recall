@@ -17,12 +17,8 @@ import { PageTransition } from "@/components/page-transition"
 import { LinkingProvider } from "@/components/concept-card"
 import { ConceptsLoading } from "@/components/concepts-loading"
 import featureFlags from '@/lib/feature-flags'
-<<<<<<< HEAD
 import { getAuthHeaders } from "@/lib/auth-utils"
 import { useSession } from "next-auth/react"
-import { SimpleConceptCard } from "@/components/simple-concept-card"
-=======
->>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
 
 interface Concept {
   id: string
@@ -75,7 +71,6 @@ export default function ConceptsPage() {
   const { toast } = useToast()
   
   // Simple state management - no complex tracking
-<<<<<<< HEAD
   const [concepts, setConcepts] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -101,30 +96,6 @@ export default function ConceptsPage() {
   
   const [showLoadingScreen, setShowLoadingScreen] = useState(!isReduxRefresh)
   const [showSkeletonOnly, setShowSkeletonOnly] = useState(isReduxRefresh)
-=======
-  const [concepts, setConcepts] = useState<Concept[]>([])
-  const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
-  const [sortedCategories, setSortedCategories] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  // Read the flag once and use it for both states to avoid race condition
-  const [isReduxRefresh] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const shouldSkip = sessionStorage.getItem('skipLoadingScreen')
-      if (shouldSkip) {
-        console.log('🔄 Detected Redux operation refresh - will show SKELETON')
-        sessionStorage.removeItem('skipLoadingScreen') // Clear flag after reading
-        return true // This was a Redux operation refresh
-      }
-    }
-    console.log('🆕 Normal page load - will show BEAUTIFUL animation')
-    return false // This is a normal page load
-  })
-  
-  const [showLoadingScreen, setShowLoadingScreen] = useState(!isReduxRefresh)
-  const [showSkeletonOnly, setShowSkeletonOnly] = useState(isReduxRefresh)
-  const [error, setError] = useState<string | null>(null)
->>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
   const [newConceptId, setNewConceptId] = useState<string | null>(null)
@@ -185,11 +156,7 @@ export default function ConceptsPage() {
       (concept.notes && concept.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (concept.summary && concept.summary.toLowerCase().includes(searchQuery.toLowerCase()))
     
-<<<<<<< HEAD
     const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(concept.category)
-=======
-    const matchesCategory = selectedCategory === null || concept.category === selectedCategory
->>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
     const matchesNeedsReview = !showNeedsReview || concept.needsReview
     
     return matchesSearch && matchesCategory && matchesNeedsReview
@@ -197,11 +164,7 @@ export default function ConceptsPage() {
   
   // Filter concepts by category
   const filteredConceptsByCategory = Object.entries(conceptsByCategory).reduce((acc, [category, categoryItems]) => {
-<<<<<<< HEAD
     if (selectedCategories.length > 0 && !selectedCategories.includes(category)) {
-=======
-    if (selectedCategory !== null && category !== selectedCategory) {
->>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
       return acc
     }
     
@@ -262,11 +225,7 @@ export default function ConceptsPage() {
     // Update all state simultaneously
     setConcepts(formattedConcepts)
     setConceptsByCategory(byCategory)
-<<<<<<< HEAD
     setCategories(sortedCategoryList)
-=======
-    setSortedCategories(sortedCategoryList)
->>>>>>> 0b403dd8fd2ea46c900943fddd73178a42abaf76
     
     console.log('🔧 CONCEPTS PAGE: Formatting complete, total concepts with needsReview:', 
       formattedConcepts.filter(c => c.needsReview).length)
