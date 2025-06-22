@@ -1,0 +1,2 @@
+$env:DATABASE_URL="postgres://neondb_owner:npg_CnSf5q6aoxEH@ep-lingering-mode-a4ttyd90-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require"
+npx prisma migrate dev --name add_techniques_to_relationships 
