@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react"
 import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
 import { moveConceptsAsync } from "@/store/categorySlice"
+import { getStructuredCategories } from "@/lib/categories"
 
 export function useAnalyzePage() {
   const router = useRouter()
@@ -60,7 +61,6 @@ export function useAnalyzePage() {
 
   // Category Editing
   const [structuredCategories, setStructuredCategories] = useState<{ [key: string]: string[] }>({})
-  const [isFetchingCategories, setIsFetchingCategories] = useState(false)
 
   useEffect(() => {
     const key = localStorage.getItem("custom-api-key")
@@ -345,32 +345,12 @@ export function useAnalyzePage() {
   }
   const handleYouTubeLinkSkip = () => setShowYouTubeLinkPrompt(false)
 
-  const handleCategoryEdit = async (concept: Concept) => {
-    setIsFetchingCategories(true)
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/v1/structured-categories`);
-      if (response.ok) {
-        const data = await response.json();
-        setStructuredCategories(data);
-        setEditingConcept(concept)
-        setShowCategoryDialog(true)
-      } else {
-        toast({
-          title: "Error",
-          description: "Could not load categories. Please try again.",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to connect to the backend to get categories.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsFetchingCategories(false)
-    }
+  const handleCategoryEdit = (concept: Concept) => {
+    // Now gets categories directly from local file
+    const categories = getStructuredCategories();
+    setStructuredCategories(categories);
+    setEditingConcept(concept)
+    setShowCategoryDialog(true)
   }
 
   const handleCategoryDialogClose = async () => {
@@ -404,7 +384,6 @@ export function useAnalyzePage() {
     showCategoryDialog,
     editingConcept,
     structuredCategories,
-    isFetchingCategories,
     // Setters
     setConversationText,
     setSelectedConcept,

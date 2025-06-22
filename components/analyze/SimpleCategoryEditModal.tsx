@@ -13,7 +13,6 @@ interface SimpleCategoryEditModalProps {
   onSave: (conceptId: string, newCategory: string, subcategories: string[]) => Promise<void>;
   concept: Concept | null;
   structuredCategories: { [key: string]: string[] };
-  isLoading?: boolean;
 }
 
 export function SimpleCategoryEditModal({
@@ -22,7 +21,6 @@ export function SimpleCategoryEditModal({
   onSave,
   concept,
   structuredCategories,
-  isLoading = false,
 }: SimpleCategoryEditModalProps) {
   const [category, setCategory] = useState('');
   const [subcategories, setSubcategories] = useState<string[]>([]);
@@ -79,10 +77,10 @@ export function SimpleCategoryEditModal({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving || isLoading}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isSaving || isLoading}>
-            {isSaving || isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isSaving ? 'Saving...' : (isLoading ? 'Loading...' : 'Save Changes')}
+          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
