@@ -9,6 +9,7 @@ import {
 import { Concept, ConversationAnalysis } from "@/lib/types/conversation"
 import { useState } from "react"
 import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
+import { CategoryBreadcrumb } from "@/components/ui/CategoryBreadcrumb"
 
 interface PersonalInsightsViewProps {
   analysisResult: ConversationAnalysis | null
@@ -109,21 +110,8 @@ export function PersonalInsightsView({
       </div>
 
       {/* Category Info */}
-      <div className="flex items-center space-x-3 text-sm">
-        <Tag className="w-4 h-4 text-slate-400" />
-        <span className="text-slate-300 font-medium">Category:</span>
-        <div className="flex items-center space-x-1.5">
-          {concept.category.split(' > ').map((part, index) => (
-            <span key={index} className="flex items-center space-x-1.5">
-              <span className="bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-md border border-blue-700/50">
-                {part}
-              </span>
-              {index < concept.category.split(' > ').length - 1 && (
-                <span className="text-slate-500">&gt;</span>
-              )}
-            </span>
-          ))}
-        </div>
+      <div className="flex items-center space-x-3">
+        <CategoryBreadcrumb category={concept.category} />
         <button 
           onClick={() => onCategoryEdit(concept)}
           className="text-slate-400 hover:text-slate-200 transition-colors"
