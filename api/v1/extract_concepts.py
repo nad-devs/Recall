@@ -1860,6 +1860,9 @@ KEY INTELLIGENCE AREAS:
                 '                    "code": "Properly formatted and commented code example"\\n'
                 "                }\\n"
                 "            ],\\n"
+                '            "relationships": {\n'
+                '                "techniques": ["Technique 1", "Technique 2"]\n'
+                '            },\n'
                 '            "keyTakeaway": "A specific, powerful sentence capturing the core essence. Must not be generic.",\\n'
                 '            "analogy": "A specific, relatable analogy. Must not be generic.",\\n'
                 '            "practicalTips": ["A list of 2-3 specific, actionable tips. Must not be generic."],\\n'
@@ -2040,6 +2043,46 @@ KEY INTELLIGENCE AREAS:
         
         logger.info("=== ENHANCED SEGMENT ANALYSIS COMPLETED ===")
         return parsed_result
+
+    def _link_concepts_by_technique(self, concepts: List[Dict]) -> List[Dict]:
+        """
+        Links concepts together based on shared techniques.
+        If two problems share a technique (e.g., 'Hash Table'), they become related.
+        """
+        technique_map = {}  # Maps technique -> list of problem titles
+        for concept in concepts:
+            # We only care about techniques associated with problems
+            if concept.get("category") == "LeetCode Problems":
+                techniques = concept.get("relationships", {}).get("techniques", [])
+                for tech in techniques:
+                    if tech not in technique_map:
+                        technique_map[tech] = []
+                    technique_map[tech].append(concept["title"])
+
+        # Add relationships based on the map
+        for tech, titles in technique_map.items():
+            if len(titles) > 1:  # More than one problem uses this technique
+                for i in range(len(titles)):
+                    for j in range(i + 1, len(titles)):
+                        title1 = titles[i]
+                        title2 = titles[j]
+
+                        # Find the concepts
+                        concept1 = next((c for c in concepts if c["title"] == title1), None)
+                        concept2 = next((c for c in concepts if c["title"] == title2), None)
+
+                        if concept1 and concept2:
+                            # Add reciprocal relationship
+                            if "relatedConcepts" not in concept1:
+                                concept1["relatedConcepts"] = []
+                            if title2 not in concept1["relatedConcepts"]:
+                                concept1["relatedConcepts"].append(title2)
+
+                            if "relatedConcepts" not in concept2:
+                                concept2["relatedConcepts"] = []
+                            if title1 not in concept2["relatedConcepts"]:
+                                concept2["relatedConcepts"].append(title1)
+        return concepts
 
     async def analyze_conversation(self, req: ConversationRequest) -> Dict:
         """Analyze a conversation using comprehensive analysis with detailed logging and fallback strategies."""
