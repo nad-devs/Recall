@@ -34,6 +34,7 @@ export interface Concept {
     algorithms?: string[]
     patterns?: string[]
     applications?: string[]
+    techniques?: string[]
   }
   // Add fields for review tracking
   needsReview?: boolean
@@ -167,6 +168,7 @@ export type BackendConcept = {
     algorithms?: string[];
     patterns?: string[];
     applications?: string[];
+    techniques?: string[];
   };
   confidence_score: number;
   last_updated: string;

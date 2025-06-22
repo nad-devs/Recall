@@ -78,36 +78,52 @@ export async function POST(request: Request) {
 
     const extractionData = await extractionResponse.json();
     const newConcepts = extractionData.concepts || [];
-    console.log(`✅ Extracted ${newConcepts.length} new concepts.`);
+    console.log(`✅ Extracted ${newConcepts.length} new concepts from backend.`);
 
-    // 3. Enhance new concepts with vector search results
-    const enhancedConceptsInfo = [];
-    for (const concept of newConcepts) {
-      const textToEmbed = `${concept.title}: ${concept.summary}`;
-      const embedding = await generateEmbedding(textToEmbed);
-      
-      let similarConcepts: SearchResult[] = [];
-      if (embedding.length > 0) {
-        similarConcepts = await findSimilarConcepts(embedding, user.id);
-      }
-      
-      enhancedConceptsInfo.push({
-        ...concept,
-        // Add the search result to the concept object itself for the next step
-        similarExistingConcepts: similarConcepts 
+    // --- Perform deep, database-aware relationship analysis ---
+    console.log("🧠 Performing deep relationship analysis across the database...");
+    let deepAnalysisResults = [];
+    try {
+      const host = request.headers.get('host');
+      const protocol = host?.startsWith('localhost') ? 'http' : 'https';
+      const analyzeRelationshipsUrl = `${protocol}://${host}/api/concepts/analyze-relationships`;
+
+      const relationshipsResponse = await fetch(analyzeRelationshipsUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': request.headers.get('Authorization') || '',
+         },
+        body: JSON.stringify({ concepts: newConcepts }),
       });
+
+      if (relationshipsResponse.ok) {
+        deepAnalysisResults = await relationshipsResponse.json();
+        console.log(`✅ Deep relationship analysis complete. Found ${deepAnalysisResults.length} concepts with new relationships.`);
+      } else {
+        console.error("Deep relationship analysis failed:", await relationshipsResponse.text());
+      }
+    } catch (error) {
+      console.error("Error calling analyze-relationships endpoint:", error);
     }
-    console.log(`✅ Enhanced new concepts with similarity search results.`);
 
-    // 4. Generate the final learning journey with this new, high-quality context
-    // The `generateLearningJourney` function expects a list of new concepts and a list of existing ones.
-    // We can now provide the accurate list of existing concepts found via vector search.
-    const learningJourney = await generateLearningJourney(newConcepts, enhancedConceptsInfo.flatMap(c => c.similarExistingConcepts));
+    // Merge deep analysis results back into the concepts
+    const finalConcepts = newConcepts.map((concept: any) => {
+      const deepData = deepAnalysisResults.find((d: any) => d.title === concept.title);
+      return deepData ? { ...concept, embeddingData: deepData } : concept;
+    });
 
-    // 5. Return the final, enriched data to the client
+    console.log(`🧠 Starting learning journey generation...`);
+
+    // Generate the final learning journey with this new, high-quality context
+    // We get the existing concepts from the `potentialDuplicates` field of our new deep analysis
+    const existingConcepts = finalConcepts.flatMap((c: any) => c.embeddingData?.potentialDuplicates || []);
+    const learningJourney = await generateLearningJourney(finalConcepts, existingConcepts);
+
+    // Return the final, enriched data to the client
     return NextResponse.json({
       success: true,
-      concepts: enhancedConceptsInfo, // Send the concepts with the similarity data included
+      concepts: finalConcepts,
       learning_journey: learningJourney,
     });
 
