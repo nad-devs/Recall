@@ -128,7 +128,7 @@ export function useAnalyzePage() {
             },
             keyPoints: concept.keyPoints || [],
             examples: concept.examples || [],
-            codeSnippets: concept.codeSnippets || [],
+            codeSnippets: concept.codeSnippets || concept.code_examples || [],
             relatedConcepts: concept.relatedConcepts || [],
             // Preserve quick recall fields from backend
             keyTakeaway: concept.keyTakeaway,
