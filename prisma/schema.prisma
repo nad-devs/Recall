@@ -139,8 +139,8 @@ model Concept {
   reviewCount     Int       @default(0)
   lastReviewed    DateTime? 
   nextReviewDate  DateTime?
-  conversation    Conversation @relation(fields: [conversationId], references: [id])
-  conversationId  String
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId  String?
   categories      Category[]
   occurrences     Occurrence[]
   

@@ -3,6 +3,8 @@ import {
   Brain,
   Code,
   Lightbulb,
+  Tag,
+  Pencil,
 } from "lucide-react"
 import { Concept, ConversationAnalysis } from "@/lib/types/conversation"
 import { useState } from "react"
@@ -16,6 +18,7 @@ interface PersonalInsightsViewProps {
   onYouTubeLinkSkip: () => void
   analysisMode: "deepdive" | "recall"
   setAnalysisMode: (mode: "deepdive" | "recall") => void
+  onCategoryEdit: (concept: Concept) => void
 }
 
 export function PersonalInsightsView({
@@ -26,6 +29,7 @@ export function PersonalInsightsView({
   onYouTubeLinkSkip,
   analysisMode,
   setAnalysisMode,
+  onCategoryEdit,
 }: PersonalInsightsViewProps) {
   const conceptToDisplay = analysisResult?.concepts.find(c => c.id === selectedConcept?.id) || selectedConcept;
 
@@ -71,30 +75,48 @@ export function PersonalInsightsView({
         <h3 className="text-2xl font-bold text-slate-100">{concept.title}</h3>
         
         {/* Mode Toggle Slider */}
-        <div className="flex items-center space-x-1 bg-slate-800/50 rounded-lg p-1 border border-slate-700">
-          <button
-            onClick={() => setAnalysisMode("deepdive")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              analysisMode === "deepdive"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-            }`}
-          >
-            <BookOpen className="w-3 h-3" />
-            <span>Deep Dive</span>
-          </button>
-          <button
-            onClick={() => setAnalysisMode("recall")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              analysisMode === "recall"
-                ? "bg-green-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-            }`}
-          >
-            <Brain className="w-3 h-3" />
-            <span>Quick Recall</span>
-          </button>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1 bg-slate-800/50 rounded-lg p-1 border border-slate-700">
+            <button
+              onClick={() => setAnalysisMode("deepdive")}
+              className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                analysisMode === "deepdive"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+              }`}
+            >
+              <BookOpen className="w-3 h-3" />
+              <span>Deep Dive</span>
+            </button>
+            <button
+              onClick={() => setAnalysisMode("recall")}
+              className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                analysisMode === "recall"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+              }`}
+            >
+              <Brain className="w-3 h-3" />
+              <span>Quick Recall</span>
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Category Info */}
+      <div className="flex items-center space-x-3 text-sm">
+        <Tag className="w-4 h-4 text-slate-400" />
+        <span className="text-slate-300 font-medium">Category:</span>
+        <span className="bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-md border border-blue-700/50">
+          {concept.category}
+        </span>
+        <button 
+          onClick={() => onCategoryEdit(concept)}
+          className="text-slate-400 hover:text-slate-200 transition-colors"
+          aria-label="Edit category"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Content based on mode */}
