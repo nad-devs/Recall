@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button"
 import { useAnalyzePage } from "@/hooks/useAnalyzePage"
 import { CategoryDialogs } from "@/components/concepts-navigation/CategoryDialogs"
 import { Concept } from "@/lib/types/conversation"
+import { SimpleCategoryEditModal } from "@/components/analyze/SimpleCategoryEditModal"
+import { useState, useEffect } from "react"
 
 function AnalyzePage() {
   const {
@@ -64,6 +66,18 @@ function AnalyzePage() {
     handleCategoryDialogClose,
     handleCategoryUpdate,
   } = useAnalyzePage()
+
+  const [allCategories, setAllCategories] = useState<string[]>([])
+
+  useEffect(() => {
+    // Fetch all unique categories for the dropdown
+    if (analysisResult) {
+      const uniqueCategories = [
+        ...new Set(analysisResult.concepts.map(c => c.category.split(' > ')[0])),
+      ]
+      setAllCategories(uniqueCategories)
+    }
+  }, [analysisResult])
 
   return (
     <AuthGuard>
@@ -182,47 +196,16 @@ function AnalyzePage() {
           />
 
           {editingConcept && (
-            <CategoryDialogs
-              showTransferDialog={showCategoryDialog}
-              transferConcepts={editingConcept ? [editingConcept] : []}
-              handleCancel={handleCategoryDialogClose}
-              handleTransferConcepts={async (concepts, targetCategory) => {
-                if (editingConcept) {
-                  await handleCategoryUpdate(editingConcept.id, targetCategory);
-                  handleCategoryDialogClose();
-                }
+            <SimpleCategoryEditModal
+              isOpen={showCategoryDialog}
+              onClose={handleCategoryDialogClose}
+              onSave={async (conceptId, newCategory, newSubcategory) => {
+                const finalCategory = newSubcategory ? `${newCategory} > ${newSubcategory}` : newCategory;
+                await handleCategoryUpdate(conceptId, finalCategory);
+                handleCategoryDialogClose();
               }}
-              // The component expects many props, we can supply placeholders for now
-              showAddSubcategoryDialog={false}
-              showEditCategoryDialog={false}
-              showDragDropDialog={false}
-              selectedParentCategory=""
-              newSubcategoryName=""
-              editingCategoryPath=""
-              newCategoryName=""
-              selectedConceptsForTransfer={new Set(editingConcept ? [editingConcept.id] : [])}
-              isCreatingCategory={false}
-              isMovingConcepts={isSaving}
-              isRenamingCategory={false}
-              isResettingState={false}
-              dragDropData={null}
-              setNewSubcategoryName={() => {}}
-              setNewCategoryName={() => {}}
-              setSelectedConceptsForTransfer={() => {}}
-              handleCreateSubcategory={async () => {}}
-              createPlaceholderConcept={async () => {}}
-              conceptsByCategory={
-                analysisResult?.concepts.reduce((acc, concept) => {
-                  acc[concept.category] = acc[concept.category]
-                    ? [...acc[concept.category], concept]
-                    : [concept]
-                  return acc
-                }, {} as Record<string, Concept[]>) || {}
-              }
-              isDraggingCategory={false}
-              executeCategoryMove={async () => {}}
-              moveConceptsToCategory={async () => {}}
-              handleRenameCategoryConfirm={() => {}}
+              concept={editingConcept}
+              existingCategories={allCategories}
             />
           )}
         </div>
