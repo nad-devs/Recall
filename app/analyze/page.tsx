@@ -15,6 +15,8 @@ import { LearningJourneyView } from "@/components/analyze/LearningJourneyView"
 import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 import { Button } from "@/components/ui/button"
 import { useAnalyzePage } from "@/hooks/useAnalyzePage"
+import { CategoryDialogs } from "@/components/concepts-navigation/CategoryDialogs"
+import { Concept } from "@/lib/types/conversation"
 
 function AnalyzePage() {
   const {
@@ -37,6 +39,8 @@ function AnalyzePage() {
     learningJourneyAnalysis,
     isAnalyzingLearningJourney,
     analysisMode,
+    showCategoryDialog,
+    editingConcept,
 
     // Setters
     setConversationText,
@@ -48,7 +52,7 @@ function AnalyzePage() {
 
     // Handlers
     handleAnalyze,
-    handleSaveConversation,
+    handleSaveAnalysis,
     handleApiKeySet,
     handleApiKeyModalClose,
     getRemainingConversations,
@@ -56,6 +60,9 @@ function AnalyzePage() {
     handleUserInfoModalClose,
     handleYouTubeLinkAdd,
     handleYouTubeLinkSkip,
+    handleCategoryEdit,
+    handleCategoryDialogClose,
+    handleCategoryUpdate,
   } = useAnalyzePage()
 
   return (
@@ -88,7 +95,7 @@ function AnalyzePage() {
 
             <div className="flex items-center space-x-4">
               {analysisResult && !isAnalyzing && (
-                <Button onClick={handleSaveConversation} disabled={isSaving}>
+                <Button onClick={handleSaveAnalysis} disabled={isSaving}>
                   {isSaving ? "Saving..." : "Save Analysis"}
                 </Button>
               )}
@@ -144,6 +151,7 @@ function AnalyzePage() {
                   onYouTubeLinkSkip={handleYouTubeLinkSkip}
                   analysisMode={analysisMode}
                   setAnalysisMode={setAnalysisMode}
+                  onCategoryEdit={handleCategoryEdit}
                 />
               </div>
             </div>
@@ -172,6 +180,51 @@ function AnalyzePage() {
             onClose={handleUserInfoModalClose}
             onSave={handleUserInfoProvided}
           />
+
+          {editingConcept && (
+            <CategoryDialogs
+              showTransferDialog={showCategoryDialog}
+              transferConcepts={editingConcept ? [editingConcept] : []}
+              handleCancel={handleCategoryDialogClose}
+              handleTransferConcepts={async (concepts, targetCategory) => {
+                if (editingConcept) {
+                  await handleCategoryUpdate(editingConcept.id, targetCategory);
+                  handleCategoryDialogClose();
+                }
+              }}
+              // The component expects many props, we can supply placeholders for now
+              showAddSubcategoryDialog={false}
+              showEditCategoryDialog={false}
+              showDragDropDialog={false}
+              selectedParentCategory=""
+              newSubcategoryName=""
+              editingCategoryPath=""
+              newCategoryName=""
+              selectedConceptsForTransfer={new Set(editingConcept ? [editingConcept.id] : [])}
+              isCreatingCategory={false}
+              isMovingConcepts={isSaving}
+              isRenamingCategory={false}
+              isResettingState={false}
+              dragDropData={null}
+              setNewSubcategoryName={() => {}}
+              setNewCategoryName={() => {}}
+              setSelectedConceptsForTransfer={() => {}}
+              handleCreateSubcategory={async () => {}}
+              createPlaceholderConcept={async () => {}}
+              conceptsByCategory={
+                analysisResult?.concepts.reduce((acc, concept) => {
+                  acc[concept.category] = acc[concept.category]
+                    ? [...acc[concept.category], concept]
+                    : [concept]
+                  return acc
+                }, {} as Record<string, Concept[]>) || {}
+              }
+              isDraggingCategory={false}
+              executeCategoryMove={async () => {}}
+              moveConceptsToCategory={async () => {}}
+              handleRenameCategoryConfirm={() => {}}
+            />
+          )}
         </div>
       </PageTransition>
     </AuthGuard>

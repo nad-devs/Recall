@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation"
 import { Concept, ConversationAnalysis } from "@/lib/types/conversation"
 import { useToast } from "@/components/ui/use-toast"
 import { useSession } from "next-auth/react"
+import { useDispatch } from "react-redux"
+import { AppDispatch } from "@/store/store"
+import { moveConceptsAsync } from "@/store/categorySlice"
 
 export function useAnalyzePage() {
   const router = useRouter()
   const { toast } = useToast()
   const { data: session } = useSession()
+  const dispatch = useDispatch<AppDispatch>()
 
   // Core State
   const [conversationText, setConversationText] = useState("")
@@ -33,6 +37,8 @@ export function useAnalyzePage() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [showUserInfoModal, setShowUserInfoModal] = useState(false)
   const [showYouTubeLinkPrompt, setShowYouTubeLinkPrompt] = useState(false)
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
+  const [editingConcept, setEditingConcept] = useState<Concept | null>(null)
 
   // Concept Editing State (Simplified for now)
   const [editConceptMode, setEditConceptMode] = useState(false) // boolean instead of string
@@ -156,7 +162,7 @@ export function useAnalyzePage() {
     }
   }
 
-  const handleSaveConversation = async () => {
+  const handleSaveAnalysis = async () => {
     if (!analysisResult) return
     setIsSaving(true)
     setSaveError(null)
@@ -176,10 +182,10 @@ export function useAnalyzePage() {
       console.log("💾 Using new embedding-based concept relationships - proceeding to save")
       
       // Proceed directly with saving - no more blocking concept match dialogs
-      await performSaveConversation()
+      await performSaveAnalysis()
     } catch (error) {
-      console.error('Error saving conversation:', error)
-      setSaveError('Failed to save conversation. Please try again.')
+      console.error('Error saving analysis:', error)
+      setSaveError('Failed to save analysis. Please try again.')
       setIsSaving(false)
     }
   }
@@ -192,11 +198,11 @@ export function useAnalyzePage() {
     console.log("🧠 Learning journey analysis placeholder for concepts:", conceptIds)
   }
 
-  const performSaveConversation = async () => {
+  const performSaveAnalysis = async () => {
     if (!analysisResult) return
     
     try {
-      console.log("💾 performSaveConversation - Starting API call")
+      console.log("💾 performSaveAnalysis - Starting API call")
       
       // Get user info from localStorage if available (for non-authenticated users)
       const userName = localStorage.getItem('userName')
@@ -209,12 +215,11 @@ export function useAnalyzePage() {
         videoResources: youtubeLink
       })) : analysisResult.concepts
       
-      const response = await fetch("/api/saveConversation", {
+      const response = await fetch("/api/saveAnalysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversation_text: conversationText,
-          analysis: analysisResult,
+          analysis: { ...analysisResult, concepts: conceptsWithYouTubeLink },
           customApiKey: customApiKey,
         }),
         credentials: "include",
@@ -223,7 +228,7 @@ export function useAnalyzePage() {
       const data = await response.json()
 
       if (!data.success) {
-        throw new Error(data.error || "Failed to save conversation.")
+        throw new Error(data.error || "Failed to save analysis.")
       }
 
       toast({
@@ -261,8 +266,56 @@ export function useAnalyzePage() {
       concept.title.toLowerCase().includes(searchQuery.toLowerCase())
     ) || []
 
-  // Mocked functions that were part of the original but are not implemented here for simplicity
-  const handleCategoryUpdate = () => {}
+  const handleCategoryUpdate = async (conceptId: string, newCategory: string) => {
+    if (!analysisResult) return;
+
+    const conceptToUpdate = analysisResult.concepts.find(c => c.id === conceptId);
+    if (!conceptToUpdate) return;
+
+    const oldCategory = conceptToUpdate.category;
+
+    // Optimistic UI Update
+    const updatedConcepts = analysisResult.concepts.map(c =>
+      c.id === conceptId ? { ...c, category: newCategory } : c
+    );
+    setAnalysisResult({ ...analysisResult, concepts: updatedConcepts });
+
+    toast({
+      title: "Category Updated",
+      description: `Moved "${conceptToUpdate.title}" to ${newCategory}.`,
+    });
+
+    try {
+      // Persist change to the database via Redux
+      await dispatch(moveConceptsAsync({ conceptIds: [conceptId], targetCategory: newCategory }) as any).unwrap();
+
+      // Trigger Smart Learning
+      await fetch('/api/v1/manual-category-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content_snippet: `${conceptToUpdate.title} ${conceptToUpdate.summary}`,
+          old_category: oldCategory,
+          new_category: newCategory,
+        }),
+      });
+
+    } catch (error) {
+      // Revert UI on error
+      const revertedConcepts = analysisResult.concepts.map(c =>
+        c.id === conceptId ? { ...c, category: oldCategory } : c
+      );
+      setAnalysisResult({ ...analysisResult, concepts: revertedConcepts });
+
+      toast({
+        title: "Update Failed",
+        description: "Could not update the category. Please try again.",
+        variant: "destructive",
+      });
+      console.error("Failed to update category:", error as Error);
+    }
+  };
+
   const handleAddConcept = () => {}
   const handleDeleteConcept = () => {}
   const handleDeleteCodeSnippet = () => {}
@@ -288,6 +341,16 @@ export function useAnalyzePage() {
   }
   const handleYouTubeLinkSkip = () => setShowYouTubeLinkPrompt(false)
 
+  const handleCategoryEdit = (concept: Concept) => {
+    setEditingConcept(concept)
+    setShowCategoryDialog(true)
+  }
+
+  const handleCategoryDialogClose = async () => {
+    setShowCategoryDialog(false)
+    setEditingConcept(null)
+  }
+
   return {
     // State
     conversationText,
@@ -311,6 +374,8 @@ export function useAnalyzePage() {
     learningJourneyAnalysis,
     isAnalyzingLearningJourney,
     analysisMode,
+    showCategoryDialog,
+    editingConcept,
     // Setters
     setConversationText,
     setSelectedConcept,
@@ -321,7 +386,7 @@ export function useAnalyzePage() {
     setAnalysisMode,
     // Handlers
     handleAnalyze,
-    handleSaveConversation,
+    handleSaveAnalysis,
     handleApiKeySet,
     handleApiKeyModalClose,
     getRemainingConversations,
@@ -329,8 +394,10 @@ export function useAnalyzePage() {
     handleUserInfoModalClose,
     handleYouTubeLinkAdd,
     handleYouTubeLinkSkip,
-    // Unused handlers from previous version (can be removed or implemented)
+    handleCategoryEdit,
+    handleCategoryDialogClose,
     handleCategoryUpdate,
+    // Unused handlers from previous version (can be removed or implemented)
     handleAddConcept,
     handleDeleteConcept,
     handleDeleteCodeSnippet,
