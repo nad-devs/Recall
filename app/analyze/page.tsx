@@ -199,8 +199,8 @@ function AnalyzePage() {
             <SimpleCategoryEditModal
               isOpen={showCategoryDialog}
               onClose={handleCategoryDialogClose}
-              onSave={async (conceptId, newCategory, newSubcategory) => {
-                const finalCategory = newSubcategory ? `${newCategory} > ${newSubcategory}` : newCategory;
+              onSave={async (conceptId, newCategory, subcategories) => {
+                const finalCategory = [newCategory, ...subcategories].join(' > ');
                 await handleCategoryUpdate(conceptId, finalCategory);
                 handleCategoryDialogClose();
               }}

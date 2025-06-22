@@ -2,15 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectOption } from '@/components/ui/select';
+import { Autocomplete } from '@/components/ui/autocomplete';
+import { TagInput } from '@/components/ui/TagInput';
 import { Concept } from '@/lib/types/conversation';
 import { Loader2 } from 'lucide-react';
 
 interface SimpleCategoryEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (conceptId: string, newCategory: string, newSubcategory?: string) => Promise<void>;
+  onSave: (conceptId: string, newCategory: string, subcategories: string[]) => Promise<void>;
   concept: Concept | null;
   existingCategories: string[];
 }
@@ -22,15 +22,15 @@ export function SimpleCategoryEditModal({
   concept,
   existingCategories,
 }: SimpleCategoryEditModalProps) {
-  const [newCategory, setNewCategory] = useState('');
-  const [newSubcategory, setNewSubcategory] = useState('');
+  const [category, setCategory] = useState('');
+  const [subcategories, setSubcategories] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (concept) {
       const parts = concept.category.split(' > ');
-      setNewCategory(parts[0] || '');
-      setNewSubcategory(parts.length > 1 ? parts.slice(1).join(' > ') : '');
+      setCategory(parts[0] || '');
+      setSubcategories(parts.length > 1 ? parts.slice(1) : []);
     }
   }, [concept]);
 
@@ -38,14 +38,12 @@ export function SimpleCategoryEditModal({
 
   const handleSave = async () => {
     setIsSaving(true);
-    let finalCategory = newCategory;
-    if (newSubcategory.trim()) {
-      finalCategory = `${newCategory} > ${newSubcategory.trim()}`;
-    }
-    await onSave(concept.id, finalCategory);
+    await onSave(concept.id, category, subcategories);
     setIsSaving(false);
     onClose();
   };
+  
+  const categoryOptions = existingCategories.map(cat => ({ value: cat, label: cat }));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -53,31 +51,25 @@ export function SimpleCategoryEditModal({
         <DialogHeader>
           <DialogTitle>Edit Category</DialogTitle>
           <DialogDescription>
-            Change the category for "{concept.title}".
+            Change the category and subcategories for "{concept.title}".
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="category" className="text-right">
-              Category
-            </Label>
-            <Select id="category" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className="col-span-3">
-              <SelectOption value="">Select a category</SelectOption>
-              {existingCategories.map(cat => (
-                <SelectOption key={cat} value={cat}>{cat}</SelectOption>
-              ))}
-            </Select>
+          <div className="space-y-2">
+            <Label htmlFor="category">Category</Label>
+            <Autocomplete
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
+              placeholder="Choose or create a category..."
+            />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="subcategory" className="text-right">
-              Subcategory
-            </Label>
-            <Input
-              id="subcategory"
-              value={newSubcategory}
-              onChange={(e) => setNewSubcategory(e.target.value)}
-              className="col-span-3"
-              placeholder="(Optional)"
+          <div className="space-y-2">
+            <Label htmlFor="subcategory">Subcategories</Label>
+            <TagInput
+              tags={subcategories}
+              setTags={setSubcategories}
+              placeholder="Add subcategories..."
             />
           </div>
         </div>
