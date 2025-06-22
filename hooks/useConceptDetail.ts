@@ -27,6 +27,11 @@ interface ConceptData {
   videoResources?: string
   commonMistakes?: string
   personalNotes?: string
+
+  // Quick Recall fields
+  keyTakeaway?: string
+  analogy?: string
+  practicalTips?: string
 }
 
 interface RelatedConversation {

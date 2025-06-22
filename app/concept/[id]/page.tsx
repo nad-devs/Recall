@@ -37,6 +37,7 @@ import { AuthGuard } from "@/components/auth-guard"
 import { getAuthHeaders } from "@/lib/auth-utils"
 import { useSmartLearning } from "@/hooks/useSmartLearning"
 import { SmartLearningDashboard } from "@/components/smart-learning/SmartLearningDashboard"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { Brain, Sparkles, Target, TrendingUp, Users } from "lucide-react"
 
@@ -135,10 +136,21 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  // Extract concept properties with defaults
-  const keyPoints = Array.isArray(concept?.keyPoints) ? concept?.keyPoints : 
-                    (concept?.keyPoints ? [concept.keyPoints] : [])
-  
+  // Safely parse JSON string fields
+  const safeParse = (jsonString: string | any, defaultValue: any[] = []) => {
+    if (typeof jsonString !== 'string') return jsonString || defaultValue;
+    try {
+      const parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      return defaultValue;
+    }
+  };
+
+  const keyPoints = safeParse(concept.keyPoints);
+  const practicalTips = safeParse(concept.practicalTips);
+  const examples = safeParse(concept.examples);
+
   // Deduplicate related concepts by id or normalized title (case-insensitive, trim)
   const uniqueRelatedConcepts = [];
   const seen = new Set();
@@ -417,103 +429,151 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
 
               {/* Three-Column Layout: 50% Left, 30% Middle, 20% Right */}
               <div className="grid grid-cols-1 lg:grid-cols-[50%_30%_20%] gap-4">
-                {/* Left Column - Concept Notes (60% width) */}
+                {/* Left Column - Concept Details (Tabs) */}
                 <div className="space-y-8">
-                  {/* Concept Notes Card - NO HEIGHT LIMITS */}
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center">
-                        <BookOpen className="mr-2 h-5 w-5" />
-                        <CardTitle>Concept Notes</CardTitle>
-                      </div>
-                      <CardDescription>Your consolidated understanding of this concept</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-8">
-                      {/* AI Personalization Notice */}
-                      {personalizationLevel >= 60 && smartSuggestions.length > 0 && (
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Brain className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-800">AI-Enhanced for You</span>
-                          </div>
-                          <p className="text-sm text-blue-700">
-                            This concept has been personalized based on your {currentStage} level and learning patterns. 
-                            {smartSuggestions[0] && ` Suggested focus: ${smartSuggestions[0].title}`}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {concept.summary && (
-                        <div className="text-base leading-relaxed">{concept.summary}</div>
-                      )}
-                      {keyPoints.length > 0 && (
-                        <div>
-                          <h3 className="text-lg font-semibold mb-4">Key Points:</h3>
-                          <ul className="space-y-3 list-disc pl-6">
-                            {keyPoints.map((point, index) => (
-                              <li key={index} className="leading-relaxed">
-                                {typeof point === 'string' ? point : JSON.stringify(point)}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {concept.details && (
-                        <div>
-                          <h3 className="text-lg font-semibold mb-4 text-primary">Detailed Information</h3>
-                          <div className="space-y-4 leading-relaxed">
-                            {formatDetailsText(concept.details)}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Code Examples Section - NO HEIGHT LIMITS */}
-                  {concept.codeSnippets && concept.codeSnippets.length > 0 && (
-                    <div className="space-y-6">
-                      <div className="flex items-center mb-4">
-                        <Code className="mr-2 h-5 w-5" />
-                        <h2 className="text-xl font-semibold">Code Examples</h2>
-                      </div>
-                      {concept.codeSnippets.map((snippet: any) => (
-                        <Card key={snippet.id} className="group">
-                          <CardHeader className="pb-3">
-                            <div className="flex justify-between items-center">
-                              <CardTitle className="text-lg">{snippet.description}</CardTitle>
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="outline">{snippet.language}</Badge>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                                  onClick={() => deleteCodeSnippet(snippet.id)}
-                                  title="Delete code snippet"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
+                  <Tabs defaultValue="quick-recall" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="quick-recall">
+                        <Sparkles className="mr-2 h-4 w-4" /> Quick Recall
+                      </TabsTrigger>
+                      <TabsTrigger value="deep-dive">
+                        <BookOpen className="mr-2 h-4 w-4" /> Deep Dive
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    {/* Quick Recall Content */}
+                    <TabsContent value="quick-recall" className="mt-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Quick Recall</CardTitle>
+                          <CardDescription>The essential information for a quick review.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          {concept.keyTakeaway && (
+                            <div>
+                              <h3 className="text-lg font-semibold mb-2 text-primary">Key Takeaway</h3>
+                              <p className="text-base leading-relaxed">{concept.keyTakeaway}</p>
                             </div>
+                          )}
+                          {concept.analogy && (
+                            <div>
+                              <h3 className="text-lg font-semibold mb-2 text-primary">Analogy</h3>
+                              <p className="text-base italic leading-relaxed">"{concept.analogy}"</p>
+                            </div>
+                          )}
+                          {concept.summary && (
+                            <div>
+                              <h3 className="text-lg font-semibold mb-2">Summary</h3>
+                              <div className="text-base leading-relaxed">{concept.summary}</div>
+                            </div>
+                          )}
+                          {practicalTips.length > 0 && (
+                            <div>
+                              <h3 className="text-lg font-semibold mb-4">Practical Tips</h3>
+                              <ul className="space-y-3 list-disc pl-6">
+                                {practicalTips.map((tip: string, index: number) => (
+                                  <li key={index} className="leading-relaxed">
+                                    {tip}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    {/* Deep Dive Content */}
+                    <TabsContent value="deep-dive" className="mt-4">
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Deep Dive</CardTitle>
+                            <CardDescription>The comprehensive details for in-depth study.</CardDescription>
                           </CardHeader>
-                          <CardContent>
-                            <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
-                              <code>{snippet.code}</code>
-                            </pre>
+                          <CardContent className="space-y-8">
+                            {keyPoints.length > 0 && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-4">Key Points</h3>
+                                <ul className="space-y-3 list-disc pl-6">
+                                  {keyPoints.map((point: string, index: number) => (
+                                    <li key={index} className="leading-relaxed">
+                                      {point}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {concept.details && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-4 text-primary">Detailed Information</h3>
+                                <div className="space-y-4 leading-relaxed">
+                                  {formatDetailsText(concept.details)}
+                                </div>
+                              </div>
+                            )}
+                             {examples.length > 0 && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-4">Examples</h3>
+                                <ul className="space-y-3 list-disc pl-6">
+                                  {examples.map((example: string, index: number) => (
+                                    <li key={index} className="leading-relaxed">
+                                      {example}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
-                      ))}
-                    </div>
-                  )}
+                         {/* Code Examples Section */}
+                        {concept.codeSnippets && concept.codeSnippets.length > 0 && (
+                          <div className="space-y-6">
+                            <div className="flex items-center mb-4">
+                              <Code className="mr-2 h-5 w-5" />
+                              <h2 className="text-xl font-semibold">Code Examples</h2>
+                            </div>
+                            {concept.codeSnippets.map((snippet: any) => (
+                              <Card key={snippet.id} className="group">
+                                <CardHeader className="pb-3">
+                                  <div className="flex justify-between items-center">
+                                    <CardTitle className="text-lg">{snippet.description}</CardTitle>
+                                    <div className="flex items-center space-x-2">
+                                      <Badge variant="outline">{snippet.language}</Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                        onClick={() => deleteCodeSnippet(snippet.id)}
+                                        title="Delete code snippet"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
+                                    <code>{snippet.code}</code>
+                                  </pre>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
 
-                {/* Right Column - Enhanced Concepts (35% width) */}
+                {/* Middle Column - Enhanced Concepts (30% width) */}
                 <div className="space-y-6">
                   {/* Enhanced Concepts Card */}
-                  {(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                  {(concept.videoResources || (concept.commonMistakes && JSON.parse(concept.commonMistakes).length > 0) || concept.personalNotes) && (
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
-                        <CardDescription>Additional resources and notes</CardDescription>
+                        <CardTitle className="text-lg">Enhanced Resources</CardTitle>
+                        <CardDescription>Additional materials and notes</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {/* Video Resources */}
@@ -552,7 +612,8 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                         {concept.commonMistakes && (() => {
                           try {
                             const mistakes = JSON.parse(concept.commonMistakes);
-                            return mistakes.length > 0 && (
+                            if (!Array.isArray(mistakes) || mistakes.length === 0) return null;
+                            return (
                               <div className="space-y-3">
                                 <div className="flex items-center text-sm font-medium text-muted-foreground">
                                   <AlertTriangle className="mr-2 h-4 w-4" />
@@ -589,7 +650,7 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                         <Button asChild variant="outline" className="w-full">
                           <Link href={`/concept/${concept.id}/enhance`}>
                             <Edit className="mr-2 h-4 w-4" />
-                            Edit Enhancements
+                            Edit Resources
                           </Link>
                         </Button>
                       </CardFooter>
@@ -597,17 +658,17 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   
                   {/* Show edit button even if no enhancements exist */}
-                  {!(concept.videoResources || concept.commonMistakes || concept.personalNotes) && (
+                  {!(concept.videoResources || (concept.commonMistakes && JSON.parse(concept.commonMistakes).length > 0) || concept.personalNotes) && (
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Enhanced Concepts</CardTitle>
+                        <CardTitle className="text-lg">Enhanced Resources</CardTitle>
                         <CardDescription>Add resources and notes to enhance this concept</CardDescription>
                       </CardHeader>
                       <CardContent>
                         <Button asChild variant="outline" className="w-full">
                           <Link href={`/concept/${concept.id}/enhance`}>
                             <Edit className="mr-2 h-4 w-4" />
-                            Add Enhancements
+                            Add Resources
                           </Link>
                         </Button>
                       </CardContent>
