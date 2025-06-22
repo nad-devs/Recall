@@ -55,6 +55,7 @@ class Concept(BaseModel):
     summary: str
     details: str
     keyPoints: List[str]
+    examples: Optional[List[Dict]] = None
     code_examples: Optional[List[Dict]] = None
     # Quick Recall Fields
     keyTakeaway: Optional[str] = None
@@ -817,6 +818,7 @@ detailed than the 'summary' field. Focus on deep understanding rather than surfa
             "- A clear, specific title focusing on the insight or concept.\n"
             "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview.\n"
             "- A different, detailed 'insights' field with comprehensive explanation and practical applications.\n"
+            "- 1-3 practical examples or scenarios demonstrating the concept.\n"
             "- 2-5 key takeaways or action items.\n"
             "- Related concepts if relevant.\n"
             "- Practical insights or methodologies instead of code examples.\n"
@@ -843,6 +845,13 @@ Respond in this JSON format:
             "summary": "A unique, concise summary specific to this concept only.",
             "insights": "A comprehensive 3-6 paragraph explanation focusing on understanding, applications, and practical value rather than technical implementation.",
             "keyPoints": ["Key takeaway 1", "Key takeaway 2"],
+            "examples": [
+                {{
+                    "scenario": "A real-world scenario where this concept applies.",
+                    "outcome": "The outcome or application of the concept in this scenario.",
+                    "explanation": "A brief explanation."
+                }}
+            ],
             "relatedConcepts": ["Related Concept 1", "Related Concept 2"],
             "practicalInsights": [
                 {{
@@ -1040,8 +1049,8 @@ Respond in this JSON format:
                         "subcategories": concept.get("subcategories", []),
                         "summary": concept.get("summary", ""),
                         "keyPoints": concept.get("keyPoints", []),
+                        "examples": concept.get("examples", []),
                         "details": self._process_details(concept.get("details", concept.get("implementation", ""))),
-                        "codeSnippets": self._process_code_examples(concept.get("codeSnippets", concept.get("code_examples", []))),
                         "notes": self._process_notes(concept.get("notes", {})),
                         "code_examples": self._process_code_examples(concept.get("codeSnippets", concept.get("code_examples", []))),
                         "learning_resources": self._process_learning_resources(
@@ -1802,6 +1811,7 @@ KEY INTELLIGENCE AREAS:
                 "- A unique, concise 'summary' field (1-2 sentences) that gives a quick overview specific to this concept only.\\n"
                 "- A different, detailed 'details' field with in-depth technical explanation for this specific concept.\\n"
                 "- 2-5 key points summarizing the most important takeaways specific to this concept.\\n"
+                "- 1-3 illustrative examples (input/output pairs or scenarios) to demonstrate the concept in action.\\n"
                 "- Related concepts if relevant.\\n"
                 "- `code_examples` if present in the conversation.\\n"
                 "- **Quick Recall Fields**: `keyTakeaway`, `analogy`, and `practicalTips` that follow the QUICK_RECALL_RULES above.\\n"
@@ -1827,6 +1837,13 @@ KEY INTELLIGENCE AREAS:
                 '            "summary": "A unique, concise summary specific to this concept only.",\n'
                 '            "details": "A comprehensive 3-6 paragraph technical deep-dive that goes far beyond the summary, including implementation details, methodologies, real-world applications, performance considerations, and advanced concepts.",\n'
                 '            "keyPoints": ["Key point 1", "Key point 2"],\n'
+                '            "examples": [\\\n'
+                '                {\\\n'
+                '                    "input": "Example input",\\\n'
+                '                    "output": "Example output",\\\n'
+                '                    "explanation": "Brief explanation of the example"\\\n'
+                '                }\\\n'
+                '            ],\\\n'
                 '            "relatedConcepts": ["Related Concept 1", "Related Concept 2"],\n'
                 '            "code_examples": [\\n'
                 "                {\\n"
@@ -1886,6 +1903,7 @@ KEY INTELLIGENCE AREAS:
                 "- A unique, concise 'summary' (2-4 sentences).\\n"
                 "- A different, comprehensive 'details' section (4-8 paragraphs).\\n"
                 "- 2-5 distinct 'keyPoints'.\\n"
+                "- 1-3 illustrative examples or scenarios.\\n"
                 "- Relevant 'code_examples' with explanations.\\n"
                 "- **Quick Recall**: A punchy 'keyTakeaway', a simple 'analogy', and actionable 'practicalTips'.\\n"
             )
@@ -1910,6 +1928,13 @@ KEY INTELLIGENCE AREAS:
                 '            "summary": "A unique, concise summary (2-4 sentences) of the concept, specific to this concept only.",\\n'
                 '            "details": "A comprehensive, in-depth explanation (4-8 paragraphs) of the concept. This MUST be substantially different from the summary. Explain the what, why, and how. Include context, applications, and nuances. Do NOT repeat the summary.",\\n'
                 '            "keyPoints": ["A list of 2-5 key, distinct takeaways or facts from the details."],\\n'
+                '            "examples": [\\\n'
+                '                {\\\n'
+                '                    "input": "N/A if not applicable",\\\n'
+                '                    "output": "Illustrative example or scenario",\\\n'
+                '                    "explanation": "Brief explanation of the example."\\\n'
+                '                }\\\n'
+                '            ],\\\n'
                 '            "code_examples": [\\n'
                 '                {\\n'
                 '                    "code": "A relevant code snippet. Keep it concise and directly related to the concept.",\\n'
@@ -2515,23 +2540,23 @@ KEY INTELLIGENCE AREAS:
 
     async def _enhance_concept_recall(self, concept: Dict, custom_api_key: Optional[str] = None):
         """
-        Checks a concept's "Quick Recall" fields for generic content and regenerates them
-        using a dynamically generated, context-aware prompt if necessary.
+        Checks a concept's category and forcefully regenerates the "Quick Recall" section
+        for high-value categories like LeetCode problems to ensure quality.
         """
         title = concept.get("title", "Unknown Concept")
         category = concept.get("category", "General")
-        key_takeaway = concept.get("keyTakeaway", "")
+        
+        # Determine if this concept is a high-value target for enhancement.
+        # For now, we are aggressively enhancing all LeetCode problems.
+        is_enhancement_target = "leetcode" in category.lower()
 
-        # Define what constitutes generic, low-quality content
-        generic_phrases = ["core insight", "problem that requires", "concept that involves", "a data structure"]
-        needs_enhancement = not key_takeaway or any(phrase in key_takeaway.lower() for phrase in generic_phrases)
+        if not is_enhancement_target:
+            logger.debug(f"Skipping Quick Recall enhancement for '{title}' (Category: {category})")
+            return # Not a target for enhancement.
 
-        if not needs_enhancement:
-            return # The content is already good.
+        logger.info(f"✨ Forcefully enhancing Quick Recall for LeetCode problem: '{title}'")
 
-        logger.info(f"✨ Enhancing Quick Recall for '{title}' (Category: {category})")
-
-        # Dynamically build the prompt based on the concept's category
+        # Dynamically build the prompt based on the concept's category.
         prompt = self._build_dynamic_recall_prompt(title, category)
 
         try:
@@ -2547,15 +2572,21 @@ KEY INTELLIGENCE AREAS:
             )
             new_recall_data = json.loads(response.choices[0].message.content)
             
-            # Safely update the concept with the new, high-quality data
-            concept["keyTakeaway"] = new_recall_data.get("keyTakeaway", key_takeaway)
-            concept["analogy"] = new_recall_data.get("analogy", concept.get("analogy"))
-            concept["practicalTips"] = new_recall_data.get("practicalTips", concept.get("practicalTips"))
+            # Log the newly generated data for debugging
+            logger.debug(f"Generated recall data for '{title}': {new_recall_data}")
+            
+            # Forcefully overwrite the concept's fields with the new, high-quality data.
+            concept["keyTakeaway"] = new_recall_data.get("keyTakeaway", "Error: Could not generate Key Takeaway.")
+            concept["analogy"] = new_recall_data.get("analogy", "Error: Could not generate Analogy.")
+            concept["practicalTips"] = new_recall_data.get("practicalTips", ["Error: Could not generate Practical Tips."])
             logger.info(f"✅ Successfully enhanced Quick Recall for '{title}'.")
 
         except Exception as e:
             logger.error(f"❌ Failed to enhance Quick Recall for '{title}': {e}")
-            # Even if it fails, don't crash the whole process. The original data is preserved.
+            # Even if it fails, set error messages to make it clear in the UI.
+            concept["keyTakeaway"] = "Error during generation."
+            concept["analogy"] = "Error during generation."
+            concept["practicalTips"] = ["Error during generation."]
 
     def _build_dynamic_recall_prompt(self, title: str, category: str) -> str:
         """Builds a context-aware prompt for generating the 'Quick Recall' section."""
@@ -2783,6 +2814,7 @@ def standardize_response_format(result: Dict) -> Dict:
             "category": concept.get("category", "General"),
             "summary": concept.get("summary", ""),
             "keyPoints": concept.get("keyPoints", []),
+            "examples": concept.get("examples", []),
             "details": details_content,  # Now properly mapped from all sources
             "relatedConcepts": concept.get("relatedConcepts", []),
             "confidence_score": concept.get("confidence_score", 0.8),
