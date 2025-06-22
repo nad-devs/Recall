@@ -89,6 +89,12 @@ export function TagInput({ tags, setTags, placeholder, suggestions = [] }: TagIn
         }}
         onFocus={() => setShowSuggestions(true)}
         onKeyDown={handleKeyDown}
+        onBlur={() => {
+          if (inputValue) {
+            addTag(inputValue);
+          }
+          setShowSuggestions(false);
+        }}
         placeholder={placeholder || 'Add a tag...'}
         autoComplete="off"
       />
