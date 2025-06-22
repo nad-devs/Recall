@@ -205,13 +205,20 @@ export async function POST(request: NextRequest) {
 
     // Generate embeddings for all new concepts
     console.log('🔗 Generating embeddings...');
-    const conceptsWithEmbeddings = await Promise.all(
-      concepts.map(async (concept) => {
+    const conceptsWithEmbeddingsPromises = concepts.map(async (concept) => {
+      try {
         const embedding = await generateConceptEmbedding(concept);
         return { ...concept, embedding };
-      })
-    );
-    console.log('✅ Generated embeddings for', conceptsWithEmbeddings.length, 'concepts');
+      } catch (error) {
+        console.error(`❌ Failed to generate embedding for concept: "${concept.title}". Skipping this concept.`, error);
+        return null; // Return null on failure
+      }
+    });
+
+    const conceptsWithEmbeddingsResults = await Promise.all(conceptsWithEmbeddingsPromises);
+    const conceptsWithEmbeddings = conceptsWithEmbeddingsResults.filter(c => c !== null) as (ConceptInput & { embedding: number[] })[]; // Filter out failed concepts
+    
+    console.log('✅ Generated embeddings for', conceptsWithEmbeddings.length, 'out of', concepts.length, 'concepts');
 
     // Use raw SQL to fetch existing concepts with embeddings (avoiding Prisma's vector limitation)
     console.log('🔗 Fetching existing concepts with embeddings...');
