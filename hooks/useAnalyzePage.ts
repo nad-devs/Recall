@@ -172,21 +172,9 @@ export function useAnalyzePage() {
     setSaveError(null)
 
     try {
-      // First, check for existing concepts before saving
-      console.log("💾 Checking for existing concepts before saving...")
-      console.log(`💾 Number of concepts to check: ${analysisResult.concepts.length}`)
-      
-      // Log concept titles we're checking
-      const conceptTitles = analysisResult.concepts.map(c => c.title).join(', ')
-      console.log(`💾 Concepts being checked: ${conceptTitles}`)
-      
-      // OLD CONCEPT MATCHING SYSTEM DISABLED - Now using embedding-based relationship detection
-      // The new system handles duplicate detection during analysis phase with vector embeddings
-      // and shows visual indicators (orange/blue) in the UI instead of blocking save dialogs
       console.log("💾 Using new embedding-based concept relationships - proceeding to save")
-      
-      // Proceed directly with saving - no more blocking concept match dialogs
-      await performSaveAnalysis()
+      // Pass the current analysisResult state directly to ensure we have the latest data
+      await performSaveAnalysis(analysisResult)
     } catch (error) {
       console.error('Error saving analysis:', error)
       setSaveError('Failed to save analysis. Please try again.')
@@ -194,36 +182,22 @@ export function useAnalyzePage() {
     }
   }
 
-  // Perform the actual save operation
-
-  // Function to analyze learning journey for newly created concepts (simplified)
-  const analyzeLearningJourney = async (conceptIds: string[]) => {
-    // TODO: Implement when backend service is ready
-    console.log("🧠 Learning journey analysis placeholder for concepts:", conceptIds)
-  }
-
-  const performSaveAnalysis = async () => {
-    if (!analysisResult) return
+  const performSaveAnalysis = async (currentAnalysis: ConversationAnalysis) => {
+    if (!currentAnalysis) return
     
     try {
-      console.log("💾 performSaveAnalysis - Starting API call")
+      console.log("💾 performSaveAnalysis - Starting API call with concepts:", currentAnalysis.concepts.map(c => ({ title: c.title, category: c.category })));
       
-      // Get user info from localStorage if available (for non-authenticated users)
-      const userName = localStorage.getItem('userName')
-      const userEmail = localStorage.getItem('userEmail')
-      const userId = localStorage.getItem('userId')
-      
-      // Add YouTube link to concepts if available
-      const conceptsWithYouTubeLink = youtubeLink ? analysisResult.concepts.map(concept => ({
+      const conceptsWithYouTubeLink = youtubeLink ? currentAnalysis.concepts.map(concept => ({
         ...concept,
         videoResources: youtubeLink
-      })) : analysisResult.concepts
+      })) : currentAnalysis.concepts
       
       const response = await fetch("/api/saveAnalysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          analysis: { ...analysisResult, concepts: conceptsWithYouTubeLink },
+          analysis: { ...currentAnalysis, concepts: conceptsWithYouTubeLink },
           customApiKey: customApiKey,
         }),
         credentials: "include",
@@ -240,7 +214,6 @@ export function useAnalyzePage() {
         description: "Your analysis has been saved.",
       })
       
-      // Simple redirect to concepts page
       window.location.href = '/concepts'
     } catch (error: any) {
       setSaveError(error.message)
@@ -252,6 +225,12 @@ export function useAnalyzePage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // Function to analyze learning journey for newly created concepts (simplified)
+  const analyzeLearningJourney = async (conceptIds: string[]) => {
+    // TODO: Implement when backend service is ready
+    console.log("🧠 Learning journey analysis placeholder for concepts:", conceptIds)
   }
 
   const handleApiKeySet = () => {
