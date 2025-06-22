@@ -18,7 +18,6 @@ import { useAnalyzePage } from "@/hooks/useAnalyzePage"
 import { CategoryDialogs } from "@/components/concepts-navigation/CategoryDialogs"
 import { Concept } from "@/lib/types/conversation"
 import { SimpleCategoryEditModal } from "@/components/analyze/SimpleCategoryEditModal"
-import { useState, useEffect } from "react"
 
 function AnalyzePage() {
   const {
@@ -43,6 +42,8 @@ function AnalyzePage() {
     analysisMode,
     showCategoryDialog,
     editingConcept,
+    structuredCategories,
+    isFetchingCategories,
 
     // Setters
     setConversationText,
@@ -66,38 +67,6 @@ function AnalyzePage() {
     handleCategoryDialogClose,
     handleCategoryUpdate,
   } = useAnalyzePage()
-
-  const [allCategories, setAllCategories] = useState<string[]>([])
-  const [structuredCategories, setStructuredCategories] = useState<{ [key: string]: string[] }>({})
-
-  useEffect(() => {
-    // Fetch all unique categories for the dropdown
-    if (analysisResult) {
-      const uniqueCategories = [
-        ...new Set(analysisResult.concepts.map(c => c.category.split(' > ')[0])),
-      ]
-      setAllCategories(uniqueCategories)
-    }
-  }, [analysisResult])
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        // Assuming the backend runs on port 8000
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const response = await fetch(`${apiUrl}/api/v1/structured-categories`);
-        if (response.ok) {
-          const data = await response.json();
-          setStructuredCategories(data);
-        } else {
-          console.error("Failed to fetch structured categories:", response.statusText);
-        }
-      } catch (error) {
-        console.error("Error fetching structured categories:", error);
-      }
-    };
-    fetchCategories();
-  }, []);
 
   return (
     <AuthGuard>
@@ -226,6 +195,7 @@ function AnalyzePage() {
               }}
               concept={editingConcept}
               structuredCategories={structuredCategories}
+              isLoading={isFetchingCategories}
             />
           )}
         </div>
