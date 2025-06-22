@@ -62,6 +62,7 @@ class Concept(BaseModel):
     analogy: Optional[str] = None
     practicalTips: Optional[List[str]] = None
     # Metadata and Relationships
+    related_concepts: Optional[List[str]] = None
     categoryPath: Optional[List[str]] = None
     subcategories: Optional[List[str]] = None
     notes: Optional[Dict] = None
@@ -314,57 +315,32 @@ class ConceptExtractor:
         categories = await self._fetch_categories()
         
         # ENHANCED CATEGORIZATION PROMPT - Comprehensive rules for better classification
-        prompt = f"""You are an expert content categorizer. Analyze the concept and choose the MOST SPECIFIC and APPROPRIATE category.
+        prompt = f"""You are a meticulous and accurate content classifier for a technical learning platform. Your primary responsibility is to assign the single most specific and correct category to a given concept from a predefined list. Accuracy is critical.
 
-CATEGORIZATION RULES & PRIORITY ORDER:
+**NON-NEGOTIABLE RULES:**
+1.  **Foundational Concepts**: Core computer science concepts MUST be categorized correctly and specifically.
+    -   **Data Structures**: Concepts like 'Hash Table', 'Array', 'Linked List', 'Tree', 'Graph', 'Stack', 'Queue' MUST be categorized as 'Data Structures'.
+    -   **Algorithms**: Concepts like 'Binary Search', 'Sorting', 'DFS', 'BFS' MUST be categorized as 'Algorithms'.
+    -   **Algorithm Techniques**: Patterns like 'Two Pointers' or 'Sliding Window' MUST be categorized as 'Algorithm Technique'.
+2.  **Language-Specific Implementations**: If a concept is about a data structure *in a specific language* (e.g., "Python Dictionaries" or "JavaScript Sets"), the language category (e.g., 'Python', 'JavaScript') takes precedence.
+3.  **Specificity is Key**: Always choose the most specific category available. For example, if a concept is about React Hooks, 'Frontend Engineering > React' is the correct choice, not 'Frontend Engineering'.
+4.  **Use Provided List Only**: You MUST select a category from the list provided below. Do not invent new ones or alter the existing ones.
 
-🔹 PROGRAMMING LANGUAGES (Highest Priority for Language-Specific Content):
-- "Python" → Python sets, lists, dictionaries, syntax, language features
-- "JavaScript" → JS arrays, objects, ES6 features, language specifics  
-- "TypeScript" → TS types, interfaces, language features
-- Use language categories for data structures, syntax, and language-specific features
+**DECISION-MAKING PROCESS:**
+1.  Is the concept a language-specific feature or implementation? -> If yes, use the language category (e.g., 'Python', 'TypeScript').
+2.  Is it a fundamental, language-agnostic data structure or algorithm? -> If yes, use 'Data Structures' or 'Algorithms' as per Rule #1.
+3.  Is it a concept within a broader engineering domain? -> If yes, use the most specific domain category (e.g., 'Backend Engineering > Databases').
+4.  Is it a non-technical concept? -> If yes, use the appropriate non-technical domain category (e.g., 'Finance > Investment').
+5.  If you are truly unsure, 'General' is the last resort.
 
-🔹 CORE COMPUTER SCIENCE:
-- "Data Structures" → Arrays, linked lists, trees, graphs, hash tables
-- "Algorithms" → Sorting, searching, graph algorithms, dynamic programming
-- "Data Structures and Algorithms" → Combined DSA topics
-- "LeetCode Problems" → Specific coding challenges and problem-solving
+**Available Categories:**
+{categories}
 
-🔹 DEVELOPMENT DOMAINS:
-- "Backend Engineering" → Server architecture, system design, scalability
-- "Frontend Engineering" → UI/UX, user interfaces, client-side architecture
-- "Backend Engineering > APIs" → REST, GraphQL, API design patterns
-- "Backend Engineering > Databases" → Database design, SQL optimization, schemas
-
-🔹 NON-TECHNICAL DOMAINS (Equal Priority):
-- "Finance" → Money management, investing, economic concepts
-- "Psychology" → Mental health, behavior, cognitive concepts
-- "Business" → Strategy, management, entrepreneurship
-- "Health" → Nutrition, fitness, medical topics
-- "Education" → Learning methods, teaching, academic concepts
-
-EXAMPLES:
-✅ "Sets in Python" → "Python" (language-specific data structure)
-✅ "React useState Hook" → "Frontend Engineering > React" (framework feature)
-✅ "Binary Search Algorithm" → "Algorithms" (algorithm technique)
-✅ "Investment Portfolio Diversification" → "Finance > Investment" (financial concept)
-✅ "Cognitive Bias in Decision Making" → "Psychology > Cognitive" (psychological concept)
-✅ "Team Leadership Strategies" → "Business > Management" (business concept)
-
-DECISION CRITERIA:
-1. Is it language-specific? → Use the programming language category
-2. Is it a core CS concept? → Use Data Structures/Algorithms
-3. Is it about system architecture? → Use engineering domain categories  
-4. Is it non-technical? → Use appropriate domain category
-5. When unsure → Choose the MOST SPECIFIC category available
-
-Available Categories: {categories}
-
-Concept to Categorize:
+**Concept to Categorize:**
 Title: {title}
 Summary: {summary}
 
-Respond with ONLY the exact category name from the list above. If no perfect match exists, choose the closest/most general appropriate category."""
+Respond with ONLY the exact category name from the list above. Your response must be perfect."""
 
         try:
             client = self._get_client(custom_api_key)
@@ -559,6 +535,27 @@ Respond with ONLY the exact category name from the list above. If no perfect mat
             "self improvement": "Lifestyle",
             "productivity": "Lifestyle"
         }
+        
+        # Add a more robust mapping for technical concepts
+        technical_category_mapping = {
+            # Data Structures
+            "hash table": "Data Structures", "dictionary": "Data Structures", "hash map": "Data Structures",
+            "array": "Data Structures", "list": "Data Structures", "dynamic array": "Data Structures",
+            "linked list": "Data Structures", "singly linked list": "Data Structures", "doubly linked list": "Data Structures",
+            "stack": "Data Structures", "queue": "Data Structures", "deque": "Data Structures",
+            "tree": "Data Structures", "binary tree": "Data Structures", "binary search tree": "Data Structures",
+            "graph": "Data Structures", "matrix": "Data Structures", "heap": "Data Structures", "priority queue": "Data Structures",
+            "trie": "Data Structures", "set": "Data Structures",
+            
+            # Algorithms
+            "binary search": "Algorithms", "breadth-first search": "Algorithms", "bfs": "Algorithms",
+            "depth-first search": "Algorithms", "dfs": "Algorithms", "sorting": "Algorithms",
+            "recursion": "Algorithms", "dynamic programming": "Algorithms", "dp": "Algorithms",
+            "greedy": "Algorithms", "backtracking": "Algorithms", "divide and conquer": "Algorithms",
+            "two pointers": "Algorithm Technique", "sliding window": "Algorithm Technique",
+            "union find": "Algorithm Technique", "topological sort": "Algorithms"
+        }
+        category_mapping.update(technical_category_mapping)
         
         # Try fuzzy matching with enhanced mappings
         for keyword, mapped_category in category_mapping.items():
@@ -1108,6 +1105,17 @@ Respond in this JSON format:
                     "processing_success_rate": len(processed_concepts) / max(len(response_data.get("concepts", [])), 1)
                 }
             }
+            
+            # Establish reciprocal relationships
+            concept_map = {concept['title'].lower(): concept for concept in processed_concepts}
+            for concept in processed_concepts:
+                related_titles = [related.lower() for related in concept.get("relatedConcepts", [])]
+                for related_title in related_titles:
+                    if related_title in concept_map:
+                        related_concept = concept_map[related_title]
+                        # Add reciprocal relationship if it doesn't exist
+                        if concept['title'] not in related_concept.get("relatedConcepts", []):
+                            related_concept.setdefault("relatedConcepts", []).append(concept['title'])
             
             logger.info("=== PARSING COMPLETED SUCCESSFULLY ===")
             return result
@@ -1825,7 +1833,7 @@ KEY INTELLIGENCE AREAS:
             context_info = (
                 f"SEGMENT INFORMATION:\nTopic: {topic}\n\n"
                 f"CONTEXT INFORMATION:\n{json.dumps(context) if context else 'No additional context provided'}\n\n"
-                "ANALYZE THIS CONVERSATION SEGMENT according to the problem-solving extraction approach above.\n\n"
+                "ANALYZE THIS CONVERSATION SEGMENT according to the guidelines above.\n\n"
             )
             
             json_format = (
