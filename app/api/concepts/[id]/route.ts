@@ -258,6 +258,8 @@ export async function GET(
         keyTakeaway: true,
         analogy: true,
         practicalTips: true,
+        videoResources: true,
+        personalNotes: true,
         codeSnippets: {
           select: {
             id: true,
@@ -395,6 +397,11 @@ export async function GET(
     if (concept.videoResources) cleanedConcept.videoResources = concept.videoResources;
     if (concept.commonMistakes) cleanedConcept.commonMistakes = concept.commonMistakes;
     if (concept.personalNotes) cleanedConcept.personalNotes = concept.personalNotes;
+    
+    // Add Quick Recall fields
+    if (concept.keyTakeaway) cleanedConcept.keyTakeaway = concept.keyTakeaway;
+    if (concept.analogy) cleanedConcept.analogy = concept.analogy;
+    if (concept.practicalTips) cleanedConcept.practicalTips = concept.practicalTips;
 
     // Get conversations where this concept appears using occurrences
     const occurrences = await prisma.occurrence.findMany({
