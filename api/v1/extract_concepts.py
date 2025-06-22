@@ -2049,6 +2049,19 @@ KEY INTELLIGENCE AREAS:
                 # Use the deduplicated list
                 concepts = list(unique_concepts.values())
                 
+                # QUALITY ENHANCEMENT LAYER:
+                # Ensure all concepts have high-quality, insightful "Quick Recall" content.
+                # This layer checks for generic content and regenerates it with a context-aware prompt.
+                logger.info("✨ Running Quality Enhancement Layer on all concepts...")
+                
+                # Use asyncio.gather to run enhancements concurrently
+                enhancement_tasks = []
+                for concept in concepts:
+                    enhancement_tasks.append(self._enhance_concept_recall(concept, req.custom_api_key))
+                
+                await asyncio.gather(*enhancement_tasks)
+                logger.info("✅ Quality Enhancement Layer finished.")
+
                 # Check if we need to create technique mini-concepts for related concepts
                 # This helps techniques appear in the Related Concepts UI without too much granularity
                 main_concepts = concepts.copy()
@@ -2499,6 +2512,103 @@ KEY INTELLIGENCE AREAS:
                 return "O(n) where n is the number of elements being hashed and stored."
             else:
                 return "Varies depending on implementation and specific problem constraints."
+
+    async def _enhance_concept_recall(self, concept: Dict, custom_api_key: Optional[str] = None):
+        """
+        Checks a concept's "Quick Recall" fields for generic content and regenerates them
+        using a dynamically generated, context-aware prompt if necessary.
+        """
+        title = concept.get("title", "Unknown Concept")
+        category = concept.get("category", "General")
+        key_takeaway = concept.get("keyTakeaway", "")
+
+        # Define what constitutes generic, low-quality content
+        generic_phrases = ["core insight", "problem that requires", "concept that involves", "a data structure"]
+        needs_enhancement = not key_takeaway or any(phrase in key_takeaway.lower() for phrase in generic_phrases)
+
+        if not needs_enhancement:
+            return # The content is already good.
+
+        logger.info(f"✨ Enhancing Quick Recall for '{title}' (Category: {category})")
+
+        # Dynamically build the prompt based on the concept's category
+        prompt = self._build_dynamic_recall_prompt(title, category)
+
+        try:
+            llm_client = self._get_client(custom_api_key)
+            response = await llm_client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a world-class educator and explainer. Your goal is to make any concept, no matter how complex, simple and memorable."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.45
+            )
+            new_recall_data = json.loads(response.choices[0].message.content)
+            
+            # Safely update the concept with the new, high-quality data
+            concept["keyTakeaway"] = new_recall_data.get("keyTakeaway", key_takeaway)
+            concept["analogy"] = new_recall_data.get("analogy", concept.get("analogy"))
+            concept["practicalTips"] = new_recall_data.get("practicalTips", concept.get("practicalTips"))
+            logger.info(f"✅ Successfully enhanced Quick Recall for '{title}'.")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to enhance Quick Recall for '{title}': {e}")
+            # Even if it fails, don't crash the whole process. The original data is preserved.
+
+    def _build_dynamic_recall_prompt(self, title: str, category: str) -> str:
+        """Builds a context-aware prompt for generating the 'Quick Recall' section."""
+        
+        # Base prompt structure
+        base_prompt = f"""
+        Generate a "Quick Recall" section for the concept: "{title}".
+        The output MUST be deeply insightful, accurate, and genuinely useful for learning.
+        Avoid generic, unhelpful descriptions.
+
+        1.  **Key Takeaway**: What is the single most important insight or core idea of this concept? This should be the "aha!" moment that makes it click.
+        2.  **Analogy**: Provide a simple, memorable, real-world analogy that explains the concept's main function or logic.
+        3.  **Practical Tips**: List 3-4 actionable tips. How can someone use this knowledge? What are the common pitfalls?
+        
+        Provide ONLY the JSON for these three fields: "keyTakeaway", "analogy", "practicalTips".
+        """
+
+        # Category-specific instructions and examples
+        category_lower = category.lower()
+        if "leetcode" in category_lower or "problem" in category_lower:
+            specific_instructions = """
+            **Instructions for a LeetCode Problem:**
+            - **Key Takeaway**: Focus on the optimal algorithm or data structure. What's the trick?
+              *Example for "Two Sum"*: "The core trick is to use a hash map to store numbers you've seen and their indices. This lets you instantly check if the complement (target - number) exists."
+            - **Analogy**: The analogy should explain the algorithm's logic.
+              *Example for "Two Sum"*: "Like a cashier with a 'wanted' list of coin values. For each coin a customer gives you, you check your list. If it's there, you have a pair. If not, you add the value of the coin they *would* need to your list."
+            - **Practical Tips**: Tips should be about recognizing the pattern in other problems.
+            """
+        elif "data structure" in category_lower:
+            specific_instructions = """
+            **Instructions for a Data Structure:**
+            - **Key Takeaway**: Focus on the primary strength and its performance characteristics (e.g., O(1) lookups for Hash Table).
+            - **Analogy**: The analogy should explain how the data is organized and accessed.
+              *Example for "Hash Table"*: "Like a magical filing cabinet. You give it a document (the key), and it instantly tells you which drawer (the hash) to find it in, no searching required."
+            - **Practical Tips**: Tips should be about when to choose this data structure over others.
+            """
+        elif "system design" in category_lower:
+            specific_instructions = """
+            **Instructions for a System Design Concept:**
+            - **Key Takeaway**: Focus on the core trade-off this concept solves (e.g., latency vs. consistency).
+            - **Analogy**: The analogy should explain the role of the component in a larger system.
+              *Example for "Load Balancer"*: "Like a traffic cop for a busy intersection, directing incoming cars (requests) to different roads (servers) to prevent any single road from getting jammed."
+            - **Practical Tips**: Tips should be about when to apply this pattern and the common challenges.
+            """
+        else:
+            specific_instructions = """
+            **Instructions for a General Concept:**
+            - **Key Takeaway**: Distill the most critical piece of information or the "big idea".
+            - **Analogy**: Find a relatable comparison from everyday life.
+            - **Practical Tips**: How can this knowledge be applied or remembered?
+            """
+
+        return specific_instructions + base_prompt
 
 
 # Initialize the concept extractor
