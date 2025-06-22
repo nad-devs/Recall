@@ -136,6 +136,11 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  // DEBUG: Log the received concept data
+  if (concept) {
+    console.log("CONCEPT DATA RECEIVED BY COMPONENT:", JSON.stringify(concept, null, 2));
+  }
+
   // Safely parse JSON string fields
   const safeParse = (jsonString: string | any, defaultValue: any[] = []) => {
     if (typeof jsonString !== 'string') return jsonString || defaultValue;
