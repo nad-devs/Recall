@@ -180,6 +180,46 @@ async function updateRelatedConceptReferences(conceptId: string, oldTitle: strin
   }
 }
 
+export async function PATCH(
+  request: Request,
+  context: { params: { id: string } }
+) {
+  try {
+    const { id } = context.params;
+    const user = await validateSession(request as NextRequest);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { category } = await request.json();
+    if (!category || typeof category !== 'string') {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    }
+
+    const concept = await prisma.concept.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!concept) {
+      return NextResponse.json({ error: 'Concept not found' }, { status: 404 });
+    }
+
+    if (concept && !concept.isPlaceholder) {
+        await removePlaceholderConcepts(category);
+    }
+    
+    const updatedConcept = await prisma.concept.update({
+      where: { id },
+      data: { category, isPlaceholder: false },
+    });
+
+    return NextResponse.json(updatedConcept);
+  } catch (error) {
+    console.error(`Failed to update concept category for ID: ${context.params.id}`, error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -1164,4 +1204,4 @@ function extractKeyTakeaways(text: string): string[] {
   }
   
   return takeaways.slice(0, 3); // Return at most 3 takeaways
-} 
+}
