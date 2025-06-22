@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { NextRequest } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 // Add these type definitions at the top of the file, after the imports
 type RelatedConcept = {
   id?: string;
