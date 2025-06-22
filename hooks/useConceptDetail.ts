@@ -164,6 +164,9 @@ export function useConceptDetail(id: string) {
         }
         const data = await response.json()
         
+        // --- CLIENT-SIDE HOOK DEBUG LOG ---
+        console.log("DATA RECEIVED INSIDE HOOK:", JSON.stringify(data, null, 2));
+
         setConcept(data.concept)
         setRelatedConversations(data.relatedConversations || [])
         
