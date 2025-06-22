@@ -190,3 +190,5 @@ We welcome contributions! Please check out the [GitHub Issues](https://github.co
 ## 📝 License
 
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+
+latest commit
