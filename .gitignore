@@ -76,3 +76,29 @@ node_modules/
 # Nested git repositories
 notes-ai/.git/ 
 .vercel
+
+# SECURITY: Prevent credential leaks
+# PowerShell scripts that may contain credentials
+*.ps1
+migrate.ps1
+
+# Database migration scripts
+migrate.*
+
+# Backup files that may contain sensitive data
+*.bak
+*.backup
+*.sql.bak
+
+# Log files that may contain sensitive information
+*.log
+logs/
+concept_extraction.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+Thumbs.db
