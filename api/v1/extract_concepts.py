@@ -2994,3 +2994,41 @@ async def generate_quiz(req: QuizRequest):
     except Exception as e:
         logger.error(f"Error generating quiz questions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# Function to parse categories into a structured format
+def get_structured_categories():
+    # This can be cached in a real-world scenario
+    default_categories = [
+        "Data Structures and Algorithms", "Data Structures", "Algorithms", "Algorithm Technique", "LeetCode Problems",
+        "Backend Engineering", "Backend Engineering > Authentication", "Backend Engineering > Storage", "Backend Engineering > APIs", "Backend Engineering > Databases",
+        "Frontend Engineering", "Frontend Engineering > React", "Frontend Engineering > Next.js", "Frontend Engineering > CSS",
+        "Cloud Engineering", "Cloud Engineering > AWS", "DevOps",
+        "JavaScript", "TypeScript", "Python", "System Design", "Machine Learning",
+        "General", "Finance", "Finance > Investment", "Finance > Personal Finance", "Finance > Business Finance", "Finance > Stock Analysis",
+        "Psychology", "Psychology > Behavioral", "Psychology > Cognitive",
+        "Business", "Business > Strategy", "Business > Management", "Business > Marketing",
+        "Health", "Health > Nutrition", "Health > Fitness",
+        "Education", "Education > Learning Methods",
+        "Science", "Science > Physics", "Science > Biology",
+        "Philosophy", "History", "Politics", "Economics", "Arts", "Literature", "Travel", "Lifestyle", "Miscellaneous"
+    ]
+    
+    structured = {}
+    for cat in default_categories:
+        parts = [p.strip() for p in cat.split('>')]
+        main_cat = parts[0]
+        if main_cat not in structured:
+            structured[main_cat] = []
+        
+        if len(parts) > 1:
+            # Add sub-category if it doesn't already exist to avoid duplicates
+            sub_cat = parts[1]
+            if sub_cat not in structured[main_cat]:
+                structured[main_cat].append(sub_cat)
+                
+    return structured
+
+@app.get("/api/v1/structured-categories")
+async def get_categories():
+    """Returns a structured list of main categories and their subcategories."""
+    return get_structured_categories()
