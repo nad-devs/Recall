@@ -252,11 +252,17 @@ export async function POST(request: NextRequest) {
         try {
           existingEmbedding = JSON.parse(existingConcept.embedding_text);
         } catch (error) {
-          console.warn('❌ Failed to parse embedding for concept:', existingConcept.title);
-          continue;
+          console.warn(`❌ Failed to parse embedding for existing concept: "${existingConcept.title}". Skipping this concept.`);
+          continue; // Skip this concept if embedding is malformed
         }
         
+        // Calculate similarity
         const similarity = cosineSimilarity(newConcept.embedding, existingEmbedding);
+        const relationshipDetails = analyzeRelationshipType(newConcept, existingConcept);
+
+        // Define a threshold for what's considered a "duplicate" vs. "related"
+        const DUPLICATE_THRESHOLD = 0.95;
+        const RELATED_THRESHOLD = 0.8;
         
         // Parse existing concept's structured data
         let existingKeyPoints: string[] = [];
@@ -281,7 +287,7 @@ export async function POST(request: NextRequest) {
         console.log(`   Shared: ${relationshipAnalysis.sharedElements.join(', ')}`);
 
         // High similarity suggests potential duplicate
-        if (similarity > 0.85) {
+        if (similarity > DUPLICATE_THRESHOLD) {
           console.log(`🟠 DUPLICATE DETECTED: ${Math.round(similarity * 100)}% similarity with "${existingConcept.title}"`);
           potentialDuplicates.push({
             id: existingConcept.id,
@@ -296,7 +302,7 @@ export async function POST(request: NextRequest) {
           });
         }
         // Medium similarity suggests related concept
-        else if (similarity > 0.6) {
+        else if (similarity > RELATED_THRESHOLD) {
           console.log(`🔗 RELATED CONCEPT: ${Math.round(similarity * 100)}% similarity with "${existingConcept.title}"`);
           relationships.push({
             id: existingConcept.id,
