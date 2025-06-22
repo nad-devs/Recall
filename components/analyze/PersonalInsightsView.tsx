@@ -208,9 +208,44 @@ export function PersonalInsightsView({
               </h4>
               <div className="space-y-3">
                 {concept.examples && concept.examples.length > 0 ? (
-                  concept.examples.map((example: string, index: number) => (
+                  concept.examples.map((example: any, index: number) => (
                     <div key={index} className="bg-green-900/20 border border-green-700/30 rounded-md p-3">
-                      <span className="text-green-300 text-sm">{example}</span>
+                      {typeof example === 'string' ? (
+                        <span className="text-green-300 text-sm">{example}</span>
+                      ) : (
+                        <div className="space-y-2">
+                          {example.input && (
+                            <div>
+                              <span className="text-green-400 text-xs font-semibold uppercase tracking-wide">Input:</span>
+                              <p className="text-green-300 text-sm mt-1">{example.input}</p>
+                            </div>
+                          )}
+                          {example.output && (
+                            <div>
+                              <span className="text-green-400 text-xs font-semibold uppercase tracking-wide">Output:</span>
+                              <p className="text-green-300 text-sm mt-1">{example.output}</p>
+                            </div>
+                          )}
+                          {example.explanation && (
+                            <div>
+                              <span className="text-green-400 text-xs font-semibold uppercase tracking-wide">Explanation:</span>
+                              <p className="text-green-300 text-sm mt-1">{example.explanation}</p>
+                            </div>
+                          )}
+                          {example.scenario && (
+                            <div>
+                              <span className="text-green-400 text-xs font-semibold uppercase tracking-wide">Scenario:</span>
+                              <p className="text-green-300 text-sm mt-1">{example.scenario}</p>
+                            </div>
+                          )}
+                          {example.outcome && (
+                            <div>
+                              <span className="text-green-400 text-xs font-semibold uppercase tracking-wide">Outcome:</span>
+                              <p className="text-green-300 text-sm mt-1">{example.outcome}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
