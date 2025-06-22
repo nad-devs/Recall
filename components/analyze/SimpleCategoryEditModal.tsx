@@ -6,6 +6,7 @@ import { Autocomplete } from '@/components/ui/autocomplete';
 import { TagInput } from '@/components/ui/TagInput';
 import { Concept } from '@/lib/types/conversation';
 import { Loader2 } from 'lucide-react';
+import { getAuthHeaders } from '@/lib/auth-utils';
 
 interface SimpleCategoryEditModalProps {
   isOpen: boolean;
@@ -25,6 +26,42 @@ export function SimpleCategoryEditModal({
   const [category, setCategory] = useState('');
   const [subcategories, setSubcategories] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<{ [key: string]: string[] }>({});
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
+  // Fetch categories from database when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchDynamicCategories();
+    }
+  }, [isOpen]);
+
+  const fetchDynamicCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      const response = await fetch('/api/categories', {
+        headers: getAuthHeaders(),
+      });
+      
+      if (response.ok) {
+        const categories = await response.json();
+        // Convert hierarchical structure to flat structure for easier use
+        const structured: { [key: string]: string[] } = {};
+        
+        categories.forEach((category: any) => {
+          structured[category.name] = category.children?.map((child: any) => child.name) || [];
+        });
+        
+        setDynamicCategories(structured);
+      }
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+      // Fallback to static categories if fetch fails
+      setDynamicCategories(structuredCategories);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   useEffect(() => {
     if (concept) {
@@ -38,14 +75,21 @@ export function SimpleCategoryEditModal({
 
   const handleSave = async () => {
     setIsSaving(true);
-    await onSave(concept.id, category, subcategories);
-    setIsSaving(false);
-    onClose();
+    try {
+      await onSave(concept.id, category, subcategories);
+      onClose();
+    } catch (error) {
+      console.error('Failed to save category:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
   
-  const mainCategories = Object.keys(structuredCategories);
+  // Use dynamic categories if available, fallback to static
+  const categoriesData = Object.keys(dynamicCategories).length > 0 ? dynamicCategories : structuredCategories;
+  const mainCategories = Object.keys(categoriesData);
   const categoryOptions = mainCategories.map(cat => ({ value: cat, label: cat }));
-  const subcategorySuggestions = structuredCategories[category] || [];
+  const subcategorySuggestions = categoriesData[category] || [];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -64,6 +108,7 @@ export function SimpleCategoryEditModal({
               onChange={setCategory}
               options={categoryOptions}
               placeholder="Choose or create a category..."
+              disabled={loadingCategories}
             />
           </div>
           <div className="space-y-2">
@@ -77,8 +122,8 @@ export function SimpleCategoryEditModal({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isSaving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button variant="outline" onClick={onClose} disabled={isSaving || loadingCategories}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isSaving || loadingCategories}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>

@@ -4,6 +4,40 @@ import { validateSession } from '@/lib/session';
 import { NextRequest } from 'next/server';
 import { serverLogger, loggedPrismaQuery } from '@/lib/server-logger';
 
+async function getCategories(userId: string) {
+  const categories = await prisma.category.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      parentId: true,
+    },
+  });
+
+  type CategoryWithChildren = {
+    id: string;
+    name: string;
+    parentId: string | null;
+    children: CategoryWithChildren[];
+  };
+
+  const categoryMap = new Map<string, CategoryWithChildren>(
+    categories.map(c => [c.id, { ...c, children: [] }])
+  );
+  const structuredCategories: CategoryWithChildren[] = [];
+
+  for (const category of categories) {
+    if (category.parentId && categoryMap.has(category.parentId)) {
+      const parent = categoryMap.get(category.parentId);
+      parent?.children.push(categoryMap.get(category.id)!);
+    } else {
+      structuredCategories.push(categoryMap.get(category.id)!);
+    }
+  }
+
+  return structuredCategories;
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   let userId: string | undefined;
@@ -22,32 +56,15 @@ export async function GET(request: NextRequest) {
     userId = user.id;
     serverLogger.logAuth('validateSession', userId, true, { endpoint: '/api/categories' });
 
-    // Fetch categories from concepts that belong to the user (with optional logging)
-    const concepts = await loggedPrismaQuery(
-      'concept.findMany (categories distinct)',
-      () => prisma.concept.findMany({
-        where: {
-          userId: user.id
-        },
-        select: { category: true },
-        distinct: ['category'],
-      })
-    );
-    
-    // Extract unique categories and build hierarchy
-    const categoryStrings = concepts.map(c => c.category).filter(Boolean);
-    const categoryPaths = categoryStrings.map(cat => cat.split(' > ').map(part => part.trim()));
+    const categories = await getCategories(user.id);
     
     serverLogger.logApiCall('/api/categories', 'GET', startTime, userId);
     
-    return NextResponse.json({ 
-      categories: categoryPaths,
-      flatCategories: categoryStrings
-    });
+    return NextResponse.json(categories);
   } catch (error) {
     serverLogger.logError('/api/categories GET', error, userId, { startTime, duration: Date.now() - startTime });
     console.error('Error fetching categories:', error);
-    return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 } 
 

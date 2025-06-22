@@ -3,7 +3,37 @@ import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { getClientIP, canMakeServerConversation } from '@/lib/usage-tracker-server';
 
+async function findOrCreateCategory(categoryString: string, userId: string): Promise<void> {
+  if (!categoryString || categoryString === 'General') return;
+  
+  const parts = categoryString.split(' > ').map(p => p.trim());
+  let parentId: string | null = null;
+
+  for (const part of parts) {
+    let category: any = await prisma.category.findFirst({
+      where: {
+        name: part,
+        userId,
+        parentId,
+      },
+    });
+
+    if (!category) {
+      category = await prisma.category.create({
+        data: {
+          name: part,
+          userId,
+          parentId,
+        },
+      });
+      console.log(`✅ Created new category: ${part} (parent: ${parentId})`);
+    }
+    parentId = category.id;
+  }
+}
+
 interface Concept {
+  id?: string;
   title: string;
   category: string;
   summary: string;
@@ -210,12 +240,17 @@ export async function POST(request: Request) {
       console.log(`Processing concept: ${conceptData.title}`);
 
       // If the concept has an ID, it's an update
-      if (conceptData.embeddingData && conceptData.embeddingData.embedding) {
-        updatedConcepts.push(conceptData);
+      if (conceptData.id) {
+        // Logic for updating an existing concept can go here
+        console.log(`Skipping update for existing concept: ${conceptData.title}`);
         continue;
        }
  
        // We'll handle duplicates/updates later. For now, we create new concepts.
+       
+       // Create or find the category structure in the database
+       await findOrCreateCategory(conceptData.category || 'General', user.id);
+
        const newConcept = await prisma.concept.create({
          data: {
            title: conceptData.title,
@@ -232,6 +267,7 @@ export async function POST(request: Request) {
            confidenceScore: conceptData.confidenceScore,
            videoResources: conceptData.videoResources || '',
            userId: user.id,
+           conversationId: 'temp-conversation-id',
          },
        });
  

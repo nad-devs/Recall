@@ -17,6 +17,9 @@ import { PageTransition } from "@/components/page-transition"
 import { LinkingProvider } from "@/components/concept-card"
 import { ConceptsLoading } from "@/components/concepts-loading"
 import featureFlags from '@/lib/feature-flags'
+import { getAuthHeaders } from "@/lib/auth-utils"
+import { useSession } from "next-auth/react"
+import { SimpleConceptCard } from "@/components/simple-concept-card"
 
 interface Concept {
   id: string
@@ -69,10 +72,14 @@ export default function ConceptsPage() {
   const { toast } = useToast()
   
   // Simple state management - no complex tracking
-  const [concepts, setConcepts] = useState<Concept[]>([])
-  const [conceptsByCategory, setConceptsByCategory] = useState<Record<string, Concept[]>>({})
-  const [sortedCategories, setSortedCategories] = useState<string[]>([])
+  const [concepts, setConcepts] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [conceptsByCategory, setConceptsByCategory] = useState<{ [key: string]: any[] }>({})
+  const { data: session } = useSession()
   
   // Read the flag once and use it for both states to avoid race condition
   const [isReduxRefresh] = useState(() => {
@@ -90,13 +97,11 @@ export default function ConceptsPage() {
   
   const [showLoadingScreen, setShowLoadingScreen] = useState(!isReduxRefresh)
   const [showSkeletonOnly, setShowSkeletonOnly] = useState(isReduxRefresh)
-  const [error, setError] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [isCreatingConcept, setIsCreatingConcept] = useState(false)
   const [newConceptId, setNewConceptId] = useState<string | null>(null)
   const [newConceptTitle, setNewConceptTitle] = useState("")
   const [loadingConcepts, setLoadingConcepts] = useState<string[]>([])
-  const [searchQuery, setSearchQuery] = useState<string>("")
   const [selectedConcepts, setSelectedConcepts] = useState<Set<string>>(new Set())
   const [showNavigation, setShowNavigation] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -152,7 +157,7 @@ export default function ConceptsPage() {
       (concept.notes && concept.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (concept.summary && concept.summary.toLowerCase().includes(searchQuery.toLowerCase()))
     
-    const matchesCategory = selectedCategory === null || concept.category === selectedCategory
+    const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(concept.category)
     const matchesNeedsReview = !showNeedsReview || concept.needsReview
     
     return matchesSearch && matchesCategory && matchesNeedsReview
@@ -160,7 +165,7 @@ export default function ConceptsPage() {
   
   // Filter concepts by category
   const filteredConceptsByCategory = Object.entries(conceptsByCategory).reduce((acc, [category, categoryItems]) => {
-    if (selectedCategory !== null && category !== selectedCategory) {
+    if (selectedCategories.length > 0 && !selectedCategories.includes(category)) {
       return acc
     }
     
@@ -221,7 +226,7 @@ export default function ConceptsPage() {
     // Update all state simultaneously
     setConcepts(formattedConcepts)
     setConceptsByCategory(byCategory)
-    setSortedCategories(sortedCategoryList)
+    setCategories(sortedCategoryList)
     
     console.log('🔧 CONCEPTS PAGE: Formatting complete, total concepts with needsReview:', 
       formattedConcepts.filter(c => c.needsReview).length)
@@ -532,7 +537,7 @@ export default function ConceptsPage() {
     });
     
     // Update sortedCategories using functional updates
-    setSortedCategories(prevSorted => {
+    setCategories(prevSorted => {
       let newSorted = [...prevSorted];
       
       // Add new category if it doesn't exist
@@ -544,6 +549,11 @@ export default function ConceptsPage() {
       // Empty categories will be cleaned up in the next render cycle
       
       return newSorted;
+    });
+
+    toast({
+      title: 'Category Updated',
+      description: `Moved concept to ${newCategory}.`,
     });
   };
 
@@ -902,7 +912,7 @@ export default function ConceptsPage() {
               <ConceptsNavigation
                 concepts={concepts}
                 conceptsByCategory={conceptsByCategory}
-                sortedCategories={sortedCategories}
+                sortedCategories={filteredSortedCategories}
                 searchQuery={searchQuery}
                 onSearchChange={handleSearchChange}
                 onCategorySelect={handleCategorySelect}
