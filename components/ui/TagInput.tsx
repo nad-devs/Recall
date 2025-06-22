@@ -92,7 +92,7 @@ export function TagInput({ tags, setTags, placeholder, suggestions = [] }: TagIn
         placeholder={placeholder || 'Add a tag...'}
         autoComplete="off"
       />
-      {showSuggestions && inputValue && filteredSuggestions.length > 0 && (
+      {showSuggestions && filteredSuggestions.length > 0 && (
         <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto">
           {filteredSuggestions.map((suggestion, index) => (
             <li
