@@ -121,7 +121,7 @@ export const moveConceptsAsync = createAsyncThunk(
     // Move each concept (ASYNC - doesn't block UI!)
     const movePromises = conceptIds.map(async (conceptId) => {
       const response = await fetch(`/api/concepts/${conceptId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category: targetCategory }),
       })
