@@ -150,6 +150,7 @@ function AnalyzePage() {
                 <PersonalInsightsView
                   analysisResult={analysisResult}
                   selectedConcept={selectedConcept}
+                  setSelectedConcept={setSelectedConcept}
                   showYouTubeLinkPrompt={showYouTubeLinkPrompt}
                   onYouTubeLinkAdd={handleYouTubeLinkAdd}
                   onYouTubeLinkSkip={handleYouTubeLinkSkip}
