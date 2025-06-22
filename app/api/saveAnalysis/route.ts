@@ -271,6 +271,18 @@ export async function POST(request: Request) {
             },
           },
         });
+
+        if (conceptData.codeSnippets && conceptData.codeSnippets.length > 0) {
+          await tx.codeSnippet.createMany({
+            data: conceptData.codeSnippets.map((snippet) => ({
+              language: snippet.language,
+              description: snippet.description,
+              code: snippet.code,
+              conceptId: newConcept.id,
+            })),
+          });
+        }
+        
         return newConcept.id;
       });
       
