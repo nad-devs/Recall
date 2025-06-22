@@ -34,7 +34,7 @@ export function PersonalInsightsView({
   setAnalysisMode,
   onCategoryEdit,
 }: PersonalInsightsViewProps) {
-  const conceptToDisplay = analysisResult?.concepts.find(c => c.id === selectedConcept?.id) || selectedConcept;
+  const conceptToDisplay = analysisResult?.concepts.find(c => c.id === selectedConcept?.id);
 
   if (!conceptToDisplay) {
     return (

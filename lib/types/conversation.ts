@@ -1,7 +1,6 @@
 // This type represents a code snippet in a concept
 export interface CodeSnippet {
   language: string
-  description: string
   code: string
 }
 
@@ -9,59 +8,23 @@ export interface CodeSnippet {
 export interface Concept {
   id: string
   title: string
-  category: string  // Keep for backward compatibility
-  categoryPath?: string[]  // New: Array path for hierarchical categories (e.g. ["Cloud", "Google Cloud"])
+  category: string
   summary: string
-  details: {
-    implementation: string
-    complexity: {
-      time?: string
-      space?: string
-    }
-    useCases: string[]
-    edgeCases: string[]
-    performance: string
-    interviewQuestions: string[]
-    practiceProblems: string[]
-    furtherReading: string[]
-  }
+  details: any // Can be string or structured object
   keyPoints: string[]
-  examples: string[]
-  codeSnippets: CodeSnippet[]
+  examples: any[]
   relatedConcepts: string[]
-  relationships?: {
-    data_structures?: string[]
-    algorithms?: string[]
-    patterns?: string[]
-    applications?: string[]
-    techniques?: string[]
-  }
-  // Add fields for review tracking
-  needsReview?: boolean
-  confidenceScore?: number
-  // Quick recall fields for enhanced learning
+  codeSnippets: any[]
+  
+  // Fields from learning journey analysis
+  personalNotes?: string
+  learningTips?: string[]
+  commonMistakes?: string[]
+
+  // Quick Recall fields
   keyTakeaway?: string
   analogy?: string
   practicalTips?: string[]
-  // Add embedding analysis data
-  embeddingData?: {
-    concept: any
-    relationships: Array<{
-      id: string
-      title: string
-      category: string
-      summary: string
-      similarity: number
-    }>
-    potentialDuplicates: Array<{
-      id: string
-      title: string
-      category: string
-      summary: string
-      similarity: number
-    }>
-    embedding: number[]
-  }
 }
 
 // Personal Learning Insights - New intelligence layer
@@ -123,8 +86,7 @@ export interface ConversationAnalysis {
   overallSummary: string
   conceptMap: string[]
   concepts: Concept[]
-  // New intelligent features
-  personalLearning?: PersonalLearningInsights;
+  personalLearning?: any // from learning journey analysis
   vectorMetadata?: VectorMetadata;
   metadata?: {
     extraction_time: string;
