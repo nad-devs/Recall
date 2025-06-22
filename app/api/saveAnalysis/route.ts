@@ -233,8 +233,15 @@ export async function POST(request: Request) {
     
     console.log("💾 SAVING CONCEPTS TO DATABASE:");
 
-    // We no longer create a "Conversation" entry.
-    // Concepts will be directly associated with the user.
+    // First, create a single conversation to link all concepts to.
+    const conversation = await prisma.conversation.create({
+      data: {
+        title: analysis.conversationTitle || "Untitled Analysis",
+        summary: analysis.overallSummary || "No summary provided.",
+        text: "Conversation text not stored in this version.", // Or you could pass the full text
+        userId: user.id,
+      },
+    });
 
     for (const conceptData of conceptsToProcess) {
       console.log(`Processing concept: ${conceptData.title}`);
@@ -267,7 +274,7 @@ export async function POST(request: Request) {
            confidenceScore: conceptData.confidenceScore,
            videoResources: conceptData.videoResources || '',
            userId: user.id,
-           conversationId: 'temp-conversation-id',
+           conversationId: conversation.id, // Use the real conversation ID
          },
        });
  
