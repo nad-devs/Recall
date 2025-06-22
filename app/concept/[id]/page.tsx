@@ -448,44 +448,64 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                     
                     {/* Quick Recall Content */}
                     <TabsContent value="quick-recall" className="mt-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Quick Recall</CardTitle>
-                          <CardDescription>The essential information for a quick review.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                          {concept.keyTakeaway && (
-                            <div>
-                              <h3 className="text-lg font-semibold mb-2 text-primary">Key Takeaway</h3>
-                              <p className="text-base leading-relaxed">{concept.keyTakeaway}</p>
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Quick Recall</CardTitle>
+                            <CardDescription>The essential information for a quick review.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            {concept.keyTakeaway && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-2 text-primary">Key Takeaway</h3>
+                                <p className="text-base leading-relaxed">{concept.keyTakeaway}</p>
+                              </div>
+                            )}
+                            {concept.analogy && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-2 text-primary">Analogy</h3>
+                                <p className="text-base italic leading-relaxed">"{concept.analogy}"</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                        
+                        {/* Code Examples Section for Quick Recall */}
+                        {concept.codeSnippets && concept.codeSnippets.length > 0 && (
+                          <div className="space-y-6">
+                            <div className="flex items-center mb-4">
+                              <Code className="mr-2 h-5 w-5" />
+                              <h2 className="text-xl font-semibold">Code Examples</h2>
                             </div>
-                          )}
-                          {concept.analogy && (
-                            <div>
-                              <h3 className="text-lg font-semibold mb-2 text-primary">Analogy</h3>
-                              <p className="text-base italic leading-relaxed">"{concept.analogy}"</p>
-                            </div>
-                          )}
-                          {concept.summary && (
-                            <div>
-                              <h3 className="text-lg font-semibold mb-2">Summary</h3>
-                              <div className="text-base leading-relaxed">{concept.summary}</div>
-                            </div>
-                          )}
-                          {practicalTips.length > 0 && (
-                            <div>
-                              <h3 className="text-lg font-semibold mb-4">Practical Tips</h3>
-                              <ul className="space-y-3 list-disc pl-6">
-                                {practicalTips.map((tip: string, index: number) => (
-                                  <li key={index} className="leading-relaxed">
-                                    {tip}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                            {concept.codeSnippets.map((snippet: any) => (
+                              <Card key={snippet.id} className="group">
+                                <CardHeader className="pb-3">
+                                  <div className="flex justify-between items-center">
+                                    <CardTitle className="text-lg">{snippet.description}</CardTitle>
+                                    <div className="flex items-center space-x-2">
+                                      <Badge variant="outline">{snippet.language}</Badge>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                                        onClick={() => deleteCodeSnippet(snippet.id)}
+                                        title="Delete code snippet"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  <pre className="bg-muted p-4 rounded-md overflow-x-auto text-sm">
+                                    <code>{snippet.code}</code>
+                                  </pre>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </TabsContent>
 
                     {/* Deep Dive Content */}
@@ -497,6 +517,12 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                             <CardDescription>The comprehensive details for in-depth study.</CardDescription>
                           </CardHeader>
                           <CardContent className="space-y-8">
+                            {concept.summary && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-2">Summary</h3>
+                                <div className="text-base leading-relaxed">{concept.summary}</div>
+                              </div>
+                            )}
                             {keyPoints.length > 0 && (
                               <div>
                                 <h3 className="text-lg font-semibold mb-4">Key Points</h3>
@@ -524,6 +550,18 @@ export default function ConceptDetailPage({ params }: { params: Promise<{ id: st
                                   {examples.map((example: string, index: number) => (
                                     <li key={index} className="leading-relaxed">
                                       {example}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {practicalTips.length > 0 && (
+                              <div>
+                                <h3 className="text-lg font-semibold mb-4">Practical Tips</h3>
+                                <ul className="space-y-3 list-disc pl-6">
+                                  {practicalTips.map((tip: string, index: number) => (
+                                    <li key={index} className="leading-relaxed">
+                                      {tip}
                                     </li>
                                   ))}
                                 </ul>
