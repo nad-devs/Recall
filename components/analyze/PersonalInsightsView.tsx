@@ -58,6 +58,9 @@ export function PersonalInsightsView({
     hasKeyTakeaway: !!concept?.keyTakeaway,
     hasAnalogy: !!concept?.analogy,
     hasPracticalTips: !!concept?.practicalTips,
+    hasCodeSnippets: !!(concept as any)?.codeSnippets?.length,
+    hasCodeExamples: !!(concept as any)?.code_examples?.length,
+    codeFields: Object.keys(concept || {}).filter(key => key.toLowerCase().includes('code')),
     allFields: concept ? Object.keys(concept) : []
   })
 
@@ -256,19 +259,19 @@ export function PersonalInsightsView({
           </div>
 
           {/* Code Snippets */}
-          {concept.codeSnippets && concept.codeSnippets.length > 0 && (
+          {((concept as any).code_examples && (concept as any).code_examples.length > 0) || (concept.codeSnippets && concept.codeSnippets.length > 0) ? (
             <div className="bg-slate-800/30 rounded-lg p-6">
               <h4 className="font-semibold text-slate-200 mb-4 flex items-center space-x-2">
                 <Code className="w-5 h-5 text-purple-400" />
                 <span>Code Examples</span>
               </h4>
               <div className="space-y-4">
-                {concept.codeSnippets.map((snippet: any, index: number) => (
+                {((concept as any).code_examples || concept.codeSnippets || []).map((snippet: any, index: number) => (
                   <div key={index} className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-slate-300">{snippet.description}</span>
+                      <span className="text-sm font-medium text-slate-300">{snippet.description || snippet.explanation || 'Code Example'}</span>
                       <span className="text-xs bg-purple-600/20 text-purple-300 px-2 py-1 rounded">
-                        {snippet.language}
+                        {snippet.language || 'text'}
                       </span>
                     </div>
                     <pre className="text-sm text-slate-300 overflow-x-auto">
@@ -278,7 +281,7 @@ export function PersonalInsightsView({
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Implementation Details */}
           {concept.details && typeof concept.details === 'object' && (
