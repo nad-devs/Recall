@@ -1,37 +1,67 @@
 import { useState, useEffect, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 
-interface ConceptData {
-  id: string
-  title: string
-  category: string
-  summary: string
-  details: string
-  keyPoints: string[] | string
-  examples: string
-  relatedConcepts: string[] | { id: string; title: string }[]
-  relationships: string
-  codeSnippets: {
-    id: string
-    language: string
-    code: string
-    description: string
-  }[]
-  conversation: {
-    id: string
-    title: string
-    date: string
-    summary: string
-  }
-  // Enhancement fields
-  videoResources?: string
-  commonMistakes?: string
-  personalNotes?: string
+interface CodeSnippet {
+  id: string;
+  language: string;
+  code: string;
+  description: string;
+}
 
-  // Quick Recall fields
-  keyTakeaway?: string
-  analogy?: string
-  practicalTips?: string
+interface Conversation {
+  id: string;
+  title: string;
+  date: string;
+  summary: string;
+  text?: string;
+}
+
+interface ConceptData {
+  id: string;
+  title: string;
+  category: string;
+  summary: string;
+  details: string;
+  keyPoints: string[] | string;
+  examples: string;
+  relatedConcepts: string[] | { id: string; title: string }[];
+  confidenceScore?: number;
+  lastUpdated?: Date;
+  isPlaceholder?: boolean;
+  userId: string;
+  reviewCount?: number;
+  lastReviewed?: Date | null;
+  nextReviewDate?: Date | null;
+  conversationId?: string | null;
+  masteryLevel?: string | null;
+  learningProgress?: number;
+  practiceCount?: number;
+  lastPracticed?: Date | null;
+  difficultyRating?: number | null;
+  timeToMaster?: number | null;
+  videoResources?: string;
+  documentationLinks?: string;
+  practiceExercises?: string;
+  realWorldExamples?: string;
+  prerequisites?: string;
+  personalNotes?: string | null;
+  mnemonics?: string | null;
+  commonMistakes?: string;
+  personalExamples?: string;
+  learningTips?: string;
+  useCases?: string;
+  industries?: string;
+  tools?: string;
+  projectsUsedIn?: string;
+  tags?: string;
+  bookmarked?: boolean;
+  personalRating?: number | null;
+  createdAt: Date;
+  keyTakeaway?: string | null;
+  analogy?: string | null;
+  practicalTips?: string;
+  codeSnippets: CodeSnippet[];
+  conversation?: Conversation | null;
 }
 
 interface RelatedConversation {
