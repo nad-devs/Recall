@@ -253,6 +253,7 @@ export async function GET(
         summary: true,
         keyPoints: true,
         details: true,
+        examples: true,
         commonMistakes: true,
         relatedConcepts: true,
         keyTakeaway: true,
@@ -402,6 +403,7 @@ export async function GET(
     if (concept.keyTakeaway) cleanedConcept.keyTakeaway = concept.keyTakeaway;
     if (concept.analogy) cleanedConcept.analogy = concept.analogy;
     if (concept.practicalTips) cleanedConcept.practicalTips = concept.practicalTips;
+    if (concept.examples) cleanedConcept.examples = concept.examples;
 
     // Get conversations where this concept appears using occurrences
     const occurrences = await prisma.occurrence.findMany({
