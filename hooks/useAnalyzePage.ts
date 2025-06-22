@@ -249,7 +249,7 @@ export function useAnalyzePage() {
       concept.title.toLowerCase().includes(searchQuery.toLowerCase())
     ) || []
 
-  const handleCategoryUpdate = async (conceptId: string, newCategory: string) => {
+  const handleCategoryUpdate = async (conceptId: string, fullCategory: string) => {
     if (!analysisResult) return;
 
     const conceptToUpdate = analysisResult.concepts.find(c => c.id === conceptId);
@@ -258,13 +258,13 @@ export function useAnalyzePage() {
     // UI-only Update: This is an unsaved analysis, so we just update the local state.
     // The correct category will be saved when the user clicks "Save Analysis".
     const updatedConcepts = analysisResult.concepts.map(c =>
-      c.id === conceptId ? { ...c, category: newCategory } : c
+      c.id === conceptId ? { ...c, category: fullCategory } : c
     );
     setAnalysisResult({ ...analysisResult, concepts: updatedConcepts });
 
     toast({
       title: "Category Updated (Locally)",
-      description: `Moved "${conceptToUpdate.title}" to ${newCategory}. This will be saved when you save the analysis.`,
+      description: `Moved "${conceptToUpdate.title}" to ${fullCategory}. This will be saved when you save the analysis.`,
     });
   };
 

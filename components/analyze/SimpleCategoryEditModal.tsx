@@ -76,7 +76,8 @@ export function SimpleCategoryEditModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave(concept.id, category, subcategories);
+      const fullCategory = [category, ...subcategories].join(' > ');
+      await onSave(concept.id, fullCategory, subcategories);
       onClose();
     } catch (error) {
       console.error('Failed to save category:', error);

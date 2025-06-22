@@ -93,7 +93,7 @@ export function TagInput({ tags, setTags, placeholder, suggestions = [] }: TagIn
         autoComplete="off"
       />
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto">
+        <ul className="absolute z-10 w-full bg-card shadow-md border border-border rounded-md mt-1 max-h-40 overflow-y-auto">
           {filteredSuggestions.map((suggestion, index) => (
             <li
               key={suggestion}
