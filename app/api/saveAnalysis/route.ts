@@ -3,33 +3,35 @@ import { prisma } from '@/lib/prisma';
 import { validateSession } from '@/lib/session';
 import { getClientIP, canMakeServerConversation } from '@/lib/usage-tracker-server';
 
-async function findOrCreateCategory(categoryString: string, userId: string): Promise<void> {
-  if (!categoryString || categoryString === 'General') return;
-  
+async function findOrCreateCategory(categoryString: string, userId: string, tx: any): Promise<string> {
   const parts = categoryString.split(' > ').map(p => p.trim());
   let parentId: string | null = null;
+  let categoryId: string | null = null;
 
   for (const part of parts) {
-    let category: any = await prisma.category.findFirst({
-      where: {
-        name: part,
-        userId,
-        parentId,
-      },
+    let category: { id: string } | null = await tx.category.findFirst({
+      where: { name: part, userId, parentId },
     });
 
     if (!category) {
-      category = await prisma.category.create({
-        data: {
-          name: part,
-          userId,
-          parentId,
-        },
+      category = await tx.category.create({
+        data: { name: part, userId, parentId },
       });
-      console.log(`✅ Created new category: ${part} (parent: ${parentId})`);
     }
-    parentId = category.id;
+    parentId = category!.id;
+    categoryId = category!.id;
   }
+  
+  if (!categoryId) {
+    // Fallback for "General" or empty category string
+    let generalCategory: { id: string } | null = await tx.category.findFirst({ where: { name: 'General', userId, parentId: null }});
+    if (!generalCategory) {
+      generalCategory = await tx.category.create({ data: { name: 'General', userId, parentId: null }});
+    }
+    categoryId = generalCategory!.id;
+  }
+
+  return categoryId;
 }
 
 interface Concept {
@@ -228,78 +230,52 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const createdConcepts = [];
+    let createdConcepts: string[] = [];
     const updatedConcepts = [];
     
     console.log("💾 SAVING CONCEPTS TO DATABASE:");
 
-    // First, create a single conversation to link all concepts to.
-    const conversation = await prisma.conversation.create({
-      data: {
-        title: analysis.conversationTitle || "Untitled Analysis",
-        summary: analysis.overallSummary || "No summary provided.",
-        text: "Conversation text not stored in this version.", // Or you could pass the full text
-        userId: user.id,
-      },
+    // Wrap all database operations in a single transaction
+    await prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.create({
+        data: {
+          title: analysis.conversationTitle || "Untitled Analysis",
+          summary: analysis.overallSummary || "No summary provided.",
+          text: "Conversation text not stored in this version.",
+          userId: user.id,
+        },
+      });
+
+      const conceptCreationPromises = conceptsToProcess.map(async (conceptData) => {
+        const categoryId = await findOrCreateCategory(conceptData.category || 'General', user.id, tx);
+
+        const newConcept = await tx.concept.create({
+          data: {
+            title: conceptData.title,
+            category: conceptData.category || 'General',
+            summary: conceptData.summary,
+            keyPoints: JSON.stringify(conceptData.keyPoints || []),
+            details: conceptData.details || '',
+            examples: JSON.stringify(conceptData.examples || []),
+            relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
+            relationships: JSON.stringify(conceptData.relationships || {}),
+            keyTakeaway: conceptData.keyTakeaway,
+            analogy: conceptData.analogy,
+            practicalTips: JSON.stringify(conceptData.practicalTips || []),
+            confidenceScore: conceptData.confidenceScore,
+            videoResources: conceptData.videoResources || '',
+            userId: user.id,
+            conversationId: conversation.id,
+            categories: {
+              connect: { id: categoryId },
+            },
+          },
+        });
+        return newConcept.id;
+      });
+      
+      createdConcepts = await Promise.all(conceptCreationPromises);
     });
-
-    for (const conceptData of conceptsToProcess) {
-      console.log(`Processing concept: ${conceptData.title}`);
-
-      // If the concept has an ID, it's an update
-      if (conceptData.id) {
-        // Logic for updating an existing concept can go here
-        console.log(`Skipping update for existing concept: ${conceptData.title}`);
-        continue;
-       }
- 
-       // We'll handle duplicates/updates later. For now, we create new concepts.
-       
-       // Create or find the category structure in the database
-       await findOrCreateCategory(conceptData.category || 'General', user.id);
-
-       const newConcept = await prisma.concept.create({
-         data: {
-           title: conceptData.title,
-           category: conceptData.category || guessCategoryFromTitle(conceptData.title),
-           summary: conceptData.summary,
-           keyPoints: JSON.stringify(conceptData.keyPoints || []),
-           details: conceptData.details || '',
-           examples: JSON.stringify(conceptData.examples || []),
-           relatedConcepts: JSON.stringify(conceptData.relatedConcepts || []),
-           relationships: JSON.stringify(conceptData.relationships || {}),
-           keyTakeaway: conceptData.keyTakeaway,
-           analogy: conceptData.analogy,
-           practicalTips: JSON.stringify(conceptData.practicalTips || []),
-           confidenceScore: conceptData.confidenceScore,
-           videoResources: conceptData.videoResources || '',
-           userId: user.id,
-           conversationId: conversation.id, // Use the real conversation ID
-         },
-       });
- 
-       createdConcepts.push(newConcept.id);
-       console.log(`✅ Created new concept: ${newConcept.title} with ID: ${newConcept.id}`);
- 
-       // Create code snippets if they exist
-       if (conceptData.codeSnippets && conceptData.codeSnippets.length > 0) {
-        console.log(`💾 Creating ${conceptData.codeSnippets.length} code snippets for concept: ${newConcept.title}`);
-         
-         for (const snippet of conceptData.codeSnippets) {
-           try {
-             await prisma.codeSnippet.create({
-               data: {
-                 ...snippet,
-                 conceptId: newConcept.id,
-               },
-             });
-            console.log(`✅ Created code snippet for concept: ${newConcept.title}`);
-           } catch (snippetError) {
-            console.error(`❌ Error creating code snippet for concept ${newConcept.title}:`, snippetError);
-           }
-         }
-       }
-    }
     
     console.log("📊 Final Results:", {
       conceptCount: createdConcepts.length,
