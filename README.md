@@ -5,6 +5,7 @@
 <div align="center">
 
 ![Recall Logo](https://img.shields.io/badge/Recall-AI%20Learning-blue?style=for-the-badge&logo=brain&logoColor=white)
+![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)
 
 **Transform conversations and notes into a structured, searchable knowledge base automatically**
 
