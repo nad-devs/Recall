@@ -321,7 +321,26 @@ export function useAnalyzePage() {
   };
 
   const handleAddConcept = () => {}
-  const handleDeleteConcept = () => {}
+  const handleDeleteConcept = (conceptId: string) => {
+    if (!analysisResult) return;
+
+    const updatedConcepts = analysisResult.concepts.filter(c => c.id !== conceptId);
+    
+    setAnalysisResult({
+      ...analysisResult,
+      concepts: updatedConcepts,
+    });
+
+    // If the deleted concept was the selected one, deselect it
+    if (selectedConcept?.id === conceptId) {
+      setSelectedConcept(null);
+    }
+
+    toast({
+      title: "Concept Removed",
+      description: "The concept has been removed from this analysis session.",
+    });
+  };
   const handleDeleteCodeSnippet = () => {}
   const handleConfirmConceptUpdates = () => {}
   const handleCancelConceptUpdates = () => {}
@@ -405,9 +424,9 @@ export function useAnalyzePage() {
     handleCategoryEdit,
     handleCategoryDialogClose,
     handleCategoryUpdate,
+    handleDeleteConcept,
     // Unused handlers from previous version (can be removed or implemented)
     handleAddConcept,
-    handleDeleteConcept,
     handleDeleteCodeSnippet,
     handleConfirmConceptUpdates,
     handleCancelConceptUpdates,

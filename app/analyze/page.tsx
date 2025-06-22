@@ -43,7 +43,6 @@ function AnalyzePage() {
     showCategoryDialog,
     editingConcept,
     structuredCategories,
-    isFetchingCategories,
 
     // Setters
     setConversationText,
@@ -66,6 +65,7 @@ function AnalyzePage() {
     handleCategoryEdit,
     handleCategoryDialogClose,
     handleCategoryUpdate,
+    handleDeleteConcept,
   } = useAnalyzePage()
 
   return (
@@ -141,6 +141,7 @@ function AnalyzePage() {
                   loadingConcepts={loadingConcepts}
                   setEditConceptMode={setEditConceptMode}
                   setShowAddConceptCard={setShowAddConceptCard}
+                  onDelete={handleDeleteConcept}
                 />
               </div>
 
@@ -195,7 +196,6 @@ function AnalyzePage() {
               }}
               concept={editingConcept}
               structuredCategories={structuredCategories}
-              isLoading={isFetchingCategories}
             />
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
-import { motion } from "framer-motion"
-import { PlusCircle } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { PlusCircle, X } from "lucide-react"
 import { Concept } from '@/lib/types/conversation'
 import { Spinner } from '@/components/ui/spinner'
 import { SmartLearningDashboard } from '@/components/smart-learning/SmartLearningDashboard'
@@ -12,6 +12,7 @@ interface ConceptsListProps {
   setSelectedConcept: (concept: Concept) => void
   setEditConceptMode: (mode: boolean) => void
   setShowAddConceptCard: (show: boolean) => void
+  onDelete: (conceptId: string) => void
   searchQuery: string
   setSearchQuery: (query: string) => void
   loadingConcepts?: string[]
@@ -130,6 +131,7 @@ export function ConceptsList({
   setSelectedConcept,
   setEditConceptMode,
   setShowAddConceptCard,
+  onDelete,
   searchQuery,
   setSearchQuery,
   loadingConcepts = [],
@@ -199,79 +201,90 @@ export function ConceptsList({
         </div>
         <div className="p-0">
           <div className="space-y-2 p-3">
-            {filteredConcepts.map((concept, index) => (
-              <motion.div
-                key={concept.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
-              >
-                <div className="flex items-center">
-                  <button
-                    className={`w-full justify-start text-left font-normal py-3 px-4 rounded-md hover:bg-muted transition-colors ${
-                      selectedConcept?.id === concept.id ? "bg-muted font-medium" : ""
-                    }`}
-                    onClick={() => setSelectedConcept(concept)}
-                  >
-                    <div className="flex items-start">
-                      <div className="mr-3 mt-0.5 flex-shrink-0">
-                        {getCategoryIcon(concept.category)}
+            <AnimatePresence>
+              {filteredConcepts.map((concept, index) => (
+                <motion.div
+                  key={concept.id}
+                  className={`group relative p-3 rounded-lg cursor-pointer transition-colors duration-200 ease-in-out ${
+                    selectedConcept?.id === concept.id
+                      ? "bg-primary/10"
+                      : "hover:bg-muted/50"
+                  }`}
+                  onClick={() => setSelectedConcept(concept)}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <div className="flex items-start">
+                    <div className="mr-3 mt-0.5 flex-shrink-0">
+                      {getCategoryIcon(concept.category)}
+                    </div>
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="font-medium truncate pr-2">{concept.title}</div>
+                      <div className="text-sm text-muted-foreground mt-1 pr-2 line-clamp-2 break-words leading-tight">
+                        {concept.summary?.substring(0, 120) || "No description available"}
                       </div>
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <div className="font-medium truncate pr-2">{concept.title}</div>
-                        <div className="text-sm text-muted-foreground mt-1 pr-2 line-clamp-2 break-words leading-tight">
-                          {concept.summary?.substring(0, 120) || "No description available"}
-                        </div>
-                        
-                        {/* Show enhanced features available */}
-                        <div className="flex items-center gap-2 mt-2">
-                          {(concept as any).keyTakeaway && (
-                            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
-                              Quick Recall
-                            </span>
-                          )}
-                          {(concept as any).codeSnippets && (concept as any).codeSnippets.length > 0 && (
-                            <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
-                              Code
-                            </span>
-                          )}
-                          {(concept as any).keyPoints && (concept as any).keyPoints.length > 0 && (
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
-                              Details
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Show embedding-based insights */}
-                        {concept.embeddingData && (
-                          <div className="mt-2 space-y-1">
-                            {/* Show potential duplicates */}
-                            {concept.embeddingData.potentialDuplicates.length > 0 && (
-                              <div className="flex items-center text-xs text-orange-600 dark:text-orange-400">
-                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                Similar to "{concept.embeddingData.potentialDuplicates[0].title}"
-                              </div>
-                            )}
-                            
-                            {/* Show related concepts */}
-                            {concept.embeddingData.relationships.length > 0 && (
-                              <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
-                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                                </svg>
-                                Related to {concept.embeddingData.relationships.length} concept{concept.embeddingData.relationships.length > 1 ? 's' : ''}
-                              </div>
-                            )}
-                          </div>
+                      
+                      {/* Show enhanced features available */}
+                      <div className="flex items-center gap-2 mt-2">
+                        {(concept as any).keyTakeaway && (
+                          <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                            Quick Recall
+                          </span>
+                        )}
+                        {(concept as any).codeSnippets && (concept as any).codeSnippets.length > 0 && (
+                          <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                            Code
+                          </span>
+                        )}
+                        {(concept as any).keyPoints && (concept as any).keyPoints.length > 0 && (
+                          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                            Details
+                          </span>
                         )}
                       </div>
+                      
+                      {/* Show embedding-based insights */}
+                      {concept.embeddingData && (
+                        <div className="mt-2 space-y-1">
+                          {/* Show potential duplicates */}
+                          {concept.embeddingData.potentialDuplicates.length > 0 && (
+                            <div className="flex items-center text-xs text-orange-600 dark:text-orange-400">
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                              Similar to "{concept.embeddingData.potentialDuplicates[0].title}"
+                            </div>
+                          )}
+                          
+                          {/* Show related concepts */}
+                          {concept.embeddingData.relationships.length > 0 && (
+                            <div className="flex items-center text-xs text-blue-600 dark:text-blue-400">
+                              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                              </svg>
+                              Related to {concept.embeddingData.relationships.length} concept{concept.embeddingData.relationships.length > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(concept.id);
+                    }}
+                    className="absolute top-2 right-2 p-1 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Delete concept"
+                  >
+                    <X className="h-4 w-4" />
                   </button>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
             {filteredConcepts.length === 0 && (
               <div className="px-3 py-6 text-center text-muted-foreground">
