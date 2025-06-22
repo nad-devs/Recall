@@ -186,7 +186,7 @@ export function useAnalyzePage() {
     if (!currentAnalysis) return
     
     try {
-      console.log("💾 performSaveAnalysis - Starting API call with concepts:", currentAnalysis.concepts.map(c => ({ title: c.title, category: c.category })));
+      console.log("💾 [HOOK SAVE] Saving analysis. Current concepts:", currentAnalysis.concepts.map(c => ({ title: c.title, category: c.category })));
       
       const conceptsWithYouTubeLink = youtubeLink ? currentAnalysis.concepts.map(concept => ({
         ...concept,
@@ -252,6 +252,8 @@ export function useAnalyzePage() {
   const handleCategoryUpdate = async (conceptId: string, fullCategory: string) => {
     if (!analysisResult) return;
 
+    console.log('[HOOK UPDATE] handleCategoryUpdate called with conceptId:', conceptId, 'and fullCategory:', fullCategory);
+
     const conceptToUpdate = analysisResult.concepts.find(c => c.id === conceptId);
     if (!conceptToUpdate) return;
 
@@ -260,6 +262,7 @@ export function useAnalyzePage() {
     const updatedConcepts = analysisResult.concepts.map(c =>
       c.id === conceptId ? { ...c, category: fullCategory } : c
     );
+    console.log('[HOOK UPDATE] Concepts array updated locally.', updatedConcepts);
     setAnalysisResult({ ...analysisResult, concepts: updatedConcepts });
 
     toast({

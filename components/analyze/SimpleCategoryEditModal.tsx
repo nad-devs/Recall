@@ -76,6 +76,7 @@ export function SimpleCategoryEditModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      console.log('[MODAL SAVE] Triggered with category:', category, 'and subcategories:', subcategories);
       await onSave(concept.id, category, subcategories);
       onClose();
     } catch (error) {

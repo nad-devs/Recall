@@ -191,7 +191,9 @@ function AnalyzePage() {
               isOpen={showCategoryDialog}
               onClose={handleCategoryDialogClose}
               onSave={async (conceptId, newCategory, subcategories) => {
+                console.log('[PAGE ONSAVE] Received from modal -> conceptId:', conceptId, 'newCategory:', newCategory, 'subcategories:', subcategories);
                 const finalCategory = [newCategory, ...subcategories].join(' > ');
+                console.log('[PAGE ONSAVE] Constructed finalCategory:', finalCategory);
                 await handleCategoryUpdate(conceptId, finalCategory);
                 handleCategoryDialogClose();
               }}
