@@ -13,6 +13,7 @@ import { YouTubeLinkPrompt } from "@/components/youtube-link-prompt"
 interface PersonalInsightsViewProps {
   analysisResult: ConversationAnalysis | null
   selectedConcept: Concept | null
+  setSelectedConcept: (concept: Concept) => void
   showYouTubeLinkPrompt: boolean
   onYouTubeLinkAdd: (link: string) => void
   onYouTubeLinkSkip: () => void
@@ -24,6 +25,7 @@ interface PersonalInsightsViewProps {
 export function PersonalInsightsView({
   analysisResult,
   selectedConcept,
+  setSelectedConcept,
   showYouTubeLinkPrompt,
   onYouTubeLinkAdd,
   onYouTubeLinkSkip,
@@ -180,6 +182,32 @@ export function PersonalInsightsView({
               {concept.summary || "Detailed summary will appear here."}
             </p>
           </div>
+
+          {/* Related Concepts */}
+          {concept.relatedConcepts && concept.relatedConcepts.length > 0 && (
+            <div className="bg-slate-800/30 rounded-lg p-6">
+              <h4 className="font-semibold text-slate-200 mb-4 flex items-center space-x-2">
+                <Brain className="w-5 h-5 text-purple-400" />
+                <span>Related Concepts</span>
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {concept.relatedConcepts.map((related: any, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      const relatedConcept = analysisResult?.concepts.find(c => c.title === (typeof related === 'string' ? related : related.title));
+                      if (relatedConcept) {
+                        setSelectedConcept(relatedConcept);
+                      }
+                    }}
+                    className="bg-purple-900/50 text-purple-300 px-3 py-1 rounded-full text-sm border border-purple-700/50 hover:bg-purple-900 transition-colors"
+                  >
+                    {typeof related === 'string' ? related : related.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Details and Key Points */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
