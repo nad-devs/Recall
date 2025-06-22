@@ -276,48 +276,17 @@ export function useAnalyzePage() {
     const conceptToUpdate = analysisResult.concepts.find(c => c.id === conceptId);
     if (!conceptToUpdate) return;
 
-    const oldCategory = conceptToUpdate.category;
-
-    // Optimistic UI Update
+    // UI-only Update: This is an unsaved analysis, so we just update the local state.
+    // The correct category will be saved when the user clicks "Save Analysis".
     const updatedConcepts = analysisResult.concepts.map(c =>
       c.id === conceptId ? { ...c, category: newCategory } : c
     );
     setAnalysisResult({ ...analysisResult, concepts: updatedConcepts });
 
     toast({
-      title: "Category Updated",
-      description: `Moved "${conceptToUpdate.title}" to ${newCategory}.`,
+      title: "Category Updated (Locally)",
+      description: `Moved "${conceptToUpdate.title}" to ${newCategory}. This will be saved when you save the analysis.`,
     });
-
-    try {
-      // Persist change to the database via Redux
-      await dispatch(moveConceptsAsync({ conceptIds: [conceptId], targetCategory: newCategory }) as any).unwrap();
-
-      // Trigger Smart Learning
-      await fetch('/api/v1/manual-category-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content_snippet: `${conceptToUpdate.title} ${conceptToUpdate.summary}`,
-          old_category: oldCategory,
-          new_category: newCategory,
-        }),
-      });
-
-    } catch (error) {
-      // Revert UI on error
-      const revertedConcepts = analysisResult.concepts.map(c =>
-        c.id === conceptId ? { ...c, category: oldCategory } : c
-      );
-      setAnalysisResult({ ...analysisResult, concepts: revertedConcepts });
-
-      toast({
-        title: "Update Failed",
-        description: "Could not update the category. Please try again.",
-        variant: "destructive",
-      });
-      console.error("Failed to update category:", error as Error);
-    }
   };
 
   const handleAddConcept = () => {}
