@@ -3031,4 +3031,5 @@ def get_structured_categories():
 @app.get("/api/v1/structured-categories")
 async def get_categories():
     """Returns a structured list of main categories and their subcategories."""
+    # This endpoint provides the category data for the frontend autocomplete.
     return get_structured_categories()
