@@ -12,7 +12,7 @@ interface SimpleCategoryEditModalProps {
   onClose: () => void;
   onSave: (conceptId: string, newCategory: string, subcategories: string[]) => Promise<void>;
   concept: Concept | null;
-  existingCategories: string[];
+  structuredCategories: { [key: string]: string[] };
 }
 
 export function SimpleCategoryEditModal({
@@ -20,7 +20,7 @@ export function SimpleCategoryEditModal({
   onClose,
   onSave,
   concept,
-  existingCategories,
+  structuredCategories,
 }: SimpleCategoryEditModalProps) {
   const [category, setCategory] = useState('');
   const [subcategories, setSubcategories] = useState<string[]>([]);
@@ -43,7 +43,9 @@ export function SimpleCategoryEditModal({
     onClose();
   };
   
-  const categoryOptions = existingCategories.map(cat => ({ value: cat, label: cat }));
+  const mainCategories = Object.keys(structuredCategories);
+  const categoryOptions = mainCategories.map(cat => ({ value: cat, label: cat }));
+  const subcategorySuggestions = structuredCategories[category] || [];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -70,6 +72,7 @@ export function SimpleCategoryEditModal({
               tags={subcategories}
               setTags={setSubcategories}
               placeholder="Add subcategories..."
+              suggestions={subcategorySuggestions}
             />
           </div>
         </div>

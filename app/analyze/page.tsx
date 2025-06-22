@@ -68,6 +68,7 @@ function AnalyzePage() {
   } = useAnalyzePage()
 
   const [allCategories, setAllCategories] = useState<string[]>([])
+  const [structuredCategories, setStructuredCategories] = useState<{ [key: string]: string[] }>({})
 
   useEffect(() => {
     // Fetch all unique categories for the dropdown
@@ -78,6 +79,25 @@ function AnalyzePage() {
       setAllCategories(uniqueCategories)
     }
   }, [analysisResult])
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        // Assuming the backend runs on port 8000
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${apiUrl}/api/v1/structured-categories`);
+        if (response.ok) {
+          const data = await response.json();
+          setStructuredCategories(data);
+        } else {
+          console.error("Failed to fetch structured categories:", response.statusText);
+        }
+      } catch (error) {
+        console.error("Error fetching structured categories:", error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   return (
     <AuthGuard>
@@ -205,7 +225,7 @@ function AnalyzePage() {
                 handleCategoryDialogClose();
               }}
               concept={editingConcept}
-              existingCategories={allCategories}
+              structuredCategories={structuredCategories}
             />
           )}
         </div>
