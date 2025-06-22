@@ -176,6 +176,7 @@ model Concept {
   tags               String    @default("[]") // User-defined tags
   bookmarked         Boolean   @default(false)
   personalRating     Int?      // Personal rating 1-5
+  techniques         String[]  // Techniques used, e.g., ["Hash Table", "Two Pointers"]
   
   createdAt          DateTime  @default(now())
 

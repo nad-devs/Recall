@@ -54,7 +54,8 @@ export function mapBackendResponseToAnalysis(data: BackendResponse): Conversatio
     const related = [
       ...(relationships.data_structures ?? []),
       ...(relationships.algorithms ?? []),
-      ...(relationships.patterns ?? [])
+      ...(relationships.patterns ?? []),
+      ...(relationships.techniques ?? [])
     ];
     return related.length > 0 
       ? `${concept.title} → ${related.join(', ')}`
