@@ -41,7 +41,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "framer-motion": "^12.12.2",
-    "langchain": "^0.3.26",
+    "langchain": "^0.3.37",
     "lucide-react": "^0.511.0",
     "nanoid": "^5.1.5",
     "next": "15.2.4",
